@@ -21,12 +21,12 @@ object Dependencies {
   val workbenchUtilV = "0.5-4c7acd5"
   val workbenchModelV = "0.13-31cacc4"
   val workbenchGoogleV = "0.21-2a218f3"
-  val workbenchGoogle2V = "0.11-f401a38"
+  val workbenchGoogle2V = "0.11-46edfa3-SNAP"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchOpenTelemetryV = "0.1-e66171c"
   val workbenchErrorReportingV = "0.1-92fcd96"
 
-  val helmScalaSdkV = "0.0.1-SNAPSHOT"
+  val helmScalaSdkV = "0.0.2-SNAPSHOT"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = "akka-stream_2.12")
@@ -117,6 +117,7 @@ object Dependencies {
   val workbenchErrorReportingTest: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV % Test classifier "tests" excludeAll(excludeGoogleErrorReporting)
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
+  val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % "test" classifier "tests"
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
@@ -181,6 +182,7 @@ object Dependencies {
     workbenchErrorReporting,
     workbenchErrorReportingTest,
     helmScalaSdk,
+    helmScalaSdkTest,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
     "com.rms.miu" %% "slick-cats" % "0.10.1",

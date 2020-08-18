@@ -10,6 +10,7 @@ import cats.effect.concurrent.Semaphore
 import cats.effect._
 import cats.implicits._
 import com.google.api.services.compute.ComputeScopes
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.devtools.clouderrorreporting.v1beta1.ProjectName
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
@@ -53,6 +54,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
+import org.broadinstitute.dsp.{Helm, HelmAlgebra}
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 
@@ -244,6 +246,8 @@ object Boot extends IOApp {
                                                  vpcInterp,
                                                  googleDependencies.gkeService,
                                                  googleDependencies.kubeService,
+                                                 appDependencies.helmClient,
+                                                 googleDependencies.credentials,
                                                  appDependencies.blocker)
 
           val pubsubSubscriber =
@@ -359,6 +363,7 @@ object Boot extends IOApp {
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
+      helmClient = new Helm[F](blocker, semaphore)
 
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
 
@@ -402,7 +407,8 @@ object Boot extends IOApp {
         gkeService,
         kubeService,
         openTelemetry,
-        errorReporting
+        errorReporting,
+        credential
       )
     } yield AppDependencies(
       storage,
@@ -422,7 +428,8 @@ object Boot extends IOApp {
       publisherQueue,
       dataAccessedUpdater,
       subscriber,
-      asyncTasksQueue
+      asyncTasksQueue,
+      helmClient
     )
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
@@ -442,7 +449,8 @@ final case class GoogleDependencies[F[_]](
   gkeService: GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
-  errorReporting: ErrorReporting[F]
+  errorReporting: ErrorReporting[F],
+  credentials: GoogleCredentials
 )
 
 final case class AppDependencies[F[_]](
@@ -463,5 +471,6 @@ final case class AppDependencies[F[_]](
   publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage],
   dateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, UpdateDateAccessMessage],
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
-  asyncTasksQueue: InspectableQueue[F, Task[F]]
+  asyncTasksQueue: InspectableQueue[F, Task[F]],
+  helmClient: HelmAlgebra[F]
 )

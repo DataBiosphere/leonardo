@@ -17,7 +17,8 @@ object KubernetesTestData {
   val location = Location("us-central1-a")
   val region = RegionName("us-central1")
 
-  val externalIp = IP("0.0.0.0")
+  val loadBalancerIp = IP("0.0.0.0")
+  val apiServerIp = IP("1.2.3.4")
   val namespace0 = NamespaceName("namespace00")
   val namespace1 = NamespaceName("namespace01")
 

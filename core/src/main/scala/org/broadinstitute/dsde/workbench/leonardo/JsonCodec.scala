@@ -194,7 +194,9 @@ object JsonCodec {
   implicit val networkFieldsEncoder: Encoder[NetworkFields] =
     Encoder.forProduct3("networkName", "subNetworkName", "subNetworkIpRange")(x => NetworkFields.unapply(x).get)
   implicit val kubeAsyncFieldEncoder: Encoder[KubernetesClusterAsyncFields] =
-    Encoder.forProduct2("apiServerIp", "networkInfo")(x => KubernetesClusterAsyncFields.unapply(x).get)
+    Encoder.forProduct3("loadBalancerIp", "apiServerIp", "networkInfo")(x =>
+      KubernetesClusterAsyncFields.unapply(x).get
+    )
 
   implicit val createClusterEncoder: Encoder[CreateCluster] =
     Encoder.forProduct2("clusterId", "nodepoolId")(x => (x.clusterId, x.defaultNodepoolId))
@@ -399,7 +401,7 @@ object JsonCodec {
   implicit val networkFieldsDecoder: Decoder[NetworkFields] =
     Decoder.forProduct3("networkName", "subNetworkName", "subNetworkIpRange")(NetworkFields)
   implicit val kubeAsyncFieldDecoder: Decoder[KubernetesClusterAsyncFields] =
-    Decoder.forProduct2("apiServerIp", "networkInfo")(KubernetesClusterAsyncFields)
+    Decoder.forProduct3("loadBalancerIp", "apiServerIp", "networkInfo")(KubernetesClusterAsyncFields)
 
   implicit val createClusterDecoder: Decoder[CreateCluster] =
     Decoder.forProduct2("clusterId", "nodepoolId")(CreateCluster.apply)

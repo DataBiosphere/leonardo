@@ -3,11 +3,13 @@ package util
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
+import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.container.v1.MasterAuthorizedNetworksConfig.CidrBlock
 import com.google.container.v1._
+import fs2._
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
@@ -22,19 +24,22 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsp.{AuthContext, HelmAlgebra}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
 
 final case class GKEInterpreterConfig(securityFiles: SecurityFilesConfig,
-                                      ingressConfig: IngressHelmConfig,
+                                      ingressConfig: KubernetesIngressConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig)
-class GKEInterpreter[F[_]: Parallel: ContextShift](
+class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   config: GKEInterpreterConfig,
   vpcAlg: VPCAlgebra[F],
   gkeService: org.broadinstitute.dsde.workbench.google2.GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
+  helmClient: HelmAlgebra[F],
+  credentials: GoogleCredentials,
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
   logger: StructuredLogger[F],
@@ -51,6 +56,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
         s"Beginning cluster creation for cluster ${params.clusterId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
       )
 
+      // Grab records from the database
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(params.clusterId).transaction
       dbCluster <- F.fromOption(
         clusterOpt,
@@ -119,9 +125,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
         )
         .build()
 
+      // Submit request to GKE
       req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, createClusterReq)
       op <- gkeService.createCluster(req)
 
+      // Poll GKE until completion
       lastOp <- gkeService
         .pollOperation(
           KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op),
@@ -146,13 +154,59 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
             )
           )
 
-      //TODO helm install
+      googleClusterOpt <- gkeService.getCluster(dbCluster.getGkeClusterId)
+      googleCluster <- F.fromOption(
+        googleClusterOpt,
+        ClusterCreationException(
+          s"Cluster not found in Google: ${dbCluster.getGkeClusterId} | trace id: ${ctx.traceId}"
+        )
+      )
+
+      // Install nginx igress controller
+      _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
+
+      // TODO figure out how to unit test
+      //_ <- Async[F].delay(credentials.refreshIfExpired())
+
+      helmAuthContext = AuthContext(
+        org.broadinstitute.dsp.Namespace(config.ingressConfig.namespace.value),
+        org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
+        org.broadinstitute.dsp.KubeApiServer(googleCluster.getEndpoint)
+      )
+      _ <- helmClient
+        .installChart(
+          org.broadinstitute.dsp.Release(config.ingressConfig.release.value),
+          org.broadinstitute.dsp.Chart(config.ingressConfig.chart.value),
+          org.broadinstitute.dsp.Values(config.ingressConfig.values.map(_.value).mkString(","))
+        )
+        .run(helmAuthContext)
+
+      // Monitor nginx until public IP is accessible
+      loadBalancerIpOpt <- (
+        Stream.sleep_(config.monitorConfig.createIngress.interval) ++
+          Stream.eval(
+            kubeService.getServiceExternalIp(dbCluster.getGkeClusterId,
+                                             KubernetesNamespace(config.ingressConfig.namespace),
+                                             config.ingressConfig.loadBalancerService)
+          )
+      ).repeatN(config.monitorConfig.createIngress.maxAttempts)
+        .takeThrough(!_.isDefined)
+        .compile
+        .lastOrError
+
+      loadBalancerIp <- F.fromOption(
+        loadBalancerIpOpt,
+        ClusterCreationException(
+          s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} | trace id: ${ctx.traceId}"
+        )
+      )
 
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
           dbCluster.id,
           KubernetesClusterAsyncFields(
-            IP("0.0.0.0"), //TODO: fill this out after ingress is installed
+            IP(loadBalancerIp.value),
+            IP(googleCluster.getEndpoint),
             NetworkFields(
               network,
               subnetwork,
@@ -230,7 +284,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift](
       )
       _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
       //TODO create svc accts
-      //TODO helm create ingress
       //TODO helm create galaxy
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()

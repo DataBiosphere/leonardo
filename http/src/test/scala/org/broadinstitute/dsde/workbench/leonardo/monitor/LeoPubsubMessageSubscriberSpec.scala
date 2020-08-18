@@ -62,6 +62,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsp.mocks.MockHelm
 import org.scalatest.concurrent._
 import org.scalatestplus.mockito.MockitoSugar
 import org.mockito.Mockito.verify
@@ -113,7 +114,13 @@ class LeoPubsubMessageSubscriberSpec
                            new MockComputePollOperation)
 
   val gkeInterp =
-    new GKEInterpreter[IO](Config.gkeInterpConfig, vpcInterp, MockGKEService, MockKubernetesService, blocker)
+    new GKEInterpreter[IO](Config.gkeInterpConfig,
+                           vpcInterp,
+                           MockGKEService,
+                           MockKubernetesService,
+                           MockHelm,
+                           credentials,
+                           blocker)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -635,7 +642,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp.nodepool.status shouldBe NodepoolStatus.Running
       getApp.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP("0.0.0.0"),
+        KubernetesClusterAsyncFields(IP("1.2.3.4"),
+                                     IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
                                                    Config.vpcConfig.subnetworkIpRange))
@@ -680,7 +688,8 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors shouldBe List()
       getApp.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP("0.0.0.0"),
+        KubernetesClusterAsyncFields(IP("1.2.3.4"),
+                                     IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
                                                    Config.vpcConfig.subnetworkIpRange))
@@ -737,7 +746,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp1.app.errors shouldBe List()
       getApp1.app.status shouldBe AppStatus.Running
       getApp1.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP("0.0.0.0"),
+        KubernetesClusterAsyncFields(IP("1.2.3.4"),
+                                     IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
                                                    Config.vpcConfig.subnetworkIpRange))
@@ -1123,7 +1133,13 @@ class LeoPubsubMessageSubscriberSpec
       )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
     }
     val gkeInterp =
-      new GKEInterpreter[IO](Config.gkeInterpConfig, vpcInterp, MockGKEService, mockKubernetesService, blocker)
+      new GKEInterpreter[IO](Config.gkeInterpConfig,
+                             vpcInterp,
+                             MockGKEService,
+                             mockKubernetesService,
+                             MockHelm,
+                             credentials,
+                             blocker)
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
@@ -1168,7 +1184,13 @@ class LeoPubsubMessageSubscriberSpec
       ): IO[v1.Operation] = IO.raiseError(new Exception(exceptionMessage))
     }
     val gkeInterp =
-      new GKEInterpreter[IO](Config.gkeInterpConfig, vpcInterp, mockGKEService, MockKubernetesService, blocker)
+      new GKEInterpreter[IO](Config.gkeInterpConfig,
+                             vpcInterp,
+                             mockGKEService,
+                             MockKubernetesService,
+                             MockHelm,
+                             credentials,
+                             blocker)
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction

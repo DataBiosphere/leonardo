@@ -2,11 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
-import java.util.UUID
+import java.util.{Date, UUID}
 
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
+import com.google.auth.oauth2.{AccessToken, GoogleCredentials, ServiceAccountCredentials}
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
@@ -55,6 +56,7 @@ object CommonTestData {
   val unauthorizedEmail = WorkbenchEmail("somecreep@example.com")
   val unauthorizedUserInfo =
     UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("somecreep"), unauthorizedEmail, 0)
+  val credentials = GoogleCredentials.create(new AccessToken("accessToken", new Date))
   val jupyterExtensionBucket = GcsBucketName("bucket-name")
   val jupyterExtensionObject = GcsObjectName("extension")
   val userJupyterExtensionConfig =

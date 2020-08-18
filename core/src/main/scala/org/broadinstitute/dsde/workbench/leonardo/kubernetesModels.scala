@@ -36,7 +36,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
   def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
 }
 
-final case class KubernetesClusterAsyncFields(externalIp: IP, networkInfo: NetworkFields)
+final case class KubernetesClusterAsyncFields(loadBalancerIp: IP, apiServerIp: IP, networkInfo: NetworkFields)
 
 final case class NetworkFields(networkName: NetworkName, subNetworkName: SubnetworkName, subNetworkIpRange: IpRange)
 
@@ -286,6 +286,7 @@ object AppType {
 }
 
 final case class ReleaseName(value: String) extends AnyVal
+final case class ChartName(value: String) extends AnyVal
 
 final case class AppId(id: Long) extends AnyVal
 final case class AppName(value: String) extends AnyVal

@@ -3,16 +3,16 @@ package db
 
 import java.time.Instant
 
+import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
 import org.broadinstitute.dsde.workbench.google2.{Location, NetworkName, RegionName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
+import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import slick.lifted.Tag
-import LeoProfile.api._
-import LeoProfile.mappedColumnImplicits._
-import cats.implicits._
-import nodepoolQuery.unmarshalNodepool
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 
 import scala.concurrent.ExecutionContext
 
@@ -26,7 +26,8 @@ final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                          createdDate: Instant,
                                          destroyedDate: Instant,
                                          dateAccessed: Instant,
-                                         externalIp: Option[IP],
+                                         loadBalancerIp: Option[IP],
+                                         apiServerIp: Option[IP],
                                          networkName: Option[NetworkName],
                                          subNetworkName: Option[SubnetworkName],
                                          subNetworkIpRange: Option[IpRange])
@@ -42,7 +43,8 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
-  def externalIp = column[Option[IP]]("externalIp", O.Length(254))
+  def loadBalancerIp = column[Option[IP]]("loadBalancerIp", O.Length(254))
+  def apiServerIp = column[Option[IP]]("apiServerIp", O.Length(254))
   def networkName = column[Option[NetworkName]]("networkName", O.Length(254))
   def subNetworkName = column[Option[SubnetworkName]]("subNetworkName", O.Length(254))
   def subNetworkIpRange = column[Option[IpRange]]("subNetworkIpRange", O.Length(254))
@@ -60,7 +62,8 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      createdDate,
      destroyedDate,
      dateAccessed,
-     externalIp,
+     loadBalancerIp,
+     apiServerIp,
      networkName,
      subNetworkName,
      subNetworkIpRange) <> (KubernetesClusterRecord.tupled, KubernetesClusterRecord.unapply)
@@ -104,9 +107,10 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
 
   def updateAsyncFields(id: KubernetesClusterLeoId, asyncFields: KubernetesClusterAsyncFields): DBIO[Int] =
     findByIdQuery(id)
-      .map(c => (c.externalIp, c.networkName, c.subNetworkName, c.subNetworkIpRange))
+      .map(c => (c.loadBalancerIp, c.apiServerIp, c.networkName, c.subNetworkName, c.subNetworkIpRange))
       .update(
-        (Some(asyncFields.externalIp),
+        (Some(asyncFields.loadBalancerIp),
+         Some(asyncFields.apiServerIp),
          Some(asyncFields.networkInfo.networkName),
          Some(asyncFields.networkInfo.subNetworkName),
          Some(asyncFields.networkInfo.subNetworkIpRange))
@@ -177,9 +181,10 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
         unmarshalDestroyedDate(cr.destroyedDate),
         cr.dateAccessed
       ),
-      (cr.externalIp, unmarshalNetwork(cr)) match {
-        case (Some(externalIp), Some(networkFields)) => Some(KubernetesClusterAsyncFields(externalIp, networkFields))
-        case _                                       => None
+      (cr.loadBalancerIp, cr.apiServerIp, unmarshalNetwork(cr)) match {
+        case (Some(externalIp), Some(apiServerIp), Some(networkFields)) =>
+          Some(KubernetesClusterAsyncFields(externalIp, apiServerIp, networkFields))
+        case _ => None
       },
       namespaces,
       nodepools
@@ -227,6 +232,7 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
       auditInfo.createdDate,
       dummyDate,
       auditInfo.dateAccessed,
+      None,
       None,
       None,
       None,

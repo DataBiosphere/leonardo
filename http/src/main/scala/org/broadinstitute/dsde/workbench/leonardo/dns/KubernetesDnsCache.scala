@@ -68,7 +68,7 @@ class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger](proxyConfig: ProxyC
   }
 
   private def hostStatusByAppResult(appResult: GetAppResult): F[HostStatus] =
-    appResult.cluster.asyncFields.map(_.externalIp) match {
+    appResult.cluster.asyncFields.map(_.loadBalancerIp) match {
       case None => Effect[F].pure(HostNotReady)
       case Some(ip) =>
         val h = host(appResult.cluster)
