@@ -234,7 +234,6 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
                               c.location,
                               c.region,
                               c.status,
-                              c.serviceAccount,
                               c.auditInfo,
                               DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
@@ -264,7 +263,6 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
                               c.location,
                               c.region,
                               c.status,
-                              c.serviceAccount,
                               c.auditInfo,
                               DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
@@ -276,7 +274,6 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
                               c.location,
                               c.region,
                               c.status,
-                              c.serviceAccount,
                               c.auditInfo,
                               DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
@@ -306,7 +303,6 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
                               c.location,
                               c.region,
                               c.status,
-                              c.serviceAccount,
                               c.auditInfo,
                               DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )

@@ -93,7 +93,6 @@ object KubernetesTestData {
       location,
       region,
       KubernetesClusterStatus.Unspecified,
-      serviceAccountEmail,
       auditInfo,
       None,
       List(),
@@ -109,21 +108,25 @@ object KubernetesTestData {
   def makeApp(index: Int, nodepoolId: NodepoolLeoId): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
-    App(AppId(-1),
-        nodepoolId,
-        galaxyApp,
-        name,
-        AppStatus.Unspecified,
-        appSamId,
-        auditInfo,
-        Map.empty,
-        AppResources(
-          namespace,
-          None,
-          List.empty
-        ),
+    App(
+      AppId(-1),
+      nodepoolId,
+      galaxyApp,
+      name,
+      AppStatus.Unspecified,
+      appSamId,
+      serviceAccountEmail,
+      auditInfo,
+      Map.empty,
+      AppResources(
+        namespace,
+        None,
         List.empty,
-        Map.empty)
+        Option.empty
+      ),
+      List.empty,
+      Map.empty
+    )
   }
 
   def makeService(index: Int): KubernetesService = {
