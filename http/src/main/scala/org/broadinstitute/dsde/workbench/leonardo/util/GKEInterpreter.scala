@@ -170,7 +170,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       helmAuthContext = AuthContext(
         org.broadinstitute.dsp.Namespace(config.ingressConfig.namespace.value),
         org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
-        org.broadinstitute.dsp.KubeApiServer(googleCluster.getEndpoint)
+        org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint)
       )
       _ <- helmClient
         .installChart(
