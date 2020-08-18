@@ -372,7 +372,6 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
   def clickOverrideNotebookChanged(): Unit =
     if (find(confirmNotebookSaveButton).size > 0) {
       click on confirmNotebookSaveButton
-      await notVisible jupyterModal
     }
 
   //will cause an exception if no modal exists - check existence of below ID before calling
