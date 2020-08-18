@@ -5,6 +5,7 @@ package service
 import java.time.Instant
 import java.util.UUID
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
@@ -17,6 +18,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.PersistentDiskRequestResult
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
@@ -762,6 +765,25 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       messageOpt <- publisherQueue.tryDequeue1
     } yield {
       messageOpt shouldBe None
+    }
+    res.unsafeRunSync()
+  }
+
+  it should "disallow updating dataproc cluster number of workers if runtime is Stopped" in {
+    val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), None)
+    val res = for {
+      ctx <- appContext.ask
+      res <- runtimeService
+        .processUpdateDataprocConfigRequest(req, false, testClusterRecord, defaultDataprocRuntimeConfig)
+        .attempt
+    } yield {
+      val expectedException = new LeoException(
+        s"${ctx.traceId.asString} | Bad request. Number of workers can only be updated if the dataproc cluster is Running. Please start your runtime before updating the cluster",
+        StatusCodes.BadRequest
+      )
+      res.swap.toOption
+        .getOrElse(throw new Exception("this test failed"))
+        .asInstanceOf[LeoException] shouldEqual expectedException
     }
     res.unsafeRunSync()
   }

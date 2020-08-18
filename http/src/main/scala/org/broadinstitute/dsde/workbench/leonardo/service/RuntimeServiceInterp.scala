@@ -665,6 +665,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       context <- ctx.ask
       // should num workers be updated?
       targetNumWorkers <- traverseIfChanged(req.updatedNumberOfWorkers, dataprocConfig.numberOfWorkers)(Async[F].pure)
+      _ <- targetNumWorkers.traverse(_ =>
+        if (runtime.status != RuntimeStatus.Running)
+          F.raiseError[Unit](
+            new LeoException(
+              s"${context.traceId.asString} | Bad request. Number of workers can only be updated if the dataproc cluster is Running. Please start your runtime before updating the cluster",
+              StatusCodes.BadRequest
+            )
+          )
+        else F.unit
+      )
       // should num preemptibles be updated?
       targetNumPreemptibles <- traverseIfChanged(req.updatedNumberOfPreemptibleWorkers,
                                                  dataprocConfig.numberOfPreemptibleWorkers.getOrElse(0))(Async[F].pure)
