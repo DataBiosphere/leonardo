@@ -10,6 +10,7 @@ import cats.effect.concurrent.Semaphore
 import cats.effect._
 import cats.implicits._
 import com.google.api.services.compute.ComputeScopes
+import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.devtools.clouderrorreporting.v1beta1.ProjectName
 import fs2.Stream
@@ -333,6 +334,7 @@ object Boot extends IOApp {
 
       credential <- credentialResource(pathToCredentialJson)
       scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
+      kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
       credentialJson <- Resource.liftF(
         readFileToString(applicationConfig.leoServiceAccountJsonFile, blocker)
       )
@@ -408,7 +410,7 @@ object Boot extends IOApp {
         kubeService,
         openTelemetry,
         errorReporting,
-        credential
+        kubernetesScopedCredential
       )
     } yield AppDependencies(
       storage,
