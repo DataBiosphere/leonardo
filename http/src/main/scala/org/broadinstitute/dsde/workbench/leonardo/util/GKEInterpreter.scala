@@ -165,8 +165,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Install nginx igress controller
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
-      // TODO figure out how to unit test
-      //_ <- Async[F].delay(credentials.refreshIfExpired())
+      _ <- F.delay(credentials.refreshIfExpired())
 
       helmAuthContext = AuthContext(
         org.broadinstitute.dsp.Namespace(config.ingressConfig.namespace.value),
