@@ -9,7 +9,7 @@ RUN mkdir /helm-go-lib-build && \
     cd /helm-go-lib-build && \
     git clone https://github.com/broadinstitute/helm-scala-sdk.git && \
     cd helm-scala-sdk/helm-go-lib && \
-    go build -o libhelm.dylib -buildmode=c-shared main.go
+    go build -o libhelm.so -buildmode=c-shared main.go
 
 FROM oracle/graalvm-ce:20.0.0-java8
 
