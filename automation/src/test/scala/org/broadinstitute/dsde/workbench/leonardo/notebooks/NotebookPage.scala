@@ -82,7 +82,7 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
   lazy val runAllCellsSelection: Query = cssSelector("[id='run_all_cells']")
 
   // Run Cell toolbar button
-  lazy val runCellButton: Query = cssSelector("[title='Run']")
+  lazy val runCellButton: Query = cssSelector("[title='run cell, select below']")
 
   // Kernel -> Shutdown
   lazy val shutdownKernelSelection: Query = cssSelector("[id='shutdown_kernel']")
