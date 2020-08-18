@@ -22,7 +22,6 @@ final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                          location: Location,
                                          region: RegionName,
                                          status: KubernetesClusterStatus,
-                                         serviceAccount: WorkbenchEmail,
                                          creator: WorkbenchEmail,
                                          createdDate: Instant,
                                          destroyedDate: Instant,
@@ -39,7 +38,6 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def location = column[Location]("location", O.Length(254))
   def region = column[RegionName]("region", O.Length(254))
   def status = column[KubernetesClusterStatus]("status", O.Length(254))
-  def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
@@ -58,7 +56,6 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      location,
      region,
      status,
-     serviceAccount,
      creator,
      createdDate,
      destroyedDate,
@@ -174,7 +171,6 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       cr.location,
       cr.region,
       cr.status,
-      cr.serviceAccount,
       AuditInfo(
         cr.creator,
         cr.createdDate,
@@ -217,7 +213,6 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
                                  location: Location,
                                  region: RegionName,
                                  status: KubernetesClusterStatus,
-                                 serviceAccount: WorkbenchEmail,
                                  auditInfo: AuditInfo,
                                  defaultNodepool: DefaultNodepool) {
   def toClusterRecord(): KubernetesClusterRecord =
@@ -228,7 +223,6 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
       location,
       region,
       status,
-      serviceAccount,
       auditInfo.creator,
       auditInfo.createdDate,
       dummyDate,

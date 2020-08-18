@@ -153,6 +153,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[NamespaceId, Long](_.id, NamespaceId.apply)
     implicit val namespaceNameColumnType: BaseColumnType[NamespaceName] =
       MappedColumnType.base[NamespaceName, String](_.value, NamespaceName.apply)
+    implicit val kubernetesServiceAccountColumnType: BaseColumnType[KubernetesServiceAccount] =
+      MappedColumnType.base[KubernetesServiceAccount, String](_.value, KubernetesServiceAccount.apply)
 
     implicit val nodepoolIdColumnType: BaseColumnType[NodepoolLeoId] =
       MappedColumnType.base[NodepoolLeoId, Long](_.id, NodepoolLeoId.apply)

@@ -20,6 +20,8 @@ final case class AppRecord(id: AppId,
                            appName: AppName,
                            status: AppStatus,
                            samResourceId: AppSamResourceId,
+                           googleServiceAccount: WorkbenchEmail,
+                           kubernetesServiceAccount: Option[KubernetesServiceAccount],
                            creator: WorkbenchEmail,
                            createdDate: Instant,
                            destroyedDate: Instant,
@@ -36,6 +38,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def appName = column[AppName]("appName", O.Length(254))
   def status = column[AppStatus]("status", O.Length(254))
   def samResourceId = column[AppSamResourceId]("samResourceId", O.Length(254))
+  def googleServiceAccount = column[WorkbenchEmail]("googleServiceAccount", O.Length(254))
+  def kubernetesServiceAccount = column[Option[KubernetesServiceAccount]]("kubernetesServiceAccount", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
@@ -52,6 +56,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       appName,
       status,
       samResourceId,
+      googleServiceAccount,
+      kubernetesServiceAccount,
       creator,
       createdDate,
       destroyedDate,
@@ -76,6 +82,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.appName,
       app.status,
       app.samResourceId,
+      app.googleServiceAccount,
       AuditInfo(
         app.creator,
         app.createdDate,
@@ -86,7 +93,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
       AppResources(
         namespace,
         disk,
-        services
+        services,
+        app.kubernetesServiceAccount
       ),
       errors,
       app.customEnvironmentVariables.getOrElse(Map.empty)
@@ -130,6 +138,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
       diskOpt = saveApp.app.appResources.disk
 
+      ksaOpt = saveApp.app.appResources.kubernetesServiceAccount
+
       record = AppRecord(
         AppId(-1),
         saveApp.app.nodepoolId,
@@ -137,6 +147,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.appName,
         saveApp.app.status,
         saveApp.app.samResourceId,
+        saveApp.app.googleServiceAccount,
+        ksaOpt,
         saveApp.app.auditInfo.creator,
         saveApp.app.auditInfo.createdDate,
         saveApp.app.auditInfo.destroyedDate.getOrElse(dummyDate),
@@ -148,7 +160,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
       services <- serviceQuery.saveAllForApp(appId, saveApp.app.appResources.services)
-    } yield saveApp.app.copy(id = appId, appResources = AppResources(namespace, diskOpt, services))
+    } yield saveApp.app.copy(id = appId, appResources = AppResources(namespace, diskOpt, services, ksaOpt))
   }
 
   def updateStatus(id: AppId, status: AppStatus): DBIO[Int] =

@@ -46,7 +46,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 import scala.concurrent.ExecutionContext
 
@@ -135,7 +135,15 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       )
 
       saveApp <- F.fromEither(
-        getSavableApp(googleProject, appName, userInfo, samResourceId, req, diskResultOpt.map(_.disk), nodepool.id, ctx)
+        getSavableApp(googleProject,
+                      appName,
+                      userInfo,
+                      samResourceId,
+                      req,
+                      diskResultOpt.map(_.disk),
+                      petSA,
+                      nodepool.id,
+                      ctx)
       )
       app <- appQuery.save(saveApp).transaction
 
@@ -324,7 +332,6 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       location = leoKubernetesConfig.clusterConfig.location,
       region = leoKubernetesConfig.clusterConfig.region,
       status = KubernetesClusterStatus.Precreating,
-      serviceAccount = leoKubernetesConfig.serviceAccountConfig.leoServiceAccountEmail,
       auditInfo = auditInfo,
       defaultNodepool = nodepool
     )
@@ -367,6 +374,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
                                      samResourceId: AppSamResourceId,
                                      req: CreateAppRequest,
                                      diskOpt: Option[PersistentDisk],
+                                     googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
                                      ctx: AppContext): Either[Throwable, SaveApp] = {
     val now = ctx.now
@@ -399,6 +407,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         appName,
         AppStatus.Precreating,
         samResourceId,
+        googleServiceAccount,
         auditInfo,
         labels,
         AppResources(
@@ -410,7 +419,8 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
           req.appType match {
             case Galaxy =>
               leoKubernetesConfig.galaxyAppConfig.services.map(config => KubernetesService(ServiceId(-1), config))
-          }
+          },
+          Option.empty
         ),
         List.empty,
         req.customEnvironmentVariables
