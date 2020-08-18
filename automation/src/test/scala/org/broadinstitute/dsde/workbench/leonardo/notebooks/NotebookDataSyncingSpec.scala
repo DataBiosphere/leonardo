@@ -172,10 +172,13 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
               val syncIssueElements =
                 List(notebookPage.syncCopyButton, notebookPage.syncReloadButton, notebookPage.modalId)
 
+              Thread.sleep(300000)
               eventually(timeout(Span(2, Minutes)), interval(Span(30, Seconds))) { //wait for checkMeta tick
                 notebookPage areElementsPresent (syncIssueElements) shouldBe true
 
                 notebookPage executeJavaScript ("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
+
+                notebookPage clickOverrideNotebookChanged
 
                 notebookPage makeACopyFromSyncIssue
               }
