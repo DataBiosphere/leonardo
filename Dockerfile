@@ -8,9 +8,10 @@ FROM golang:1.14.6-stretch AS helm-go-lib-builder
 RUN mkdir /helm-go-lib-build && \
     cd /helm-go-lib-build && \
     git clone https://github.com/broadinstitute/helm-scala-sdk.git && \
-    # TODO: remove below once https://github.com/broadinstitute/helm-scala-sdk/pull/4 is merged
+    cd helm-scala-sdk && \
+    # TODO: change to master once https://github.com/broadinstitute/helm-scala-sdk/pull/4 is merged
     git checkout rt-add-mock && \
-    cd helm-scala-sdk/helm-go-lib && \
+    cd helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 
 FROM oracle/graalvm-ce:20.0.0-java8
