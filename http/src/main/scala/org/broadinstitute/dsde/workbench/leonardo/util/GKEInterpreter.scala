@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import java.util.Base64
+
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Timer}
@@ -90,9 +92,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network).idString
       kubeSubNetwork = KubernetesSubNetwork(dbCluster.googleProject, dbCluster.region, subnetwork).idString
 
-      cidrBuilder = CidrBlock.newBuilder()
-      _ <- F.delay(config.clusterConfig.authorizedNetworks.foreach(cidrIP => cidrBuilder.setCidrBlock(cidrIP.value)))
-
       createClusterReq = Cluster
         .newBuilder()
         .setName(dbCluster.clusterName.value)
@@ -163,15 +162,31 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // Install nginx igress controller
+      _ <- logger.info(
+        s"Creating ${config.ingressConfig.namespace.value} namespace in cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+      )
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
+      _ <- logger.info(
+        s"Installing ingress helm chart: ${config.ingressConfig} in cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+      )
+
+      // The helm client requires a Google acess token
       _ <- F.delay(credentials.refreshIfExpired())
+
+      // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
+      caCertFile <- writeTempFile(s"gke_ca_cert_${params.clusterId}",
+                                  Base64.getDecoder().decode(googleCluster.getMasterAuth.getClusterCaCertificate),
+                                  blocker)
 
       helmAuthContext = AuthContext(
         org.broadinstitute.dsp.Namespace(config.ingressConfig.namespace.value),
         org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
-        org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint)
+        org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint),
+        org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
       )
+
+      // Invoke helm
       _ <- helmClient
         .installChart(
           org.broadinstitute.dsp.Release(config.ingressConfig.release.value),
@@ -219,6 +234,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- if (params.isNodepoolPrecreate)
         nodepoolQuery.markAsUnclaimed(dbCluster.nodepools.filterNot(_.isDefault).map(_.id)).transaction
       else F.unit
+      _ <- logger.info(s"Successfully created cluster ${params.clusterId}!")
 
     } yield ()
 
