@@ -8,6 +8,8 @@ FROM golang:1.14.6-stretch AS helm-go-lib-builder
 RUN mkdir /helm-go-lib-build && \
     cd /helm-go-lib-build && \
     git clone https://github.com/broadinstitute/helm-scala-sdk.git && \
+    # TODO: remove below once https://github.com/broadinstitute/helm-scala-sdk/pull/4 is merged
+    git checkout rt-add-mock && \
     cd helm-scala-sdk/helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 
@@ -30,7 +32,8 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
 
 # Add the repos containing nginx and galaxy charts
 RUN helm repo add stable https://kubernetes-charts.storage.googleapis.com/ && \
-    helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/
+    helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
+    helm repo update
 
 # Add Leonardo as a service (it will start when the container starts)
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
