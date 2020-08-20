@@ -16,14 +16,13 @@ import com.typesafe.scalalogging.LazyLogging
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.GCR
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockSamDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -99,13 +98,13 @@ class LeonardoServiceSpec
       new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
     val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                            projectDAO,
-                                           MockGoogleComputeService,
+                                           FakeGoogleComputeService,
                                            new MockComputePollOperation)
     dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                  bucketHelper,
                                                  vpcInterp,
                                                  gdDAO,
-                                                 MockGoogleComputeService,
+                                                 FakeGoogleComputeService,
                                                  MockGoogleDiskService,
                                                  directoryDAO,
                                                  iamDAO,
@@ -115,7 +114,7 @@ class LeonardoServiceSpec
     gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                        bucketHelper,
                                        vpcInterp,
-                                       MockGoogleComputeService,
+                                       FakeGoogleComputeService,
                                        MockGoogleDiskService,
                                        MockWelderDAO,
                                        blocker)

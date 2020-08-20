@@ -66,7 +66,7 @@ sbt "testOnly *LeoAuthProviderHelperSpec"
 ```
 or a particular test within a suite, e.g.
 ```
-sbt "testOnly org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeCreationDiskSpec -- -t "create runtime and attach a persistent disk""
+sbt "testOnly org.broadinstitute.dsde.workbench.leonardo.runtimes.RuntimeCreationDiskSpec -- -z "create runtime and attach a persistent disk""
 ```
 where `map` is a substring within the test name.
 

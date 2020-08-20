@@ -5,18 +5,24 @@ package service
 import java.time.Instant
 import java.util.UUID
 
+import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleStorageInterpreter, MockComputePollOperation}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGoogleStorageInterpreter,
+  MockComputePollOperation
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.PersistentDiskRequestResult
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
@@ -46,7 +52,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       serviceAccountProvider,
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
-      MockGoogleComputeService,
+      FakeGoogleComputeService,
       new MockComputePollOperation,
       publisherQueue
     )
@@ -766,12 +772,34 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
+  it should "disallow updating dataproc cluster number of workers if runtime is not Running" in {
+    val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), None)
+    val res = for {
+      ctx <- appContext.ask
+      res <- runtimeService
+        .processUpdateDataprocConfigRequest(req,
+                                            false,
+                                            testClusterRecord.copy(status = RuntimeStatus.Starting),
+                                            defaultDataprocRuntimeConfig)
+        .attempt
+    } yield {
+      val expectedException = new LeoException(
+        s"${ctx.traceId.asString} | Bad request. Number of workers can only be updated if the dataproc cluster is Running. Cluster is in Starting currently",
+        StatusCodes.BadRequest
+      )
+      res.swap.toOption
+        .getOrElse(throw new Exception("this test failed"))
+        .asInstanceOf[LeoException] shouldEqual expectedException
+    }
+    res.unsafeRunSync()
+  }
+
   it should "update Dataproc workers and preemptibles" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), Some(1000))
     val res = for {
       ctx <- appContext.ask
-      cluster = testCluster.copy(dataprocInstances =
-        Set(
+      cluster = testCluster.copy(
+        dataprocInstances = Set(
           DataprocInstance(
             DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
             1,
@@ -780,11 +808,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             DataprocRole.Master,
             ctx.now
           )
-        )
+        ),
+        status = RuntimeStatus.Running
       )
       _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
-        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)
+        .getActiveClusterRecordByName(cluster.googleProject, cluster.runtimeName)
         .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,

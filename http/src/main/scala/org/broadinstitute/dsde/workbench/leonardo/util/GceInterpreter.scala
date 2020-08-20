@@ -318,14 +318,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     if (params.isAsyncRuntimeFields)
       googleComputeService
         .deleteInstance(params.googleProject, config.gceConfig.zoneName, InstanceName(params.runtimeName.asString))
-        .map(x => Option(x))
-        .handleErrorWith {
-          case _: com.google.api.gax.rpc.NotFoundException =>
-            logger
-              .info(s"${params.googleProject.value}/${params.runtimeName.asString} has already been deleted")
-              .as(none[Operation])
-          case e => F.raiseError[Option[Operation]](e)
-        }
     else F.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =

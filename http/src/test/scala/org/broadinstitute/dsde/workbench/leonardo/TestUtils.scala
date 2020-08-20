@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeResponse
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.scalactic.Equality
 import org.scalatest.Assertion
 import org.scalatest.matchers.should.Matchers
@@ -20,6 +21,28 @@ object TestUtils extends Matchers {
         }
     }
   }
+
+  implicit val leonardoExceptionEq = {
+    new Equality[LeoException] {
+      def areEqual(a: LeoException, b: Any): Boolean =
+        b match {
+          case bb: LeoException =>
+            a.message == bb.message && a.statusCode == bb.statusCode && a.cause == bb.cause
+          case _ => false
+        }
+    }
+  }
+
+  implicit def eitherEq[A, B](implicit ea: Equality[A], eb: Equality[B]): Equality[Either[A, B]] =
+    new Equality[Either[A, B]] {
+      def areEqual(a: Either[A, B], b: Any): Boolean =
+        (a, b) match {
+          case (Left(aa), Left(bb)) =>
+            aa === bb
+          case (Right(aa), Right(bb)) => aa === bb
+          case _                      => false
+        }
+    }
 
   //these are not applied recursively, hence the need to dig into the nodepool Ids
   implicit val kubeClusterEq = {

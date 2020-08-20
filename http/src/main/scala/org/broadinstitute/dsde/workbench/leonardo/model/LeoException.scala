@@ -4,9 +4,9 @@ import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchException}
 import org.broadinstitute.dsde.workbench.leonardo.http.errorReportSource
 
-abstract class LeoException(val message: String = null,
-                            val statusCode: StatusCode = StatusCodes.InternalServerError,
-                            val cause: Throwable = null)
+class LeoException(val message: String = null,
+                   val statusCode: StatusCode = StatusCodes.InternalServerError,
+                   val cause: Throwable = null)
     extends WorkbenchException(message) {
   override def getMessage: String = if (message != null) message else super.getMessage
   def toErrorReport: ErrorReport =

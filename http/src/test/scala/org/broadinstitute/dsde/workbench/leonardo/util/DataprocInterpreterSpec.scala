@@ -11,7 +11,7 @@ import com.google.api.client.googleapis.testing.json.GoogleJsonResponseException
 import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
   MachineTypeName,
@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, MockGoogleComputeService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.CreateClusterConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
@@ -60,14 +60,14 @@ class DataprocInterpreterSpec
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                          mockGoogleProjectDAO,
-                                         MockGoogleComputeService,
+                                         FakeGoogleComputeService,
                                          new MockComputePollOperation)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
                                                    mockGoogleDataprocDAO,
-                                                   MockGoogleComputeService,
+                                                   FakeGoogleComputeService,
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
                                                    mockGoogleIamDAO,
@@ -212,7 +212,7 @@ class DataprocInterpreterSpec
                                                             bucketHelper,
                                                             vpcInterp,
                                                             erroredDataprocDAO,
-                                                            MockGoogleComputeService,
+                                                            FakeGoogleComputeService,
                                                             MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             mockGoogleIamDAO,
@@ -249,7 +249,7 @@ class DataprocInterpreterSpec
                                                             bucketHelper,
                                                             vpcInterp,
                                                             erroredDataprocDAO,
-                                                            MockGoogleComputeService,
+                                                            FakeGoogleComputeService,
                                                             MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             mockGoogleIamDAO,
@@ -282,7 +282,7 @@ class DataprocInterpreterSpec
                                                             bucketHelper,
                                                             vpcInterp,
                                                             mockGoogleDataprocDAO,
-                                                            MockGoogleComputeService,
+                                                            FakeGoogleComputeService,
                                                             MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             erroredIamDAO,
