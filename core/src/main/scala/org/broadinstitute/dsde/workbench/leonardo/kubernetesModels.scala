@@ -28,7 +28,6 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              location: Location,
                              region: RegionName,
                              status: KubernetesClusterStatus,
-                             serviceAccount: WorkbenchEmail,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
@@ -159,6 +158,7 @@ object NodepoolStatus {
 final case class KubernetesClusterLeoId(id: Long) extends AnyVal
 final case class NamespaceId(id: Long) extends AnyVal
 final case class Namespace(id: NamespaceId, name: NamespaceName)
+final case class KubernetesServiceAccount(value: String) extends AnyVal
 
 final case class Nodepool(id: NodepoolLeoId,
                           clusterId: KubernetesClusterLeoId,
@@ -291,7 +291,10 @@ final case class RemoteUserName(value: String) extends AnyVal
 final case class AppId(id: Long) extends AnyVal
 final case class AppName(value: String) extends AnyVal
 //These are async from the perspective of Front Leo saving the app record, but both must exist before the helm command is executed
-final case class AppResources(namespace: Namespace, disk: Option[PersistentDisk], services: List[KubernetesService])
+final case class AppResources(namespace: Namespace,
+                              disk: Option[PersistentDisk],
+                              services: List[KubernetesService],
+                              kubernetesServiceAccount: Option[KubernetesServiceAccount])
 
 final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
@@ -299,6 +302,7 @@ final case class App(id: AppId,
                      appName: AppName,
                      status: AppStatus,
                      samResourceId: AppSamResourceId,
+                     googleServiceAccount: WorkbenchEmail,
                      auditInfo: AuditInfo,
                      labels: LabelMap,
                      //this is populated async to app creation
