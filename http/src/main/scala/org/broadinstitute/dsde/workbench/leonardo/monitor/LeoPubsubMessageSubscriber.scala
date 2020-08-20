@@ -769,6 +769,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       case e: PubsubKubernetesError =>
         for {
           ctx <- ev.ask
+          _ <- logger.error(e)(s"Encountered async error for app ${e.appId} | trace id: ${ctx.traceId}")
           _ <- e.appId.traverse(id => appErrorQuery.save(id, e.dbError).transaction)
           _ <- e.appId.traverse(id => appQuery.updateStatus(id, AppStatus.Error).transaction)
           _ <- e.clusterId.traverse(clusterId =>
@@ -777,7 +778,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           _ <- e.nodepoolId.traverse(nodepoolId =>
             nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Error).transaction
           )
-          _ <- logger.error(e)(s"updating db state for an async error for app ${e.appId} | trace id: ${ctx.traceId}")
         } yield ()
       case _ =>
         F.raiseError(
