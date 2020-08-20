@@ -15,7 +15,12 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import com.google.container.v1
 import com.google.protobuf.Timestamp
-import org.broadinstitute.dsde.workbench.google2.mock.{MockComputePollOperation, MockGKEService, MockKubernetesService}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  MockComputePollOperation,
+  MockGKEService,
+  MockKubernetesService
+}
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   Event,
@@ -37,7 +42,6 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterErrorQuery,
   clusterQuery,
@@ -105,7 +109,7 @@ class LeoPubsubMessageSubscriberSpec
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                            projectDAO,
-                           MockGoogleComputeService,
+                           FakeGoogleComputeService,
                            new MockComputePollOperation)
 
   val gkeInterp =
@@ -115,7 +119,7 @@ class LeoPubsubMessageSubscriberSpec
                                                    bucketHelper,
                                                    vpcInterp,
                                                    gdDAO,
-                                                   MockGoogleComputeService,
+                                                   FakeGoogleComputeService,
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
                                                    iamDAO,
@@ -125,7 +129,7 @@ class LeoPubsubMessageSubscriberSpec
   val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                          bucketHelper,
                                          vpcInterp,
-                                         MockGoogleComputeService,
+                                         FakeGoogleComputeService,
                                          MockGoogleDiskService,
                                          mockWelderDAO,
                                          blocker)

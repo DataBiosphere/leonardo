@@ -11,11 +11,14 @@ import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleStorageInterpreter, MockComputePollOperation}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGoogleStorageInterpreter,
+  MockComputePollOperation
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.PersistentDiskRequestResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -49,7 +52,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       serviceAccountProvider,
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
-      MockGoogleComputeService,
+      FakeGoogleComputeService,
       new MockComputePollOperation,
       publisherQueue
     )
@@ -769,19 +772,19 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
-  it should "disallow updating dataproc cluster number of workers if runtime is Stopped" in {
+  it should "disallow updating dataproc cluster number of workers if runtime is not Running" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), None)
     val res = for {
       ctx <- appContext.ask
       res <- runtimeService
         .processUpdateDataprocConfigRequest(req,
                                             false,
-                                            testClusterRecord.copy(status = RuntimeStatus.Stopped),
+                                            testClusterRecord.copy(status = RuntimeStatus.Starting),
                                             defaultDataprocRuntimeConfig)
         .attempt
     } yield {
       val expectedException = new LeoException(
-        s"${ctx.traceId.asString} | Bad request. Number of workers can only be updated if the dataproc cluster is Running. Please start your runtime before updating the cluster",
+        s"${ctx.traceId.asString} | Bad request. Number of workers can only be updated if the dataproc cluster is Running. Cluster is in Starting currently",
         StatusCodes.BadRequest
       )
       res.swap.toOption

@@ -227,12 +227,17 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             new RuntimeException(s"Fail to delete ${disk.name} in a timely manner")
           )
           whenInterrupted = F.unit
-          _ <- computePollOperation.pollZoneOperation(runtime.googleProject,
-                                                      disk.zone,
-                                                      OperationName(deleteDiskOp.getName),
-                                                      2 seconds,
-                                                      10,
-                                                      None)(whenDone, whenTimeout, whenInterrupted)
+          _ <- deleteDiskOp match {
+            case Some(op) =>
+              computePollOperation
+                .pollZoneOperation(runtime.googleProject, disk.zone, OperationName(op.getName), 2 seconds, 10, None)(
+                  whenDone,
+                  whenTimeout,
+                  whenInterrupted
+                )
+                .void
+            case None => whenDone
+          }
         } yield ()
 
         deleteDisk.handleErrorWith(e =>
@@ -552,15 +557,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
       )
       whenInterrupted = F.unit
-      task = computePollOperation
-        .pollZoneOperation(
-          disk.googleProject,
-          disk.zone,
-          OperationName(operation.getName),
-          config.persistentDiskMonitorConfig.create.interval,
-          config.persistentDiskMonitorConfig.create.maxAttempts,
-          None
-        )(whenDone, whenTimeout, whenInterrupted)
+      task = operation match {
+        case Some(op) =>
+          computePollOperation
+            .pollZoneOperation(
+              disk.googleProject,
+              disk.zone,
+              OperationName(op.getName),
+              config.persistentDiskMonitorConfig.create.interval,
+              config.persistentDiskMonitorConfig.create.maxAttempts,
+              None
+            )(whenDone, whenTimeout, whenInterrupted)
+        case None =>
+          whenDone
+      }
       _ <- if (sync) task
       else {
         asyncTasks.enqueue1(

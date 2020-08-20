@@ -8,7 +8,11 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.{AccessConfig, Instance, NetworkInterface, Operation}
 import com.google.cloud.dataproc.v1._
 import org.broadinstitute.dsde.workbench.google2
-import org.broadinstitute.dsde.workbench.google2.mock.{BaseFakeGoogleDataprocService, FakeGoogleDataprocService}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  BaseFakeGoogleDataprocService,
+  FakeGoogleComputeService,
+  FakeGoogleDataprocService
+}
 import org.broadinstitute.dsde.workbench.google2.{
   ClusterError,
   GoogleComputeService,
@@ -18,7 +22,6 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
@@ -565,7 +568,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   val failureToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = _ => MockToolDAO(false)
 
   def dataprocRuntimeMonitor(
-    googleComputeService: GoogleComputeService[IO] = MockGoogleComputeService,
+    googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
     dataprocService: GoogleDataprocService[IO] = FakeGoogleDataprocService
   )(implicit ev: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType]): DataprocRuntimeMonitor[IO] =
     new DataprocRuntimeMonitor[IO](
@@ -598,7 +601,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   def computeService(status: GceInstanceStatus, ip: Option[IP] = None): GoogleComputeService[IO] =
-    new MockGoogleComputeService {
+    new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {

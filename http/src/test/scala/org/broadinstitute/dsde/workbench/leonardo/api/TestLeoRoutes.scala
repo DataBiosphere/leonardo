@@ -17,10 +17,13 @@ import org.broadinstitute.dsde.workbench.google.mock.{
   MockGoogleStorageDAO
 }
 import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleStorageInterpreter, MockComputePollOperation}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGoogleStorageInterpreter,
+  MockComputePollOperation
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
@@ -74,14 +77,14 @@ trait TestLeoRoutes {
     new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                          mockGoogleProjectDAO,
-                                         MockGoogleComputeService,
+                                         FakeGoogleComputeService,
                                          new MockComputePollOperation)
   val dataprocInterp =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
                                 vpcInterp,
                                 mockGoogleDataprocDAO,
-                                MockGoogleComputeService,
+                                FakeGoogleComputeService,
                                 MockGoogleDiskService,
                                 mockGoogleDirectoryDAO,
                                 mockGoogleIamDAO,
@@ -92,7 +95,7 @@ trait TestLeoRoutes {
     new GceInterpreter[IO](Config.gceInterpreterConfig,
                            bucketHelper,
                            vpcInterp,
-                           MockGoogleComputeService,
+                           FakeGoogleComputeService,
                            MockGoogleDiskService,
                            MockWelderDAO,
                            blocker)
@@ -171,7 +174,7 @@ trait TestLeoRoutes {
     serviceAccountProvider,
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,
-    MockGoogleComputeService,
+    FakeGoogleComputeService,
     new MockComputePollOperation,
     QueueFactory.makePublisherQueue()
   )

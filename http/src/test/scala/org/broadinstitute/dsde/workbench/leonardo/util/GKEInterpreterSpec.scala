@@ -3,11 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{SecretKey, SecretName}
-import org.broadinstitute.dsde.workbench.google2.mock.{MockComputePollOperation, MockGKEService, MockKubernetesService}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  MockComputePollOperation,
+  MockGKEService,
+  MockKubernetesService
+}
 import org.broadinstitute.dsde.workbench.leonardo.{AutoscalingConfig, AutoscalingMax, AutoscalingMin, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -20,7 +24,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                            projectDAO,
-                           MockGoogleComputeService,
+                           FakeGoogleComputeService,
                            new MockComputePollOperation)
 
   val gkeInterp =

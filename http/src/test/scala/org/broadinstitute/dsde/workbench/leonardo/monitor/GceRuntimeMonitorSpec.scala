@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   GoogleComputeService,
@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, userScriptStartupOutputUriMetadataKey}
@@ -166,7 +165,7 @@ class GceRuntimeMonitorSpec
       status = RuntimeStatus.Creating
     )
 
-    val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
+    val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = IO.pure(Some(readyInstance))
@@ -201,7 +200,7 @@ class GceRuntimeMonitorSpec
       status = RuntimeStatus.Creating
     )
 
-    val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
+    val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
@@ -250,7 +249,7 @@ class GceRuntimeMonitorSpec
       status = RuntimeStatus.Creating
     )
 
-    def computeService(start: Long): GoogleComputeService[IO] = new MockGoogleComputeService {
+    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
@@ -289,7 +288,7 @@ class GceRuntimeMonitorSpec
       status = RuntimeStatus.Starting
     )
 
-    def computeService(start: Long): GoogleComputeService[IO] = new MockGoogleComputeService {
+    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
@@ -330,7 +329,7 @@ class GceRuntimeMonitorSpec
       status = RuntimeStatus.Starting
     )
 
-    val computeService: GoogleComputeService[IO] = new MockGoogleComputeService {
+    val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
@@ -425,7 +424,7 @@ class GceRuntimeMonitorSpec
       status = RuntimeStatus.Stopping
     )
 
-    val computeService = new MockGoogleComputeService {
+    val computeService = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
@@ -505,7 +504,7 @@ class GceRuntimeMonitorSpec
       status = RuntimeStatus.Deleting
     )
 
-    def computeService(start: Long): GoogleComputeService[IO] = new MockGoogleComputeService {
+    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] = {
@@ -678,7 +677,7 @@ class GceRuntimeMonitorSpec
   implicit val toolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = _ => MockToolDAO(true)
 
   def gceRuntimeMonitor(
-    googleComputeService: GoogleComputeService[IO] = MockGoogleComputeService,
+    googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
     computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
   ): GceRuntimeMonitor[IO] = {
@@ -697,7 +696,7 @@ class GceRuntimeMonitorSpec
 
   def computeService(start: Long,
                      beforeStatus: Option[GceInstanceStatus],
-                     afterStatus: Option[GceInstanceStatus]): GoogleComputeService[IO] = new MockGoogleComputeService {
+                     afterStatus: Option[GceInstanceStatus]): GoogleComputeService[IO] = new FakeGoogleComputeService {
     override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
       implicit ev: ApplicativeAsk[IO, TraceId]
     ): IO[Option[Instance]] = {

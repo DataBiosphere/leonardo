@@ -11,7 +11,7 @@ import com.google.cloud.dataproc.v1.{Cluster, ClusterStatus}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDataprocDAO, MockGoogleProjectDAO}
-import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleDataprocService
+import org.broadinstitute.dsde.workbench.google2.mock.{BaseFakeGoogleDataprocService, FakeGoogleComputeService}
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
   GoogleComputeService,
@@ -28,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleDataprocDAO, MockGoogleComputeService}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.util.{
   DataprocInterpreter,
@@ -301,7 +301,7 @@ class ZombieRuntimeMonitorSpec
     savedTestRuntime.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual testCluster1
 
     // stub GoogleComputeService to flag runtime as deleted
-    val gce = new MockGoogleComputeService {
+    val gce = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] =
@@ -336,7 +336,7 @@ class ZombieRuntimeMonitorSpec
     savedTestInstance2.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual deletedRuntime2
 
     // stub GoogleComputeService to flag instance2 as still running on google
-    val gce = new MockGoogleComputeService {
+    val gce = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
       ): IO[Option[Instance]] =
@@ -347,10 +347,10 @@ class ZombieRuntimeMonitorSpec
         }
       override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[Operation] = {
+      ): IO[Option[Operation]] = {
         instanceName.value shouldBe (deletedRuntime2.runtimeName.asString)
         project shouldBe (deletedRuntime2.googleProject)
-        IO.pure(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build())
+        IO.pure(Some(Operation.newBuilder().setId("op").setName("opName").setTargetId("target").build()))
       }
     }
 
@@ -491,7 +491,7 @@ class ZombieRuntimeMonitorSpec
 
   private def withZombieMonitor[A](
     gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
-    gce: GoogleComputeService[IO] = new MockGoogleComputeService,
+    gce: GoogleComputeService[IO] = new FakeGoogleComputeService,
     disk: GoogleDiskService[IO] = new MockGoogleDiskService,
     googleProjectDAO: GoogleProjectDAO = new MockGoogleProjectDAO,
     dataprocInterp: Option[RuntimeAlgebra[IO]] = None,

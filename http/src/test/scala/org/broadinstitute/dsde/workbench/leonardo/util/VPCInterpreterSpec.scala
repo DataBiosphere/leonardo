@@ -7,11 +7,10 @@ import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.{Firewall, Network, Operation}
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.mock.MockComputePollOperation
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleComputeService
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -27,7 +26,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                     Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
                                         vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                   ),
-                                  MockGoogleComputeService,
+                                  FakeGoogleComputeService,
                                   new MockComputePollOperation)
 
     test
@@ -40,7 +39,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   stubProjectDAO(
                                     Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_network")
                                   ),
-                                  MockGoogleComputeService,
+                                  FakeGoogleComputeService,
                                   new MockComputePollOperation)
 
     test.setUpProjectNetwork(SetUpProjectNetworkParams(project)).attempt.unsafeRunSync() shouldBe Left(
@@ -51,7 +50,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                    stubProjectDAO(
                                      Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                    ),
-                                   MockGoogleComputeService,
+                                   FakeGoogleComputeService,
                                    new MockComputePollOperation)
 
     test2.setUpProjectNetwork(SetUpProjectNetworkParams(project)).attempt.unsafeRunSync() shouldBe Left(
@@ -62,7 +61,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
   it should "create a new subnet if there are no project labels" in {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
                                   stubProjectDAO(Map.empty),
-                                  MockGoogleComputeService,
+                                  FakeGoogleComputeService,
                                   new MockComputePollOperation)
 
     test
@@ -109,7 +108,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       override def getLabels(projectName: String): Future[Map[String, String]] = Future.successful(labels)
     }
 
-  class MockGoogleComputeServiceWithFirewalls extends MockGoogleComputeService {
+  class MockGoogleComputeServiceWithFirewalls extends FakeGoogleComputeService {
     val firewallMap = scala.collection.concurrent.TrieMap.empty[FirewallRuleName, Firewall]
 
     override def addFirewallRule(project: GoogleProject, firewall: Firewall)(
