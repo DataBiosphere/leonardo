@@ -774,7 +774,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       ctx <- appContext.ask
       res <- runtimeService
-        .processUpdateDataprocConfigRequest(req, false, testClusterRecord, defaultDataprocRuntimeConfig)
+        .processUpdateDataprocConfigRequest(req,
+                                            false,
+                                            testClusterRecord.copy(status = RuntimeStatus.Stopped),
+                                            defaultDataprocRuntimeConfig)
         .attempt
     } yield {
       val expectedException = new LeoException(
@@ -792,8 +795,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), Some(1000))
     val res = for {
       ctx <- appContext.ask
-      cluster = testCluster.copy(dataprocInstances =
-        Set(
+      cluster = testCluster.copy(
+        dataprocInstances = Set(
           DataprocInstance(
             DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
             1,
@@ -802,11 +805,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             DataprocRole.Master,
             ctx.now
           )
-        )
+        ),
+        status = RuntimeStatus.Running
       )
       _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
-        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)
+        .getActiveClusterRecordByName(cluster.googleProject, cluster.runtimeName)
         .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,

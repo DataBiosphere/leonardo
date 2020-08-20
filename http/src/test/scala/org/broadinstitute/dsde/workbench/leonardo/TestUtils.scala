@@ -27,7 +27,6 @@ object TestUtils extends Matchers {
       def areEqual(a: LeoException, b: Any): Boolean =
         b match {
           case bb: LeoException =>
-            println("comparinggggg")
             a.message == bb.message && a.statusCode == bb.statusCode && a.cause == bb.cause
           case _ => false
         }
