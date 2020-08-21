@@ -663,7 +663,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             )
         }
 
-      // Run the initial synchronous operations
+      // Run the initial synchronous operation
       createClusterResultOpt <- createCluster
       createNodepoolResultOpt <- if (createClusterResultOpt.isDefined) F.pure(none[CreateNodepoolResult])
       else createNodepool
