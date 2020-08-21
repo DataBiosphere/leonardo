@@ -114,6 +114,8 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
 
   lazy val jupyterModal: Query = cssSelector("[class='modal-title']")
 
+  lazy val secondJupyterModal: Query = cssSelector("[class='modal-title']:nth-child(2)")
+
   lazy val confirmNotebookSaveButton: Query = cssSelector(
     "[class='btn btn-default btn-sm btn-danger save-confirm-btn']"
   )
@@ -328,6 +330,9 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
   def modeExists(): Boolean =
     find(modeBanner).size > 0
 
+  def secondModalExists(): Boolean =
+    find(secondJupyterModal).size > 0
+
   def getMode(): NotebookMode =
     if (modeExists()) {
       NotebookMode.getModeFromString(find(modeBanner).head.text)
@@ -376,11 +381,18 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
 
   //will cause an exception if no modal exists - check existence of below ID before calling
   def makeACopyFromSyncIssue(): Unit =
-    click on getSelectorFrom(syncCopyButton)
+    if (find(syncCopyButton).size > 0) {
+      click on getSelectorFrom(syncCopyButton)
+    }
 
   //will cause an exception if expected modal does not exist - check existence of below ID before calling
   def goToPlaygroundModeFromLockIssue(): Unit =
     click on getSelectorFrom(lockPlaygroundButton)
+
+  def validateOverrideModal(): Unit = {
+    await condition (secondModalExists, 7.minutes.toSeconds)
+    clickOverrideNotebookChanged()
+  }
 
   /**
    * In some situations Jupyter UI will display a "Notebook changed" modal if it detects
