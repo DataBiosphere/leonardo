@@ -628,10 +628,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       //  3. (optional) create and poll disk
       //  4. create and poll app
       //
-      // Numbers 1-3 are all Google calls; (4) is a helm call. If any of 1-3 are necessary
-      // then we will do the _initial_ Google call synchronous to the pubsub processing so
+      // Numbers 1-3 are all Google calls; (4) is a helm call. If either of (1) or (2) are
+      // necessary then we will do the _initial_ Google call synchronous to the pubsub processing so
       // we can nack the message on errors. Monitoring all creations will be asynchronous,
-      // and (4) will always be asynchronous.
+      // and (3) and (4) will always be asynchronous.
 
       // build the createCluster IO but don't run it
       createCluster = msg.cluster
@@ -668,19 +668,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       createNodepoolResultOpt <- if (createClusterResultOpt.isDefined) F.pure(none[CreateNodepoolResult])
       else createNodepool
 
-      _ <- createDiskForApp(msg).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
-            Some(msg.appId),
-            false,
-            None,
-            None
-          )
-      }
-
       // build asynchronous task
       task = for {
+        // create disk if necessary
+        _ <- createDiskForApp(msg).adaptError {
+          case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
+              Some(msg.appId),
+              false,
+              None,
+              None
+            )
+        }
+
         // monitor cluster creation if necessary
         _ <- (msg.cluster, createClusterResultOpt).tupled
           .traverse_ {
