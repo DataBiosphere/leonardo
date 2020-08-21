@@ -50,9 +50,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   F: ConcurrentEffect[F])
     extends GKEAlgebra[F] {
 
-  override def createAndPollCluster(params: CreateClusterParams)(
+  override def createCluster(params: CreateClusterParams)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
+  ): F[CreateClusterResult] =
     for {
       ctx <- ev.ask
       _ <- logger.info(
@@ -67,6 +67,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId} not found in database"
         )
       )
+
+      // Get nodepools to pass in the create cluster request
       nodepools = dbCluster.nodepools
         .filter(n => params.nodepoolsToCreate.contains(n.id))
         .map(getGoogleNodepool)
@@ -79,9 +81,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       else F.unit
 
-      defaultNodepool <- F.fromOption(dbCluster.nodepools.filter(_.isDefault).headOption,
-                                      DefaultNodepoolNotFoundException(dbCluster.id))
-
       // Set up VPC and firewall
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
         SetUpProjectNetworkParams(params.googleProject)
@@ -90,8 +89,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         SetUpProjectFirewallsParams(params.googleProject, network)
       )
 
-      kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network).idString
-      kubeSubNetwork = KubernetesSubNetwork(dbCluster.googleProject, dbCluster.region, subnetwork).idString
+      kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network)
+      kubeSubNetwork = KubernetesSubNetwork(dbCluster.googleProject, dbCluster.region, subnetwork)
 
       createClusterReq = Cluster
         .newBuilder()
@@ -101,8 +100,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
         // all the below code corresponds to security recommendations
         .setLegacyAbac(LegacyAbac.newBuilder().setEnabled(false))
-        .setNetwork(kubeNetwork)
-        .setSubnetwork(kubeSubNetwork)
+        .setNetwork(kubeNetwork.idString)
+        .setSubnetwork(kubeSubNetwork.idString)
         .setNetworkPolicy(
           NetworkPolicy
             .newBuilder()
@@ -129,10 +128,32 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, createClusterReq)
       op <- gkeService.createCluster(req)
 
+    } yield CreateClusterResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op),
+                                kubeNetwork,
+                                kubeSubNetwork)
+
+  override def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Polling cluster creation for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+      )
+
+      // Grab records from the database
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(params.clusterId).transaction
+      dbCluster <- F.fromOption(
+        clusterOpt,
+        KubernetesClusterNotFoundException(
+          s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId} not found in database"
+        )
+      )
+      defaultNodepool <- F.fromOption(dbCluster.nodepools.filter(_.isDefault).headOption,
+                                      DefaultNodepoolNotFoundException(dbCluster.id))
+
       // Poll GKE until completion
       lastOp <- gkeService
         .pollOperation(
-          KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op),
+          params.createResult.op,
           config.monitorConfig.clusterCreate.interval,
           config.monitorConfig.clusterCreate.maxAttempts
         )
@@ -154,6 +175,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             )
           )
 
+      // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(dbCluster.getGkeClusterId)
       googleCluster <- F.fromOption(
         googleClusterOpt,
@@ -223,8 +245,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             IP(loadBalancerIp.asString),
             IP(googleCluster.getEndpoint),
             NetworkFields(
-              network,
-              subnetwork,
+              params.createResult.network.name,
+              params.createResult.subnetwork.name,
               Config.vpcConfig.subnetworkIpRange
             )
           )
@@ -238,10 +260,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(s"Successfully created cluster ${params.clusterId}!")
 
     } yield ()
+  }
 
-  override def createAndPollNodepool(params: CreateNodepoolParams)(
+  override def createNodepool(params: CreateNodepoolParams)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] =
+  ): F[CreateNodepoolResult] =
     for {
       ctx <- ev.ask
       _ <- logger.info(
@@ -259,9 +282,17 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         getGoogleNodepool(dbNodepool)
       )
       op <- gkeService.createNodepool(req)
+    } yield CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op))
+
+  override def pollNodepool(params: PollNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Polling nodepool creation for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+      )
       lastOp <- gkeService
         .pollOperation(
-          KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op),
+          params.createResult.op,
           config.monitorConfig.nodepoolCreate.interval,
           config.monitorConfig.nodepoolCreate.maxAttempts
         )

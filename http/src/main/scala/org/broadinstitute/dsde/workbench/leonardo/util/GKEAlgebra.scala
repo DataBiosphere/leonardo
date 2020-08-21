@@ -1,13 +1,36 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.ApplicativeAsk
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{
+  KubernetesNetwork,
+  KubernetesOperationId,
+  KubernetesSubNetwork
+}
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName, KubernetesClusterLeoId, NodepoolLeoId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait GKEAlgebra[F[_]] {
-  def createAndPollCluster(params: CreateClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
-  def createAndPollNodepool(params: CreateNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
+  /**
+   * Creates a GKE cluster but doesn't wait for its completion.
+   */
+  def createCluster(params: CreateClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateClusterResult]
+
+  /**
+   * Polls a creating GKE cluster for its completion and also does other cluster-wide set-up like
+   * install nginx ingress controller.
+   */
+  def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
+
+  /**
+   * Creates a GKE nodepool but doesn't want for its completion.
+   */
+  def createNodepool(params: CreateNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateNodepoolResult]
+
+  /**
+   * Polls a creating nodepool for its completion.
+   */
+  def pollNodepool(params: PollNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
   def createAndPollApp(params: CreateAppParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
@@ -23,7 +46,20 @@ final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,
                                      nodepoolsToCreate: List[NodepoolLeoId],
                                      isNodepoolPrecreate: Boolean)
 
+final case class CreateClusterResult(op: KubernetesOperationId,
+                                     network: KubernetesNetwork,
+                                     subnetwork: KubernetesSubNetwork)
+
+final case class PollClusterParams(clusterId: KubernetesClusterLeoId,
+                                   googleProject: GoogleProject,
+                                   isNodepoolPrecreate: Boolean,
+                                   createResult: CreateClusterResult)
+
 final case class CreateNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
+
+final case class CreateNodepoolResult(op: KubernetesOperationId)
+
+final case class PollNodepoolParams(nodepoolId: NodepoolLeoId, createResult: CreateNodepoolResult)
 
 final case class CreateAppParams(appId: AppId, googleProject: GoogleProject, appName: AppName)
 

@@ -5,7 +5,6 @@ import java.time.Instant
 import java.util.concurrent.TimeoutException
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
-import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
@@ -48,7 +47,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
   errorReporting: ErrorReporting[F]
 )(implicit executionContext: ExecutionContext,
   F: ConcurrentEffect[F],
-  parallel: Parallel[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
   runtimeInstances: RuntimeInstances[F],
@@ -624,12 +622,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     for {
       ctx <- ev.ask
 
-      // kick off cluster creation if necessary
-      createAndPollCluster = msg.cluster
-        .traverse_ { c =>
-          gkeInterp.createAndPollCluster(
-            CreateClusterParams(c.clusterId, msg.project, List(c.defaultNodepoolId), false)
-          )
+      // The "create app" flow does a number of things:
+      //  1. (optional) create, poll, and setup cluster
+      //  2. (optional) create and poll nodepool
+      //  3. (optional) create and poll disk
+      //  4. create and poll app
+      //
+      // Numbers 1-3 are all Google calls; (4) is a helm call. If any of 1-3 are necessary
+      // then we will do the _initial_ Google call synchronous to the pubsub processing so
+      // we can nack the message on errors. Monitoring all creations will be asynchronous,
+      // and (4) will always be asynchronous.
+
+      // build the createCluster IO but don't run it
+      createCluster = msg.cluster
+        .traverse { c =>
+          gkeInterp.createCluster(CreateClusterParams(c.clusterId, msg.project, List(c.defaultNodepoolId), false))
         }
         .adaptError {
           case e =>
@@ -642,8 +649,26 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             )
         }
 
-      // kick off disk creation if necessary
-      createDisk = createDiskForApp(msg).adaptError {
+      // build the createNodepool IO but don't run it
+      createNodepool = msg.nodepoolId
+        .traverse(nodepoolId => gkeInterp.createNodepool(CreateNodepoolParams(nodepoolId, msg.project)))
+        .adaptError {
+          case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
+              Some(msg.appId),
+              false,
+              msg.nodepoolId,
+              None
+            )
+        }
+
+      // Run the initial synchronous operations
+      createClusterResultOpt <- createCluster
+      createNodepoolResultOpt <- if (createClusterResultOpt.isDefined) F.pure(none[CreateNodepoolResult])
+      else createNodepool
+
+      _ <- createDiskForApp(msg).adaptError {
         case e =>
           PubsubKubernetesError(
             AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
@@ -654,24 +679,49 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           )
       }
 
-      parPreAppCreationSetup = List(createAndPollCluster, createDisk).parSequence.flatMap(_ => F.unit)
-
+      // build asynchronous task
       task = for {
-        _ <- parPreAppCreationSetup
-        // create node pool if necessary
-        _ <- msg.nodepoolId.traverse { nodepoolId =>
-          gkeInterp.createAndPollNodepool(CreateNodepoolParams(nodepoolId, msg.project)).adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
-                Some(msg.appId),
-                false,
-                Some(nodepoolId),
-                None
+        // monitor cluster creation if necessary
+        _ <- (msg.cluster, createClusterResultOpt).tupled
+          .traverse_ {
+            case (cluster, createClusterResult) =>
+              gkeInterp.pollCluster(
+                PollClusterParams(cluster.clusterId, msg.project, false, createClusterResult)
               )
           }
+          .adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+                Some(msg.appId),
+                false,
+                msg.cluster.map(_.defaultNodepoolId),
+                msg.cluster.map(_.clusterId)
+              )
+          }
+
+        // monitor node pool creation if necessary
+        _ <- ((msg.nodepoolId, createNodepoolResultOpt) match {
+          case (Some(nodePoolId), Some(createNodepoolResult)) =>
+            gkeInterp.pollNodepool(PollNodepoolParams(nodePoolId, createNodepoolResult))
+          case (Some(nodepoolId), None) =>
+            for {
+              createNodepoolResult <- gkeInterp.createNodepool(CreateNodepoolParams(nodepoolId, msg.project))
+              _ <- gkeInterp.pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
+            } yield ()
+          case _ => F.unit
+        }).adaptError {
+          case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
+              Some(msg.appId),
+              false,
+              msg.nodepoolId,
+              None
+            )
         }
-        // create app
+
+        // create and monitor app
         _ <- gkeInterp.createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName)).adaptError {
           case e =>
             PubsubKubernetesError(
@@ -695,18 +745,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
     for {
       ctx <- ev.ask
 
-      task = gkeInterp
-        .createAndPollCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-              None,
-              false,
-              None,
-              Some(msg.clusterId)
-            )
-        }
+      // Unlike handleCreateAppMessage, here we assume that the cluster does not exist so we always create it.
+
+      task = (for {
+        result <- gkeInterp.createCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
+        _ <- gkeInterp.pollCluster(PollClusterParams(msg.clusterId, msg.project, true, result))
+      } yield ()).adaptError {
+        case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+            None,
+            false,
+            None,
+            Some(msg.clusterId)
+          )
+      }
 
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
