@@ -11,9 +11,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait GKEAlgebra[F[_]] {
 
-  /**
-   * Creates a GKE cluster but doesn't wait for its completion.
-   */
+  /** Creates a GKE cluster but doesn't wait for its completion. */
   def createCluster(params: CreateClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateClusterResult]
 
   /**
@@ -22,22 +20,22 @@ trait GKEAlgebra[F[_]] {
    */
   def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
-  /**
-   * Creates a GKE nodepool but doesn't want for its completion.
-   */
+  /** Creates a GKE nodepool but doesn't want for its completion. */
   def createNodepool(params: CreateNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateNodepoolResult]
 
-  /**
-   * Polls a creating nodepool for its completion.
-   */
+  /** Polls a creating nodepool for its completion. */
   def pollNodepool(params: PollNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
+  /** Creates an app and polls it for completion. */
   def createAndPollApp(params: CreateAppParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
+  /** Deletes a cluster and polls for completion */
   def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
+  /** Deletes a nodepool and polls for completion */
   def deleteAndPollNodepool(params: DeleteNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
+  /** Deletes an app and polls for completion */
   def deleteAndPollApp(params: DeleteAppParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 }
 

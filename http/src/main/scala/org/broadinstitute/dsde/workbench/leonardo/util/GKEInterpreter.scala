@@ -330,8 +330,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         kubeService.createSecret(gkeClusterId, KubernetesNamespace(namespaceName), secret)
       )
       _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
-      //TODO create svc accts
-      //TODO helm create galaxy
+      // TODO create svc accts and workload identity roles
+      // TODO helm create galaxy
+      // TODO poll galaxy for creation
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
@@ -387,10 +388,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
       dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
-      // TODO is deleting the namespace enough or should we helm uninstall as well?
+      // TODO helm delete app and monitor for deletion
       _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
                                        KubernetesNamespace(dbApp.app.appResources.namespace.name))
-      // TODO actually monitor for deletion
       _ <- logger.info(
         s"Delete app operation has finished for nodepool ${params.appId} | trace id: ${ctx.traceId}"
       )

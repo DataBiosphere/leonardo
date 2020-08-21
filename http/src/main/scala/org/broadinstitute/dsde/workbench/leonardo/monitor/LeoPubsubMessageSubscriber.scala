@@ -745,10 +745,22 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
 
       // Unlike handleCreateAppMessage, here we assume that the cluster does not exist so we always create it.
 
-      task = (for {
-        result <- gkeInterp.createCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
-        _ <- gkeInterp.pollCluster(PollClusterParams(msg.clusterId, msg.project, true, result))
-      } yield ()).adaptError {
+      // Create the cluster synchronously
+      createResult <- gkeInterp
+        .createCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
+        .adaptError {
+          case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+              None,
+              false,
+              None,
+              Some(msg.clusterId)
+            )
+        }
+
+      // Poll the cluster asynchronously
+      task = gkeInterp.pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult)).adaptError {
         case e =>
           PubsubKubernetesError(
             AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
