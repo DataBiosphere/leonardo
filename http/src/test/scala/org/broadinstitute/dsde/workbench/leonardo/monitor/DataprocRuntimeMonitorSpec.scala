@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, cluster
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState.Check
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.google.cloud.dataproc.v1.ClusterStatus.State
 import org.scalatest.EitherValues
@@ -614,7 +614,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
             .addNetworkInterfaces(
               NetworkInterface
                 .newBuilder()
-                .addAccessConfigs(AccessConfig.newBuilder().setNatIP(i.value).build())
+                .addAccessConfigs(AccessConfig.newBuilder().setNatIP(i.asString).build())
                 .build()
             )
             .build()

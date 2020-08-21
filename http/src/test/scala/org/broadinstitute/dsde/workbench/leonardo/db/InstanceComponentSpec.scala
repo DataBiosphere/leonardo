@@ -1,8 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GceInstanceStatus, GcsPathUtils, IP, RuntimeConfigId}
+import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, GceInstanceStatus, GcsPathUtils, RuntimeConfigId}
 import CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
+import org.broadinstitute.dsde.workbench.model.IP
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike

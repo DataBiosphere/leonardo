@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -45,7 +45,7 @@ object JsonCodec {
 
   implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
   implicit val googleIdEncoder: Encoder[GoogleId] = Encoder.encodeString.contramap(_.value)
-  implicit val ipEncoder: Encoder[IP] = Encoder.encodeString.contramap(_.value)
+  implicit val ipEncoder: Encoder[IP] = Encoder.encodeString.contramap(_.asString)
   implicit val gcsBucketNameEncoder: Encoder[GcsBucketName] = Encoder.encodeString.contramap(_.value)
   implicit val workbenchEmailEncoder: Encoder[WorkbenchEmail] = Encoder.encodeString.contramap(_.value)
   implicit val gcsObjectNameEncoder: Encoder[GcsObjectName] = Encoder.encodeString.contramap(_.value)

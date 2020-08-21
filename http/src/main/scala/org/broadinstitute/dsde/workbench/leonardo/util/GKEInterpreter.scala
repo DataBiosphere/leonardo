@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsp.{AuthContext, HelmAlgebra}
 
 import scala.collection.JavaConverters._
@@ -168,7 +169,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
       _ <- logger.info(
-        s"Installing ingress helm chart: ${config.ingressConfig} in cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+        s"Installing ingress helm chart: ${config.ingressConfig.chart} in cluster ${params.clusterId} | trace id: ${ctx.traceId}"
       )
 
       // The helm client requires a Google acess token
@@ -219,7 +220,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .updateAsyncFields(
           dbCluster.id,
           KubernetesClusterAsyncFields(
-            IP(loadBalancerIp.value),
+            IP(loadBalancerIp.asString),
             IP(googleCluster.getEndpoint),
             NetworkFields(
               network,

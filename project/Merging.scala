@@ -13,12 +13,6 @@ object Merging {
     case "module-info.class" =>
       MergeStrategy.discard // JDK 8 does not use the file module-info.class so it is safe to discard the file.
     case "reference.conf" => MergeStrategy.concat
-    // For the following error:
-    //[error] (assembly) deduplicate: different file contents found in the following:
-    //[error] logback.xml
-    //[error] /Users/rtitle/Library/Caches/Coursier/v1/https/broadinstitute.jfrog.io/broadinstitute/libs-release/org/broadinstitute/dsp/helm-scala-sdk_2.12/0.0.2-SNAPSHOT/helm-scala-sdk_2.12-0.0.2-SNAPSHOT.jar:logback.xml
-    // The Leo logback.xml should come first in the classpath, so okay to exclude the helm-scala-sdk one.
-    case "logback.xml" => MergeStrategy.first
-    case x             => oldStrategy(x)
+    case x                => oldStrategy(x)
   }
 }

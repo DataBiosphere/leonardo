@@ -55,7 +55,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
-import org.broadinstitute.dsp.{Helm, HelmAlgebra}
+import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 
@@ -365,7 +365,7 @@ object Boot extends IOApp {
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
-      helmClient = new Helm[F](blocker, semaphore)
+      helmClient = new HelmInterpreter[F](blocker, semaphore)
 
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
 

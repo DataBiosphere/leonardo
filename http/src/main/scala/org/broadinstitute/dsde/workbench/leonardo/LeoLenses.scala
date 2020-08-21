@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRes
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
 import org.broadinstitute.dsde.workbench.leonardo.http.dataprocRuntimeToDataprocInCreateRuntimeMsg
+import org.broadinstitute.dsde.workbench.model.IP
 
 object LeoLenses {
   val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)

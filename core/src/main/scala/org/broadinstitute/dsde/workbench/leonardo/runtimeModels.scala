@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.{ValueObject, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, ValueObject, WorkbenchEmail}
 
 import scala.collection.immutable
 
@@ -394,7 +394,6 @@ final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName
   override def toString: String = s"${googleProject.value}/${runtimeName.asString}"
 }
 final case class RuntimeAndRuntimeConfig(runtime: Runtime, runtimeConfig: RuntimeConfig)
-final case class IP(value: String) extends ValueObject
 final case class IpRange(value: String) extends AnyVal
 final case class NetworkTag(value: String) extends ValueObject
 final case class GoogleOperation(name: OperationName, id: GoogleId)

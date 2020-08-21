@@ -38,7 +38,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
   ServiceAccountPrivateKeyData,
   _
 }
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
 object CommonTestData {
 // values common to multiple tests, to reduce boilerplate

@@ -5,7 +5,7 @@ import java.time.Instant
 
 import cats.data.Chain
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -476,13 +476,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                    dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.status, c.hostIp, c.dateAccessed))
-      .update((status, hostIp.map(_.value), dateAccessed))
+      .update((status, hostIp.map(_.asString), dateAccessed))
 
   def updateClusterHostIp(id: Long, hostIp: Option[IP], dateAccessed: Instant): DBIO[Int] =
     clusterQuery
       .filter(x => x.id === id)
       .map(c => (c.hostIp, c.dateAccessed))
-      .update((hostIp.map(_.value), dateAccessed))
+      .update((hostIp.map(_.asString), dateAccessed))
 
   def updateAsyncClusterCreationFields(updateAsyncClusterCreationFields: UpdateAsyncClusterCreationFields): DBIO[Int] =
     findByIdQuery(updateAsyncClusterCreationFields.clusterId)
@@ -572,7 +572,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.googleProject,
       runtime.asyncRuntimeFields.map(_.operationName.value),
       runtime.status,
-      runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.value)),
+      runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.asString)),
       runtime.jupyterUserScriptUri,
       runtime.jupyterStartUserScriptUri,
       initBucket,

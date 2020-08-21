@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   GetRuntimeResponse,
   ListRuntimeResponse
 }
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import spray.json.DefaultJsonProtocol
 

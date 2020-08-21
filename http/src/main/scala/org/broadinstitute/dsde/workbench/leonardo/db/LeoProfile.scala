@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
@@ -140,7 +140,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val locationColumnType: BaseColumnType[Location] =
       MappedColumnType.base[Location, String](_.value, Location.apply)
     implicit val ipColumnType: BaseColumnType[IP] =
-      MappedColumnType.base[IP, String](_.value, IP.apply)
+      MappedColumnType.base[IP, String](_.asString, IP.apply)
 
     implicit val networkNameColumnType: BaseColumnType[NetworkName] =
       MappedColumnType.base[NetworkName, String](_.value, NetworkName.apply)
