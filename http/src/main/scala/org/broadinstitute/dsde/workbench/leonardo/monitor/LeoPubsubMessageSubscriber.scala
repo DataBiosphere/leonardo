@@ -633,8 +633,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       // we can nack the message on errors. Monitoring all creations will be asynchronous,
       // and (3) and (4) will always be asynchronous.
 
-      // build the createCluster IO but don't run it
-      createCluster = msg.cluster
+      // Create the cluster synchronously
+      createClusterResultOpt <- msg.cluster
         .traverse { c =>
           gkeInterp.createCluster(CreateClusterParams(c.clusterId, msg.project, List(c.defaultNodepoolId), false))
         }
@@ -649,24 +649,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
             )
         }
 
-      // build the createNodepool IO but don't run it
-      createNodepool = msg.nodepoolId
-        .traverse(nodepoolId => gkeInterp.createNodepool(CreateNodepoolParams(nodepoolId, msg.project)))
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
-              Some(msg.appId),
-              false,
-              msg.nodepoolId,
-              None
-            )
-        }
-
-      // Run the initial synchronous operation
-      createClusterResultOpt <- createCluster
+      // Create the nodepool synchronously if we didn't need to create the cluster
       createNodepoolResultOpt <- if (createClusterResultOpt.isDefined) F.pure(none[CreateNodepoolResult])
-      else createNodepool
+      else
+        msg.nodepoolId
+          .traverse(nodepoolId => gkeInterp.createNodepool(CreateNodepoolParams(nodepoolId, msg.project)))
+          .adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
+                Some(msg.appId),
+                false,
+                msg.nodepoolId,
+                None
+              )
+          }
 
       // build asynchronous task
       task = for {
