@@ -9,8 +9,7 @@ RUN mkdir /helm-go-lib-build && \
     cd /helm-go-lib-build && \
     git clone https://github.com/broadinstitute/helm-scala-sdk.git && \
     cd helm-scala-sdk && \
-    # TODO: change to master once https://github.com/broadinstitute/helm-scala-sdk/pull/4 is merged
-    git checkout rt-add-mock && \
+    git checkout master && \
     cd helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 

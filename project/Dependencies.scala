@@ -19,9 +19,9 @@ object Dependencies {
   val serviceTestV = "0.18-61887ce"
 
   val workbenchUtilV = "0.5-4c7acd5"
-  val workbenchModelV = "0.14-d558f77a-SNAP"
+  val workbenchModelV = "0.14-2e155f0"
   val workbenchGoogleV = "0.21-2a218f3"
-  val workbenchGoogle2V = "0.11-d558f77a-SNAP"
+  val workbenchGoogle2V = "0.11-2e155f0"
   val workbenchMetricsV = "0.3-c5b80d2"
   val workbenchOpenTelemetryV = "0.1-e66171c"
   val workbenchErrorReportingV = "0.1-92fcd96"
