@@ -5,6 +5,7 @@ import java.time.Instant
 import java.util.concurrent.TimeoutException
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
@@ -36,7 +37,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchE
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
+class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   config: LeoPubsubMessageSubscriberConfig,
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   asyncTasks: InspectableQueue[F, Task[F]],
@@ -665,21 +666,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               )
           }
 
-      // build asynchronous task
-      task = for {
-        // create disk if necessary
-        _ <- createDiskForApp(msg).adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-        }
+      // create disk asynchronously
+      createDisk = createDiskForApp(msg).adaptError {
+        case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
+            Some(msg.appId),
+            false,
+            None,
+            None
+          )
+      }
 
-        // monitor cluster creation if necessary
+      // monitor cluster creation and nodepool creation asynchronously
+      monitorClusterAndNodePool = for {
         _ <- (msg.cluster, createClusterResultOpt).tupled
           .traverse_ {
             case (cluster, createClusterResult) =>
@@ -698,7 +698,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               )
           }
 
-        // monitor node pool creation if necessary
         _ <- ((msg.nodepoolId, createNodepoolResultOpt) match {
           case (Some(nodePoolId), Some(createNodepoolResult)) =>
             gkeInterp.pollNodepool(PollNodepoolParams(nodePoolId, createNodepoolResult))
@@ -718,7 +717,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
               None
             )
         }
+      } yield ()
 
+      // parallelize disk creation and cluster/nodepool monitoring
+      parPreAppCreationSetup = List(createDisk, monitorClusterAndNodePool).parSequence_
+
+      // build asynchronous task
+      task = for {
+        _ <- parPreAppCreationSetup
         // create and monitor app
         _ <- gkeInterp.createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName)).adaptError {
           case e =>
