@@ -50,48 +50,13 @@ object GPAllocFixtureSpec {
   val initalRuntimeName = RuntimeName("initial-runtime")
 }
 
-trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures with LeonardoTestUtils {
+trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   this: TestSuite =>
-
-  override def beforeAll(): Unit = {
-    val res = for {
-      _ <- IO(super.beforeAll())
-      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll beforeAll"))
-      claimAttempt <- claimProject().attempt
-      _ <- claimAttempt match {
-        case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
-        case Right(billingProject) =>
-          IO(sys.props.put(gpallocProjectKey, billingProject.value)) >>
-            createInitialRuntime(billingProject)
-      }
-    } yield ()
-
-    res.unsafeRunSync()
-  }
-
-  override def afterAll(): Unit = {
-    val res = for {
-      shouldUnclaimProp <- IO(sys.props.get(shouldUnclaimProjectsKey))
-      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaimProp"))
-      projectProp <- IO(sys.props.get(gpallocProjectKey))
-      project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
-      _ <- if (shouldUnclaimProp != Some("false")) {
-        project.traverse(p =>
-          deleteInitialRuntime(p) >>
-            unclaimProject(p)
-        )
-      } else IO(logger.info(s"Not going to release project: ${projectProp} due to error happened"))
-      _ <- IO(sys.props.remove(gpallocProjectKey))
-      _ <- IO(super.afterAll())
-    } yield ()
-
-    res.unsafeRunSync()
-  }
 
   /**
    * Claim new billing project by Hermione
    */
-  private def claimProject(): IO[GoogleProject] =
+  protected def claimProject(): IO[GoogleProject] =
     for {
       claimedBillingProject <- IO(claimGPAllocProject(hermioneCreds))
       _ <- IO(
@@ -105,7 +70,7 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
   /**
    * Unclaiming billing project claim by Hermione
    */
-  private def unclaimProject(project: GoogleProject): IO[Unit] =
+  protected def unclaimProject(project: GoogleProject): IO[Unit] =
     for {
       _ <- IO(
         Orchestration.billing
@@ -116,6 +81,54 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
       _ <- IO(releaseGPAllocProject(project.value, hermioneCreds))
       _ <- IO(logger.info(s"Billing project released: ${project.value}"))
     } yield ()
+
+  def withNewProject[T](testCode: GoogleProject => T): T = {
+    val test = for {
+      _ <- IO(logger.info("Allocating a new single-test project"))
+      project <- claimProject()
+      _ <- IO(logger.info(s"Single test project $project claimed"))
+      t <- IO(testCode(project))
+      _ <- unclaimProject(project)
+      _ <- IO(logger.info(s"releasing single-test project: ${project.value}"))
+    } yield t
+
+    test.unsafeRunSync()
+  }
+}
+
+trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
+  this: TestSuite =>
+
+  override def beforeAll(): Unit = {
+    val res = for {
+      _ <- IO(super.beforeAll())
+      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll beforeAll"))
+      claimAttempt <- claimProject().attempt
+      _ <- claimAttempt match {
+        case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
+        case Right(billingProject) =>
+          IO(sys.props.put(gpallocProjectKey, billingProject.value)) >> createInitialRuntime(billingProject)
+      }
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  override def afterAll(): Unit = {
+    val res = for {
+      shouldUnclaimProp <- IO(sys.props.get(shouldUnclaimProjectsKey))
+      _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaimProp"))
+      projectProp <- IO(sys.props.get(gpallocProjectKey))
+      project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
+      _ <- if (shouldUnclaimProp != Some("false")) {
+        project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
+      } else IO(logger.info(s"Not going to release project: ${projectProp} due to error happened"))
+      _ <- IO(sys.props.remove(gpallocProjectKey))
+      _ <- IO(super.afterAll())
+    } yield ()
+
+    res.unsafeRunSync()
+  }
 
   // NOTE: createInitialRuntime / deleteInitialRuntime exists so we can ensure that project-level
   // resources like networks, subnets, etc are set up prior to the concurrent test execution.
@@ -177,7 +190,8 @@ final class LeonardoSuite
       new RuntimeStatusTransitionsSpec,
       new NotebookGCEClusterMonitoringSpec,
       new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec
+      new NotebookGCEDataSyncingSpec,
+      new BatchNodepoolCreationSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll

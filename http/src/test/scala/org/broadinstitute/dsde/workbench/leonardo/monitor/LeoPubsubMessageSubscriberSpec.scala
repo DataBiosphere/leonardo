@@ -58,6 +58,7 @@ import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
+import CommonTestData._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -118,6 +119,7 @@ class LeoPubsubMessageSubscriberSpec
                            MockGalaxyDAO,
                            credentials,
                            iamDAOKubernetes,
+                           whitelistAuthProvider,
                            blocker)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
@@ -1149,6 +1151,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
+        whitelistAuthProvider,
                              blocker)
 
     val assertions = for {
@@ -1202,6 +1205,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
+                             whitelistAuthProvider,
                              blocker)
 
     val assertions = for {
@@ -1458,6 +1462,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
+        whitelistAuthProvider,
                              blocker)
 
     val assertions = for {
@@ -1537,6 +1542,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
+        whitelistAuthProvider,
                              blocker)
 
     val assertions = for {
@@ -1612,6 +1618,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAO,
+        whitelistAuthProvider,
                              blocker)
 
     val assertions = for {

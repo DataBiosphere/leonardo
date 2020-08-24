@@ -61,6 +61,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            MockGalaxyDAO,
                            credentials,
                            googleIamDao,
+                           whitelistAuthProvider,
                            blocker)
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
