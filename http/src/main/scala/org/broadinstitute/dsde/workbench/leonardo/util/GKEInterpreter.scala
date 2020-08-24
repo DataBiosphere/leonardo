@@ -132,7 +132,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                 kubeNetwork,
                                 kubeSubNetwork)
 
-  override def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {
+  override def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       _ <- logger.info(
@@ -184,59 +184,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
-      // Install nginx igress controller
-      _ <- logger.info(
-        s"Creating ${config.ingressConfig.namespace.value} namespace in cluster ${params.clusterId} | trace id: ${ctx.traceId}"
-      )
-      _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
-
-      _ <- logger.info(
-        s"Installing ingress helm chart: ${config.ingressConfig.chart} in cluster ${params.clusterId} | trace id: ${ctx.traceId}"
-      )
-
-      // The helm client requires a Google acess token
-      _ <- F.delay(credentials.refreshIfExpired())
-
-      // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
-      caCertFile <- writeTempFile(s"gke_ca_cert_${params.clusterId}",
-                                  Base64.getDecoder().decode(googleCluster.getMasterAuth.getClusterCaCertificate),
-                                  blocker)
-
-      helmAuthContext = AuthContext(
-        org.broadinstitute.dsp.Namespace(config.ingressConfig.namespace.value),
-        org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
-        org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint),
-        org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
-      )
-
-      // Invoke helm
-      _ <- helmClient
-        .installChart(
-          org.broadinstitute.dsp.Release(config.ingressConfig.release.value),
-          org.broadinstitute.dsp.Chart(config.ingressConfig.chart.value),
-          org.broadinstitute.dsp.Values(config.ingressConfig.values.map(_.value).mkString(","))
-        )
-        .run(helmAuthContext)
-
-      // Monitor nginx until public IP is accessible
-      loadBalancerIpOpt <- (
-        Stream.sleep_(config.monitorConfig.createIngress.interval) ++
-          Stream.eval(
-            kubeService.getServiceExternalIp(dbCluster.getGkeClusterId,
-                                             KubernetesNamespace(config.ingressConfig.namespace),
-                                             config.ingressConfig.loadBalancerService)
-          )
-      ).repeatN(config.monitorConfig.createIngress.maxAttempts)
-        .takeThrough(!_.isDefined)
-        .compile
-        .lastOrError
-
-      loadBalancerIp <- F.fromOption(
-        loadBalancerIpOpt,
-        ClusterCreationException(
-          s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} | trace id: ${ctx.traceId}"
-        )
-      )
+      // helm install nginx
+      loadBalancerIp <- installNginx(dbCluster, googleCluster)
 
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
@@ -260,7 +209,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(s"Successfully created cluster ${params.clusterId}!")
 
     } yield ()
-  }
 
   override def createNodepool(params: CreateNodepoolParams)(
     implicit ev: ApplicativeAsk[F, AppContext]
@@ -396,6 +344,66 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
       _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
     } yield ()
+
+  private[util] def installNginx(dbCluster: KubernetesCluster,
+                                 googleCluster: Cluster)(implicit ev: ApplicativeAsk[F, AppContext]): F[IP] =
+    for {
+      ctx <- ev.ask
+
+      // Create namespace for nginx
+      _ <- logger.info(
+        s"Creating ${config.ingressConfig.namespace.value} namespace in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+      )
+      _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
+
+      _ <- logger.info(
+        s"Installing ingress helm chart: ${config.ingressConfig.chart} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+      )
+
+      // The helm client requires a Google access token
+      _ <- F.delay(credentials.refreshIfExpired())
+
+      // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
+      caCertFile <- writeTempFile(s"gke_ca_cert_${dbCluster.id}",
+                                  Base64.getDecoder().decode(googleCluster.getMasterAuth.getClusterCaCertificate),
+                                  blocker)
+
+      helmAuthContext = AuthContext(
+        org.broadinstitute.dsp.Namespace(config.ingressConfig.namespace.value),
+        org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
+        org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint),
+        org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
+      )
+
+      // Invoke helm
+      _ <- helmClient
+        .installChart(
+          org.broadinstitute.dsp.Release(config.ingressConfig.release.value),
+          org.broadinstitute.dsp.Chart(config.ingressConfig.chart.value),
+          org.broadinstitute.dsp.Values(config.ingressConfig.values.map(_.value).mkString(","))
+        )
+        .run(helmAuthContext)
+
+      // Monitor nginx until public IP is accessible
+      loadBalancerIpOpt <- (
+        Stream.sleep_(config.monitorConfig.createIngress.interval) ++
+          Stream.eval(
+            kubeService.getServiceExternalIp(dbCluster.getGkeClusterId,
+                                             KubernetesNamespace(config.ingressConfig.namespace),
+                                             config.ingressConfig.loadBalancerService)
+          )
+      ).repeatN(config.monitorConfig.createIngress.maxAttempts)
+        .takeThrough(_.isEmpty)
+        .compile
+        .lastOrError
+
+      loadBalancerIp <- F.fromOption(
+        loadBalancerIpOpt,
+        ClusterCreationException(
+          s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} | trace id: ${ctx.traceId}"
+        )
+      )
+    } yield loadBalancerIp
 
   private[util] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
     config.ingressConfig.secrets.traverse { secret =>

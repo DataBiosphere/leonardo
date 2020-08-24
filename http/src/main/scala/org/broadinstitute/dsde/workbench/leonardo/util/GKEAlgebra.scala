@@ -20,7 +20,7 @@ trait GKEAlgebra[F[_]] {
    */
   def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
-  /** Creates a GKE nodepool but doesn't want for its completion. */
+  /** Creates a GKE nodepool but doesn't wait for its completion. */
   def createNodepool(params: CreateNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateNodepoolResult]
 
   /** Polls a creating nodepool for its completion. */

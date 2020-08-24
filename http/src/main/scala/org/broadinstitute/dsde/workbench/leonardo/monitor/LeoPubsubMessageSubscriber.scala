@@ -623,13 +623,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       ctx <- ev.ask
 
       // The "create app" flow does a number of things:
-      //  1. (optional) create, poll, and setup cluster
-      //  2. (optional) create and poll nodepool
-      //  3. (optional) create and poll disk
+      //  1. create, poll, and setup cluster if it doesn't exist
+      //  2. create and poll nodepool if it doesn't exist
+      //  3. create and poll disk if it doesn't exist
       //  4. create and poll app
       //
       // Numbers 1-3 are all Google calls; (4) is a helm call. If either of (1) or (2) are
-      // necessary then we will do the _initial_ Google call synchronous to the pubsub processing so
+      // necessary then we will do the _initial_ GKE call synchronous to the pubsub processing so
       // we can nack the message on errors. Monitoring all creations will be asynchronous,
       // and (3) and (4) will always be asynchronous.
 
@@ -641,7 +641,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
               Some(msg.appId),
               false,
               msg.cluster.map(_.defaultNodepoolId),
@@ -657,7 +657,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
                 Some(msg.appId),
                 false,
                 msg.nodepoolId,
@@ -671,7 +671,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         _ <- createDiskForApp(msg).adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
               Some(msg.appId),
               false,
               None,
@@ -690,7 +690,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
                 Some(msg.appId),
                 false,
                 msg.cluster.map(_.defaultNodepoolId),
@@ -711,7 +711,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         }).adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
               Some(msg.appId),
               false,
               msg.nodepoolId,
@@ -723,7 +723,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         _ <- gkeInterp.createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName)).adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.App, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.App, None),
               Some(msg.appId),
               false,
               None,
@@ -751,7 +751,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
               None,
               false,
               None,
@@ -763,7 +763,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       task = gkeInterp.pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult)).adaptError {
         case e =>
           PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+            AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
             None,
             false,
             None,
@@ -785,7 +785,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       deleteNodepool = gkeInterp.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.project)).adaptError {
         case e =>
           PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, None),
+            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, None),
             Some(msg.appId),
             false,
             Some(msg.nodepoolId),
@@ -796,7 +796,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       deleteApp = gkeInterp.deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName)).adaptError {
         case e =>
           PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.App, None),
+            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.App, None),
             Some(msg.appId),
             false,
             None,
@@ -807,7 +807,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift](
       deleteDisk = msg.diskId.traverse(diskId => deleteDiskForApp(diskId)).adaptError {
         case e =>
           PubsubKubernetesError(
-            AppError(e.getMessage(), ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
+            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
             Some(msg.appId),
             false,
             None,
