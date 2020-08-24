@@ -398,6 +398,19 @@ object LeonardoApiClient {
           IO.unit
       }
 
+  def deleteAppWithWait(googleProject: GoogleProject, appName: AppName)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[Unit] =
+    for {
+      _ <- deleteApp(googleProject, appName)
+      ioa = getApp(googleProject, appName).attempt
+      res <- timer.sleep(3 seconds) >> streamFUntilDone(ioa, 10, 30 seconds).compile.lastOrError
+      _ <- if (res.isDone) IO.unit
+      else IO.raiseError(new TimeoutException(s"delete app ${googleProject.value}/${appName.value}"))
+    } yield ()
+
   def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                              authHeader: Authorization): IO[GetAppResponse] =
     client.expectOr[GetAppResponse](
