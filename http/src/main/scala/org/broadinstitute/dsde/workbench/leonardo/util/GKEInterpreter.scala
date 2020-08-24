@@ -71,7 +71,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Get nodepools to pass in the create cluster request
       nodepools = dbCluster.nodepools
         .filter(n => params.nodepoolsToCreate.contains(n.id))
-        .map(getGoogleNodepool)
+        .map(buildGoogleNodepool)
 
       _ <- if (nodepools.size != params.nodepoolsToCreate.size)
         F.raiseError[Unit](
@@ -227,7 +227,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
       req = KubernetesCreateNodepoolRequest(
         dbCluster.getGkeClusterId,
-        getGoogleNodepool(dbNodepool)
+        buildGoogleNodepool(dbNodepool)
       )
       op <- gkeService.createNodepool(req)
     } yield CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op))
@@ -423,7 +423,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
     }
 
-  private[util] def getGoogleNodepool(nodepool: Nodepool): com.google.container.v1.NodePool = {
+  private[util] def buildGoogleNodepool(nodepool: Nodepool): com.google.container.v1.NodePool = {
     val nodepoolBuilder = NodePool
       .newBuilder()
       .setConfig(

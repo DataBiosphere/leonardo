@@ -47,7 +47,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
             autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
       .save()
 
-    val googleNodepool = gkeInterp.getGoogleNodepool(savedNodepool1)
+    val googleNodepool = gkeInterp.buildGoogleNodepool(savedNodepool1)
     googleNodepool.getAutoscaling.getEnabled shouldBe true
     googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
     googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
