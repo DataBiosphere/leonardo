@@ -46,6 +46,7 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
       15 seconds,
       120,
       8 seconds,
+      75,
       Config.clusterBucketConfig,
       Map(
         RuntimeStatus.Creating -> 30.minutes,

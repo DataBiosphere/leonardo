@@ -320,7 +320,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           )
       }
       // wait for 10 minutes for tools to start up before time out.
-      availableTools <- streamFUntilDone(checkTools, 120, 5 seconds).compile.lastOrError
+      availableTools <- streamFUntilDone(checkTools, monitorConfig.checkToolsMaxAttempts, monitorConfig.checkToolsDelay).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
