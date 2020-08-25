@@ -1,9 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import java.util.Base64
+import java.util.{Base64, Objects}
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import akka.http.scaladsl.model.Uri.Host
 import cats.Parallel
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
@@ -26,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.IP
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, HelmAlgebra}
 
 import scala.collection.JavaConverters._
@@ -38,6 +39,7 @@ final case class GKEInterpreterConfig(securityFiles: SecurityFilesConfig,
                                       clusterConfig: KubernetesClusterConfig)
 class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   config: GKEInterpreterConfig,
+  proxyConfig: ProxyConfig,
   vpcAlg: VPCAlgebra[F],
   gkeService: org.broadinstitute.dsde.workbench.google2.GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
@@ -148,7 +150,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId} not found in database"
         )
       )
-      defaultNodepool <- F.fromOption(dbCluster.nodepools.filter(_.isDefault).headOption,
+      defaultNodepool <- F.fromOption(dbCluster.nodepools.find(_.isDefault),
                                       DefaultNodepoolNotFoundException(dbCluster.id))
 
       // Poll GKE until completion
@@ -416,8 +418,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
     } yield loadBalancerIp
 
-  private[util] def installGalaxy(dbCluster: KubernetesCluster,
-                                  googleCluster: Cluster)(implicit ev: ApplicativeAsk[F, AppContext]): F[IP] =
+  private[util] def installGalaxy(dbCluster: KubernetesCluster, googleCluster: Cluster, proxyDomain: String)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[IP] = {
+    val proxyHost = host(dbCluster, proxyDomain)
+    val chartValues = buildGalaxyChartOverrideValuesString(release, nodepool, proxyUrl, hostUrl, userEmail, adminEmail)
+
     for {
       ctx <- ev.ask
 
@@ -475,6 +481,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
     } yield loadBalancerIp
+  }
 
   private[util] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
     config.ingressConfig.secrets.traverse { secret =>
@@ -527,6 +534,33 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
     builderWithAutoscaling.build()
   }
+
+  private[util] def buildGalaxyChartOverrideValuesString(release: ReleaseName,
+                                                         nodepool: NodepoolName,
+                                                         proxyUrl: String,
+                                                         hostUrl: String,
+                                                         userEmail: WorkbenchEmail,
+                                                         adminEmail: WorkbenchEmail): String =
+    // Using the string interpolator """ since the chart keys include quotes to escape Helm
+    // value override special characters such as '.'
+    // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
+    List(
+      raw"""nfs.storageClass.name=nfs-${release.value}""",
+      raw"""cvmfs.repositories.cvmfs-gxy-data-${release.value}=data.galaxyproject.org""",
+      raw"""cvmfs.repositories.cvmfs-gxy-main-${release.value}=main.galaxyproject.org""",
+      raw"""cvmfs.cache.alienCache.storageClass=nfs-${release.value}""",
+      raw"""galaxy.persistence.storageClass=nfs-${release.value}""",
+      raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.value}""",
+      raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
+      raw"""galaxy.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepool.value}""",
+      raw"""nfs.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepool.value}""",
+      raw"""galaxy.ingress.path=${proxyUrl}""",
+      raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-from"=${hostUrl}""",
+      raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-to"=${proxyUrl}""",
+      raw"""galaxy.ingress.hosts[0]=${hostUrl}""",
+      raw"""galaxy.configs."galaxy\.yml".galaxy.single_user=${userEmail}""",
+      raw"""galaxy.configs."galaxy\.yml".galaxy.admin_users=${adminEmail}"""
+    ).mkString(",")
 }
 
 sealed trait AppProcessingException extends Exception {

@@ -244,6 +244,7 @@ object Boot extends IOApp {
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
           val gkeInterp = new GKEInterpreter[IO](gkeInterpConfig,
+                                                 proxyConfig,
                                                  vpcInterp,
                                                  googleDependencies.gkeService,
                                                  googleDependencies.kubeService,
