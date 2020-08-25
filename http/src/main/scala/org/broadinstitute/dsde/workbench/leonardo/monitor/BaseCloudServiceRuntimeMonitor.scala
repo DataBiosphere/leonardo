@@ -325,15 +325,31 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
         case a =>
-          val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
-          failedRuntime(
-            monitorContext,
-            runtimeAndRuntimeConfig,
-            Some(
-              RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly", None, Some("tool_start_up"))
-            ),
-            dataprocInstances
-          )
+          // If the tools didn't start up, resolve the DB status one more time.
+          // It's possible that the user explicitly deleted the runtime in which case
+          // we can ignore the error. Otherwise, move the runtime to Error status.
+          for {
+            curStatusOpt <- clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction
+            curStatus <- F.fromOption(
+              curStatusOpt,
+              new Exception(s"Cluster with id ${runtimeAndRuntimeConfig.runtime.id} not found in the database")
+            )
+            res <- curStatus match {
+              case RuntimeStatus.Deleted => F.pure[CheckResult](((), None))
+              case _ =>
+                val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
+                failedRuntime(
+                  monitorContext,
+                  runtimeAndRuntimeConfig,
+                  Some(
+                    RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly",
+                                        None,
+                                        Some("tool_start_up"))
+                  ),
+                  dataprocInstances
+                )
+            }
+          } yield res
       }
     } yield r
 

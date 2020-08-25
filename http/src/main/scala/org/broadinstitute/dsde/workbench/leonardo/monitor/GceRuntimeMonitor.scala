@@ -8,7 +8,6 @@ import cats.effect.{Async, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Instance
-import com.rms.miu.slickcats.DBIOInstances._
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.{
@@ -389,18 +388,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
         RuntimeStatus.Error,
         runtimeAndRuntimeConfig.runtimeConfig.cloudService
       )
-      // update the cluster status to Error only if the runtime is non-Deleted.
-      // If the user has explicitly deleted their runtime by this point then
-      // we don't want to move it back to Error status.
+      // update the cluster status to Error
       _ <- dbRef.inTransaction {
-        for {
-          status <- clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id)
-          _ <- status.traverse_ {
-            case RuntimeStatus.Deleted => DBIO.successful(())
-            case _ =>
-              clusterQuery.updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now).void
-          }
-        } yield ()
+        clusterQuery.updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now)
       }
       tags = Map(
         "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
