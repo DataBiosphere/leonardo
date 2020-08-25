@@ -1,33 +1,36 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
-import java.time.Instant
-
+import cats.Parallel
 import cats.effect.{Async, Sync, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService}
+import monocle.macros.syntax.lens._
+import org.broadinstitute.dsde.workbench.DoneCheckable
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.CheckResult
-import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeAlgebra, StopRuntimeParams}
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
-import monocle.macros.syntax.lens._
-import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.{
+  getRuntimeUI,
+  recordStatusTransitionMetrics,
+  CheckResult
+}
+import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteRuntimeParams, RuntimeAlgebra, StopRuntimeParams}
+import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   implicit def F: Async[F]
+  implicit def parallel: Parallel[F]
   implicit def timer: Timer[F]
   implicit def dbRef: DbReference[F]
   implicit def ec: ExecutionContext
@@ -90,7 +93,68 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                     errorDetails: Option[RuntimeErrorDetails],
                     instances: Set[DataprocInstance])(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CheckResult]
+  ): F[CheckResult] =
+    for {
+      ctx <- ev.ask
+      _ <- List(
+        // Delete the cluster in Google
+        runtimeAlg
+          .deleteRuntime(
+            DeleteRuntimeParams(
+              runtimeAndRuntimeConfig.runtime.googleProject,
+              runtimeAndRuntimeConfig.runtime.runtimeName,
+              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined
+            )
+          )
+          .void, //TODO is this right when deleting or stopping fails?
+        //save cluster error in the DB
+        saveRuntimeError(
+          runtimeAndRuntimeConfig.runtime.id,
+          errorDetails,
+          None //TODO: pass in startup script path in the future
+        ),
+        if (instances.nonEmpty)
+          clusterQuery
+            .mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = instances))
+            .transaction
+            .void
+        else F.unit
+      ).parSequence_
+
+      // Record metrics in NewRelic
+      _ <- recordStatusTransitionMetrics(
+        monitorContext.start,
+        getRuntimeUI(runtimeAndRuntimeConfig.runtime),
+        runtimeAndRuntimeConfig.runtime.status,
+        RuntimeStatus.Error,
+        runtimeAndRuntimeConfig.runtimeConfig.cloudService
+      )
+
+      // Update the cluster status to Error only if the runtime is non-Deleted.
+      // If the user has explicitly deleted their runtime by this point then
+      // we don't want to move it back to Error status.
+      _ <- for {
+        curStatusOpt <- clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction
+        curStatus <- F.fromOption(
+          curStatusOpt,
+          new Exception(s"Cluster with id ${runtimeAndRuntimeConfig.runtime.id} not found in the database")
+        )
+        _ <- curStatus match {
+          case RuntimeStatus.Deleted => F.unit
+          case _ =>
+            clusterQuery
+              .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now)
+              .transaction
+              .void
+        }
+      } yield ()
+
+      tags = Map(
+        "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
+        "errorCode" -> errorDetails.map(_.shortMessage.getOrElse("leonardo")).getOrElse("leonardo")
+      )
+      _ <- openTelemetry.incrementCounter(s"runtimeCreationFailure", 1, tags)
+    } yield ((), None): CheckResult
 
   def readyRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                    publicIp: IP,
@@ -320,7 +384,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           )
       }
       // wait for 10 minutes for tools to start up before time out.
-      availableTools <- streamFUntilDone(checkTools, monitorConfig.checkToolsMaxAttempts, monitorConfig.checkToolsDelay).compile.lastOrError
+      availableTools <- streamFUntilDone(checkTools,
+                                         monitorConfig.checkToolsMaxAttempts,
+                                         monitorConfig.checkToolsInterval).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
@@ -360,15 +426,52 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     )(res)
   }
 
-  protected def saveClusterError(runtimeId: Long, errorMessage: String, errorCode: Int, now: Instant): F[Unit] =
-    dbRef
-      .inTransaction {
-        clusterErrorQuery.save(runtimeId, RuntimeError(errorMessage, errorCode, now))
+  protected def saveRuntimeError(runtimeId: Long,
+                                 errorDetails: Option[RuntimeErrorDetails],
+                                 startUpScriptOutputFile: Option[GcsPath])(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = {
+    val result = for {
+      ctx <- ev.ask
+      errorToPersist <- errorDetails match {
+        case Some(error) =>
+          F.pure(error)
+        case None =>
+          startUpScriptOutputFile match {
+            case Some(startUpScriptOutput) =>
+              for {
+                isSuccessOpt <- checkUserScriptsOutputFile(startUpScriptOutput)
+                msg <- if (isSuccessOpt.exists(identity)) {
+                  F.pure(RuntimeErrorDetails("Error not available", shortMessage = Some("Unknown")))
+                } else {
+                  F.pure(
+                    RuntimeErrorDetails(s"User startup script failed. See output in ${startUpScriptOutput.toUri}",
+                                        shortMessage = Some("user_startup_script"))
+                  )
+                }
+              } yield msg
+            case None =>
+              F.pure(RuntimeErrorDetails("Error not available", shortMessage = Some("Unknown")))
+          }
       }
-      .void
-      .adaptError {
-        case e => new Exception(s"Error persisting cluster error with message '${errorMessage}' to database: ${e}", e)
-      }
+      _ <- clusterErrorQuery
+        .save(runtimeId, RuntimeError(errorToPersist.longMessage, errorToPersist.code.getOrElse(-1), ctx.now))
+        .transaction
+        .void
+        .adaptError {
+          case e =>
+            new Exception(
+              s"Error persisting runtime error with message '${errorToPersist.longMessage}' to database: ${e}",
+              e
+            )
+        }
+    } yield ()
+
+    result.onError {
+      case e =>
+        logger.error(e)(s"Failed to persist runtime errors for runtime ${runtimeId}: ${e.getMessage}")
+    }
+  }
 
   protected def deleteInitBucket(googleProject: GoogleProject,
                                  runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =

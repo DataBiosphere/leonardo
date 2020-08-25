@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.Dataproc
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
@@ -41,6 +41,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
 )(implicit override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   override val F: Async[F],
+  override val parallel: Parallel[F],
   override val timer: Timer[F],
   override val logger: Logger[F],
   override val ec: ExecutionContext,
@@ -298,54 +299,6 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       } yield r
   }
 
-  override def failedRuntime(monitorContext: MonitorContext,
-                             runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                             errorDetails: Option[RuntimeErrorDetails],
-                             instances: Set[DataprocInstance])(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CheckResult] =
-    for {
-      ctx <- ev.ask
-      _ <- List(
-        // Delete the cluster in Google
-        runtimeAlg
-          .deleteRuntime(
-            DeleteRuntimeParams(
-              runtimeAndRuntimeConfig.runtime.googleProject,
-              runtimeAndRuntimeConfig.runtime.runtimeName,
-              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined
-            )
-          )
-          .void, //TODO is this right when deleting or stopping fails?
-        persistClusterErrors(
-          errorDetails,
-          runtimeAndRuntimeConfig.runtime.id,
-          None //TODO: pass in startup script path in the future
-        ),
-        dbRef.inTransaction {
-          clusterQuery.mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = instances))
-        }.void
-      ).parSequence_
-
-      // Record metrics in NewRelic
-      _ <- RuntimeMonitor.recordStatusTransitionMetrics(
-        monitorContext.start,
-        RuntimeMonitor.getRuntimeUI(runtimeAndRuntimeConfig.runtime),
-        runtimeAndRuntimeConfig.runtime.status,
-        RuntimeStatus.Error,
-        runtimeAndRuntimeConfig.runtimeConfig.cloudService
-      )
-      // update the cluster status to Error
-      _ <- dbRef.inTransaction {
-        clusterQuery.updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now)
-      }
-      tags = Map(
-        "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
-        "errorCode" -> errorDetails.flatMap(_.shortMessage).getOrElse("unknown")
-      )
-      _ <- openTelemetry.incrementCounter(s"runtimeCreationFailure", 1, tags)
-    } yield ((), None): CheckResult
-
   private[monitor] def deletedRuntime(cluster: Option[Cluster],
                                       monitorContext: MonitorContext,
                                       runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
@@ -447,42 +400,5 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       gceConfig <- Option(config.getGceClusterConfig)
       zone <- Option(gceConfig.getZoneUri).flatMap(parseZone)
     } yield zone
-  }
-
-  private def persistClusterErrors(
-    errorDetails: Option[RuntimeErrorDetails],
-    runtimeId: Long,
-    startUpScriptOutputFile: Option[GcsPath]
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {
-    val result = for {
-      ctx <- ev.ask
-      errorToPersist <- errorDetails match {
-        case Some(error) =>
-          F.pure(error)
-        case None =>
-          startUpScriptOutputFile match {
-            case Some(startUpScriptOutput) =>
-              for {
-                isSuccessOpt <- checkUserScriptsOutputFile(startUpScriptOutput)
-                msg <- if (isSuccessOpt.exists(identity)) {
-                  F.pure(RuntimeErrorDetails("Error not available", shortMessage = Some("Unknown")))
-                } else {
-                  F.pure(
-                    RuntimeErrorDetails(s"User startup script failed. See output in ${startUpScriptOutput.toUri}",
-                                        shortMessage = Some("user_startup_script"))
-                  )
-                }
-              } yield msg
-            case None =>
-              F.pure(RuntimeErrorDetails("Error not available", shortMessage = Some("Unknown")))
-          }
-      }
-      _ <- saveClusterError(runtimeId, errorToPersist.longMessage, errorToPersist.code.getOrElse(-1), ctx.now)
-    } yield ()
-
-    result.onError {
-      case e =>
-        logger.error(e)(s"Failed to persist cluster errors for cluster ${runtimeId}: ${e.getMessage}")
-    }
   }
 }

@@ -3,6 +3,7 @@ package monitor
 
 import java.time.Instant
 
+import cats.Parallel
 import cats.effect.{Async, IO, Timer}
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
@@ -125,6 +126,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     new BaseCloudServiceRuntimeMonitor[IO] {
       implicit override def F: Async[IO] = IO.ioConcurrentEffect(cs)
 
+      implicit override def parallel: Parallel[IO] = IO.ioParallel(cs)
+
       override def timer: Timer[IO] = testTimer
 
       implicit override def dbRef: DbReference[IO] = testDbRef
@@ -141,7 +144,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
       implicit override def openTelemetry: OpenTelemetryMetrics[IO] = metrics
 
-      override def runtimeAlg: RuntimeAlgebra[IO] = ???
+      override def runtimeAlg: RuntimeAlgebra[IO] = MockRuntimeAlgebra
 
       override def logger: Logger[IO] = loggerIO
 
@@ -163,20 +166,6 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
                              runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                              operation: Operation,
                              action: RuntimeStatus)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
-
-      // Stub definition which simply sets the runtime status to Error
-      override def failedRuntime(
-        monitorContext: MonitorContext,
-        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-        errorDetails: Option[RuntimeErrorDetails],
-        instances: Set[DataprocInstance]
-      )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[(Unit, Option[MonitorState])] =
-        for {
-          now <- nowInstant
-          _ <- clusterQuery
-            .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, now)
-            .transaction
-        } yield ((), None)
 
       override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
         implicit ev: ApplicativeAsk[IO, AppContext]

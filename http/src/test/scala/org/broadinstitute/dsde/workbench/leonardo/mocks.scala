@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.auth.Credentials
+import com.google.cloud.compute.v1.Operation
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.BucketSourceOption
 import com.google.pubsub.v1.PubsubMessage
@@ -22,6 +23,19 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   SamResource,
   SamResourceAction,
   ServiceAccountProvider
+}
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  CreateRuntimeParams,
+  CreateRuntimeResponse,
+  DeleteRuntimeParams,
+  FinalizeDeleteParams,
+  GetRuntimeStatusParams,
+  ResizeClusterParams,
+  RuntimeAlgebra,
+  StartRuntimeParams,
+  StopRuntimeParams,
+  UpdateDiskSizeParams,
+  UpdateMachineTypeParams
 }
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -130,4 +144,33 @@ class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
   // If you use `start`, make sure to hook up `messages` somewhere as well on the same instance for consuming the messages; Otherwise, messages will be left nacked
   def start: IO[Unit] = IO.unit
   def stop: IO[Unit] = IO.unit
+}
+
+object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
+  override def createRuntime(params: CreateRuntimeParams)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[CreateRuntimeResponse] = ???
+
+  override def getRuntimeStatus(params: GetRuntimeStatusParams)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[RuntimeStatus] = ???
+
+  override def deleteRuntime(params: DeleteRuntimeParams)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[Option[Operation]] = IO.pure(None)
+
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+
+  override def stopRuntime(params: StopRuntimeParams)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[Option[Operation]] = ???
+
+  override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Unit] = ???
+
+  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+    ???
+
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
 }

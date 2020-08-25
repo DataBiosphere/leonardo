@@ -44,6 +44,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
 )(implicit override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   override val F: Async[F],
+  override val parallel: Parallel[F],
   override val timer: Timer[F],
   override val logger: Logger[F],
   override val ec: ExecutionContext,
@@ -352,51 +353,6 @@ class GceRuntimeMonitor[F[_]: Parallel](
         }
     }
   }
-
-  override def failedRuntime(monitorContext: MonitorContext,
-                             runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                             errorDetails: Option[RuntimeErrorDetails],
-                             instances: Set[DataprocInstance])(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CheckResult] =
-    for {
-      ctx <- ev.ask
-      _ <- List(
-        // Delete the cluster in Google
-        runtimeAlg
-          .deleteRuntime(
-            DeleteRuntimeParams(
-              runtimeAndRuntimeConfig.runtime.googleProject,
-              runtimeAndRuntimeConfig.runtime.runtimeName,
-              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined
-            )
-          )
-          .void, //TODO is this right when deleting or stopping fails?
-        //save cluster error in the DB
-        saveClusterError(runtimeAndRuntimeConfig.runtime.id,
-                         errorDetails.map(_.longMessage).getOrElse("No error available"),
-                         errorDetails.flatMap(_.code).getOrElse(-1),
-                         ctx.now)
-      ).parSequence_
-
-      // Record metrics in NewRelic
-      _ <- recordStatusTransitionMetrics(
-        monitorContext.start,
-        getRuntimeUI(runtimeAndRuntimeConfig.runtime),
-        runtimeAndRuntimeConfig.runtime.status,
-        RuntimeStatus.Error,
-        runtimeAndRuntimeConfig.runtimeConfig.cloudService
-      )
-      // update the cluster status to Error
-      _ <- dbRef.inTransaction {
-        clusterQuery.updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now)
-      }
-      tags = Map(
-        "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
-        "errorCode" -> errorDetails.map(_.shortMessage.getOrElse("leonardo")).getOrElse("leonardo")
-      )
-      _ <- openTelemetry.incrementCounter(s"runtimeCreationFailure", 1, tags)
-    } yield ((), None): CheckResult
 
   private def deletedRuntime(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
     implicit ev: ApplicativeAsk[F, AppContext]

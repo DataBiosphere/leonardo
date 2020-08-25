@@ -134,7 +134,7 @@ sealed trait MonitorConfig {
   def initialDelay: FiniteDuration
   def pollingInterval: FiniteDuration
   def imageConfig: ImageConfig
-  def checkToolsDelay: FiniteDuration
+  def checkToolsInterval: FiniteDuration
   def checkToolsMaxAttempts: Int
   def monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration]
 }
@@ -143,7 +143,7 @@ object MonitorConfig {
   final case class GceMonitorConfig(initialDelay: FiniteDuration,
                                     pollingInterval: FiniteDuration,
                                     pollCheckMaxAttempts: Int,
-                                    checkToolsDelay: FiniteDuration,
+                                    checkToolsInterval: FiniteDuration,
                                     checkToolsMaxAttempts: Int,
                                     runtimeBucketConfig: RuntimeBucketConfig,
                                     monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
@@ -154,7 +154,7 @@ object MonitorConfig {
   final case class DataprocMonitorConfig(initialDelay: FiniteDuration,
                                          pollingInterval: FiniteDuration,
                                          pollCheckMaxAttempts: Int,
-                                         checkToolsDelay: FiniteDuration,
+                                         checkToolsInterval: FiniteDuration,
                                          checkToolsMaxAttempts: Int,
                                          runtimeBucketConfig: RuntimeBucketConfig,
                                          monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
