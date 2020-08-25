@@ -406,7 +406,7 @@ object LeonardoApiClient {
     for {
       _ <- deleteApp(googleProject, appName)
       ioa = getApp(googleProject, appName).attempt
-      res <- timer.sleep(3 seconds) >> streamFUntilDone(ioa, 10, 30 seconds).compile.lastOrError
+      res <- timer.sleep(120 seconds) >> streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError
       _ <- if (res.isDone) IO.unit
       else IO.raiseError(new TimeoutException(s"delete app ${googleProject.value}/${appName.value}"))
     } yield ()

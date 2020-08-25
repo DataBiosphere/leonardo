@@ -42,6 +42,8 @@ class KubernetesSpec
 
     "create app when cluster doesn't exist" in { googleProject =>
       val appName = randomAppName
+      val appName2 = randomAppName
+
       val createAppRequest = defaultCreateAppRequest.copy(
         diskConfig = Some(
           PersistentDiskRequest(
@@ -64,9 +66,9 @@ class KubernetesSpec
 
           getAppResponse <- gar
 
-          //_ = getAppResponse.status shouldBe AppStatus.Provisioning
+          _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
-          monitorStartingResult <- testTimer.sleep(120 seconds) >> streamFUntilDone(gar, 20, 30 seconds)(
+          monitorStartingResult <- testTimer.sleep(120 seconds) >> streamFUntilDone(gar, 30, 30 seconds)(
             testTimer,
             creatingDoneCheckable
           ).compile.lastOrError
@@ -75,81 +77,81 @@ class KubernetesSpec
 
           _ <- LeonardoApiClient.deleteAppWithWait(googleProject, appName)
 
-          //_ <- monitorDeleteApp(googleProject, appName)
+          _ <- monitorDeleteApp(googleProject, appName)
 
-          _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
+          _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
 
-          getAppResponse <- LeonardoApiClient.getApp(googleProject, appName)
+          getAppResponse <- LeonardoApiClient.getApp(googleProject, appName2)
 
-          _ = getAppResponse.status shouldBe AppStatus.Provisioning
+          _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
         } yield ()
       }
       res.unsafeRunSync()
     }
 
-//    "create app in a cluster that exists" in { googleProject =>
-//      val appName = randomAppName
-//      val appName2 = randomAppName
-//      val createAppRequest = defaultCreateAppRequest.copy(
-//        diskConfig = Some(
-//          PersistentDiskRequest(
-//            randomDiskName,
-//            Some(DiskSize(30)),
-//            None,
-//            Map.empty
-//          )
-//        )
-//      )
-//      val res = dependencies.use { dep =>
-//        implicit val client = dep.httpClient
-//        val creatingDoneCheckable: DoneCheckable[GetAppResponse] =
-//          x => x.status == AppStatus.Running
-//
-//        for {
-//          _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
-//
-//          gar = LeonardoApiClient.getApp(googleProject, appName)
-//
-//          getAppResponse <- gar
-//
-//          _ = getAppResponse.status shouldBe AppStatus.Provisioning
-//
-//          monitorStartingResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(gar, 20, 10 seconds)(
-//            testTimer,
-//            creatingDoneCheckable
-//          ).compile.lastOrError
-//
-//          _ = monitorStartingResult.status shouldBe AppStatus.Running
-//
-//          _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
-//
-//          gar = LeonardoApiClient.getApp(googleProject, appName2)
-//
-//          getAppResponse <- gar
-//
-//          _ = getAppResponse.status shouldBe AppStatus.Provisioning
-//
-//          monitorStartingResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(gar, 20, 10 seconds)(
-//            testTimer,
-//            creatingDoneCheckable
-//          ).compile.lastOrError
-//
-//          _ = monitorStartingResult.status shouldBe AppStatus.Running
-//
-//          listOfApps <- LeonardoApiClient.listApps(googleProject)
-//
-//          appStatusValue = listOfApps.collect { case resp if resp.appName == appName => resp.status }
-//
-//          _ = appStatusValue shouldBe AppStatus.Running
-//
-//          app2StatusValue = listOfApps.collect { case resp if resp.appName == appName2 => resp.status }
-//
-//          _ = app2StatusValue shouldBe AppStatus.Running
-//        } yield ()
-//      }
-//      res.unsafeRunSync()
-//    }
+    "create app in a cluster that exists" in { googleProject =>
+      val appName = randomAppName
+      val appName2 = randomAppName
+      val createAppRequest = defaultCreateAppRequest.copy(
+        diskConfig = Some(
+          PersistentDiskRequest(
+            randomDiskName,
+            Some(DiskSize(30)),
+            None,
+            Map.empty
+          )
+        )
+      )
+      val res = dependencies.use { dep =>
+        implicit val client = dep.httpClient
+        val creatingDoneCheckable: DoneCheckable[GetAppResponse] =
+          x => x.status == AppStatus.Running
+
+        for {
+          _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
+
+          gar = LeonardoApiClient.getApp(googleProject, appName)
+
+          getAppResponse <- gar
+
+          _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
+
+          monitorStartingResult <- testTimer.sleep(120 seconds) >> streamFUntilDone(gar, 30, 30 seconds)(
+            testTimer,
+            creatingDoneCheckable
+          ).compile.lastOrError
+
+          _ = monitorStartingResult.status shouldBe AppStatus.Running
+
+          _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
+
+          gar = LeonardoApiClient.getApp(googleProject, appName2)
+
+          getAppResponse <- gar
+
+          _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
+
+          monitorStartingResult <- testTimer.sleep(120 seconds) >> streamFUntilDone(gar, 30, 30 seconds)(
+            testTimer,
+            creatingDoneCheckable
+          ).compile.lastOrError
+
+          _ = monitorStartingResult.status shouldBe AppStatus.Running
+
+          listOfApps <- LeonardoApiClient.listApps(googleProject)
+
+          appStatusValue = listOfApps.collect { case resp if resp.appName == appName => resp.status }
+
+          _ = appStatusValue shouldBe AppStatus.Running
+
+          app2StatusValue = listOfApps.collect { case resp if resp.appName == appName2 => resp.status }
+
+          _ = app2StatusValue shouldBe AppStatus.Running
+        } yield ()
+      }
+      res.unsafeRunSync()
+    }
   }
 }
 
