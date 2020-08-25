@@ -1300,7 +1300,7 @@ paths:
         $ref: "#/components/requestBodies/CreateAppRequest"
       responses:
         "202":
-          description: App creation successful
+          description: App creation request has been received
         "400":
           description: Bad Request
           content:
