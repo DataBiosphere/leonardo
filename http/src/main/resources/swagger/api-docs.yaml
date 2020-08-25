@@ -2826,9 +2826,7 @@ components:
           type: integer
           description: The size of the persistent disk to be created in GB.
         diskType:
-          allOf:
-            - $ref: "#/components/schemas/DiskType"
-            - description: The type of the persistent disk to be created. Can be "Standard" or "SSD".
+          $ref: "#/components/schemas/DiskType"
         blockSize:
           type: integer
           description: The block size of the persistent disk to be created in bytes.
