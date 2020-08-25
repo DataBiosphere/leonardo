@@ -1,11 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.nio.file.Path
+import java.nio.file.{Files, Path}
 import java.sql.SQLDataException
 
 import io.opencensus.trace.{AttributeValue, Span}
 import io.opencensus.scala.http.ServiceData
 import cats.effect.{Blocker, ContextShift, Resource, Sync}
+import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import fs2._
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthy
@@ -43,6 +44,13 @@ package object http {
       .readAll(path, blocker, 4096)
       .compile
       .to(List)
+
+  def writeTempFile[F[_]: Sync: ContextShift](prefix: String, data: Array[Byte], blocker: Blocker): F[Path] =
+    for {
+      path <- Sync[F].delay(Files.createTempFile(prefix, null))
+      _ <- Sync[F].delay(path.toFile.deleteOnExit())
+      _ <- Stream.emits(data).through(io.file.writeAll(path, blocker)).compile.drain
+    } yield path
 
   val userScriptStartupOutputUriMetadataKey = "user-startup-script-output-url"
   implicit def cloudServiceSyntax[F[_], A](

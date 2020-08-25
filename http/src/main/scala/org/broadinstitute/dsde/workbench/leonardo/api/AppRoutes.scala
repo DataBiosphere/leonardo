@@ -171,7 +171,7 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
         .get("deleteDisk")
         .map(s => s == "true")
         .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
-      deleteParams = DeleteAppParams(
+      deleteParams = DeleteAppRequest(
         userInfo,
         googleProject,
         appName,

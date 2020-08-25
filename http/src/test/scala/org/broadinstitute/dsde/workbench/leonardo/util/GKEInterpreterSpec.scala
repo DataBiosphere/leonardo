@@ -9,10 +9,12 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   MockGKEService,
   MockKubernetesService
 }
-import org.broadinstitute.dsde.workbench.leonardo.{AutoscalingConfig, AutoscalingMax, AutoscalingMin, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.{AutoscalingConfig, AutoscalingMax, AutoscalingMin, LeonardoTestSuite}
+import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -28,7 +30,13 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            new MockComputePollOperation)
 
   val gkeInterp =
-    new GKEInterpreter[IO](Config.gkeInterpConfig, vpcInterp, MockGKEService, MockKubernetesService, blocker)
+    new GKEInterpreter[IO](Config.gkeInterpConfig,
+                           vpcInterp,
+                           MockGKEService,
+                           MockKubernetesService,
+                           MockHelm,
+                           credentials,
+                           blocker)
 
   it should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
@@ -39,7 +47,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
             autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
       .save()
 
-    val googleNodepool = gkeInterp.getGoogleNodepool(savedNodepool1)
+    val googleNodepool = gkeInterp.buildGoogleNodepool(savedNodepool1)
     googleNodepool.getAutoscaling.getEnabled shouldBe true
     googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
     googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
@@ -55,9 +63,9 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     //we don't check the byte arrays here for the files
     secrets.size shouldBe 2
     secrets.map(_.secrets.keys.size).sum shouldBe 3
-    secrets.flatMap(_.secrets.keys).sortBy(_.value) shouldBe List(SecretKey("ca-crt"),
-                                                                  SecretKey("tls-crt"),
-                                                                  SecretKey("tls-key")).sortBy(_.value)
+    secrets.flatMap(_.secrets.keys).sortBy(_.value) shouldBe List(SecretKey("ca.crt"),
+                                                                  SecretKey("tls.crt"),
+                                                                  SecretKey("tls.key")).sortBy(_.value)
     val emptyFileSecrets = secrets.map(s => (s.name, s.namespaceName))
     emptyFileSecrets should contain((SecretName("ca-secret"), savedApp1.appResources.namespace.name))
     emptyFileSecrets should contain((SecretName("tls-secret"), savedApp1.appResources.namespace.name))

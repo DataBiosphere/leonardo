@@ -6,6 +6,7 @@ import java.sql.{SQLDataException, Timestamp}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import LeoProfile.api._
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.model.IP
 
 import scala.concurrent.ExecutionContext
 
@@ -105,7 +106,7 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
     instanceQuery
       .filter(_.clusterId === clusterId)
       .map(inst => (inst.status, inst.ip))
-      .update(newStatus.entryName, newIp.map(_.value))
+      .update(newStatus.entryName, newIp.map(_.asString))
 
   private def marshalInstance(clusterId: Long, instance: DataprocInstance): InstanceRecord =
     InstanceRecord(
@@ -116,7 +117,7 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
       name = instance.key.name.value,
       googleId = BigDecimal(instance.googleId),
       status = instance.status.entryName,
-      ip = instance.ip.map(_.value),
+      ip = instance.ip.map(_.asString),
       dataprocRole = Some(instance.dataprocRole.toString),
       createdDate = Timestamp.from(instance.createdDate)
     )

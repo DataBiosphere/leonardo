@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
@@ -36,7 +36,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
   def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
 }
 
-final case class KubernetesClusterAsyncFields(externalIp: IP, networkInfo: NetworkFields)
+final case class KubernetesClusterAsyncFields(loadBalancerIp: IP, apiServerIp: IP, networkInfo: NetworkFields)
 
 final case class NetworkFields(networkName: NetworkName, subNetworkName: SubnetworkName, subNetworkIpRange: IpRange)
 
@@ -286,7 +286,7 @@ object AppType {
 }
 
 final case class ReleaseName(value: String) extends AnyVal
-final case class RemoteUserName(value: String) extends AnyVal
+final case class ChartName(value: String) extends AnyVal
 
 final case class AppId(id: Long) extends AnyVal
 final case class AppName(value: String) extends AnyVal
@@ -311,7 +311,8 @@ final case class App(id: AppId,
                      customEnvironmentVariables: Map[String, String]) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
-      (service.config.name, new URL(s"$proxyUrlBase/$project/$appName/${service.config.name}"))
+      (service.config.name,
+       new URL(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"))
     }.toMap
 }
 

@@ -406,7 +406,7 @@ object Config {
   implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
     DiskType.stringToObject.get(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
   )
-  implicit val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
+  implicit private val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
   implicit private val frameAncestorsReader: ValueReader[FrameAncestors] =
     traversableReader[List, String].map(FrameAncestors)
   implicit private val scriptSrcReader: ValueReader[ScriptSrc] = traversableReader[List, String].map(ScriptSrc)
@@ -468,7 +468,7 @@ object Config {
   val leoExecutionModeConfig = config.as[LeoExecutionModeConfig]("leonardoExecutionMode")
   val clusterBucketConfig = config.as[RuntimeBucketConfig]("clusterBucket")
 
-  implicit val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>
+  implicit private val gceMonitorConfigReader: ValueReader[GceMonitorConfig] = ValueReader.relative { config =>
     val statusTimeouts = config.getConfig("statusTimeouts")
     val timeoutMap: Map[RuntimeStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
       for {
@@ -489,25 +489,26 @@ object Config {
     )
   }
 
-  implicit val dataprocMonitorConfigReader: ValueReader[DataprocMonitorConfig] = ValueReader.relative { config =>
-    val statusTimeouts = config.getConfig("statusTimeouts")
-    val timeoutMap: Map[RuntimeStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
-      for {
-        status <- RuntimeStatus.withNameInsensitiveOption(e.getKey)
-        duration <- statusTimeouts.getAs[FiniteDuration](e.getKey)
-      } yield (status, duration)
-    }.toMap
+  implicit private val dataprocMonitorConfigReader: ValueReader[DataprocMonitorConfig] = ValueReader.relative {
+    config =>
+      val statusTimeouts = config.getConfig("statusTimeouts")
+      val timeoutMap: Map[RuntimeStatus, FiniteDuration] = statusTimeouts.entrySet.asScala.flatMap { e =>
+        for {
+          status <- RuntimeStatus.withNameInsensitiveOption(e.getKey)
+          duration <- statusTimeouts.getAs[FiniteDuration](e.getKey)
+        } yield (status, duration)
+      }.toMap
 
-    DataprocMonitorConfig(
-      config.as[FiniteDuration]("initialDelay"),
-      config.as[FiniteDuration]("pollingInterval"),
-      config.as[Int]("pollCheckMaxAttempts"),
-      config.as[FiniteDuration]("checkToolsDelay"),
-      clusterBucketConfig,
-      timeoutMap,
-      imageConfig,
-      dataprocConfig.regionName
-    )
+      DataprocMonitorConfig(
+        config.as[FiniteDuration]("initialDelay"),
+        config.as[FiniteDuration]("pollingInterval"),
+        config.as[Int]("pollCheckMaxAttempts"),
+        config.as[FiniteDuration]("checkToolsDelay"),
+        clusterBucketConfig,
+        timeoutMap,
+        imageConfig,
+        dataprocConfig.regionName
+      )
   }
   val gceMonitorConfig = config.as[GceMonitorConfig]("gce.monitor")
   val dataprocMonitorConfig = config.as[DataprocMonitorConfig]("dataproc.monitor")
@@ -518,9 +519,9 @@ object Config {
   val welderConfig = config.as[WelderConfig]("welder")
   val dbConcurrency = config.as[Long]("mysql.concurrency")
 
-  implicit val cidrIPReader: ValueReader[CidrIP] = stringValueReader.map(CidrIP)
+  implicit private val cidrIPReader: ValueReader[CidrIP] = stringValueReader.map(CidrIP)
 
-  implicit val kubeClusterConfigReader: ValueReader[KubernetesClusterConfig] = ValueReader.relative { config =>
+  implicit private val kubeClusterConfigReader: ValueReader[KubernetesClusterConfig] = ValueReader.relative { config =>
     KubernetesClusterConfig(config.as[Location]("location"),
                             config.as[RegionName]("region"),
                             config.as[List[CidrIP]]("authorizedNetworks"))
@@ -529,16 +530,17 @@ object Config {
   implicit private val maxNodepoolsPerDefaultNodeReader: ValueReader[MaxNodepoolsPerDefaultNode] =
     intValueReader.map(MaxNodepoolsPerDefaultNode)
 
-  implicit val defaultNodepoolConfigReader: ValueReader[DefaultNodepoolConfig] = ValueReader.relative { config =>
-    DefaultNodepoolConfig(
-      config.as[MachineTypeName]("machineType"),
-      config.as[NumNodes]("numNodes"),
-      config.as[Boolean]("autoscalingEnabled"),
-      config.as[MaxNodepoolsPerDefaultNode]("maxNodepoolsPerDefaultNode")
-    )
+  implicit private val defaultNodepoolConfigReader: ValueReader[DefaultNodepoolConfig] = ValueReader.relative {
+    config =>
+      DefaultNodepoolConfig(
+        config.as[MachineTypeName]("machineType"),
+        config.as[NumNodes]("numNodes"),
+        config.as[Boolean]("autoscalingEnabled"),
+        config.as[MaxNodepoolsPerDefaultNode]("maxNodepoolsPerDefaultNode")
+      )
   }
 
-  implicit val galaxyNodepoolConfigReader: ValueReader[GalaxyNodepoolConfig] = ValueReader.relative { config =>
+  implicit private val galaxyNodepoolConfigReader: ValueReader[GalaxyNodepoolConfig] = ValueReader.relative { config =>
     GalaxyNodepoolConfig(
       config.as[MachineTypeName]("machineType"),
       config.as[NumNodes]("numNodes"),
@@ -547,49 +549,79 @@ object Config {
     )
   }
 
-  implicit val autoscalingConfigReader: ValueReader[AutoscalingConfig] = ValueReader.relative { config =>
+  implicit private val autoscalingConfigReader: ValueReader[AutoscalingConfig] = ValueReader.relative { config =>
     AutoscalingConfig(
       config.as[AutoscalingMin]("autoscalingMin"),
       config.as[AutoscalingMax]("autoscalingMax")
     )
   }
-
-  implicit val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
-    GalaxyAppConfig(
-      config.as[ReleaseName]("releaseName"),
-      config.as[NamespaceName]("namespaceNameSuffix"),
-      config.as[List[ServiceConfig]]("services"),
-      config.as[RemoteUserName]("remoteUserName")
+  implicit private val secretKeyReader: ValueReader[SecretKey] = stringValueReader.map(SecretKey)
+  implicit private val secretFileReader: ValueReader[SecretFile] = ValueReader.relative { config =>
+    SecretFile(
+      config.as[SecretKey]("name"),
+      config.as[Path]("path")
     )
   }
 
-  implicit val releaseNameReader: ValueReader[ReleaseName] = stringValueReader.map(ReleaseName)
-  implicit val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
+  implicit private val secretNameReader: ValueReader[SecretName] =
+    stringValueReader.map(s =>
+      KubernetesName
+        .withValidation(s, SecretName)
+        .right
+        .getOrElse(throw new RuntimeException(s"Unable to parse the secret name $s into a valid kubernetes name"))
+    )
 
-  implicit val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
+  implicit private val secretConfigReader: ValueReader[SecretConfig] = ValueReader.relative { config =>
+    SecretConfig(config.as[SecretName]("name"), config.as[List[SecretFile]]("secretFiles"))
+  }
+
+  implicit private val ingressConfigReader: ValueReader[KubernetesIngressConfig] = ValueReader.relative { config =>
+    KubernetesIngressConfig(
+      config.as[NamespaceName]("namespace"),
+      config.as[ReleaseName]("release"),
+      config.as[ChartName]("chart"),
+      config.as[ServiceName]("loadBalancerService"),
+      config.as[List[ValueConfig]]("values"),
+      config.as[List[SecretConfig]]("secrets")
+    )
+  }
+
+  implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
+    GalaxyAppConfig(
+      config.as[ReleaseName]("releaseName"),
+      config.as[NamespaceName]("namespaceNameSuffix"),
+      config.as[List[ServiceConfig]]("services")
+    )
+  }
+
+  implicit private val releaseNameReader: ValueReader[ReleaseName] = stringValueReader.map(ReleaseName)
+  implicit private val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
+  implicit private val chartNameReader: ValueReader[ChartName] = stringValueReader.map(ChartName)
+  implicit private val valueConfigReader: ValueReader[ValueConfig] = stringValueReader.map(ValueConfig)
+
+  implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
       config.as[KubernetesServiceKindName]("kind")
     )
   }
 
-  implicit val locationValueReader: ValueReader[Location] = stringValueReader.map(Location)
-  implicit val numNodesValueReader: ValueReader[NumNodes] = intValueReader.map(NumNodes)
-  implicit val autoscalingMinValueReader: ValueReader[AutoscalingMin] = intValueReader.map(AutoscalingMin)
-  implicit val autoscalingMaxValueReader: ValueReader[AutoscalingMax] = intValueReader.map(AutoscalingMax)
-  implicit val serviceNameValueReader: ValueReader[ServiceName] = stringValueReader.map(s =>
+  implicit private val locationValueReader: ValueReader[Location] = stringValueReader.map(Location)
+  implicit private val numNodesValueReader: ValueReader[NumNodes] = intValueReader.map(NumNodes)
+  implicit private val autoscalingMinValueReader: ValueReader[AutoscalingMin] = intValueReader.map(AutoscalingMin)
+  implicit private val autoscalingMaxValueReader: ValueReader[AutoscalingMax] = intValueReader.map(AutoscalingMax)
+  implicit private val serviceNameValueReader: ValueReader[ServiceName] = stringValueReader.map(s =>
     KubernetesName
       .withValidation(s, ServiceName)
       .getOrElse(throw new Exception(s"Invalid service name in config: ${s}"))
   )
-  implicit val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
+  implicit private val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
     stringValueReader.map(KubernetesServiceKindName)
-  implicit val remoteUserNameValueReader: ValueReader[RemoteUserName] =
-    stringValueReader.map(RemoteUserName)
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
+  val gkeIngressConfig = config.as[KubernetesIngressConfig]("gke.ingress")
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
@@ -643,49 +675,17 @@ object Config {
   val leoPubsubMessageSubscriberConfig = config.as[LeoPubsubMessageSubscriberConfig]("pubsub.subscriber")
   val asyncTaskProcessorConfig = config.as[AsyncTaskProcessor.Config]("async-task-processor")
 
-  implicit private val secretKeyReader: ValueReader[SecretKey] =
-    stringValueReader.map(s =>
-      KubernetesName
-        .withValidation(s, SecretKey)
-        .right
-        .getOrElse(throw new RuntimeException(s"Unable to parse the secret key $s into a valid kubernetes name"))
-    )
-  implicit private val secretFileReader: ValueReader[SecretFile] = ValueReader.relative { config =>
-    SecretFile(
-      config.as[SecretKey]("name"),
-      config.as[Path]("path")
-    )
-  }
-
-  implicit private val secretNameReader: ValueReader[SecretName] =
-    stringValueReader.map(s =>
-      KubernetesName
-        .withValidation(s, SecretName)
-        .right
-        .getOrElse(throw new RuntimeException(s"Unable to parse the secret name $s into a valid kubernetes name"))
-    )
-  implicit val secretConfigReader: ValueReader[SecretConfig] = ValueReader.relative { config =>
-    SecretConfig(config.as[SecretName]("name"), config.as[List[SecretFile]]("secretFiles"))
-  }
-
-  implicit private val ingressHelmConfigReader: ValueReader[IngressHelmConfig] = ValueReader.relative { config =>
-    IngressHelmConfig(
-      config.as[List[SecretConfig]]("secrets")
-    )
-  }
-
-  val ingressHelmConfig = config.as[IngressHelmConfig]("helmConfig.ingress")
-
   implicit private val appMonitorConfigReader: ValueReader[AppMonitorConfig] = ValueReader.relative { config =>
     AppMonitorConfig(
       config.as[PollMonitorConfig]("createNodepool"),
       config.as[PollMonitorConfig]("deleteNodepool"),
       config.as[PollMonitorConfig]("createCluster"),
-      config.as[PollMonitorConfig]("deleteCluster")
+      config.as[PollMonitorConfig]("deleteCluster"),
+      config.as[PollMonitorConfig]("createIngress")
     )
   }
 
   val gkeMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
 
-  val gkeInterpConfig = GKEInterpreterConfig(securityFilesConfig, ingressHelmConfig, gkeMonitorConfig, gkeClusterConfig)
+  val gkeInterpConfig = GKEInterpreterConfig(securityFilesConfig, gkeIngressConfig, gkeMonitorConfig, gkeClusterConfig)
 }

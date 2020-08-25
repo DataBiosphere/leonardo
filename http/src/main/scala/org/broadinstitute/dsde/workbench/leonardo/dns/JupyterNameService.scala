@@ -5,7 +5,7 @@ import java.net.{InetAddress, UnknownHostException}
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.IO
 import cats.effect.concurrent.Ref
-import org.broadinstitute.dsde.workbench.leonardo.IP
+import org.broadinstitute.dsde.workbench.model.IP
 import sun.net.spi.nameservice.{NameService, NameServiceDescriptor}
 
 class JupyterNameService extends NameService {
@@ -18,7 +18,7 @@ class JupyterNameService extends NameService {
     HostToIpMapping.hostToIpMapping.get
       .unsafeRunSync()
       .get(Host(host))
-      .map(ip => Array(InetAddress.getByName(ip.value)))
+      .map(ip => Array(InetAddress.getByName(ip.asString)))
       .getOrElse {
         throw new UnknownHostException(s"Unknown address: $host")
       }

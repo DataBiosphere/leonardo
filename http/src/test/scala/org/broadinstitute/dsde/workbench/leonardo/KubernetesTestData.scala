@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCreateRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse}
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 object KubernetesTestData {
@@ -17,7 +18,8 @@ object KubernetesTestData {
   val location = Location("us-central1-a")
   val region = RegionName("us-central1")
 
-  val externalIp = IP("0.0.0.0")
+  val loadBalancerIp = IP("0.0.0.0")
+  val apiServerIp = IP("1.2.3.4")
   val namespace0 = NamespaceName("namespace00")
   val namespace1 = NamespaceName("namespace01")
 

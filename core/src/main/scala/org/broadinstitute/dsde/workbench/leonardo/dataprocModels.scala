@@ -5,6 +5,7 @@ import java.time.Instant
 import ca.mrvisser.sealerate
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 /** An instance in a Dataproc cluster */

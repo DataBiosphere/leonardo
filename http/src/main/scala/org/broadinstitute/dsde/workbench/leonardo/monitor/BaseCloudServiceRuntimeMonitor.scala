@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.CheckResult
 import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeAlgebra, StopRuntimeParams}
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable

@@ -7,7 +7,7 @@ set -o pipefail
 
 cp -rf src/test/resources/* automation/src/test/resources
 
-sbt -batch -Djsse.enableSNIExtension=false -Dheadless=true "project automation" "${SBT_CMD}"
+sbt -batch -Dheadless=true "project automation" "${SBT_CMD}"
 TEST_EXIT_CODE=$?
 sbt clean
 

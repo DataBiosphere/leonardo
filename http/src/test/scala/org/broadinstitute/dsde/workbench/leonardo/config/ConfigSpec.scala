@@ -101,8 +101,7 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
     val expectedResult = GalaxyAppConfig(
       ReleaseName("release1"),
       NamespaceName("namespace"),
-      List(ServiceConfig(ServiceName("galaxy-web"), KubernetesServiceKindName("ClusterIP"))),
-      RemoteUserName("galaxy-user")
+      List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP")))
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }

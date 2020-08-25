@@ -704,7 +704,9 @@ object PubsubHandleMessageError {
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
 
-final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration)
+final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration) {
+  def totalDuration: FiniteDuration = interval * maxAttempts
+}
 
 final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
                                              delete: PollMonitorConfig,
