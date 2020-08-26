@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonit
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
@@ -117,10 +117,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
       _ <- failedRuntime(
         monitorContext,
         runtimeAndRuntimeConfig,
-        Some(
-          RuntimeErrorDetails(
-            s"${monitorContext.action} ${runtimeAndRuntimeConfig.runtime.projectNameString} fail to complete in a timely manner"
-          )
+        RuntimeErrorDetails(
+          s"${monitorContext.action} ${runtimeAndRuntimeConfig.runtime.projectNameString} fail to complete in a timely manner"
         ),
         Set.empty
       )
@@ -225,7 +223,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                     ) >> failedRuntime(
                     monitorContext,
                     runtimeAndRuntimeConfig,
-                    Some(RuntimeErrorDetails(msg)),
+                    RuntimeErrorDetails(msg, shortMessage = Some("user_startup_script")),
                     Set.empty
                   )
                 case UserScriptsValidationResult.Success =>
@@ -248,7 +246,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
             ) >> failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              Some(RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to creating an instance")),
+              RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to creating an instance"),
               Set.empty
             )
         }
@@ -296,10 +294,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
                 case UserScriptsValidationResult.Error(msg) =>
                   failedRuntime(monitorContext,
                                 runtimeAndRuntimeConfig,
-                                Some(
-                                  RuntimeErrorDetails(
-                                    msg
-                                  )
+                                RuntimeErrorDetails(
+                                  msg,
+                                  shortMessage = Some("user_startup_script")
                                 ),
                                 Set.empty)
                 case UserScriptsValidationResult.Success =>
@@ -320,7 +317,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              Some(RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to start an instance")),
+              RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to start an instance"),
               Set.empty
             )
         }
@@ -392,71 +389,6 @@ class GceRuntimeMonitor[F[_]: Parallel](
       )
 
     } yield ((), None)
-
-  private[monitor] def validateBothScripts(
-    userScriptOutputFile: Option[GcsPath],
-    userStartupScriptOutputFile: Option[GcsPath],
-    jupyterUserScriptUriInDB: Option[UserScriptPath],
-    jupyterStartUserScriptUriInDB: Option[UserScriptPath]
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
-    for {
-      userScriptRes <- validateUserScript(userScriptOutputFile, jupyterUserScriptUriInDB)
-      res <- userScriptRes match {
-        case UserScriptsValidationResult.Success =>
-          validateUserStartupScript(userStartupScriptOutputFile, jupyterStartUserScriptUriInDB)
-        case x: UserScriptsValidationResult.Error =>
-          F.pure(x)
-        case x: UserScriptsValidationResult.CheckAgain =>
-          F.pure(x)
-      }
-    } yield res
-
-  private[monitor] def validateUserScript(
-    userScriptOutputPathFromDB: Option[GcsPath],
-    jupyterUserScriptUriInDB: Option[UserScriptPath]
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
-    (userScriptOutputPathFromDB, jupyterUserScriptUriInDB) match {
-      case (Some(output), Some(_)) =>
-        checkUserScriptsOutputFile(output).map { o =>
-          o match {
-            case Some(true)  => UserScriptsValidationResult.Success
-            case Some(false) => UserScriptsValidationResult.Error(s"user script ${output.toUri} failed")
-            case None        => UserScriptsValidationResult.CheckAgain(s"user script ${output.toUri} hasn't finished yet")
-          }
-        }
-      case (None, Some(_)) =>
-        for {
-          ctx <- ev.ask
-          r <- F.raiseError[UserScriptsValidationResult](
-            new Exception(s"${ctx} | staging bucket field hasn't been updated properly before monitoring started")
-          ) // worth error reporting
-        } yield r
-      case (_, None) =>
-        F.pure(UserScriptsValidationResult.Success)
-    }
-
-  private[monitor] def validateUserStartupScript(
-    userStartupScriptOutputFile: Option[GcsPath],
-    jupyterStartUserScriptUriInDB: Option[UserScriptPath]
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
-    (userStartupScriptOutputFile, jupyterStartUserScriptUriInDB) match {
-      case (Some(output), Some(_)) =>
-        checkUserScriptsOutputFile(output).map { o =>
-          o match {
-            case Some(true)  => UserScriptsValidationResult.Success
-            case Some(false) => UserScriptsValidationResult.Error(s"user startup script ${output.toUri} failed")
-            case None =>
-              UserScriptsValidationResult.CheckAgain(s"user startup script ${output.toUri} hasn't finished yet")
-          }
-        }
-      case (None, Some(_)) =>
-        for {
-          ctx <- ev.ask
-          r <- F.pure(UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
-        } yield r
-      case (_, None) =>
-        F.pure(UserScriptsValidationResult.Success)
-    }
 }
 
 sealed abstract class UserScriptsValidationResult extends Product with Serializable

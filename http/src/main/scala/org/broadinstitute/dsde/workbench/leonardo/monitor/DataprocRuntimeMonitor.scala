@@ -5,6 +5,7 @@ import cats.Parallel
 import cats.effect.{Async, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import com.google.cloud.compute.v1.Instance
 import com.google.cloud.dataproc.v1.Cluster
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2
@@ -95,7 +96,9 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Can't retrieve cluster yet"))
     case Some(c) =>
       for {
-        instances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        ctx <- ev.ask
+        dataprocAndComputeInstances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        instances = dataprocAndComputeInstances.map(_._1)
         runtimeStatus = DataprocClusterStatus
           .withNameInsensitiveOption(c.getStatus.getState.name())
           .getOrElse(DataprocClusterStatus.Unknown) //TODO: this needs to be verified
@@ -108,6 +111,9 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                        instances,
                        Some(s"Not all instances for this cluster is Running yet"))
           case DataprocClusterStatus.Running =>
+            // Note we don't need to check startup script results here because Dataproc
+            // won't transition the cluster to Running if a startup script failed.
+
             val masterInstance = instances.find(_.dataprocRole == DataprocRole.Master)
 
             masterInstance match {
@@ -127,31 +133,62 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 failedRuntime(
                   monitorContext,
                   runtimeAndRuntimeConfig,
-                  Some(RuntimeErrorDetails(s"Can't find master instance for this cluster")),
+                  RuntimeErrorDetails(s"Can't find master instance for this cluster"),
                   instances
                 )
             }
           case DataprocClusterStatus.Error =>
-            val operationName = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.map(_.operationName)
+            val userScriptOutputFile = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields
+              .map(_.stagingBucket)
+              .map(b => RuntimeTemplateValues.jupyterUserScriptOutputUriPath(b))
+            val userStartupScriptOutputFile = dataprocAndComputeInstances
+              .find(_._1.dataprocRole == DataprocRole.Master)
+              .map(_._2)
+              .flatMap(getUserScript)
+
             for {
-              error <- operationName.flatTraverse(o =>
-                googleDataprocService.getClusterError(google2.OperationName(o.value))
+              validationResult <- validateBothScripts(
+                userScriptOutputFile,
+                userStartupScriptOutputFile,
+                runtimeAndRuntimeConfig.runtime.jupyterUserScriptUri,
+                runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri
               )
-              res <- failedRuntime(
-                monitorContext,
-                runtimeAndRuntimeConfig,
-                error
-                  .map(e => RuntimeErrorDetails(e.message, Some(e.code), Some("dataproc_creation_error"))),
-                instances
-              )
-            } yield res
+              // If an error occurred in a user script, persist that error instead of the Dataproc error
+              r <- validationResult match {
+                case UserScriptsValidationResult.Error(msg) =>
+                  logger
+                    .info(
+                      s"${ctx.traceId.asString} | ${runtimeAndRuntimeConfig.runtime.projectNameString} user script failed ${msg}"
+                    ) >> failedRuntime(
+                    monitorContext,
+                    runtimeAndRuntimeConfig,
+                    RuntimeErrorDetails(msg, shortMessage = Some("user_startup_script")),
+                    instances
+                  )
+                case _ =>
+                  val operationName = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.map(_.operationName)
+                  for {
+                    error <- operationName.flatTraverse(o =>
+                      googleDataprocService.getClusterError(google2.OperationName(o.value))
+                    )
+                    r <- failedRuntime(
+                      monitorContext,
+                      runtimeAndRuntimeConfig,
+                      error
+                        .map(e => RuntimeErrorDetails(e.message, Some(e.code), Some("dataproc_creation_error")))
+                        .getOrElse(
+                          RuntimeErrorDetails("Error not available", shortMessage = Some("dataproc_creation_error"))
+                        ),
+                      instances
+                    )
+                  } yield r
+              }
+            } yield r
           case ss =>
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              Some(
-                RuntimeErrorDetails(s"unexpected Dataproc cluster status ${ss} when trying to creating an instance")
-              ),
+              RuntimeErrorDetails(s"unexpected Dataproc cluster status ${ss} when trying to creating an instance"),
               instances
             )
         }
@@ -171,7 +208,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         .as(((), None)) //TODO: shall we delete runtime in this case?
     case Some(c) =>
       for {
-        instances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        dataprocAndComputeInstances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        instances = dataprocAndComputeInstances.map(_._1)
         clusterStatus = DataprocClusterStatus
           .withNameInsensitiveOption(c.getStatus.getState.name())
           .getOrElse(DataprocClusterStatus.Unknown) //TODO: this needs to be verified
@@ -182,26 +220,50 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                        instances,
                        Some(s"Not all instances for this cluster is Running yet"))
           case DataprocClusterStatus.Running =>
-            instances.find(_.dataprocRole == DataprocRole.Master).flatMap(_.ip) match {
-              case Some(ip) =>
-                // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                Timer[F]
-                  .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
-              case None =>
-                checkAgain(monitorContext, runtimeAndRuntimeConfig, instances, Some("Could not retrieve instance IP"))
-            }
+            val master = dataprocAndComputeInstances
+              .find(_._1.dataprocRole == DataprocRole.Master)
+            // Check output if start user script, if defined
+            val userStartupScriptOutputFile = master.map(_._2).flatMap(getUserScript)
+            for {
+              validationResult <- validateUserStartupScript(userStartupScriptOutputFile,
+                                                            runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri)
+              r <- validationResult match {
+                case UserScriptsValidationResult.CheckAgain(msg) =>
+                  checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))
+                case UserScriptsValidationResult.Error(msg) =>
+                  failedRuntime(monitorContext,
+                                runtimeAndRuntimeConfig,
+                                RuntimeErrorDetails(
+                                  msg,
+                                  shortMessage = Some("user_startup_script")
+                                ),
+                                Set.empty)
+                case UserScriptsValidationResult.Success =>
+                  master.flatMap(_._1.ip) match {
+                    case Some(ip) =>
+                      // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                      Timer[F]
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
+                    case None =>
+                      checkAgain(monitorContext,
+                                 runtimeAndRuntimeConfig,
+                                 instances,
+                                 Some("Could not retrieve instance IP"))
+                  }
+              }
+            } yield r
           case DataprocClusterStatus.Error =>
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              Some(RuntimeErrorDetails(s"Cluster failed to start")),
+              RuntimeErrorDetails(s"Cluster failed to start"),
               instances
             )
           case ss =>
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              Some(RuntimeErrorDetails(s"unexpected Cluster ${ss} when trying to start it")),
+              RuntimeErrorDetails(s"unexpected Cluster ${ss} when trying to start it"),
               instances
             )
         }
@@ -220,12 +282,13 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       failedRuntime(
         monitorContext,
         runtimeAndRuntimeConfig,
-        Some(RuntimeErrorDetails(e.getMessage)),
+        RuntimeErrorDetails(e.getMessage),
         Set.empty
       ) >> F.raiseError[CheckResult](e)
     case Some(c) =>
       for {
-        instances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        dataprocAndComputeInstances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        instances = dataprocAndComputeInstances.map(_._1)
         res <- if (instances
                      .forall(i => i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated)) {
           stopRuntime(runtimeAndRuntimeConfig, instances, monitorContext)
@@ -252,12 +315,13 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       failedRuntime(
         monitorContext,
         runtimeAndRuntimeConfig,
-        Some(RuntimeErrorDetails(e.getMessage)),
+        RuntimeErrorDetails(e.getMessage),
         Set.empty
       ) >> F.raiseError[CheckResult](e)
     case Some(c) =>
       for {
-        instances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        dataprocAndComputeInstances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        instances = dataprocAndComputeInstances.map(_._1)
         clusterStatus = DataprocClusterStatus
           .withNameInsensitiveOption(c.getStatus.getState.name())
           .getOrElse(DataprocClusterStatus.Unknown) //TODO: this needs to be verified
@@ -285,14 +349,14 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              Some(RuntimeErrorDetails(s"Cluster failed to Update")),
+              RuntimeErrorDetails(s"Cluster failed to Update"),
               instances
             )
           case ss =>
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              Some(RuntimeErrorDetails(s"unexpected Cluster ${ss} when trying to start an instance")),
+              RuntimeErrorDetails(s"unexpected Cluster ${ss} when trying to start an instance"),
               instances
             )
         }
@@ -307,7 +371,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     cluster match {
       case Some(c) =>
         for {
-          instances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+          dataprocAndComputeInstances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+          instances = dataprocAndComputeInstances.map(_._1)
           r <- checkAgain(monitorContext, runtimeAndRuntimeConfig, instances, Some("Instance hasn't been deleted yet"))
         } yield r
       case None =>
@@ -356,26 +421,27 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   private def getDataprocInstances(
     cluster: Cluster,
     googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Set[DataprocInstance]] =
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Set[(DataprocInstance, Instance)]] =
     for {
       ctx <- ev.ask
       instances = GoogleDataprocInterpreter.getAllInstanceNames(cluster)
       zone = getZone(cluster)
-      dataprocInstances <- zone.fold(F.pure(Set.empty[DataprocInstance])) { z =>
+      dataprocInstances <- zone.fold(F.pure(Set.empty[(DataprocInstance, Instance)])) { z =>
         instances.toList
           .flatTraverse {
             case (role, instances) =>
               instances.toList.traverseFilter { i =>
                 googleComputeService.getInstance(googleProject, z, i).map { instanceOpt => //TODO: is this necessary? do we actually need to know all instance's IP?
                   instanceOpt.map { instance =>
-                    DataprocInstance(
-                      DataprocInstanceKey(googleProject, z, i),
-                      BigInt(instance.getId),
-                      GceInstanceStatus.withNameInsensitive(instance.getStatus),
-                      getInstanceIP(instance),
-                      role,
-                      parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(ctx.now)
-                    )
+                    (DataprocInstance(
+                       DataprocInstanceKey(googleProject, z, i),
+                       BigInt(instance.getId),
+                       GceInstanceStatus.withNameInsensitive(instance.getStatus),
+                       getInstanceIP(instance),
+                       role,
+                       parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(ctx.now)
+                     ),
+                     instance)
                   }
                 }
               }

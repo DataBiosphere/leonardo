@@ -90,7 +90,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   def failedRuntime(monitorContext: MonitorContext,
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                    errorDetails: Option[RuntimeErrorDetails],
+                    errorDetails: RuntimeErrorDetails,
                     instances: Set[DataprocInstance])(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[CheckResult] =
@@ -110,8 +110,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         //save cluster error in the DB
         saveRuntimeError(
           runtimeAndRuntimeConfig.runtime.id,
-          errorDetails,
-          None //TODO: pass in startup script path in the future
+          errorDetails
         ),
         if (instances.nonEmpty)
           clusterQuery
@@ -140,9 +139,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           new Exception(s"Cluster with id ${runtimeAndRuntimeConfig.runtime.id} not found in the database")
         )
         _ <- curStatus match {
-          case RuntimeStatus.Deleted => F.unit
+          case RuntimeStatus.Deleted =>
+            logger.info(
+              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in Deleted status. | trace id: ${ctx.traceId}"
+            )
           case _ =>
-            clusterQuery
+            logger.info(
+              s"failedRuntime: moving runtime with id  ${runtimeAndRuntimeConfig.runtime.id} to Error status. | trace id: ${ctx.traceId}"
+            ) >> clusterQuery
               .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now)
               .transaction
               .void
@@ -151,7 +155,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
       tags = Map(
         "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
-        "errorCode" -> errorDetails.map(_.shortMessage.getOrElse("leonardo")).getOrElse("leonardo")
+        "errorCode" -> errorDetails.shortMessage.getOrElse("leonardo")
       )
       _ <- openTelemetry.incrementCounter(s"runtimeCreationFailure", 1, tags)
     } yield ((), None): CheckResult
@@ -240,10 +244,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               failedRuntime(
                 monitorContext,
                 runtimeAndRuntimeConfig,
-                Some(
-                  RuntimeErrorDetails(
-                    s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toSeconds} seconds"
-                  )
+                RuntimeErrorDetails(
+                  s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toSeconds} seconds"
                 ),
                 dataprocInstances
               )
@@ -333,6 +335,78 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       )
     } yield ((), None)
 
+  private[monitor] def validateBothScripts(
+    userScriptOutputFile: Option[GcsPath],
+    userStartupScriptOutputFile: Option[GcsPath],
+    jupyterUserScriptUriInDB: Option[UserScriptPath],
+    jupyterStartUserScriptUriInDB: Option[UserScriptPath]
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+    for {
+      userScriptRes <- validateUserScript(userScriptOutputFile, jupyterUserScriptUriInDB)
+      res <- userScriptRes match {
+        case UserScriptsValidationResult.Success =>
+          validateUserStartupScript(userStartupScriptOutputFile, jupyterStartUserScriptUriInDB)
+        case x: UserScriptsValidationResult.Error =>
+          F.pure(x)
+        case x: UserScriptsValidationResult.CheckAgain =>
+          F.pure(x)
+      }
+    } yield res
+
+  private[monitor] def validateUserScript(
+    userScriptOutputPathFromDB: Option[GcsPath],
+    jupyterUserScriptUriInDB: Option[UserScriptPath]
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+    (userScriptOutputPathFromDB, jupyterUserScriptUriInDB) match {
+      case (Some(output), Some(_)) =>
+        checkUserScriptsOutputFile(output).map { o =>
+          o match {
+            case Some(true) => UserScriptsValidationResult.Success
+            case Some(false) =>
+              UserScriptsValidationResult.Error(s"User startup script failed. See output in ${output.toUri}")
+            case None =>
+              UserScriptsValidationResult.CheckAgain(
+                s"User startup script hasn't finished yet. See output in ${output.toUri}"
+              )
+          }
+        }
+      case (None, Some(_)) =>
+        for {
+          ctx <- ev.ask
+          r <- F.raiseError[UserScriptsValidationResult](
+            new Exception(s"${ctx} | staging bucket field hasn't been updated properly before monitoring started")
+          ) // worth error reporting
+        } yield r
+      case (_, None) =>
+        F.pure(UserScriptsValidationResult.Success)
+    }
+
+  private[monitor] def validateUserStartupScript(
+    userStartupScriptOutputFile: Option[GcsPath],
+    jupyterStartUserScriptUriInDB: Option[UserScriptPath]
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+    (userStartupScriptOutputFile, jupyterStartUserScriptUriInDB) match {
+      case (Some(output), Some(_)) =>
+        checkUserScriptsOutputFile(output).map { o =>
+          o match {
+            case Some(true) => UserScriptsValidationResult.Success
+            case Some(false) =>
+              UserScriptsValidationResult.Error(s"User startup script failed. See output in ${output.toUri}")
+            case None =>
+              UserScriptsValidationResult.CheckAgain(
+                s"User startup script hasn't finished yet. See output in ${output.toUri}"
+              )
+          }
+        }
+      case (None, Some(_)) =>
+        for {
+          ctx <- ev.ask
+          r <- F.pure(UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
+        } yield r
+      case (_, None) =>
+        F.pure(UserScriptsValidationResult.Success)
+    }
+
   private[monitor] def checkUserScriptsOutputFile(
     gcsPath: GcsPath
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Boolean]] =
@@ -395,9 +469,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           failedRuntime(
             monitorContext,
             runtimeAndRuntimeConfig,
-            Some(
-              RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly", None, Some("tool_start_up"))
-            ),
+            RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly", None, Some("tool_start_up")),
             dataprocInstances
           )
       }
@@ -410,42 +482,19 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     )(res)
   }
 
-  protected def saveRuntimeError(runtimeId: Long,
-                                 errorDetails: Option[RuntimeErrorDetails],
-                                 startUpScriptOutputFile: Option[GcsPath])(
+  protected def saveRuntimeError(runtimeId: Long, errorDetails: RuntimeErrorDetails)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] = {
     val result = for {
       ctx <- ev.ask
-      errorToPersist <- errorDetails match {
-        case Some(error) =>
-          F.pure(error)
-        case None =>
-          startUpScriptOutputFile match {
-            case Some(startUpScriptOutput) =>
-              for {
-                isSuccessOpt <- checkUserScriptsOutputFile(startUpScriptOutput)
-                msg <- if (isSuccessOpt.exists(identity)) {
-                  F.pure(RuntimeErrorDetails("Error not available", shortMessage = Some("Unknown")))
-                } else {
-                  F.pure(
-                    RuntimeErrorDetails(s"User startup script failed. See output in ${startUpScriptOutput.toUri}",
-                                        shortMessage = Some("user_startup_script"))
-                  )
-                }
-              } yield msg
-            case None =>
-              F.pure(RuntimeErrorDetails("Error not available", shortMessage = Some("Unknown")))
-          }
-      }
       _ <- clusterErrorQuery
-        .save(runtimeId, RuntimeError(errorToPersist.longMessage, errorToPersist.code.getOrElse(-1), ctx.now))
+        .save(runtimeId, RuntimeError(errorDetails.longMessage, errorDetails.code.getOrElse(-1), ctx.now))
         .transaction
         .void
         .adaptError {
           case e =>
             new Exception(
-              s"Error persisting runtime error with message '${errorToPersist.longMessage}' to database: ${e}",
+              s"Error persisting runtime error with message '${errorDetails.longMessage}' to database: ${e}",
               e
             )
         }
