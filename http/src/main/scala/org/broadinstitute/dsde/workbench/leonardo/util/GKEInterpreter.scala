@@ -1,10 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import java.util.{Base64, Objects}
+import java.util.Base64
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
-import akka.http.scaladsl.model.Uri.Host
 import cats.Parallel
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
@@ -35,11 +34,12 @@ import scala.concurrent.ExecutionContext
 
 final case class GKEInterpreterConfig(securityFiles: SecurityFilesConfig,
                                       ingressConfig: KubernetesIngressConfig,
+                                      galaxyAppConfig: GalaxyAppConfig,
                                       monitorConfig: AppMonitorConfig,
-                                      clusterConfig: KubernetesClusterConfig)
+                                      clusterConfig: KubernetesClusterConfig,
+                                      proxyConfig: ProxyConfig)
 class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   config: GKEInterpreterConfig,
-  proxyConfig: ProxyConfig,
   vpcAlg: VPCAlgebra[F],
   gkeService: org.broadinstitute.dsde.workbench.google2.GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
@@ -274,6 +274,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
       gkeClusterId = dbApp.cluster.getGkeClusterId
       namespaceName = dbApp.app.appResources.namespace.name
+      dbCluster = dbApp.cluster
 
       _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
       secrets <- getSecrets(namespaceName)
@@ -283,15 +284,23 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
       // TODO create svc accts and workload identity roles
 
-      // Fetch info necessary to helm install galaxy
-      val dbCluster = ??? // get cluster info from db
-      val googleCluster = ???
-      val chartValues = ???
+      // Resolve the cluster in Google
+      googleClusterOpt <- gkeService.getCluster(dbCluster.getGkeClusterId)
+      googleCluster <- F.fromOption(
+        googleClusterOpt,
+        ClusterCreationException(
+          s"Cluster not found in Google: ${dbCluster.getGkeClusterId} | trace id: ${ctx.traceId}"
+        )
+      )
 
       // helm install galaxy
-      someIp <- installGalaxy(dbCluster, googleCluster)
+      _ <- installGalaxy(dbCluster,
+                         googleCluster,
+                         dbApp.nodepool.nodepoolName,
+                         namespaceName,
+                         dbApp.app.auditInfo.creator)
 
-      // update DB
+      // TODO update DB
 
       // TODO poll galaxy for creation
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
@@ -418,35 +427,46 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
     } yield loadBalancerIp
 
-  private[util] def installGalaxy(dbCluster: KubernetesCluster, googleCluster: Cluster, proxyDomain: String)(
+  // TODO Factor out common pieces with installNginx()
+  private[util] def installGalaxy(dbCluster: KubernetesCluster,
+                                  googleCluster: Cluster,
+                                  nodepoolName: NodepoolName,
+                                  namespaceName: NamespaceName,
+                                  userEmail: WorkbenchEmail)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[IP] = {
-    val proxyHost = host(dbCluster, proxyDomain)
-    val chartValues = buildGalaxyChartOverrideValuesString(release, nodepool, proxyUrl, hostUrl, userEmail, adminEmail)
+  ): F[Unit] = {
+    val proxyUrl = host(dbCluster, config.proxyConfig.proxyDomain).toString
+    val hostUrl = config.proxyConfig.getProxyServerHostName
+    val chartValues =
+      buildGalaxyChartOverrideValuesString(config.galaxyAppConfig.releaseName,
+                                           nodepoolName,
+                                           proxyUrl,
+                                           hostUrl,
+                                           userEmail)
 
     for {
       ctx <- ev.ask
 
       // Create namespace for nginx
       _ <- logger.info(
-        s"Creating ${config.ingressConfig.namespace.value} namespace in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+        s"Creating ${namespaceName.value} namespace in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
       )
-      _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
+      _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(namespaceName))
 
       _ <- logger.info(
-        s"Installing ingress helm chart: ${config.ingressConfig.chart} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+        s"Installing GalaxyKubeMan helm chart: ${config.galaxyAppConfig.chart} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
       )
 
       // The helm client requires a Google access token
       _ <- F.delay(credentials.refreshIfExpired())
 
       // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
-      caCertFile <- writeTempFile(s"gke_ca_cert_${dbCluster.id}",
+      caCertFile <- writeTempFile(s"gke_galaxy_ca_cert_${dbCluster.id}",
                                   Base64.getDecoder.decode(googleCluster.getMasterAuth.getClusterCaCertificate),
                                   blocker)
 
       helmAuthContext = AuthContext(
-        org.broadinstitute.dsp.Namespace(config.ingressConfig.namespace.value),
+        org.broadinstitute.dsp.Namespace(namespaceName.value),
         org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
         org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint),
         org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
@@ -455,32 +475,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Invoke helm
       _ <- helmClient
         .installChart(
-          org.broadinstitute.dsp.Release(config.ingressConfig.release.value),
-          org.broadinstitute.dsp.Chart(config.ingressConfig.chart.value),
-          org.broadinstitute.dsp.Values(config.ingressConfig.values.map(_.value).mkString(","))
+          org.broadinstitute.dsp.Release(config.galaxyAppConfig.releaseName.value),
+          org.broadinstitute.dsp.Chart(config.galaxyAppConfig.chart.value),
+          org.broadinstitute.dsp.Values(chartValues)
         )
         .run(helmAuthContext)
 
-      // Monitor nginx until public IP is accessible
-      loadBalancerIpOpt <- (
-        Stream.sleep_(config.monitorConfig.createIngress.interval) ++
-          Stream.eval(
-            kubeService.getServiceExternalIp(dbCluster.getGkeClusterId,
-                                             KubernetesNamespace(config.ingressConfig.namespace),
-                                             config.ingressConfig.loadBalancerService)
-          )
-      ).repeatN(config.monitorConfig.createIngress.maxAttempts)
-        .takeThrough(_.isEmpty)
-        .compile
-        .lastOrError
-
-      loadBalancerIp <- F.fromOption(
-        loadBalancerIpOpt,
-        ClusterCreationException(
-          s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} | trace id: ${ctx.traceId}"
-        )
-      )
-    } yield loadBalancerIp
+    } yield ()
   }
 
   private[util] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
@@ -539,9 +540,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          nodepool: NodepoolName,
                                                          proxyUrl: String,
                                                          hostUrl: String,
-                                                         userEmail: WorkbenchEmail,
-                                                         adminEmail: WorkbenchEmail): String =
-    // Using the string interpolator """ since the chart keys include quotes to escape Helm
+                                                         userEmail: WorkbenchEmail): String =
+    // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
     // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
     List(
@@ -559,7 +559,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-to"=${proxyUrl}""",
       raw"""galaxy.ingress.hosts[0]=${hostUrl}""",
       raw"""galaxy.configs."galaxy\.yml".galaxy.single_user=${userEmail}""",
-      raw"""galaxy.configs."galaxy\.yml".galaxy.admin_users=${adminEmail}"""
+      // setting up such that a user is also admin on their app
+      raw"""galaxy.configs."galaxy\.yml".galaxy.admin_users=${userEmail}"""
     ).mkString(",")
 }
 

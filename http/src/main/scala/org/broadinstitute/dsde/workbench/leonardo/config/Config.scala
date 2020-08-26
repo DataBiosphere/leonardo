@@ -591,6 +591,7 @@ object Config {
   implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
     GalaxyAppConfig(
       config.as[ReleaseName]("releaseName"),
+      config.as[ChartName]("chart"),
       config.as[NamespaceName]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services")
     )
@@ -656,8 +657,7 @@ object Config {
     clusterResourcesConfig,
     securityFilesConfig,
     dataprocMonitorConfig.monitorStatusTimeouts
-      .get(RuntimeStatus.Creating)
-      .getOrElse(throw new Exception("Missing dataproc.monitor.statusTimeouts.creating"))
+      .getOrElse(RuntimeStatus.Creating, throw new Exception("Missing dataproc.monitor.statusTimeouts.creating"))
   )
 
   val gceInterpreterConfig = GceInterpreterConfig(
@@ -668,9 +668,8 @@ object Config {
     vpcConfig,
     clusterResourcesConfig,
     securityFilesConfig,
-    gceMonitorConfig.monitorStatusTimeouts
-      .get(RuntimeStatus.Creating)
-      .getOrElse(throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
+    gceMonitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating,
+                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
   )
   val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 
@@ -689,5 +688,11 @@ object Config {
 
   val gkeMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
 
-  val gkeInterpConfig = GKEInterpreterConfig(securityFilesConfig, gkeIngressConfig, gkeMonitorConfig, gkeClusterConfig)
+  val gkeInterpConfig =
+    GKEInterpreterConfig(securityFilesConfig,
+                         gkeIngressConfig,
+                         gkeGalaxyAppConfig,
+                         gkeMonitorConfig,
+                         gkeClusterConfig,
+                         proxyConfig)
 }
