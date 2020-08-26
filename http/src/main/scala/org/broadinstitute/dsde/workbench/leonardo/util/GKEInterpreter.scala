@@ -282,6 +282,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         kubeService.createSecret(gkeClusterId, KubernetesNamespace(namespaceName), secret)
       )
       _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
+
       // TODO create svc accts and workload identity roles
 
       // Resolve the cluster in Google
@@ -299,6 +300,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                          dbApp.nodepool.nodepoolName,
                          namespaceName,
                          dbApp.app.auditInfo.creator)
+
+      _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
 
       // TODO update DB
 
@@ -374,12 +377,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Create namespace for nginx
       _ <- logger.info(
-        s"Creating ${config.ingressConfig.namespace.value} namespace in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+        s"Creating namespace '${config.ingressConfig.namespace.value}' in cluster '${dbCluster.id}' | trace id: ${ctx.traceId}"
       )
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
       _ <- logger.info(
-        s"Installing ingress helm chart: ${config.ingressConfig.chart} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+        s"Installing ingress helm chart '${config.ingressConfig.chart}' in cluster '${dbCluster.id}' | trace id: ${ctx.traceId}"
       )
 
       // The helm client requires a Google access token
@@ -435,26 +438,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                   userEmail: WorkbenchEmail)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] = {
-    val proxyUrl = host(dbCluster, config.proxyConfig.proxyDomain).toString
-    val hostUrl = config.proxyConfig.getProxyServerHostName
-    val chartValues =
-      buildGalaxyChartOverrideValuesString(config.galaxyAppConfig.releaseName,
-                                           nodepoolName,
-                                           proxyUrl,
-                                           hostUrl,
-                                           userEmail)
+    val chartValues = buildGalaxyChartOverrideValuesString(dbCluster, nodepoolName, userEmail)
 
     for {
       ctx <- ev.ask
 
-      // Create namespace for nginx
       _ <- logger.info(
-        s"Creating ${namespaceName.value} namespace in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
-      )
-      _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(namespaceName))
-
-      _ <- logger.info(
-        s"Installing GalaxyKubeMan helm chart: ${config.galaxyAppConfig.chart} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+        s"Installing GalaxyKubeMan helm chart '${config.galaxyAppConfig.chart}' in cluster '${dbCluster.id}' | trace id: ${ctx.traceId}"
       )
 
       // TODO log as debug message
@@ -541,11 +531,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     builderWithAutoscaling.build()
   }
 
-  private[util] def buildGalaxyChartOverrideValuesString(release: ReleaseName,
-                                                         nodepool: NodepoolName,
-                                                         proxyUrl: String,
-                                                         hostUrl: String,
-                                                         userEmail: WorkbenchEmail): String =
+  private[util] def buildGalaxyChartOverrideValuesString(cluster: KubernetesCluster,
+                                                         nodepoolName: NodepoolName,
+                                                         userEmail: WorkbenchEmail): String = {
+    val release = config.galaxyAppConfig.releaseName
+    val proxyUrl = host(cluster, config.proxyConfig.proxyDomain).toString
+    val hostUrl = config.proxyConfig.getProxyServerHostName
+
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
     // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
@@ -557,16 +549,17 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.persistence.storageClass=nfs-${release.value}""",
       raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.value}""",
       raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
-      raw"""galaxy.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepool.value}""",
-      raw"""nfs.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepool.value}""",
+      raw"""galaxy.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepoolName.value}""",
+      raw"""nfs.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepoolName.value}""",
       raw"""galaxy.ingress.path=${proxyUrl}""",
       raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-from"=${hostUrl}""",
       raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-to"=${proxyUrl}""",
       raw"""galaxy.ingress.hosts[0]=${hostUrl}""",
       raw"""galaxy.configs."galaxy\.yml".galaxy.single_user=${userEmail}""",
-      // setting up such that a user is also admin on their app
+      // a user is also the admin on their app
       raw"""galaxy.configs."galaxy\.yml".galaxy.admin_users=${userEmail}"""
     ).mkString(",")
+  }
 }
 
 sealed trait AppProcessingException extends Exception {
