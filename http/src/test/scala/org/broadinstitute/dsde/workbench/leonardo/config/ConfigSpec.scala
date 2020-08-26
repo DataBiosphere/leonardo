@@ -100,8 +100,9 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
 
   it should "read GalaxyAppConfig properly" in {
     val expectedResult = GalaxyAppConfig(
-      ReleaseName("release1"),
-      NamespaceName("namespace"),
+      ReleaseName("galaxy-rls"),
+      ChartName("galaxy/galaxykubeman"),
+      NamespaceName("galaxy-ns"),
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP")))
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult

@@ -457,6 +457,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Installing GalaxyKubeMan helm chart: ${config.galaxyAppConfig.chart} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
       )
 
+      // TODO log as debug message
+      _ <- logger.info(
+        s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
+      )
+
       // The helm client requires a Google access token
       _ <- F.delay(credentials.refreshIfExpired())
 
