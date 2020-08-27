@@ -537,7 +537,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     val release = config.galaxyAppConfig.releaseName
     val proxyUrl = host(cluster, config.proxyConfig.proxyDomain).toString
     val hostUrl = config.proxyConfig.getProxyServerHostName
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${release}/galaxy"
+    // TODO Is the path below set in any config? If not, add
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${release.value}/galaxy"
 
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
