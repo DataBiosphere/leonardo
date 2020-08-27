@@ -32,7 +32,7 @@ class DateAccessedUpdater[F[_]: ContextShift: Timer](
     (Stream.sleep[F](config.interval) ++ Stream.eval(check)).repeat
 
   private[monitor] val check: F[Unit] =
-    logger.info(s"Going to update dateAccessed") >> queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
+    logger.debug(s"Going to update dateAccessed") >> queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
       chunks
         .traverse(c =>
           messagesToUpdate(c.toChain)

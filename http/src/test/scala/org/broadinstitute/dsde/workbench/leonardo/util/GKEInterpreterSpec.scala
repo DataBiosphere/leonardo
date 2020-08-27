@@ -71,19 +71,4 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     emptyFileSecrets should contain((SecretName("tls-secret"), savedApp1.appResources.namespace.name))
     secrets.flatMap(_.secrets.values).map(s => s.isEmpty shouldBe false)
   }
-
-//  it should "string together galaxy chart override values" in isolatedDbTest {
-//    val savedCluster = makeKubeCluster(1).save()
-//    val savedNodepool = makeNodepool(1, savedCluster.id).save()
-//    val savedApp = makeApp(1, savedNodepool.id).save()
-//
-//    val chartValues =
-//      gkeInterp
-//        .buildGalaxyChartOverrideValuesString(Config.gkeInterpConfig.galaxyAppConfig.releaseName,
-//                                              savedNodepool.nodepoolName,
-//                                              proxyUrl,
-//                                              hostUrl,
-//                                              userEmail)
-//
-//  }
 }

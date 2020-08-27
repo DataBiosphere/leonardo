@@ -187,6 +187,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
+      _ <- logger.info(s"Successfully created cluster ${params.clusterId}!")
+
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
 
@@ -209,7 +211,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- if (params.isNodepoolPrecreate)
         nodepoolQuery.markAsUnclaimed(dbCluster.nodepools.filterNot(_.isDefault).map(_.id)).transaction
       else F.unit
-      _ <- logger.info(s"Successfully created cluster ${params.clusterId}!")
 
     } yield ()
 
@@ -430,7 +431,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
     } yield loadBalancerIp
 
-  // TODO Factor out common pieces with installNginx()
+  // TODO Factor out common pieces with installNginx(); e.g. cert file writing
   private[util] def installGalaxy(dbCluster: KubernetesCluster,
                                   googleCluster: Cluster,
                                   nodepoolName: NodepoolName,
@@ -444,10 +445,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ctx <- ev.ask
 
       _ <- logger.info(
-        s"Installing GalaxyKubeMan helm chart '${config.galaxyAppConfig.chart}' in cluster '${dbCluster.id}' | trace id: ${ctx.traceId}"
+        s"Installing GalaxyKubeMan helm chart '${config.galaxyAppConfig.chart.value}' in cluster '${dbCluster.id}' | trace id: ${ctx.traceId}"
       )
 
-      // TODO log as debug message
       _ <- logger.info(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
       )
@@ -537,6 +537,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     val release = config.galaxyAppConfig.releaseName
     val proxyUrl = host(cluster, config.proxyConfig.proxyDomain).toString
     val hostUrl = config.proxyConfig.getProxyServerHostName
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${release}/galaxy"
 
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
@@ -551,9 +552,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
       raw"""galaxy.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepoolName.value}""",
       raw"""nfs.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepoolName.value}""",
-      raw"""galaxy.ingress.path=${proxyUrl}""",
-      raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-from"=${hostUrl}""",
-      raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-to"=${proxyUrl}""",
+      raw"""galaxy.ingress.path=${ingressPath}""",
+      raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-from"=${proxyUrl}""",
+      raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-to"=${hostUrl}""",
       raw"""galaxy.ingress.hosts[0]=${hostUrl}""",
       raw"""galaxy.configs."galaxy\.yml".galaxy.single_user=${userEmail}""",
       // a user is also the admin on their app
