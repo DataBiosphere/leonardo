@@ -153,7 +153,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
       }
     }
 
-    "Sync issues and make a copy handled transition correctly" in { clusterFixture =>
+    "Sync issues and make a copy handled transition correctly" ignore { clusterFixture =>
       val fileName = "gcsFile3" //we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
@@ -172,12 +172,11 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
               val syncIssueElements =
                 List(notebookPage.syncCopyButton, notebookPage.syncReloadButton, notebookPage.modalId)
 
-              eventually(timeout(Span(10, Minutes)), interval(Span(30, Seconds))) { //wait for checkMeta tick
+              eventually(timeout(Span(5, Minutes)), interval(Span(30, Seconds))) { //wait for checkMeta tick
+
                 notebookPage areElementsPresent (syncIssueElements) shouldBe true
 
                 notebookPage executeJavaScript ("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
-
-                notebookPage validateOverrideModal
 
                 notebookPage makeACopyFromSyncIssue
               }
