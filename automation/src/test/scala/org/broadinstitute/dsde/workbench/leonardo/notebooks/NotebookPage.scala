@@ -52,7 +52,7 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
   }
 
   // selects all submenus which appear in dropdowns after clicking a main menu header
-  lazy val submenus: Query = cssSelector("[class='dropdown-submenu']")
+  lazy val submenus: Query = cssSelector("[class='menu_focus_highlight dropdown-submenu']")
 
   // File -> Download as
   lazy val downloadSubMenu: Element = {
