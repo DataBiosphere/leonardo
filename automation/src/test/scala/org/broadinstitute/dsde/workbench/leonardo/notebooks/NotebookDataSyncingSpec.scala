@@ -179,9 +179,6 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
                 notebookPage executeJavaScript ("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
 
                 notebookPage makeACopyFromSyncIssue
-
-                notebookPage clickOverrideNotebookChanged
-
               }
 
               eventually(timeout(Span(30, Seconds))) { //wait for the page to reload
