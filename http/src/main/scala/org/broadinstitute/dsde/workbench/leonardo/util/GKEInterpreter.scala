@@ -274,7 +274,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
       gkeClusterId = dbApp.cluster.getGkeClusterId
-      namespaceName = dbApp.app.appResources.namespace.name
+      app = dbApp.app
+      namespaceName = app.appResources.namespace.name
       dbCluster = dbApp.cluster
 
       _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
@@ -296,17 +297,18 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // helm install galaxy
-      _ <- installGalaxy(dbCluster,
+      _ <- installGalaxy(app.appName,
+                         dbCluster,
                          googleCluster,
                          dbApp.nodepool.nodepoolName,
                          namespaceName,
-                         dbApp.app.auditInfo.creator)
+                         app.auditInfo.creator)
 
       _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
 
-      // TODO update DB
+      // TODO Update the DB (here or after polling done?)
 
-      // TODO poll galaxy for creation
+      // TODO Poll galaxy for creation - time out if Galaxy installation hangs
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
@@ -432,14 +434,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     } yield loadBalancerIp
 
   // TODO Factor out common pieces with installNginx(); e.g. cert file writing
-  private[util] def installGalaxy(dbCluster: KubernetesCluster,
+  private[util] def installGalaxy(appName: AppName,
+                                  dbCluster: KubernetesCluster,
                                   googleCluster: Cluster,
                                   nodepoolName: NodepoolName,
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] = {
-    val chartValues = buildGalaxyChartOverrideValuesString(dbCluster, nodepoolName, userEmail)
+    val chartValues = buildGalaxyChartOverrideValuesString(appName, dbCluster, nodepoolName, userEmail)
 
     for {
       ctx <- ev.ask
@@ -531,14 +534,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     builderWithAutoscaling.build()
   }
 
-  private[util] def buildGalaxyChartOverrideValuesString(cluster: KubernetesCluster,
+  private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
+                                                         cluster: KubernetesCluster,
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail): String = {
     val release = config.galaxyAppConfig.releaseName
     val proxyUrl = host(cluster, config.proxyConfig.proxyDomain).toString
     val hostUrl = config.proxyConfig.getProxyServerHostName
-    // TODO Is the path below set in any config? If not, add
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${release.value}/galaxy"
+    // TODO Is the path below templated in any config? If not, consider adding
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
 
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
