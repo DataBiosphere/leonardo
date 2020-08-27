@@ -114,6 +114,8 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
 
   lazy val jupyterModal: Query = cssSelector("[class='modal-title']")
 
+  lazy val button: Query = cssSelector("button")
+
   lazy val secondJupyterModal: Query = cssSelector("[class='modal-title']:nth-child(2)")
 
   lazy val confirmNotebookSaveButton: Query = cssSelector(
@@ -375,8 +377,9 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
       .forall(identity)
 
   def clickOverrideNotebookChanged(): Unit =
-    if (find(confirmNotebookSaveButton).size > 0) {
-      click on confirmNotebookSaveButton
+    if (findOverwriteButton.isDefined) {
+      logger.info(s"${findOverwriteButton.isDefined}")
+      click on findOverwriteButton.get
     }
 
   //will cause an exception if no modal exists - check existence of below ID before calling
@@ -389,10 +392,11 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
   def goToPlaygroundModeFromLockIssue(): Unit =
     click on getSelectorFrom(lockPlaygroundButton)
 
-  def validateOverrideModal(): Unit = {
+  def waitForSecondModal(): Unit =
     await condition (secondModalExists, 7.minutes.toSeconds)
-    clickOverrideNotebookChanged()
-  }
+
+  def findOverwriteButton: Option[Element] =
+    findAll(button).find(_.text == "Overwrite")
 
   /**
    * In some situations Jupyter UI will display a "Notebook changed" modal if it detects
