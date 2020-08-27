@@ -551,15 +551,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.persistence.storageClass=nfs-${release.value}""",
       raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.value}""",
       raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
-      raw"""galaxy.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepoolName.value}""",
-      raw"""nfs.nodeSelector."cloud\.google\.com/gke-nodepool"=${nodepoolName.value}""",
+      raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""galaxy.ingress.path=${ingressPath}""",
-      raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-from"=${proxyUrl}""",
-      raw"""galaxy.ingress.annotations."nginx\.ingress\.kubernetes\.io/proxy-redirect-to"=${hostUrl}""",
-      raw"""galaxy.ingress.hosts[0]=${hostUrl}""",
-      raw"""galaxy.configs."galaxy\.yml".galaxy.single_user=${userEmail}""",
+      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${proxyUrl}""",
+      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${hostUrl}""",
+      raw"""galaxy.ingress.hosts[0]=${proxyUrl}""",
+      raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail}""",
       // a user is also the admin on their app
-      raw"""galaxy.configs."galaxy\.yml".galaxy.admin_users=${userEmail}"""
+      raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail}"""
     ).mkString(",")
   }
 }
