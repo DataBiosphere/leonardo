@@ -740,7 +740,7 @@ trait LeonardoTestUtils
         cluster.errors should have size 1
         cluster.errors.head.errorMessage should include("gs://")
         cluster.errors.head.errorMessage should include("User script failed")
-        cluster.errors.head.errorCode should be(3)
+        cluster.errors.head.errorCode should be(-1)
         testCode(cluster)
       }
 
