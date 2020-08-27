@@ -51,7 +51,8 @@ package object google {
       interface <- interfaces.asScala.headOption
       accessConfigs <- Option(interface.getAccessConfigsList)
       accessConfig <- accessConfigs.asScala.headOption
-    } yield IP(accessConfig.getNatIP)
+      natIP <- Option(accessConfig.getNatIP)
+    } yield IP(natIP)
 
   def buildMachineTypeUri(zone: ZoneName, machineTypeName: MachineTypeName): String =
     s"zones/${zone.value}/machineTypes/${machineTypeName.value}"

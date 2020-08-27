@@ -89,9 +89,11 @@ class GceRuntimeMonitorSpec
       res1 shouldBe UserScriptsValidationResult.Success
       res2 shouldBe UserScriptsValidationResult.Success
       res3 shouldBe UserScriptsValidationResult.Success
-      res4 shouldBe (UserScriptsValidationResult.Error("user script gs://failure/object_output failed"))
+      res4 shouldBe (UserScriptsValidationResult.Error(
+        "User script failed. See output in gs://failure/object_output"
+      ))
       res5 shouldBe (UserScriptsValidationResult.CheckAgain(
-        "user script gs://nonExistent/object_output hasn't finished yet"
+        "User script hasn't finished yet. See output in gs://nonExistent/object_output"
       ))
       res6.left.value.getMessage shouldBe (s"${ctx} | staging bucket field hasn't been updated properly before monitoring started")
     }
@@ -128,9 +130,11 @@ class GceRuntimeMonitorSpec
       res1 shouldBe UserScriptsValidationResult.Success
       res2 shouldBe UserScriptsValidationResult.Success
       res3 shouldBe UserScriptsValidationResult.Success
-      res4 shouldBe (UserScriptsValidationResult.Error("user startup script gs://failure/object_output failed"))
+      res4 shouldBe (UserScriptsValidationResult.Error(
+        "User startup script failed. See output in gs://failure/object_output"
+      ))
       res5 shouldBe (UserScriptsValidationResult.CheckAgain(
-        "user startup script gs://nonExistent/object_output hasn't finished yet"
+        "User startup script hasn't finished yet. See output in gs://nonExistent/object_output"
       ))
       res6 shouldBe (UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
     }
@@ -182,7 +186,7 @@ class GceRuntimeMonitorSpec
     } yield {
       (afterMonitor.toEpochMilli - start.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Error)
-      error.head.errorMessage shouldBe s"user script gs://failure/userscript_output.txt failed"
+      error.head.errorMessage shouldBe s"User script failed. See output in gs://failure/userscript_output.txt"
     }
 
     res.unsafeRunSync
@@ -235,7 +239,7 @@ class GceRuntimeMonitorSpec
     } yield {
       (afterMonitor.toEpochMilli - start.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Error)
-      error.head.errorMessage shouldBe s"user startup script gs://staging_bucket/failed_userstartupscript_output.txt failed"
+      error.head.errorMessage shouldBe s"User startup script failed. See output in gs://staging_bucket/failed_userstartupscript_output.txt"
     }
 
     res.unsafeRunSync
@@ -364,7 +368,7 @@ class GceRuntimeMonitorSpec
     } yield {
       (afterMonitor.toEpochMilli - start.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
       status shouldBe Some(RuntimeStatus.Error)
-      error.head.errorMessage shouldBe s"user startup script gs://staging_bucket/failed_userstartupscript_output.txt failed"
+      error.head.errorMessage shouldBe s"User startup script failed. See output in gs://staging_bucket/failed_userstartupscript_output.txt"
     }
 
     res.unsafeRunSync

@@ -1,33 +1,36 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
-import java.time.Instant
-
+import cats.Parallel
 import cats.effect.{Async, Sync, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService}
+import monocle.macros.syntax.lens._
+import org.broadinstitute.dsde.workbench.DoneCheckable
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.CheckResult
-import org.broadinstitute.dsde.workbench.leonardo.util.{RuntimeAlgebra, StopRuntimeParams}
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
-import monocle.macros.syntax.lens._
-import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.{
+  getRuntimeUI,
+  recordStatusTransitionMetrics,
+  CheckResult
+}
+import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteRuntimeParams, RuntimeAlgebra, StopRuntimeParams}
+import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   implicit def F: Async[F]
+  implicit def parallel: Parallel[F]
   implicit def timer: Timer[F]
   implicit def dbRef: DbReference[F]
   implicit def ec: ExecutionContext
@@ -87,10 +90,75 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   def failedRuntime(monitorContext: MonitorContext,
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                    errorDetails: Option[RuntimeErrorDetails],
+                    errorDetails: RuntimeErrorDetails,
                     instances: Set[DataprocInstance])(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CheckResult]
+  ): F[CheckResult] =
+    for {
+      ctx <- ev.ask
+      _ <- List(
+        // Delete the cluster in Google
+        runtimeAlg
+          .deleteRuntime(
+            DeleteRuntimeParams(
+              runtimeAndRuntimeConfig.runtime.googleProject,
+              runtimeAndRuntimeConfig.runtime.runtimeName,
+              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined
+            )
+          )
+          .void, //TODO is this right when deleting or stopping fails?
+        //save cluster error in the DB
+        saveRuntimeError(
+          runtimeAndRuntimeConfig.runtime.id,
+          errorDetails
+        ),
+        if (instances.nonEmpty)
+          clusterQuery
+            .mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = instances))
+            .transaction
+            .void
+        else F.unit
+      ).parSequence_
+
+      // Record metrics in NewRelic
+      _ <- recordStatusTransitionMetrics(
+        monitorContext.start,
+        getRuntimeUI(runtimeAndRuntimeConfig.runtime),
+        runtimeAndRuntimeConfig.runtime.status,
+        RuntimeStatus.Error,
+        runtimeAndRuntimeConfig.runtimeConfig.cloudService
+      )
+
+      // Update the cluster status to Error only if the runtime is non-Deleted.
+      // If the user has explicitly deleted their runtime by this point then
+      // we don't want to move it back to Error status.
+      _ <- for {
+        curStatusOpt <- clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction
+        curStatus <- F.fromOption(
+          curStatusOpt,
+          new Exception(s"Cluster with id ${runtimeAndRuntimeConfig.runtime.id} not found in the database")
+        )
+        _ <- curStatus match {
+          case RuntimeStatus.Deleted =>
+            logger.info(
+              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in Deleted status. | trace id: ${ctx.traceId}"
+            )
+          case _ =>
+            logger.info(
+              s"failedRuntime: moving runtime with id  ${runtimeAndRuntimeConfig.runtime.id} to Error status. | trace id: ${ctx.traceId}"
+            ) >> clusterQuery
+              .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now)
+              .transaction
+              .void
+        }
+      } yield ()
+
+      tags = Map(
+        "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
+        "errorCode" -> errorDetails.shortMessage.getOrElse("leonardo")
+      )
+      _ <- openTelemetry.incrementCounter(s"runtimeCreationFailure", 1, tags)
+    } yield ((), None): CheckResult
 
   def readyRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                    publicIp: IP,
@@ -176,10 +244,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               failedRuntime(
                 monitorContext,
                 runtimeAndRuntimeConfig,
-                Some(
-                  RuntimeErrorDetails(
-                    s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toSeconds} seconds"
-                  )
+                RuntimeErrorDetails(
+                  s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toSeconds} seconds"
                 ),
                 dataprocInstances
               )
@@ -269,6 +335,78 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       )
     } yield ((), None)
 
+  private[monitor] def validateBothScripts(
+    userScriptOutputFile: Option[GcsPath],
+    userStartupScriptOutputFile: Option[GcsPath],
+    jupyterUserScriptUriInDB: Option[UserScriptPath],
+    jupyterStartUserScriptUriInDB: Option[UserScriptPath]
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+    for {
+      userScriptRes <- validateUserScript(userScriptOutputFile, jupyterUserScriptUriInDB)
+      res <- userScriptRes match {
+        case UserScriptsValidationResult.Success =>
+          validateUserStartupScript(userStartupScriptOutputFile, jupyterStartUserScriptUriInDB)
+        case x: UserScriptsValidationResult.Error =>
+          F.pure(x)
+        case x: UserScriptsValidationResult.CheckAgain =>
+          F.pure(x)
+      }
+    } yield res
+
+  private[monitor] def validateUserScript(
+    userScriptOutputPathFromDB: Option[GcsPath],
+    jupyterUserScriptUriInDB: Option[UserScriptPath]
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+    (userScriptOutputPathFromDB, jupyterUserScriptUriInDB) match {
+      case (Some(output), Some(_)) =>
+        checkUserScriptsOutputFile(output).map { o =>
+          o match {
+            case Some(true) => UserScriptsValidationResult.Success
+            case Some(false) =>
+              UserScriptsValidationResult.Error(s"User script failed. See output in ${output.toUri}")
+            case None =>
+              UserScriptsValidationResult.CheckAgain(
+                s"User script hasn't finished yet. See output in ${output.toUri}"
+              )
+          }
+        }
+      case (None, Some(_)) =>
+        for {
+          ctx <- ev.ask
+          r <- F.raiseError[UserScriptsValidationResult](
+            new Exception(s"${ctx} | staging bucket field hasn't been updated properly before monitoring started")
+          ) // worth error reporting
+        } yield r
+      case (_, None) =>
+        F.pure(UserScriptsValidationResult.Success)
+    }
+
+  private[monitor] def validateUserStartupScript(
+    userStartupScriptOutputFile: Option[GcsPath],
+    jupyterStartUserScriptUriInDB: Option[UserScriptPath]
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+    (userStartupScriptOutputFile, jupyterStartUserScriptUriInDB) match {
+      case (Some(output), Some(_)) =>
+        checkUserScriptsOutputFile(output).map { o =>
+          o match {
+            case Some(true) => UserScriptsValidationResult.Success
+            case Some(false) =>
+              UserScriptsValidationResult.Error(s"User startup script failed. See output in ${output.toUri}")
+            case None =>
+              UserScriptsValidationResult.CheckAgain(
+                s"User startup script hasn't finished yet. See output in ${output.toUri}"
+              )
+          }
+        }
+      case (None, Some(_)) =>
+        for {
+          ctx <- ev.ask
+          r <- F.pure(UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
+        } yield r
+      case (_, None) =>
+        F.pure(UserScriptsValidationResult.Success)
+    }
+
   private[monitor] def checkUserScriptsOutputFile(
     gcsPath: GcsPath
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Boolean]] =
@@ -320,7 +458,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           )
       }
       // wait for 10 minutes for tools to start up before time out.
-      availableTools <- streamFUntilDone(checkTools, 120, 5 seconds).compile.lastOrError
+      availableTools <- streamFUntilDone(checkTools,
+                                         monitorConfig.checkToolsMaxAttempts,
+                                         monitorConfig.checkToolsInterval).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
@@ -329,9 +469,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           failedRuntime(
             monitorContext,
             runtimeAndRuntimeConfig,
-            Some(
-              RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly", None, Some("tool_start_up"))
-            ),
+            RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly", None, Some("tool_start_up")),
             dataprocInstances
           )
       }
@@ -344,15 +482,29 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     )(res)
   }
 
-  protected def saveClusterError(runtimeId: Long, errorMessage: String, errorCode: Int, now: Instant): F[Unit] =
-    dbRef
-      .inTransaction {
-        clusterErrorQuery.save(runtimeId, RuntimeError(errorMessage, errorCode, now))
-      }
-      .void
-      .adaptError {
-        case e => new Exception(s"Error persisting cluster error with message '${errorMessage}' to database: ${e}", e)
-      }
+  protected def saveRuntimeError(runtimeId: Long, errorDetails: RuntimeErrorDetails)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = {
+    val result = for {
+      ctx <- ev.ask
+      _ <- clusterErrorQuery
+        .save(runtimeId, RuntimeError(errorDetails.longMessage, errorDetails.code.getOrElse(-1), ctx.now))
+        .transaction
+        .void
+        .adaptError {
+          case e =>
+            new Exception(
+              s"Error persisting runtime error with message '${errorDetails.longMessage}' to database: ${e}",
+              e
+            )
+        }
+    } yield ()
+
+    result.onError {
+      case e =>
+        logger.error(e)(s"Failed to persist runtime errors for runtime ${runtimeId}: ${e.getMessage}")
+    }
+  }
 
   protected def deleteInitBucket(googleProject: GoogleProject,
                                  runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =

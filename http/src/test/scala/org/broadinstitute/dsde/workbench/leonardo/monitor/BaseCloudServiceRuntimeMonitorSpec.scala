@@ -3,9 +3,11 @@ package monitor
 
 import java.time.Instant
 
+import cats.Parallel
 import cats.effect.{Async, IO, Timer}
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1._
+import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.{GoogleStorageService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -14,16 +16,15 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import fs2.Stream
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.matchers.should.Matchers
 
 class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with TestComponent with LeonardoTestSuite {
   it should "terminate monitoring process if cluster status is changed in the middle of it" in isolatedDbTest {
@@ -41,19 +42,83 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     res.unsafeRunSync()
   }
 
-  "handleCheckTools" should "if all tools are ready" in isolatedDbTest {
+  "handleCheckTools" should "move to Running status if all tools are ready" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(true)
 
     val res = for {
-      now <- nowInstant
+      start <- nowInstant
       tid <- traceId.ask
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
-      monitorContext = MonitorContext(now, runtime.id, tid, RuntimeStatus.Creating)
-      r <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
+      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
+      end <- nowInstant
+      elapsed = end.toEpochMilli - start.toEpochMilli
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
     } yield {
-      r shouldBe (((), None))
+      // handleCheckTools has an intial delay of 1 second
+      elapsed should be >= 1000L
+      // it should not have reached the max timeout of 10 seconds
+      elapsed should be < 7000L
+      status shouldBe Some(RuntimeStatus.Running)
+      res shouldBe (((), None))
     }
+
+    res.unsafeRunSync()
+  }
+
+  it should "move to failed status if tools are not ready" in isolatedDbTest {
+    val runtimeMonitor = baseRuntimeMonitor(false)
+
+    val res = for {
+      start <- nowInstant
+      tid <- traceId.ask
+      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
+      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
+      end <- nowInstant
+      elapsed = end.toEpochMilli - start.toEpochMilli
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
+    } yield {
+      // handleCheckTools should have timed out after 10 seconds and moved the runtime to Error status
+      elapsed should be >= 10000L
+      status shouldBe Some(RuntimeStatus.Error)
+      res shouldBe (((), None))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "not move to failed status if tools are not ready and runtime is Deleted" in isolatedDbTest {
+    val runtimeMonitor = baseRuntimeMonitor(false)
+
+    val res = for {
+      start <- nowInstant
+      tid <- traceId.ask
+      implicit0(ec: ExecutionContext) = global
+      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
+      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+
+      runCheckTools = Stream.eval(
+        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
+      )
+      deleteRuntime = Stream.sleep(2 seconds) ++ Stream.eval(
+        clusterQuery.completeDeletion(runtime.id, start).transaction
+      )
+      // run above tasks concurrently and wait for both to terminate
+      _ <- Stream(runCheckTools, deleteRuntime).parJoin(2).compile.drain.timeout(15 seconds)
+
+      end <- nowInstant
+      elapsed = end.toEpochMilli - start.toEpochMilli
+      status <- clusterQuery.getClusterStatus(runtime.id).transaction
+    } yield {
+      // handleCheckTools should have timed out after 10 seconds and the runtime should remain in Deleted status
+      elapsed should be >= 10000L
+      status shouldBe Some(RuntimeStatus.Deleted)
+    }
+
     res.unsafeRunSync()
   }
 
@@ -61,7 +126,9 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     new BaseCloudServiceRuntimeMonitor[IO] {
       implicit override def F: Async[IO] = IO.ioConcurrentEffect(cs)
 
-      implicit override def timer: Timer[IO] = testTimer
+      implicit override def parallel: Parallel[IO] = IO.ioParallel(cs)
+
+      override def timer: Timer[IO] = testTimer
 
       implicit override def dbRef: DbReference[IO] = testDbRef
 
@@ -77,7 +144,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
       implicit override def openTelemetry: OpenTelemetryMetrics[IO] = metrics
 
-      override def runtimeAlg: RuntimeAlgebra[IO] = ???
+      override def runtimeAlg: RuntimeAlgebra[IO] = MockRuntimeAlgebra
 
       override def logger: Logger[IO] = loggerIO
 
@@ -88,6 +155,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
         1 seconds,
         5,
         1 seconds,
+        10,
         RuntimeBucketConfig(3 seconds),
         Map.empty,
         ZoneName("zoneName"),
@@ -98,13 +166,6 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
                              runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                              operation: Operation,
                              action: RuntimeStatus)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
-
-      override def failedRuntime(
-        monitorContext: MonitorContext,
-        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-        errorDetails: Option[RuntimeErrorDetails],
-        instances: Set[DataprocInstance]
-      )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[(Unit, Option[MonitorState])] = ???
 
       override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
         implicit ev: ApplicativeAsk[IO, AppContext]
