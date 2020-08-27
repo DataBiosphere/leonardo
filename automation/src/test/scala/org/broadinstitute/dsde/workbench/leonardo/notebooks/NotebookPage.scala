@@ -378,7 +378,6 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
 
   def clickOverrideNotebookChanged(): Unit =
     if (findOverwriteButton.isDefined) {
-      logger.info(s"${findOverwriteButton.isDefined}")
       click on findOverwriteButton.get
     }
 
