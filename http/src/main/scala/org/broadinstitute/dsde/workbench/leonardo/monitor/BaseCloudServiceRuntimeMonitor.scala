@@ -363,10 +363,10 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           o match {
             case Some(true) => UserScriptsValidationResult.Success
             case Some(false) =>
-              UserScriptsValidationResult.Error(s"User startup script failed. See output in ${output.toUri}")
+              UserScriptsValidationResult.Error(s"User script failed. See output in ${output.toUri}")
             case None =>
               UserScriptsValidationResult.CheckAgain(
-                s"User startup script hasn't finished yet. See output in ${output.toUri}"
+                s"User script hasn't finished yet. See output in ${output.toUri}"
               )
           }
         }

@@ -739,12 +739,7 @@ trait LeonardoTestUtils
         cluster.status shouldBe ClusterStatus.Error
         cluster.errors should have size 1
         cluster.errors.head.errorMessage should include("gs://")
-        cloudService match {
-          case CloudService.GCE =>
-            cluster.errors.head.errorMessage should include("Userscript failed.")
-          case CloudService.Dataproc =>
-            cluster.errors.head.errorMessage should include("Initialization action failed")
-        }
+        cluster.errors.head.errorMessage should include("User script failed")
         cluster.errors.head.errorCode should be(3)
         testCode(cluster)
       }
@@ -779,11 +774,11 @@ trait LeonardoTestUtils
         runtime.errors should have size 1
         if (isUserStartupScript)
           runtime.errors.head.errorMessage should include(
-            s"user startup script gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/startscript_output"
+            s"User startup script failed. See output in gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/startscript_output"
           )
         else
           runtime.errors.head.errorMessage should include(
-            s"user script gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/userscript_output.txt failed"
+            s"User script failed. See output in gs://${runtime.asyncRuntimeFields.map(_.stagingBucket).getOrElse("")}/userscript_output.txt"
           )
 
         testCode(runtime)
