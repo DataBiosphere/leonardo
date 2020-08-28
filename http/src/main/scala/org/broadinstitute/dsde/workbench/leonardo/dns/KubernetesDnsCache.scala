@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConf
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries}
-import org.broadinstitute.dsde.workbench.leonardo.http.{host, GetAppResult}
+import org.broadinstitute.dsde.workbench.leonardo.http.{kubernetesProxyHost, GetAppResult}
 import org.broadinstitute.dsde.workbench.leonardo.AppName
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -62,7 +62,7 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger](proxyConfig: 
     appResult.cluster.asyncFields.map(_.loadBalancerIp) match {
       case None => Effect[F].pure(HostNotReady)
       case Some(ip) =>
-        val h = host(appResult.cluster, proxyConfig.proxyDomain)
+        val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
         HostToIpMapping.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h)).to[F]
     }
 }

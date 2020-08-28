@@ -54,10 +54,8 @@ package object http {
       _ <- Stream.emits(data).through(io.file.writeAll(path, blocker)).compile.drain
     } yield path
 
-  // TODO Move to kubernetesModels.KubernetesCluster?
-  def host(cluster: KubernetesCluster, proxyDomain: String): Host = {
-    // TODO is there a better strategy than Objects.hashCode?
-    // This hostname also needs to be specified in the ingress resource
+  // This hostname is used by the ProxyService and also needs to be specified in the Galaxy ingress resource
+  def kubernetesProxyHost(cluster: KubernetesCluster, proxyDomain: String): Host = {
     val prefix = Math.abs(Objects.hashCode(cluster.getGkeClusterId)).toString
     Host(prefix + proxyDomain)
   }

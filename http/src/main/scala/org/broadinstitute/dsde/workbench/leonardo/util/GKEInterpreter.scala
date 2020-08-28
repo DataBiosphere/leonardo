@@ -278,12 +278,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       namespaceName = app.appResources.namespace.name
       dbCluster = dbApp.cluster
 
+      _ <- logger.info(
+        s"Creating namespace ${namespaceName.value} and secrets for app ${params.appId} | trace id: ${ctx.traceId}"
+      )
+
       _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
       secrets <- getSecrets(namespaceName)
       _ <- secrets.parTraverse(secret =>
         kubeService.createSecret(gkeClusterId, KubernetesNamespace(namespaceName), secret)
       )
-      _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
 
       // TODO create svc accts and workload identity roles
 
@@ -380,12 +383,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Create namespace for nginx
       _ <- logger.info(
-        s"Creating namespace '${config.ingressConfig.namespace.value}' in cluster '${dbCluster.id}' | trace id: ${ctx.traceId}"
+        s"Creating namespace ${config.ingressConfig.namespace.value} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
       )
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
       _ <- logger.info(
-        s"Installing ingress helm chart '${config.ingressConfig.chart}' in cluster '${dbCluster.id}' | trace id: ${ctx.traceId}"
+        s"Installing ingress helm chart ${config.ingressConfig.chart} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
       )
 
       // The helm client requires a Google access token
@@ -441,15 +444,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] = {
-    val chartValues = buildGalaxyChartOverrideValuesString(appName, dbCluster, nodepoolName, userEmail)
-
+  ): F[Unit] =
     for {
       ctx <- ev.ask
 
       _ <- logger.info(
-        s"Installing GalaxyKubeMan helm chart '${config.galaxyAppConfig.chart.value}' in cluster '${dbCluster.id}' | trace id: ${ctx.traceId}"
+        s"Installing helm chart ${config.galaxyAppConfig.chart.value} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
       )
+
+      chartValues = buildGalaxyChartOverrideValuesString(appName, dbCluster, nodepoolName, userEmail)
 
       _ <- logger.info(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
@@ -480,7 +483,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .run(helmAuthContext)
 
     } yield ()
-  }
 
   private[util] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
     config.ingressConfig.secrets.traverse { secret =>
@@ -539,31 +541,39 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail): String = {
     val release = config.galaxyAppConfig.releaseName
-    val proxyUrl = host(cluster, config.proxyConfig.proxyDomain).toString
-    val hostUrl = config.proxyConfig.getProxyServerHostName
-    // TODO Is the path below templated in any config? If not, consider adding
+    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
+    val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
 
-    // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
-    // value override special characters such as '.'
-    // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
     List(
-      raw"""nfs.storageClass.name=nfs-${release.value}""",
-      raw"""cvmfs.repositories.cvmfs-gxy-data-${release.value}=data.galaxyproject.org""",
-      raw"""cvmfs.repositories.cvmfs-gxy-main-${release.value}=main.galaxyproject.org""",
-      raw"""cvmfs.cache.alienCache.storageClass=nfs-${release.value}""",
-      raw"""galaxy.persistence.storageClass=nfs-${release.value}""",
-      raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.value}""",
-      raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
-      raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      raw"""galaxy.ingress.path=${ingressPath}""",
-      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${proxyUrl}""",
-      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${hostUrl}""",
-      raw"""galaxy.ingress.hosts[0]=${proxyUrl}""",
-      raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail}""",
-      // a user is also the admin on their app
-      raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail}"""
+      s"""nfs.storageClass.name=nfs-${release.value}""",
+      s"""cvmfs.repositories.cvmfs-gxy-data-${release.value}=data.galaxyproject.org""",
+      s"""cvmfs.repositories.cvmfs-gxy-main-${release.value}=main.galaxyproject.org""",
+      s"""cvmfs.cache.alienCache.storageClass=nfs-${release.value}""",
+      s"""galaxy.persistence.storageClass=nfs-${release.value}""",
+      s"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.value}""",
+      s"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
+      s"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      s"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      s"""galaxy.ingress.path=${ingressPath}""",
+      s"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
+      s"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
+      s"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
+      s"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail}""",
+      s"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail}"""
+      // TODO add configs:
+//      --set configs.workspace-name="Test" \
+//      --set configs.workspace-bucket="gs://testing" \
+//      --set configs.google-project="h-proj-2020-08-19-2" \
+//      --set extraEnv[0].name="WORKSPACE_NAME" \
+//      --set extraEnv[0].valueFrom.configMapKeyRef.name="rt-galaxy-2-galaxykubeman-configs" \
+//      --set extraEnv[0].valueFrom.configMapKeyRef.key="workspace-name" \
+//      --set extraEnv[0].name="WORKSPACE_BUCKET" \
+//      --set extraEnv[0].valueFrom.configMapKeyRef.name="rt-galaxy-2-galaxykubeman-configs" \
+//      --set extraEnv[0].valueFrom.configMapKeyRef.key="workspace-bucket" \
+//      --set extraEnv[0].name="GOOGLE_PROJECT" \
+//      --set extraEnv[0].valueFrom.configMapKeyRef.name="rt-galaxy-2-galaxykubeman-configs" \
+//      --set extraEnv[0].valueFrom.configMapKeyRef.key="google-project"
     ).mkString(",")
   }
 }
