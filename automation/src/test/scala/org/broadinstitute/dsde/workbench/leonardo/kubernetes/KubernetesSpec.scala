@@ -44,6 +44,8 @@ class KubernetesSpec
       val appName = randomAppName
       val appName2 = randomAppName
 
+      logger.info(s"Google Project 1 " + googleProject.value)
+
       val createAppRequest = defaultCreateAppRequest.copy(
         diskConfig = Some(
           PersistentDiskRequest(
@@ -60,6 +62,7 @@ class KubernetesSpec
           x => x.status == AppStatus.Running
 
         for {
+
           _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
 
           gar = LeonardoApiClient.getApp(googleProject, appName)
@@ -93,6 +96,9 @@ class KubernetesSpec
     "create app in a cluster that exists" in { googleProject =>
       val appName = randomAppName
       val appName2 = randomAppName
+
+      logger.info(s"Google Project 2 " + googleProject.value)
+
       val createAppRequest = defaultCreateAppRequest.copy(
         diskConfig = Some(
           PersistentDiskRequest(
