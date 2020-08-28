@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockGalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.{AutoscalingConfig, AutoscalingMax, AutoscalingMin, LeonardoTestSuite}
 import org.broadinstitute.dsp.mocks._
@@ -35,6 +36,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            MockGKEService,
                            MockKubernetesService,
                            MockHelm,
+                           MockGalaxyDAO,
                            credentials,
                            blocker)
 

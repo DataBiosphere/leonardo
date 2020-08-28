@@ -682,7 +682,8 @@ object Config {
       config.as[PollMonitorConfig]("deleteNodepool"),
       config.as[PollMonitorConfig]("createCluster"),
       config.as[PollMonitorConfig]("deleteCluster"),
-      config.as[PollMonitorConfig]("createIngress")
+      config.as[PollMonitorConfig]("createIngress"),
+      config.as[PollMonitorConfig]("createApp")
     )
   }
 

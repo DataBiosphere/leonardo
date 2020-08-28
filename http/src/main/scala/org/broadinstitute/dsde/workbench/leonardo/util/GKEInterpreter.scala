@@ -23,6 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
 }
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.dao.GalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -44,6 +45,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   gkeService: org.broadinstitute.dsde.workbench.google2.GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
   helmClient: HelmAlgebra[F],
+  galaxyDAO: GalaxyDAO[F],
   credentials: GoogleCredentials,
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
@@ -309,9 +311,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
 
-      // TODO Update the DB (here or after polling done?)
-
-      // TODO Poll galaxy for creation - time out if Galaxy installation hangs
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
@@ -436,7 +435,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
     } yield loadBalancerIp
 
-  // TODO Factor out common pieces with installNginx(); e.g. cert file writing
   private[util] def installGalaxy(appName: AppName,
                                   dbCluster: KubernetesCluster,
                                   googleCluster: Cluster,
@@ -481,6 +479,17 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           org.broadinstitute.dsp.Values(chartValues)
         )
         .run(helmAuthContext)
+
+      // Poll galaxy until it starts up
+      _ <- (
+        Stream.sleep_(config.monitorConfig.createApp.interval) ++
+          Stream.eval(
+            galaxyDAO.isProxyAvailable(dbCluster.googleProject, appName)
+          )
+      ).repeatN(config.monitorConfig.createApp.maxAttempts)
+        .takeThrough(_ == false)
+        .compile
+        .lastOrError
 
     } yield ()
 
@@ -545,22 +554,25 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
 
+    // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
+    // value override special characters such as '.'
+    // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
     List(
-      s"""nfs.storageClass.name=nfs-${release.value}""",
-      s"""cvmfs.repositories.cvmfs-gxy-data-${release.value}=data.galaxyproject.org""",
-      s"""cvmfs.repositories.cvmfs-gxy-main-${release.value}=main.galaxyproject.org""",
-      s"""cvmfs.cache.alienCache.storageClass=nfs-${release.value}""",
-      s"""galaxy.persistence.storageClass=nfs-${release.value}""",
-      s"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.value}""",
-      s"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
-      s"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      s"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-      s"""galaxy.ingress.path=${ingressPath}""",
-      s"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      s"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
-      s"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
-      s"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail}""",
-      s"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail}"""
+      raw"""nfs.storageClass.name=nfs-${release.value}""",
+      raw"""cvmfs.repositories.cvmfs-gxy-data-${release.value}=data.galaxyproject.org""",
+      raw"""cvmfs.repositories.cvmfs-gxy-main-${release.value}=main.galaxyproject.org""",
+      raw"""cvmfs.cache.alienCache.storageClass=nfs-${release.value}""",
+      raw"""galaxy.persistence.storageClass=nfs-${release.value}""",
+      raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.value}""",
+      raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
+      raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      raw"""galaxy.ingress.path=${ingressPath}""",
+      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
+      raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
+      raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail}""",
+      raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail}"""
       // TODO add configs:
 //      --set configs.workspace-name="Test" \
 //      --set configs.workspace-bucket="gs://testing" \

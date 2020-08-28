@@ -41,7 +41,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGalaxyDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterErrorQuery,
   clusterQuery,
@@ -119,6 +119,7 @@ class LeoPubsubMessageSubscriberSpec
                            MockGKEService,
                            MockKubernetesService,
                            MockHelm,
+                           MockGalaxyDAO,
                            credentials,
                            blocker)
 
@@ -1138,6 +1139,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGKEService,
                              mockKubernetesService,
                              MockHelm,
+                             MockGalaxyDAO,
                              credentials,
                              blocker)
 
@@ -1189,6 +1191,7 @@ class LeoPubsubMessageSubscriberSpec
                              mockGKEService,
                              MockKubernetesService,
                              MockHelm,
+                             MockGalaxyDAO,
                              credentials,
                              blocker)
 
