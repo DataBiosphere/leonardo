@@ -106,7 +106,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/ListClusterResponse"
+                  $ref: "#/components/schemas/ListRuntimeResponse"
         "400":
           description: Bad Request
           content:
@@ -2396,6 +2396,9 @@ components:
         runtimeName:
           type: string
           description: The user-supplied name for the runtime
+        auditoInfo:
+          type: object
+          $ref: "#/components/schemas/AuditInfo"
         googleProject:
           type: string
           description: The Google Project used to create the runtime
@@ -2412,8 +2415,6 @@ components:
         patchInProgress:
           type: boolean
           description: Whether there is a patch in progress on the runtime. Is used to indicate updates that require status transitions.
-        diskConfig:
-          $ref: "#/components/schemas/DiskConfig"
     ListPersistentDiskResponse:
       description: ""
       required:
@@ -2897,9 +2898,6 @@ components:
         dateAccessed:
           type: string
           description: timestamp for the date this runtime was last accessed in ISO 8601 format. This is null if it has not been deleted yet.
-        kernelFoundBusyDate:
-          type: string
-          description: timestamp for the date the kernel for the tool (i.e. Jupyter) in this runtime was last found busy, aka in use, in ISO 8601 format.
     LeonardoVersion:
       type: object
       properties:
