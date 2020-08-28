@@ -172,7 +172,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
               val syncIssueElements =
                 List(notebookPage.syncCopyButton, notebookPage.syncReloadButton, notebookPage.modalId)
 
-              eventually(timeout(Span(5, Minutes)), interval(Span(30, Seconds))) { //wait for checkMeta tick
+              eventually(timeout(Span(2, Minutes)), interval(Span(30, Seconds))) { //wait for checkMeta tick
 
                 notebookPage areElementsPresent (syncIssueElements) shouldBe true
 
