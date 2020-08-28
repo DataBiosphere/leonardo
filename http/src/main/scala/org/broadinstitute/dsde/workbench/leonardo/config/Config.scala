@@ -590,7 +590,7 @@ object Config {
 
   implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
     GalaxyAppConfig(
-      config.as[ReleaseName]("releaseName"),
+      config.as[ReleaseName]("releaseNameSuffix"),
       config.as[ChartName]("chart"),
       config.as[NamespaceName]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services")

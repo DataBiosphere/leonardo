@@ -450,7 +450,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Installing helm chart ${config.galaxyAppConfig.chart.value} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
       )
 
-      chartValues = buildGalaxyChartOverrideValuesString(appName, dbCluster, nodepoolName, userEmail)
+      releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix.value}")
+      chartValues = buildGalaxyChartOverrideValuesString(appName, releaseName, dbCluster, nodepoolName, userEmail)
 
       _ <- logger.info(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
@@ -474,7 +475,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Invoke helm
       _ <- helmClient
         .installChart(
-          org.broadinstitute.dsp.Release(config.galaxyAppConfig.releaseName.value),
+          org.broadinstitute.dsp.Release(releaseName.value),
           org.broadinstitute.dsp.Chart(config.galaxyAppConfig.chart.value),
           org.broadinstitute.dsp.Values(chartValues)
         )
@@ -546,10 +547,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   }
 
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
+                                                         release: ReleaseName,
                                                          cluster: KubernetesCluster,
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail): String = {
-    val release = config.galaxyAppConfig.releaseName
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
