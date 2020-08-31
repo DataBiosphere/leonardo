@@ -26,7 +26,7 @@ object Dependencies {
   val workbenchOpenTelemetryV = "0.1-e66171c"
   val workbenchErrorReportingV = "0.1-92fcd96"
 
-  val helmScalaSdkV = "0.0.1-RC1"
+  val helmScalaSdkV = "0.0.1-rt-uninstall-SNAPSHOT"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = "akka-stream_2.12")
