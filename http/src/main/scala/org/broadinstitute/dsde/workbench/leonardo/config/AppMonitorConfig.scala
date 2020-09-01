@@ -7,4 +7,5 @@ case class AppMonitorConfig(nodepoolCreate: PollMonitorConfig,
                             nodepoolDelete: PollMonitorConfig,
                             clusterDelete: PollMonitorConfig,
                             createIngress: PollMonitorConfig,
-                            createApp: PollMonitorConfig)
+                            createApp: PollMonitorConfig,
+                            deleteApp: PollMonitorConfig)

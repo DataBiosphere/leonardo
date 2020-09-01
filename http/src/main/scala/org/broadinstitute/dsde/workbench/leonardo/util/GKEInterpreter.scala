@@ -19,7 +19,8 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundExcept
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
   KubernetesNamespace,
   KubernetesSecret,
-  KubernetesSecretType
+  KubernetesSecretType,
+  PodStatus
 }
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -312,7 +313,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
-      // helm install galaxy
+      // helm install galaxy and wait
       _ <- installGalaxy(app.appName,
                          dbCluster,
                          googleCluster,
@@ -360,16 +361,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
         .compile
         .lastOrError
-      _ <- if (lastOp.isDone)
-        logger.info(
-          s"Delete nodepool operation has finished for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
-        )
-      else
-        logger.error(
-          s"Delete nodepool operation has failed or timed out for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
-        ) >>
-          F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
-      _ <- nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction
+
     } yield ()
 
   override def deleteAndPollApp(params: DeleteAppParams)(
@@ -381,16 +373,32 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
 
+      app = dbApp.app
+      namespaceName = app.appResources.namespace.name
+      dbCluster = dbApp.cluster
+      gkeClusterId = dbCluster.getGkeClusterId
+
       _ <- logger.info(
-        s"Beginning app deletion for app ${dbApp.app.appName.value} in cluster ${dbApp.cluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Beginning app deletion for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      // TODO helm delete app and monitor for deletion
+      // Resolve the cluster in Google
+      googleClusterOpt <- gkeService.getCluster(gkeClusterId)
+      googleCluster <- F.fromOption(
+        googleClusterOpt,
+        ClusterCreationException(
+          s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}"
+        )
+      )
 
+      // helm uninstall galaxy and wait
+      _ <- uninstallGalaxy(dbCluster, app.appName, namespaceName, googleCluster)
+
+      // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
                                        KubernetesNamespace(dbApp.app.appResources.namespace.name))
       _ <- logger.info(
-        s"Delete app operation has finished for app ${dbApp.app.appName.value} in cluster ${dbApp.cluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
       _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
     } yield ()
@@ -410,20 +418,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Installing ingress helm chart ${config.ingressConfig.chart.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      // The helm client requires a Google access token
-      _ <- F.delay(credentials.refreshIfExpired())
-
-      // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
-      caCertFile <- writeTempFile(s"gke_ca_cert_${dbCluster.id}",
-                                  Base64.getDecoder.decode(googleCluster.getMasterAuth.getClusterCaCertificate),
-                                  blocker)
-
-      helmAuthContext = AuthContext(
-        org.broadinstitute.dsp.Namespace(config.ingressConfig.namespace.value),
-        org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
-        org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint),
-        org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
-      )
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, config.ingressConfig.namespace)
 
       // Invoke helm
       _ <- helmClient
@@ -471,6 +466,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Installing helm chart ${config.galaxyAppConfig.chart.value} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
+
       releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix.value}")
       chartValues = buildGalaxyChartOverrideValuesString(appName,
                                                          releaseName,
@@ -481,21 +478,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       _ <- logger.info(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
-      )
-
-      // The helm client requires a Google access token
-      _ <- F.delay(credentials.refreshIfExpired())
-
-      // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
-      caCertFile <- writeTempFile(s"gke_galaxy_ca_cert_${dbCluster.id}",
-                                  Base64.getDecoder.decode(googleCluster.getMasterAuth.getClusterCaCertificate),
-                                  blocker)
-
-      helmAuthContext = AuthContext(
-        org.broadinstitute.dsp.Namespace(namespaceName.value),
-        org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
-        org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint),
-        org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
       )
 
       // Invoke helm
@@ -509,7 +491,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
-      _ <- (
+      isDone <- (
         Stream.sleep_(config.monitorConfig.createApp.interval) ++
           Stream.eval(
             galaxyDAO.isProxyAvailable(dbCluster.googleProject, appName)
@@ -519,7 +501,94 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .compile
         .lastOrError
 
+      _ <- if (!isDone) {
+        val msg =
+          s"Galaxy installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        logger.error(msg) >>
+          F.raiseError[Unit](AppCreationException(msg))
+      } else F.unit
+
     } yield ()
+
+  private[util] def uninstallGalaxy(dbCluster: KubernetesCluster,
+                                    appName: AppName,
+                                    namespaceName: NamespaceName,
+                                    googleCluster: Cluster)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      _ <- logger.info(
+        s"Uninstalling helm chart ${config.galaxyAppConfig.chart.value} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
+
+      releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix.value}")
+
+      // Invoke helm
+      _ <- helmClient
+        .uninstall(org.broadinstitute.dsp.Release(releaseName.value))
+        .run(helmAuthContext)
+
+      isDone <- (Stream.sleep_(config.monitorConfig.deleteApp.interval) ++
+        Stream.eval(
+          for {
+            statuses <- kubeService.listPodStatus(dbCluster.getGkeClusterId, KubernetesNamespace(namespaceName))
+            (terminated, pending) = statuses.partition(ps =>
+              ps.podStatus == PodStatus.Failed || ps.podStatus == PodStatus.Succeeded
+            )
+            (succeeded, failed) = terminated.partition(_.podStatus == PodStatus.Succeeded)
+            _ <- logger.info(
+              s"Monitoring app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} for deletion. Pending pods: ['${pending
+                .mkString(", ")}]. Succeeded pods: [${succeeded.mkString(", ")}]. Failed pods: [${failed.mkString(", ")}]"
+            )
+          } yield pending.isEmpty
+        ))
+        .repeatN(config.monitorConfig.deleteApp.maxAttempts)
+        .takeThrough(_ == false)
+        .compile
+        .lastOrError
+
+      _ <- if (!isDone) {
+        val msg =
+          s"Galaxy deletion has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        logger.error(msg)
+
+        // TODO (RT): currently there seems to be a bug causing Galaxy pods to not terminate when `helm delete` is called.
+        // So we're currently _not_ throwing an error if deletion times out, but we should uncomment the below
+        // line once the Galaxy bug is fixed.
+
+        //>> F.raiseError[Unit](AppDeletionException(msg))
+      } else F.unit
+
+    } yield ()
+
+  private[util] def getHelmAuthContext(
+    googleCluster: Cluster,
+    leoClusterId: KubernetesClusterLeoId,
+    namespaceName: NamespaceName
+  )(implicit ev: ApplicativeAsk[F, AppContext]): F[AuthContext] =
+    for {
+      ctx <- ev.ask
+
+      // The helm client requires a Google access token
+      _ <- F.delay(credentials.refreshIfExpired())
+
+      // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
+      caCertFile <- writeTempFile(s"gke_ca_cert_${leoClusterId.id}_${ctx.now.toEpochMilli}",
+                                  Base64.getDecoder.decode(googleCluster.getMasterAuth.getClusterCaCertificate),
+                                  blocker)
+
+      helmAuthContext = AuthContext(
+        org.broadinstitute.dsp.Namespace(namespaceName.value),
+        org.broadinstitute.dsp.KubeToken(credentials.getAccessToken.getTokenValue),
+        org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint),
+        org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
+      )
+
+    } yield helmAuthContext
 
   private[util] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
     config.ingressConfig.secrets.traverse { secret =>
