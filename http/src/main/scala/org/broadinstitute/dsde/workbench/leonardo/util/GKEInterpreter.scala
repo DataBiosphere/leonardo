@@ -551,7 +551,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             )
             (succeeded, failed) = terminated.partition(_.podStatus == PodStatus.Succeeded)
             _ <- logger.info(
-              s"Monitoring app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} for deletion. Pending pods: ['${pending
+              s"Monitoring app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} for deletion. Pending pods: [${pending
                 .mkString(", ")}]. Succeeded pods: [${succeeded.mkString(", ")}]. Failed pods: [${failed.mkString(", ")}]"
             )
           } yield pending.isEmpty

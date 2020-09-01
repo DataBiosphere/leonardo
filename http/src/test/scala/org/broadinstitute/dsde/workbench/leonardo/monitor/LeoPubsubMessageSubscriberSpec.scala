@@ -10,16 +10,17 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.cloud.compute.v1.Operation
 import com.google.cloud.pubsub.v1.AckReplyConsumer
+import com.google.container.v1
+import com.google.protobuf.Timestamp
+import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import com.google.container.v1
-import com.google.protobuf.Timestamp
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   MockComputePollOperation,
-  MockGKEService,
-  MockKubernetesService
+  MockGKEService
 }
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
@@ -42,16 +43,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGalaxyDAO, WelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterErrorQuery,
-  clusterQuery,
-  kubernetesClusterQuery,
-  patchQuery,
-  persistentDiskQuery,
-  KubernetesServiceDbQueries,
-  RuntimeConfigQueries,
-  TestComponent
-}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -60,20 +52,18 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
   DiskInvalidState
 }
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.mocks.MockHelm
+import org.mockito.Mockito.{verify, _}
 import org.scalatest.concurrent._
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
-import org.mockito.Mockito.verify
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.Left
-import org.scalatest.flatspec.AnyFlatSpecLike
-import org.scalatest.matchers.should.Matchers
-import org.mockito.Mockito._
-import fs2.Stream
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -117,7 +107,7 @@ class LeoPubsubMessageSubscriberSpec
     new GKEInterpreter[IO](Config.gkeInterpConfig,
                            vpcInterp,
                            MockGKEService,
-                           MockKubernetesService,
+                           new MockKubernetesService(PodStatus.Succeeded),
                            MockHelm,
                            MockGalaxyDAO,
                            credentials,
@@ -1127,7 +1117,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).save()
     val mockAckConsumer = mock[AckReplyConsumer]
 
-    val mockKubernetesService = new MockKubernetesService {
+    val mockKubernetesService = new MockKubernetesService(PodStatus.Failed) {
       override def deleteNamespace(
         clusterId: GKEModels.KubernetesClusterId,
         namespace: KubernetesModels.KubernetesNamespace
@@ -1189,7 +1179,7 @@ class LeoPubsubMessageSubscriberSpec
       new GKEInterpreter[IO](Config.gkeInterpConfig,
                              vpcInterp,
                              mockGKEService,
-                             MockKubernetesService,
+                             new MockKubernetesService(PodStatus.Succeeded),
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
