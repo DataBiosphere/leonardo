@@ -595,7 +595,8 @@ object Config {
       config.as[ChartName]("chart"),
       config.as[NamespaceName]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
-      config.as[KubernetesServiceAccount]("serviceAccountSuffix")
+      config.as[KubernetesServiceAccount]("serviceAccountSuffix"),
+      config.as[Boolean]("uninstallKeepHistory")
     )
   }
 

@@ -7,4 +7,5 @@ case class GalaxyAppConfig(releaseNameSuffix: ReleaseName,
                            chart: ChartName,
                            namespaceNameSuffix: NamespaceName,
                            services: List[ServiceConfig],
-                           serviceAccountSuffix: KubernetesServiceAccount)
+                           serviceAccountSuffix: KubernetesServiceAccount,
+                           uninstallKeepHistory: Boolean)

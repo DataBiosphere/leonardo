@@ -1999,6 +1999,7 @@ components:
           example:
             diskConfig:
               name: "disk1"
+            appType: "GALAXY"
     BatchNodepoolCreateRequest:
       content:
         application/json:
@@ -3120,6 +3121,9 @@ components:
         labels:
           type: object
           description: The labels to be placed on the cluster. Of type Map[String,String]
+        customEnvironmentVariables:
+          type: object
+          description: Optional environment variables to be set on the app
 
     BatchNodepoolCreateRequest:
       description: The configuration for a pool of nodepools, used to create a cluster with pre-created nodepools
@@ -3152,6 +3156,9 @@ components:
         diskName:
           type: string
           description: the name of the disk associated with this app
+        customEnvironmentVariables:
+          type: object
+          description: Optional environment variables to be set on the app
 
     ListAppResponse:
       description: the configuration of an app

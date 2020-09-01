@@ -28,7 +28,12 @@ object AppRoutesTestJsonCodec {
     Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
 
   implicit val getAppResponseDecoder: Decoder[GetAppResponse] =
-    Decoder.forProduct5("kubernetesRuntimeConfig", "errors", "status", "proxyUrls", "diskName")(GetAppResponse.apply)
+    Decoder.forProduct6("kubernetesRuntimeConfig",
+                        "errors",
+                        "status",
+                        "proxyUrls",
+                        "diskName",
+                        "customEnvironmentVariables")(GetAppResponse.apply)
 
   implicit val listAppResponseDecoder: Decoder[ListAppResponse] = Decoder.forProduct7("googleProject",
                                                                                       "kubernetesRuntimeConfig",

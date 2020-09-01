@@ -562,7 +562,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Invoke helm
       _ <- helmClient
-        .uninstall(org.broadinstitute.dsp.Release(releaseName.value))
+        .uninstall(org.broadinstitute.dsp.Release(releaseName.value), config.galaxyAppConfig.uninstallKeepHistory)
         .run(helmAuthContext)
 
       isDone <- (Stream.sleep_(config.monitorConfig.deleteApp.interval) ++
