@@ -15,14 +15,14 @@ import fs2._
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
-import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
+import org.broadinstitute.dsde.workbench.google2.{KubernetesClusterNotFoundException, KubernetesModels}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
   KubernetesNamespace,
   KubernetesSecret,
   KubernetesSecretType,
   PodStatus
 }
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.GalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
@@ -280,6 +280,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+
+      // Grab records from the database
       dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
 
@@ -292,6 +294,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Beginning app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
+      // Create namespace and secrets
       _ <- logger.info(
         s"Creating namespace ${namespaceName.value} and secrets for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
@@ -302,7 +305,20 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         kubeService.createSecret(gkeClusterId, KubernetesNamespace(namespaceName), secret)
       )
 
-      // TODO create svc accts and workload identity roles
+      // Create KSA
+      ksaName = KubernetesServiceAccount(s"${app.appName.value}-${config.galaxyAppConfig.serviceAccountSuffix.value}")
+      // TODO populate annotations in KSA for Workload Identity once wb-libs GKE client is fixed
+      ksa = KubernetesModels.KubernetesServiceAccount(ServiceAccountName(ksaName.value), Map.empty)
+
+      _ <- logger.info(
+        s"Creating Kubernetes service account ${ksaName.value} for app  ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+      _ <- kubeService.createServiceAccount(gkeClusterId, ksa, KubernetesNamespace(namespaceName))
+
+      // update KSA in DB
+      _ = appQuery.updateKubernetesServiceAccount(app.id, ksaName).transaction
+
+      // TODO add workload identity IAM roles
 
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
@@ -320,7 +336,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                          dbApp.nodepool.nodepoolName,
                          namespaceName,
                          app.auditInfo.creator,
-                         app.customEnvironmentVariables)
+                         app.customEnvironmentVariables,
+                         ksaName)
 
       _ <- logger.info(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
@@ -458,6 +475,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
+
+      _ <- logger.info(
+        s"Successfully obtained public IP ${loadBalancerIp.asString} for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
     } yield loadBalancerIp
 
   private[util] def installGalaxy(appName: AppName,
@@ -466,7 +487,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                   nodepoolName: NodepoolName,
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail,
-                                  customEnvironmentVariables: Map[String, String])(
+                                  customEnvironmentVariables: Map[String, String],
+                                  kubernetesServiceAccount: KubernetesServiceAccount)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -484,7 +506,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          dbCluster,
                                                          nodepoolName,
                                                          userEmail,
-                                                         customEnvironmentVariables)
+                                                         customEnvironmentVariables,
+                                                         kubernetesServiceAccount)
 
       _ <- logger.info(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
@@ -657,7 +680,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          cluster: KubernetesCluster,
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail,
-                                                         customEnvironmentVariables: Map[String, String]): String = {
+                                                         customEnvironmentVariables: Map[String, String],
+                                                         ksa: KubernetesServiceAccount): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
@@ -689,8 +713,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
-      raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail}""",
-      raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail}"""
+      raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
+      raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
+      raw"""rbac.serviceAccount=${ksa.value}"""
     ) ++ configs).mkString(",")
   }
 }

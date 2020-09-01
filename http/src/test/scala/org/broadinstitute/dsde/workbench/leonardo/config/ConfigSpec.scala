@@ -103,7 +103,8 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
       ReleaseName("galaxy-rls"),
       ChartName("galaxy/galaxykubeman"),
       NamespaceName("galaxy-ns"),
-      List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP")))
+      List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
+      KubernetesServiceAccount("galaxy-ksa")
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }

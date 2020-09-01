@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesServiceAccount
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent.{
   ConnectSrc,
@@ -593,13 +594,16 @@ object Config {
       config.as[ReleaseName]("releaseNameSuffix"),
       config.as[ChartName]("chart"),
       config.as[NamespaceName]("namespaceNameSuffix"),
-      config.as[List[ServiceConfig]]("services")
+      config.as[List[ServiceConfig]]("services"),
+      config.as[KubernetesServiceAccount]("serviceAccountSuffix")
     )
   }
 
   implicit private val releaseNameReader: ValueReader[ReleaseName] = stringValueReader.map(ReleaseName)
   implicit private val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
   implicit private val chartNameReader: ValueReader[ChartName] = stringValueReader.map(ChartName)
+  implicit private val ksaReader: ValueReader[KubernetesServiceAccount] =
+    stringValueReader.map(KubernetesServiceAccount)
   implicit private val valueConfigReader: ValueReader[ValueConfig] = stringValueReader.map(ValueConfig)
 
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
