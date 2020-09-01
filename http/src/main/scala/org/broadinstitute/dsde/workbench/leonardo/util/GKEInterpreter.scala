@@ -361,6 +361,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
         .compile
         .lastOrError
+      _ <- if (lastOp.isDone)
+        logger.info(
+          s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        )
+      else
+        logger.error(
+          s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        ) >>
+          F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
+      _ <- nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction
 
     } yield ()
 
