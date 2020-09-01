@@ -59,17 +59,18 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   ): F[CreateClusterResult] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(
-        s"Beginning cluster creation for cluster ${params.clusterId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
-      )
 
       // Grab records from the database
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(params.clusterId).transaction
       dbCluster <- F.fromOption(
         clusterOpt,
         KubernetesClusterNotFoundException(
-          s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId} not found in database"
+          s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId.id} not found in database | trace id: ${ctx.traceId}"
         )
+      )
+
+      _ <- logger.info(
+        s"Beginning cluster creation for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       // Get nodepools to pass in the create cluster request
@@ -80,7 +81,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- if (nodepools.size != params.nodepoolsToCreate.size)
         F.raiseError[Unit](
           ClusterCreationException(
-            s"CreateCluster was called with nodepools that are not present in the database for cluster ${params.clusterId}. Nodepools to create: ${params.nodepoolsToCreate}"
+            s"CreateCluster was called with nodepools that are not present in the database for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
           )
         )
       else F.unit
@@ -140,9 +141,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   override def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(
-        s"Polling cluster creation for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
-      )
 
       // Grab records from the database
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(params.clusterId).transaction
@@ -152,6 +150,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId} not found in database"
         )
       )
+
+      _ <- logger.info(
+        s"Polling cluster creation for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
       defaultNodepool <- F.fromOption(dbCluster.nodepools.find(_.isDefault),
                                       DefaultNodepoolNotFoundException(dbCluster.id))
 
@@ -167,16 +170,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       _ <- if (lastOp.isDone)
         logger.info(
-          s"Create cluster operation has finished for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+          s"Create cluster operation has finished for cluster ${dbCluster.getGkeClusterId.toString}| trace id: ${ctx.traceId}"
         )
       else
         logger.error(
-          s"Create cluster operation has failed for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+          s"Create cluster operation has failed for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         ) >>
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](
             ClusterCreationException(
-              s"Failed to poll cluster creation operation to completion for cluster ${params.clusterId}"
+              s"Failed to poll cluster creation operation to completion for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
             )
           )
 
@@ -185,11 +188,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       googleCluster <- F.fromOption(
         googleClusterOpt,
         ClusterCreationException(
-          s"Cluster not found in Google: ${dbCluster.getGkeClusterId} | trace id: ${ctx.traceId}"
+          s"Cluster not found in Google: ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
 
-      _ <- logger.info(s"Successfully created cluster ${params.clusterId}!")
+      _ <- logger.info(
+        s"Successfully created cluster ${dbCluster.getGkeClusterId.toString}! | trace id: ${ctx.traceId}"
+      )
 
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
@@ -221,16 +226,20 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   ): F[CreateNodepoolResult] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(
-        s"Beginning nodepool creation for nodepool ${params.nodepoolId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
-      )
       dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
       dbNodepool <- F.fromOption(dbNodepoolOpt, NodepoolNotFoundException(params.nodepoolId))
       dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(dbNodepool.clusterId).transaction
       dbCluster <- F.fromOption(
         dbClusterOpt,
-        KubernetesClusterNotFoundException(s"Cluster with id ${dbNodepool.clusterId} not found in database")
+        KubernetesClusterNotFoundException(
+          s"Cluster with id ${dbNodepool.clusterId} not found in database | trace id: ${ctx.traceId}"
+        )
       )
+
+      _ <- logger.info(
+        s"Beginning nodepool creation for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
       req = KubernetesCreateNodepoolRequest(
         dbCluster.getGkeClusterId,
         buildGoogleNodepool(dbNodepool)
@@ -242,7 +251,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     for {
       ctx <- ev.ask
       _ <- logger.info(
-        s"Polling nodepool creation for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        s"Polling nodepool creation for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
       )
       lastOp <- gkeService
         .pollOperation(
@@ -254,11 +263,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .lastOrError
       _ <- if (lastOp.isDone)
         logger.info(
-          s"Nodepool creation operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+          s"Nodepool creation operation has finished for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
         )
       else
         logger.error(
-          s"Create nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+          s"Create nodepool operation has failed or timed out for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
         ) >>
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
@@ -270,18 +279,20 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(
-        s"Beginning app creation for app ${params.appId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
-      )
       dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
-      gkeClusterId = dbApp.cluster.getGkeClusterId
+
       app = dbApp.app
       namespaceName = app.appResources.namespace.name
       dbCluster = dbApp.cluster
+      gkeClusterId = dbCluster.getGkeClusterId
 
       _ <- logger.info(
-        s"Creating namespace ${namespaceName.value} and secrets for app ${params.appId} | trace id: ${ctx.traceId}"
+        s"Beginning app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
+      _ <- logger.info(
+        s"Creating namespace ${namespaceName.value} and secrets for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
@@ -293,11 +304,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // TODO create svc accts and workload identity roles
 
       // Resolve the cluster in Google
-      googleClusterOpt <- gkeService.getCluster(dbCluster.getGkeClusterId)
+      googleClusterOpt <- gkeService.getCluster(gkeClusterId)
       googleCluster <- F.fromOption(
         googleClusterOpt,
         ClusterCreationException(
-          s"Cluster not found in Google: ${dbCluster.getGkeClusterId} | trace id: ${ctx.traceId}"
+          s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}"
         )
       )
 
@@ -307,9 +318,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                          googleCluster,
                          dbApp.nodepool.nodepoolName,
                          namespaceName,
-                         app.auditInfo.creator)
+                         app.auditInfo.creator,
+                         app.customEnvironmentVariables)
 
-      _ <- logger.info(s"Finished app creation for ${params.appId} | trace id: ${ctx.traceId}")
+      _ <- logger.info(
+        s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
 
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
@@ -323,16 +337,18 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(
-        s"Beginning nodepool deletion for nodepool ${params.nodepoolId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
-      )
       dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
       dbNodepool <- F.fromOption(dbNodepoolOpt, NodepoolNotFoundException(params.nodepoolId))
       dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(dbNodepool.clusterId).transaction
       dbCluster <- F.fromOption(
         dbClusterOpt,
-        KubernetesClusterNotFoundException(s"Cluster with id ${dbNodepool.clusterId} not found in database")
+        KubernetesClusterNotFoundException(s"Cluster with id ${dbNodepool.clusterId.id} not found in database")
       )
+
+      _ <- logger.info(
+        s"Beginning nodepool deletion for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
       op <- gkeService.deleteNodepool(
         NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
       )
@@ -346,11 +362,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .lastOrError
       _ <- if (lastOp.isDone)
         logger.info(
-          s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+          s"Delete nodepool operation has finished for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         )
       else
         logger.error(
-          s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+          s"Delete nodepool operation has failed or timed out for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         ) >>
           F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
       _ <- nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction
@@ -361,16 +377,20 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.info(
-        s"Beginning app deletion for app ${params.appId} in project ${params.googleProject} | trace id: ${ctx.traceId}"
-      )
+
       dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
+
+      _ <- logger.info(
+        s"Beginning app deletion for app ${dbApp.app.appName.value} in cluster ${dbApp.cluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
       // TODO helm delete app and monitor for deletion
+
       _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
                                        KubernetesNamespace(dbApp.app.appResources.namespace.name))
       _ <- logger.info(
-        s"Delete app operation has finished for nodepool ${params.appId} | trace id: ${ctx.traceId}"
+        s"Delete app operation has finished for app ${dbApp.app.appName.value} in cluster ${dbApp.cluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
       _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
     } yield ()
@@ -382,12 +402,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Create namespace for nginx
       _ <- logger.info(
-        s"Creating namespace ${config.ingressConfig.namespace.value} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+        s"Creating namespace ${config.ingressConfig.namespace.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
       _ <- logger.info(
-        s"Installing ingress helm chart ${config.ingressConfig.chart} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+        s"Installing ingress helm chart ${config.ingressConfig.chart.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       // The helm client requires a Google access token
@@ -430,7 +450,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       loadBalancerIp <- F.fromOption(
         loadBalancerIpOpt,
         ClusterCreationException(
-          s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} | trace id: ${ctx.traceId}"
+          s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
     } yield loadBalancerIp
@@ -440,18 +460,24 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                   googleCluster: Cluster,
                                   nodepoolName: NodepoolName,
                                   namespaceName: NamespaceName,
-                                  userEmail: WorkbenchEmail)(
+                                  userEmail: WorkbenchEmail,
+                                  customEnvironmentVariables: Map[String, String])(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
 
       _ <- logger.info(
-        s"Installing helm chart ${config.galaxyAppConfig.chart.value} in cluster ${dbCluster.id} | trace id: ${ctx.traceId}"
+        s"Installing helm chart ${config.galaxyAppConfig.chart.value} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix.value}")
-      chartValues = buildGalaxyChartOverrideValuesString(appName, releaseName, dbCluster, nodepoolName, userEmail)
+      chartValues = buildGalaxyChartOverrideValuesString(appName,
+                                                         releaseName,
+                                                         dbCluster,
+                                                         nodepoolName,
+                                                         userEmail,
+                                                         customEnvironmentVariables)
 
       _ <- logger.info(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
@@ -482,6 +508,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .run(helmAuthContext)
 
       // Poll galaxy until it starts up
+      // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
       _ <- (
         Stream.sleep_(config.monitorConfig.createApp.interval) ++
           Stream.eval(
@@ -550,15 +577,26 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          release: ReleaseName,
                                                          cluster: KubernetesCluster,
                                                          nodepoolName: NodepoolName,
-                                                         userEmail: WorkbenchEmail): String = {
+                                                         userEmail: WorkbenchEmail,
+                                                         customEnvironmentVariables: Map[String, String]): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
 
+    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap {
+      case ((k, v), i) =>
+        List(
+          raw"""configs.$k=$v""",
+          raw"""extraEnv[$i].name=$k""",
+          raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.value}=galaxykubeman-configs""",
+          raw"""extraEnv[$i].valueFrom.configMapKeyRef.key="$k"""
+        )
+    }
+
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
     // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
-    List(
+    (List(
       raw"""nfs.storageClass.name=nfs-${release.value}""",
       raw"""cvmfs.repositories.cvmfs-gxy-data-${release.value}=data.galaxyproject.org""",
       raw"""cvmfs.repositories.cvmfs-gxy-main-${release.value}=main.galaxyproject.org""",
@@ -574,20 +612,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail}"""
-      // TODO add configs:
-//      --set configs.workspace-name="Test" \
-//      --set configs.workspace-bucket="gs://testing" \
-//      --set configs.google-project="h-proj-2020-08-19-2" \
-//      --set extraEnv[0].name="WORKSPACE_NAME" \
-//      --set extraEnv[0].valueFrom.configMapKeyRef.name="rt-galaxy-2-galaxykubeman-configs" \
-//      --set extraEnv[0].valueFrom.configMapKeyRef.key="workspace-name" \
-//      --set extraEnv[0].name="WORKSPACE_BUCKET" \
-//      --set extraEnv[0].valueFrom.configMapKeyRef.name="rt-galaxy-2-galaxykubeman-configs" \
-//      --set extraEnv[0].valueFrom.configMapKeyRef.key="workspace-bucket" \
-//      --set extraEnv[0].name="GOOGLE_PROJECT" \
-//      --set extraEnv[0].valueFrom.configMapKeyRef.name="rt-galaxy-2-galaxykubeman-configs" \
-//      --set extraEnv[0].valueFrom.configMapKeyRef.key="google-project"
-    ).mkString(",")
+    ) ++ configs).mkString(",")
   }
 }
 

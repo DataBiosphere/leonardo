@@ -13,7 +13,6 @@ class HttpGalaxyDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCach
                                                            client: Client[F])
     extends GalaxyDAO[F] {
 
-  // TODO potentially add other Galaxy-specific checks
   def isProxyAvailable(googleProject: GoogleProject, appName: AppName): F[Boolean] =
     Proxy.getAppTargetHost[F](kubernetesDnsCache, googleProject, appName) flatMap {
       case HostReady(targetHost) =>
@@ -22,7 +21,7 @@ class HttpGalaxyDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCach
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/galaxy"
+                s"https://${targetHost.toString}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/galaxy/"
               )
             )
           )
