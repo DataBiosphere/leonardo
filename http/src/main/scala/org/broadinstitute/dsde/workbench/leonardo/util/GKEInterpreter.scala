@@ -318,7 +318,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- kubeService.createServiceAccount(gkeClusterId, ksa, KubernetesNamespace(namespaceName))
 
       // update KSA in DB
-      _ = appQuery.updateKubernetesServiceAccount(app.id, ksaName).transaction
+      _ <- appQuery.updateKubernetesServiceAccount(app.id, ksaName).transaction
 
       // TODO add workload identity IAM roles
 
