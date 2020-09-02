@@ -630,6 +630,9 @@ class LeoPubsubMessageSubscriberSpec
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
       getApp.app.errors shouldBe List()
       getApp.app.status shouldBe AppStatus.Running
+      getApp.app.appResources.kubernetesServiceAccount shouldBe Some(
+        KubernetesServiceAccount(s"${getApp.app.appName.value}-galaxy-ksa")
+      )
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp.nodepool.status shouldBe NodepoolStatus.Running
       getApp.cluster.asyncFields shouldBe Some(
@@ -687,6 +690,9 @@ class LeoPubsubMessageSubscriberSpec
       )
       getApp.app.appResources.disk shouldBe None
       getApp.app.status shouldBe AppStatus.Running
+      getApp.app.appResources.kubernetesServiceAccount shouldBe Some(
+        KubernetesServiceAccount(s"${getApp.app.appName.value}-galaxy-ksa")
+      )
     }
 
     val res = for {
@@ -736,6 +742,9 @@ class LeoPubsubMessageSubscriberSpec
       getApp2.nodepool.status shouldBe NodepoolStatus.Running
       getApp1.app.errors shouldBe List()
       getApp1.app.status shouldBe AppStatus.Running
+      getApp1.app.appResources.kubernetesServiceAccount shouldBe Some(
+        KubernetesServiceAccount(s"${getApp1.app.appName.value}-galaxy-ksa")
+      )
       getApp1.cluster.asyncFields shouldBe Some(
         KubernetesClusterAsyncFields(IP("1.2.3.4"),
                                      IP("0.0.0.0"),
@@ -745,6 +754,9 @@ class LeoPubsubMessageSubscriberSpec
       )
       getApp2.app.errors shouldBe List()
       getApp2.app.status shouldBe AppStatus.Running
+      getApp2.app.appResources.kubernetesServiceAccount shouldBe Some(
+        KubernetesServiceAccount(s"${getApp2.app.appName.value}-galaxy-ksa")
+      )
     }
 
     val res = for {
@@ -1323,6 +1335,9 @@ class LeoPubsubMessageSubscriberSpec
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Unspecified
       getApp.app.errors shouldBe List()
       getApp.app.status shouldBe AppStatus.Running
+      getApp.app.appResources.kubernetesServiceAccount shouldBe Some(
+        KubernetesServiceAccount(s"${getApp.app.appName.value}-galaxy-ksa")
+      )
       getApp.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp.nodepool.status shouldBe NodepoolStatus.Running
       getDisk.status shouldBe DiskStatus.Ready
