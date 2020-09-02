@@ -98,6 +98,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .addAllNodePools(
           nodepools.asJava
         )
+        .putResourceLabels("leonardo", "true")
         // all the below code corresponds to security recommendations
         .setLegacyAbac(LegacyAbac.newBuilder().setEnabled(false))
         .setNetwork(kubeNetwork.idString)
