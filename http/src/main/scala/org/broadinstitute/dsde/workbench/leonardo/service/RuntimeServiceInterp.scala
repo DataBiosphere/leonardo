@@ -162,15 +162,21 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                req,
                                context.now)
             )
+
+            userScriptUriToValidate = req.jupyterUserScriptUri
+              .flatMap(x => UserScriptPath.gcsPrism.getOption(x).map(_.asString))
+            userStartupScriptToValidate = req.jupyterStartUserScriptUri.flatMap(x =>
+              UserScriptPath.gcsPrism.getOption(x).map(_.asString)
+            )
+
             gcsObjectUrisToValidate = runtime.userJupyterExtensionConfig
               .map(config =>
                 (config.nbExtensions.values ++ config.serverExtensions.values ++ config.combinedExtensions.values)
                   .filter(_.startsWith("gs://"))
                   .toList
               )
-              .getOrElse(List.empty) ++ req.jupyterUserScriptUri.map(_.asString) ++ req.jupyterStartUserScriptUri.map(
-              _.asString
-            )
+              .getOrElse(List.empty[String]) ++ userScriptUriToValidate ++ userStartupScriptToValidate
+
             _ <- petToken.traverse(t =>
               gcsObjectUrisToValidate
                 .parTraverse(s => validateBucketObjectUri(userInfo.userEmail, t, s, context.traceId))

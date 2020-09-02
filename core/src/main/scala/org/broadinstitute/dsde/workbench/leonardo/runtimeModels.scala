@@ -5,6 +5,7 @@ import java.time.Instant
 
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
+import monocle.Prism
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
@@ -236,6 +237,11 @@ object UserScriptPath {
   final case class Gcs(gcsPath: GcsPath) extends UserScriptPath {
     val asString: String = gcsPath.toUri
   }
+
+  val gcsPrism = Prism[UserScriptPath, UserScriptPath.Gcs] {
+    case x: UserScriptPath.Gcs  => Some(x)
+    case UserScriptPath.Http(_) => None
+  }(identity)
 
   def stringToUserScriptPath(string: String): Either[Throwable, UserScriptPath] =
     parseGcsPath(string) match {
