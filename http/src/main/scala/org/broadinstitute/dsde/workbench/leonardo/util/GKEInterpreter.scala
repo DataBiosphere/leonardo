@@ -498,7 +498,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
 
-      releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix}")
+      releaseName = buildReleaseName(appName)
       chartValues = buildGalaxyChartOverrideValuesString(appName,
                                                          releaseName,
                                                          dbCluster,
@@ -550,7 +550,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
 
-      releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix}")
+      releaseName = buildReleaseName(appName)
 
       // Invoke helm
       _ <- helmClient
@@ -700,6 +700,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""rbac.serviceAccount=${ksa.value}"""
     ) ++ configs).mkString(",")
   }
+
+  // TODO: should we append a timestamp to the release name?
+  // If we do then we should probably persist it to the database since we need it
+  // at install and uninstall time.
+  private[util] def buildReleaseName(appName: AppName): ReleaseName =
+    ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix}")
 
   private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
     pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
