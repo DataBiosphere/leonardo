@@ -29,26 +29,18 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesServiceAccount
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent.{
-  ConnectSrc,
-  FrameAncestors,
-  ObjectSrc,
-  ReportUri,
-  ScriptSrc,
-  StyleSrc
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DateAccessedUpdaterConfig,
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
   PollMonitorConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
@@ -591,11 +583,11 @@ object Config {
 
   implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
     GalaxyAppConfig(
-      config.as[ReleaseName]("releaseNameSuffix"),
+      config.as[String]("releaseNameSuffix"),
       config.as[ChartName]("chart"),
-      config.as[NamespaceName]("namespaceNameSuffix"),
+      config.as[String]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
-      config.as[KubernetesServiceAccount]("serviceAccountSuffix"),
+      config.as[String]("serviceAccountSuffix"),
       config.as[Boolean]("uninstallKeepHistory")
     )
   }
@@ -603,8 +595,6 @@ object Config {
   implicit private val releaseNameReader: ValueReader[ReleaseName] = stringValueReader.map(ReleaseName)
   implicit private val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
   implicit private val chartNameReader: ValueReader[ChartName] = stringValueReader.map(ChartName)
-  implicit private val ksaReader: ValueReader[KubernetesServiceAccount] =
-    stringValueReader.map(KubernetesServiceAccount)
   implicit private val valueConfigReader: ValueReader[ValueConfig] = stringValueReader.map(ValueConfig)
 
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>

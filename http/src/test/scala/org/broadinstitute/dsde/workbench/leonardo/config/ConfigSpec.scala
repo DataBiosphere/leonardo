@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
@@ -100,11 +100,11 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
 
   it should "read GalaxyAppConfig properly" in {
     val expectedResult = GalaxyAppConfig(
-      ReleaseName("galaxy-rls"),
+      "galaxy-rls",
       ChartName("galaxy/galaxykubeman"),
-      NamespaceName("galaxy-ns"),
+      "galaxy-ns",
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
-      KubernetesServiceAccount("galaxy-ksa"),
+      "galaxy-ksa",
       true
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult

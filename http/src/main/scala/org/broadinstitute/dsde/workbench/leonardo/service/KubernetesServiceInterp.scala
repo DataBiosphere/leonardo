@@ -396,7 +396,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         Left(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
       else Right(diskOpt)
       namespaceName <- KubernetesName.withValidation(
-        s"${appName.value}-${leoKubernetesConfig.galaxyAppConfig.namespaceNameSuffix.value}",
+        s"${appName.value}-${leoKubernetesConfig.galaxyAppConfig.namespaceNameSuffix}",
         NamespaceName.apply
       )
     } yield SaveApp(

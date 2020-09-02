@@ -1,11 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.{ChartName, KubernetesServiceAccount, ReleaseName, ServiceConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{ChartName, ServiceConfig}
 
-case class GalaxyAppConfig(releaseNameSuffix: ReleaseName,
+case class GalaxyAppConfig(releaseNameSuffix: String,
                            chart: ChartName,
-                           namespaceNameSuffix: NamespaceName,
+                           namespaceNameSuffix: String,
                            services: List[ServiceConfig],
-                           serviceAccountSuffix: KubernetesServiceAccount,
+                           serviceAccountSuffix: String,
                            uninstallKeepHistory: Boolean)

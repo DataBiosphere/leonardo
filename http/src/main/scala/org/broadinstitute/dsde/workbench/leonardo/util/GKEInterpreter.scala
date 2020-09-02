@@ -11,13 +11,15 @@ import cats.mtl.ApplicativeAsk
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.container.v1.MasterAuthorizedNetworksConfig.CidrBlock
 import com.google.container.v1._
-import fs2._
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
+import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
 import org.broadinstitute.dsde.workbench.google2.{KubernetesClusterNotFoundException, KubernetesModels}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
   KubernetesNamespace,
+  KubernetesPodStatus,
   KubernetesSecret,
   KubernetesSecretType,
   PodStatus
@@ -306,7 +308,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // Create KSA
-      ksaName = KubernetesServiceAccount(s"${app.appName.value}-${config.galaxyAppConfig.serviceAccountSuffix.value}")
+      ksaName = KubernetesServiceAccount(s"${app.appName.value}-${config.galaxyAppConfig.serviceAccountSuffix}")
       // TODO populate annotations in KSA for Workload Identity once wb-libs GKE client is fixed
       ksa = KubernetesModels.KubernetesServiceAccount(ServiceAccountName(ksaName.value), Map.empty)
 
@@ -457,17 +459,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .run(helmAuthContext)
 
       // Monitor nginx until public IP is accessible
-      loadBalancerIpOpt <- (
-        Stream.sleep_(config.monitorConfig.createIngress.interval) ++
-          Stream.eval(
-            kubeService.getServiceExternalIp(dbCluster.getGkeClusterId,
-                                             KubernetesNamespace(config.ingressConfig.namespace),
-                                             config.ingressConfig.loadBalancerService)
-          )
-      ).repeatN(config.monitorConfig.createIngress.maxAttempts)
-        .takeThrough(_.isEmpty)
-        .compile
-        .lastOrError
+      loadBalancerIpOpt <- streamFUntilDone(
+        kubeService.getServiceExternalIp(dbCluster.getGkeClusterId,
+                                         KubernetesNamespace(config.ingressConfig.namespace),
+                                         config.ingressConfig.loadBalancerService),
+        config.monitorConfig.createIngress.maxAttempts,
+        config.monitorConfig.createIngress.interval
+      ).compile.lastOrError
 
       loadBalancerIp <- F.fromOption(
         loadBalancerIpOpt,
@@ -500,7 +498,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
 
-      releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix.value}")
+      releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix}")
       chartValues = buildGalaxyChartOverrideValuesString(appName,
                                                          releaseName,
                                                          dbCluster,
@@ -524,15 +522,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
-      isDone <- (
-        Stream.sleep_(config.monitorConfig.createApp.interval) ++
-          Stream.eval(
-            galaxyDAO.isProxyAvailable(dbCluster.googleProject, appName)
-          )
-      ).repeatN(config.monitorConfig.createApp.maxAttempts)
-        .takeThrough(_ == false)
-        .compile
-        .lastOrError
+      isDone <- streamFUntilDone(galaxyDAO.isProxyAvailable(dbCluster.googleProject, appName),
+                                 config.monitorConfig.createApp.maxAttempts,
+                                 config.monitorConfig.createApp.interval).compile.lastOrError
 
       _ <- if (!isDone) {
         val msg =
@@ -558,35 +550,25 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
 
-      releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix.value}")
+      releaseName = ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix}")
 
       // Invoke helm
       _ <- helmClient
         .uninstall(org.broadinstitute.dsp.Release(releaseName.value), config.galaxyAppConfig.uninstallKeepHistory)
         .run(helmAuthContext)
 
-      isDone <- (Stream.sleep_(config.monitorConfig.deleteApp.interval) ++
-        Stream.eval(
-          for {
-            statuses <- kubeService.listPodStatus(dbCluster.getGkeClusterId, KubernetesNamespace(namespaceName))
-            (terminated, pending) = statuses.partition(ps =>
-              ps.podStatus == PodStatus.Failed || ps.podStatus == PodStatus.Succeeded
-            )
-            (succeeded, failed) = terminated.partition(_.podStatus == PodStatus.Succeeded)
-            _ <- logger.info(
-              s"Monitoring app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} for deletion. Pending pods: [${pending
-                .mkString(", ")}]. Succeeded pods: [${succeeded.mkString(", ")}]. Failed pods: [${failed.mkString(", ")}]"
-            )
-          } yield pending.isEmpty
-        ))
-        .repeatN(config.monitorConfig.deleteApp.maxAttempts)
-        .takeThrough(_ == false)
-        .compile
-        .lastOrError
+      last <- streamFUntilDone(
+        kubeService.listPodStatus(dbCluster.getGkeClusterId, KubernetesNamespace(namespaceName)),
+        config.monitorConfig.deleteApp.maxAttempts,
+        config.monitorConfig.deleteApp.interval
+      ).compile.lastOrError
 
-      _ <- if (!isDone) {
+      _ <- if (!podDoneCheckable.isDone(last)) {
         val msg =
-          s"Galaxy deletion has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+          s"Galaxy deletion has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}. The following pods are not in a terminal state: ${last
+            .filterNot(isPodDone)
+            .map(_.name.value)
+            .mkString(", ")} | trace id: ${ctx.traceId}"
         logger.error(msg)
 
         // TODO (RT): currently there seems to be a bug causing Galaxy pods to not terminate when `helm delete` is called.
@@ -718,6 +700,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""rbac.serviceAccount=${ksa.value}"""
     ) ++ configs).mkString(",")
   }
+
+  private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
+    pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
+
+  // DoneCheckable instances
+  implicit private def optionDoneCheckable[A]: DoneCheckable[Option[A]] = (a: Option[A]) => a.isDefined
+  implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
+  implicit private def podDoneCheckable: DoneCheckable[List[KubernetesPodStatus]] =
+    (ps: List[KubernetesPodStatus]) => ps.forall(isPodDone)
 }
 
 sealed trait AppProcessingException extends Exception {
