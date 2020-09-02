@@ -143,6 +143,8 @@ object Dependencies {
     workbenchOpenTelemetryTest,
 //    "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
     "org.scalacheck" %% "scalacheck" % "1.14.1" % "test",
+    "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
+    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     sealerate,
     enumeratum,
     http4sCirce,
@@ -187,8 +189,6 @@ object Dependencies {
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
     "com.rms.miu" %% "slick-cats" % "0.10.1",
     googleCloudNio,
-    "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
-    "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     mysql,
     liquibase,
     "de.heikoseeberger" %% "akka-http-circe" % "1.31.0",

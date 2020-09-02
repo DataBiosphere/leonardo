@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
@@ -133,6 +134,39 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes
         )
       message shouldBe expectedMessage
+    }
+    res.unsafeRunSync()
+  }
+
+  it should "successfully accept https as user script and user startup script" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val googleProject = GoogleProject("googleProject")
+    val runtimeName = RuntimeName("clusterName2")
+    val request = emptyCreateRuntimeReq.copy(
+      jupyterUserScriptUri = Some(
+        UserScriptPath.Http(
+          new URL("https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh")
+        )
+      ),
+      jupyterStartUserScriptUri = Some(
+        UserScriptPath.Http(
+          new URL("https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh")
+        )
+      )
+    )
+
+    val res = for {
+      r <- runtimeService
+        .createRuntime(
+          userInfo,
+          googleProject,
+          runtimeName,
+          request
+        )
+        .attempt
+      _ <- publisherQueue.dequeue1 //dequeue the message so that it doesn't affect other tests
+    } yield {
+      r shouldBe Right(())
     }
     res.unsafeRunSync()
   }
