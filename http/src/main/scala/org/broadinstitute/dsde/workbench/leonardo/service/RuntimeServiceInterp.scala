@@ -290,20 +290,22 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                           disk.zone,
                                                           InstanceName(runtime.runtimeName.asString),
                                                           config.gceConfig.userDiskDeviceName)
-              _ <- computePollOperation.pollZoneOperation(
-                req.googleProject,
-                disk.zone,
-                OperationName(detachOp.getName),
-                3 seconds,
-                5,
-                None
-              )(F.unit,
-                F.raiseError(
-                  new RuntimeException(
-                    s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner"
-                  )
-                ),
-                F.unit)
+              _ <- detachOp.traverse(op =>
+                computePollOperation.pollZoneOperation(
+                  req.googleProject,
+                  disk.zone,
+                  OperationName(op.getName),
+                  3 seconds,
+                  5,
+                  None
+                )(F.unit,
+                  F.raiseError(
+                    new RuntimeException(
+                      s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner"
+                    )
+                  ),
+                  F.unit)
+              )
               _ <- RuntimeConfigQueries.updatePersistentDiskId(runtime.runtimeConfigId, None, ctx.now).transaction
             } yield {
               if (req.deleteDisk)
