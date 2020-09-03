@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import java.time.Instant
 
 import cats.Order
+import cats.data.Chain
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import fs2.Stream
@@ -10,11 +11,9 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import DateAccessedUpdater._
-import cats.data.Chain
-import io.chrisdavenport.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
@@ -22,17 +21,13 @@ import scala.concurrent.duration.FiniteDuration
 class DateAccessedUpdater[F[_]: ContextShift: Timer](
   config: DateAccessedUpdaterConfig,
   queue: InspectableQueue[F, UpdateDateAccessMessage]
-)(implicit F: Concurrent[F],
-  metrics: OpenTelemetryMetrics[F],
-  dbRef: DbReference[F],
-  ec: ExecutionContext,
-  logger: Logger[F]) {
+)(implicit F: Concurrent[F], metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F], ec: ExecutionContext) {
 
   val process: Stream[F, Unit] =
     (Stream.sleep[F](config.interval) ++ Stream.eval(check)).repeat
 
   private[monitor] val check: F[Unit] =
-    logger.info(s"Going to update dateAccessed") >> queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
+    queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
       chunks
         .traverse(c =>
           messagesToUpdate(c.toChain)

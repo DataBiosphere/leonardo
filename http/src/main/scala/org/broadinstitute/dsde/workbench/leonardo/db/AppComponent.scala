@@ -168,6 +168,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .map(_.status)
       .update(status)
 
+  def updateKubernetesServiceAccount(id: AppId, ksa: KubernetesServiceAccount): DBIO[Int] =
+    getByIdQuery(id)
+      .map(_.kubernetesServiceAccount)
+      .update(Some(ksa))
+
   def markPendingDeletion(id: AppId): DBIO[Int] =
     updateStatus(id, AppStatus.Deleting)
 

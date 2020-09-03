@@ -1,8 +1,18 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
+import java.nio.file.Files
+import java.util.Base64
+
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{SecretKey, SecretName}
+import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  PodName,
+  SecretKey,
+  SecretName
+}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   MockComputePollOperation,
@@ -12,11 +22,22 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.dao.MockGalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.{AutoscalingConfig, AutoscalingMax, AutoscalingMin, LeonardoTestSuite}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
+  AutoscalingConfig,
+  AutoscalingMax,
+  AutoscalingMin,
+  KubernetesClusterLeoId,
+  KubernetesServiceAccount,
+  LeonardoTestSuite,
+  ReleaseName
+}
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
+import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite {
@@ -35,10 +56,11 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            MockGKEService,
                            MockKubernetesService,
                            MockHelm,
+                           MockGalaxyDAO,
                            credentials,
                            blocker)
 
-  it should "create a nodepool with autoscaling" in isolatedDbTest {
+  "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val minNodes = 0
     val maxNodes = 2
@@ -70,5 +92,54 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     emptyFileSecrets should contain((SecretName("ca-secret"), savedApp1.appResources.namespace.name))
     emptyFileSecrets should contain((SecretName("tls-secret"), savedApp1.appResources.namespace.name))
     secrets.flatMap(_.secrets.values).map(s => s.isEmpty shouldBe false)
+  }
+
+  it should "get a helm auth context" in {
+    val googleCluster = com.google.container.v1.Cluster
+      .newBuilder()
+      .setEndpoint("1.2.3.4")
+      .setMasterAuth(
+        com.google.container.v1.MasterAuth
+          .newBuilder()
+          .setClusterCaCertificate(Base64.getEncoder.encodeToString("ca_cert".getBytes()))
+      )
+      .build
+
+    val authContext =
+      gkeInterp.getHelmAuthContext(googleCluster, KubernetesClusterLeoId(1), NamespaceName("ns")).unsafeRunSync()
+
+    authContext.namespace.asString shouldBe "ns"
+    authContext.kubeApiServer.asString shouldBe "https://1.2.3.4"
+    authContext.kubeToken.asString shouldBe "accessToken"
+    Files.exists(authContext.caCertFile.path) shouldBe true
+    Files.readAllLines(authContext.caCertFile.path).asScala.mkString shouldBe "ca_cert"
+  }
+
+  it should "build Galaxy override values string" in {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val result = gkeInterp.buildGalaxyChartOverrideValuesString(
+      AppName("app1"),
+      ReleaseName("app1-galaxy-rls"),
+      savedCluster1,
+      NodepoolName("pool1"),
+      userEmail,
+      Map.empty,
+      KubernetesServiceAccount("app1-galaxy-ksa")
+    )
+
+    result shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.repositories.cvmfs-gxy-main-app1-galaxy-rls=main.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1211904326.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0]=1211904326.jupyter.firecloud.org,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,rbac.serviceAccount=app1-galaxy-ksa"""
+  }
+
+  it should "build a release name" in {
+    val releaseName = gkeInterp.buildReleaseName(AppName("app1"))
+    releaseName shouldBe ReleaseName("app1-galaxy-rls")
+  }
+
+  it should "check if a pod is done" in {
+    gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod1"), PodStatus.Succeeded)) shouldBe true
+    gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod2"), PodStatus.Pending)) shouldBe false
+    gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod3"), PodStatus.Failed)) shouldBe true
+    gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod4"), PodStatus.Unknown)) shouldBe false
+    gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod5"), PodStatus.Running)) shouldBe false
   }
 }

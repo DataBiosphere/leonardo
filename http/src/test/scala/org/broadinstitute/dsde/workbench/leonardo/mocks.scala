@@ -10,13 +10,17 @@ import com.google.pubsub.v1.PubsubMessage
 import fs2.{Pipe, Stream}
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.RetryConfig
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.PodName
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
   Event,
+  GKEModels,
   GcsBlobName,
   GetMetadataResponse,
   GooglePublisher,
-  GoogleSubscriber
+  GoogleSubscriber,
+  KubernetesModels
 }
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   LeoAuthProvider,
@@ -24,19 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
   SamResourceAction,
   ServiceAccountProvider
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.{
-  CreateRuntimeParams,
-  CreateRuntimeResponse,
-  DeleteRuntimeParams,
-  FinalizeDeleteParams,
-  GetRuntimeStatusParams,
-  ResizeClusterParams,
-  RuntimeAlgebra,
-  StartRuntimeParams,
-  StopRuntimeParams,
-  UpdateDiskSizeParams,
-  UpdateMachineTypeParams
-}
+import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -173,4 +165,14 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+}
+
+class MockKubernetesService(podStatus: PodStatus = PodStatus.Running)
+    extends org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService {
+
+  override def listPodStatus(clusterId: GKEModels.KubernetesClusterId, namespace: KubernetesModels.KubernetesNamespace)(
+    implicit ev: ApplicativeAsk[IO, TraceId]
+  ): IO[List[KubernetesModels.KubernetesPodStatus]] =
+    IO(List(KubernetesPodStatus.apply(PodName("test"), podStatus)))
+
 }

@@ -199,7 +199,12 @@ object AppRoutes {
 
   implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
   implicit val getAppDecoder: Decoder[GetAppResponse] =
-    Decoder.forProduct5("kubernetesRuntimeConfig", "errors", "status", "proxyUrls", "diskName")(GetAppResponse.apply)
+    Decoder.forProduct6("kubernetesRuntimeConfig",
+                        "errors",
+                        "status",
+                        "proxyUrls",
+                        "diskName",
+                        "customEnvironmentVariables")(GetAppResponse.apply)
 
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
     n match {
@@ -241,7 +246,10 @@ object AppRoutes {
                         "diskName")(x => ListAppResponse.unapply(x).get)
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct5("kubernetesRuntimeConfig", "errors", "status", "proxyUrls", "diskName")(x =>
-      GetAppResponse.unapply(x).get
-    )
+    Encoder.forProduct6("kubernetesRuntimeConfig",
+                        "errors",
+                        "status",
+                        "proxyUrls",
+                        "diskName",
+                        "customEnvironmentVariables")(x => GetAppResponse.unapply(x).get)
 }

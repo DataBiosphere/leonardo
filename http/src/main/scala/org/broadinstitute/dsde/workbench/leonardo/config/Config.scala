@@ -30,24 +30,17 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent.{
-  ConnectSrc,
-  FrameAncestors,
-  ObjectSrc,
-  ReportUri,
-  ScriptSrc,
-  StyleSrc
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DateAccessedUpdaterConfig,
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
   PollMonitorConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
@@ -590,9 +583,12 @@ object Config {
 
   implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
     GalaxyAppConfig(
-      config.as[ReleaseName]("releaseName"),
-      config.as[NamespaceName]("namespaceNameSuffix"),
-      config.as[List[ServiceConfig]]("services")
+      config.as[String]("releaseNameSuffix"),
+      config.as[ChartName]("chart"),
+      config.as[String]("namespaceNameSuffix"),
+      config.as[List[ServiceConfig]]("services"),
+      config.as[String]("serviceAccountSuffix"),
+      config.as[Boolean]("uninstallKeepHistory")
     )
   }
 
@@ -656,8 +652,7 @@ object Config {
     clusterResourcesConfig,
     securityFilesConfig,
     dataprocMonitorConfig.monitorStatusTimeouts
-      .get(RuntimeStatus.Creating)
-      .getOrElse(throw new Exception("Missing dataproc.monitor.statusTimeouts.creating"))
+      .getOrElse(RuntimeStatus.Creating, throw new Exception("Missing dataproc.monitor.statusTimeouts.creating"))
   )
 
   val gceInterpreterConfig = GceInterpreterConfig(
@@ -668,9 +663,8 @@ object Config {
     vpcConfig,
     clusterResourcesConfig,
     securityFilesConfig,
-    gceMonitorConfig.monitorStatusTimeouts
-      .get(RuntimeStatus.Creating)
-      .getOrElse(throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
+    gceMonitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating,
+                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
   )
   val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 
@@ -683,11 +677,19 @@ object Config {
       config.as[PollMonitorConfig]("deleteNodepool"),
       config.as[PollMonitorConfig]("createCluster"),
       config.as[PollMonitorConfig]("deleteCluster"),
-      config.as[PollMonitorConfig]("createIngress")
+      config.as[PollMonitorConfig]("createIngress"),
+      config.as[PollMonitorConfig]("createApp"),
+      config.as[PollMonitorConfig]("deleteApp")
     )
   }
 
   val gkeMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
 
-  val gkeInterpConfig = GKEInterpreterConfig(securityFilesConfig, gkeIngressConfig, gkeMonitorConfig, gkeClusterConfig)
+  val gkeInterpConfig =
+    GKEInterpreterConfig(securityFilesConfig,
+                         gkeIngressConfig,
+                         gkeGalaxyAppConfig,
+                         gkeMonitorConfig,
+                         gkeClusterConfig,
+                         proxyConfig)
 }

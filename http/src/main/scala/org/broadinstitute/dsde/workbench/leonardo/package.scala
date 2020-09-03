@@ -2,7 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.nio.file.{Files, Path}
 import java.sql.SQLDataException
+import java.util.Objects
 
+import akka.http.scaladsl.model.Uri.Host
 import io.opencensus.trace.{AttributeValue, Span}
 import io.opencensus.scala.http.ServiceData
 import cats.effect.{Blocker, ContextShift, Resource, Sync}
@@ -51,6 +53,12 @@ package object http {
       _ <- Sync[F].delay(path.toFile.deleteOnExit())
       _ <- Stream.emits(data).through(io.file.writeAll(path, blocker)).compile.drain
     } yield path
+
+  // This hostname is used by the ProxyService and also needs to be specified in the Galaxy ingress resource
+  def kubernetesProxyHost(cluster: KubernetesCluster, proxyDomain: String): Host = {
+    val prefix = Math.abs(Objects.hashCode(cluster.getGkeClusterId)).toString
+    Host(prefix + proxyDomain)
+  }
 
   val userScriptStartupOutputUriMetadataKey = "user-startup-script-output-url"
   implicit def cloudServiceSyntax[F[_], A](

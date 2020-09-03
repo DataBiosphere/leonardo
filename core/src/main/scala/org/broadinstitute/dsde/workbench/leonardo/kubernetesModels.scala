@@ -33,6 +33,8 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              namespaces: List[Namespace],
                              nodepools: List[Nodepool]) {
 
+  // TODO consider renaming this method and the KubernetesClusterId class
+  // to disambiguate a bit with KubernetesClusterLeoId which is a Leo-specific ID
   def getGkeClusterId: KubernetesClusterId = KubernetesClusterId(googleProject, location, clusterName)
 }
 
