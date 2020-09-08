@@ -153,7 +153,7 @@ class NotebookDataSyncingSpec extends ClusterFixtureSpec with NotebookTestUtils 
       }
     }
 
-    "Sync issues and make a copy handled transition correctly" ignore { clusterFixture =>
+    "Sync issues and make a copy handled transition correctly" in { clusterFixture =>
       val fileName = "gcsFile3" //we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
