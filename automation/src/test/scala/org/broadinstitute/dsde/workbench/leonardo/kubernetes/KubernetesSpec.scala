@@ -1,14 +1,6 @@
-package org.broadinstitute.dsde.workbench.leonardo.kubernetes
+package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppStatus,
-  DiskSize,
-  GPAllocBeforeAndAfterAll,
-  GPAllocFixtureSpec,
-  LeonardoApiClient,
-  LeonardoTestUtils
-}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.http4s.client.Client
 import cats.effect.IO
@@ -23,24 +15,18 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 //@DoNotDiscover
-class KubernetesSpec
-    extends GPAllocFixtureSpec
-    with ParallelTestExecution
-    with LeonardoTestUtils
-    with NotebookTestUtils
-    with GPAllocBeforeAndAfterAll {
+class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
 
-  "KubernetesSpec" - {
+  implicit val authTokenForOldApiClient = ronAuthToken
+  implicit val auth: Authorization =
+    Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
-    implicit val authTokenForOldApiClient = ronAuthToken
-    implicit val auth: Authorization =
-      Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+  val dependencies = for {
+    httpClient <- LeonardoApiClient.client
+  } yield AppDependencies(httpClient)
 
-    val dependencies = for {
-      httpClient <- LeonardoApiClient.client
-    } yield AppDependencies(httpClient)
-
-    "create app when cluster doesn't exist" in { googleProject =>
+  "create app when cluster doesn't exist" - {
+    withNewProject { googleProject =>
       val appName = randomAppName
       val appName2 = randomAppName
 
@@ -92,8 +78,10 @@ class KubernetesSpec
       }
       res.unsafeRunSync()
     }
+  }
 
-    "create app in a cluster that exists" in { googleProject =>
+  "create app in a cluster that exists" - {
+    withNewProject { googleProject =>
       val appName = randomAppName
       val appName2 = randomAppName
 
