@@ -210,7 +210,7 @@ object LeoPubsubMessage {
                                     appName: AppName,
                                     nodepoolId: Option[NodepoolLeoId],
                                     project: GoogleProject,
-                                    createDisk: Boolean,
+                                    createDisk: Option[DiskId],
                                     customEnvironmentVariables: Map[String, String],
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {

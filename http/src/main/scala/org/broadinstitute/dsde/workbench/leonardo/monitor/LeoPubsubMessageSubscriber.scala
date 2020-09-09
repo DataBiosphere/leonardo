@@ -26,10 +26,10 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.DiskNotFound
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
@@ -537,21 +537,17 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+      _ <- logger.info(s"Beginning disk deletion for ${diskId} | trace id: ${ctx.traceId}")
       diskOpt <- persistentDiskQuery.getById(diskId).transaction
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(diskId))
       )(F.pure)
-      _ <- if (disk.status != DiskStatus.Deleting)
-        F.raiseError[Unit](
-          PubsubHandleMessageError.DiskInvalidState(diskId, disk.projectNameString, disk)
-        )
-      else F.unit
       operation <- googleDiskService.deleteDisk(disk.googleProject, disk.zone, disk.name)
       whenDone = persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider.notifyResourceDeleted(
         disk.samResource,
         disk.auditInfo.creator,
         disk.googleProject
-      )
+      ) >> logger.info(f"Completed disk deletion for ${diskId} | trace id: ${ctx.traceId}")
       whenTimeout = F.raiseError[Unit](
         new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
       )
@@ -726,16 +722,41 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       task = for {
         _ <- parPreAppCreationSetup
         // create and monitor app
-        _ <- gkeInterp.createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName)).adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.App, None),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-        }
+        _ <- gkeInterp
+          .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName))
+          .onError {
+            case _ =>
+              // clean-up resources in the event of an app creation error
+              for {
+                _ <- logger.info(
+                  s"Attempting to clean up resources due to app creation error for app ${msg.appName} in project ${msg.project}. | trace id: ${ctx.traceId}"
+                )
+                // we need to look up the app because we always want to clean up the nodepool associated with an errored app, even if it was pre-created
+                appOpt <- KubernetesServiceDbQueries.getFullAppByName(msg.project, msg.appId).transaction
+                // note that this will only clean up the disk if it was created as part of this app creation.
+                // it should not clean up the disk if it already existed
+                _ <- appOpt.traverse { app =>
+                  val deleteMsg =
+                    DeleteAppMessage(msg.appId, msg.appName, app.nodepool.id, msg.project, msg.createDisk, msg.traceId)
+                  // This is a good-faith attempt at clean-up. We do not want to take any action if clean-up fails for some reason.
+                  deleteApp(deleteMsg, true).handleErrorWith { e =>
+                    logger.error(e)(
+                      s"An error occurred during resource clean up for app ${msg.appName} in project ${msg.project}. | trace id: ${ctx.traceId}"
+                    )
+                  }
+                }
+              } yield ()
+          }
+          .adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.App, None),
+                Some(msg.appId),
+                false,
+                None,
+                None
+              )
+          }
       } yield ()
 
       _ <- asyncTasks.enqueue1(
@@ -785,6 +806,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
+    deleteApp(msg, false)
+
+  private[monitor] def deleteApp(msg: DeleteAppMessage, sync: Boolean)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
     for {
       ctx <- ev.ask
 
@@ -828,9 +854,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         _ <- deleteDisk
       } yield ()
 
-      _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
-      )
+      _ <- if (sync) task
+      else
+        asyncTasks.enqueue1(
+          Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
+        )
     } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
@@ -863,21 +891,18 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     msg.createDisk match {
-      case true =>
+      case Some(diskId) =>
         for {
           ctx <- ev.ask
-          _ <- logger.info(s"Beginning disk creation for app ${msg.appId} | trace id: ${ctx.traceId}")
-          getAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
-          getApp <- F.fromOption(getAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
+          _ <- logger.info(s"Beginning disk creation for app ${msg.appName} | trace id: ${ctx.traceId}")
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
-            getApp.app.appResources.disk,
-            AppCreationException(
-              s"create disk was true for create app message, but app ${getApp.app.id} does not have a disk id saved"
-            )
+            diskOpt,
+            DiskNotFound(diskId)
           )
           _ <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)), true)
         } yield ()
-      case false => F.unit
+      case None => F.unit
     }
 
   private def createRuntimeErrorHandler(msg: CreateRuntimeMessage, now: Instant)(e: Throwable): F[Unit] =

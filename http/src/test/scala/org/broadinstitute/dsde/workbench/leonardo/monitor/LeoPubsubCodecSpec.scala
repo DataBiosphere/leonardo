@@ -105,7 +105,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       AppName("app1"),
       Some(NodepoolLeoId(2)),
       GoogleProject("project1"),
-      true,
+      Some(DiskId(1)),
       Map.empty,
       Some(traceId)
     )

@@ -157,7 +157,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         //we don't want to create a nodepool if we already have claimed an existing one
         claimedNodepoolOpt.fold[Option[NodepoolLeoId]](Some(nodepool.id))(_ => None),
         saveClusterResult.minimalCluster.googleProject,
-        diskResultOpt.exists(_.creationNeeded),
+        if (diskResultOpt.exists(_.creationNeeded)) diskResultOpt.map(_.disk.id) else None,
         req.customEnvironmentVariables,
         Some(ctx.traceId)
       )
