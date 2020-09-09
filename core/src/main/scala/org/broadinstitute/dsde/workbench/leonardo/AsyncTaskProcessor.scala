@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 import cats.effect.{Concurrent, Timer}
 import cats.implicits._
