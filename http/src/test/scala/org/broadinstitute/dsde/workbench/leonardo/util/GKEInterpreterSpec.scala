@@ -31,9 +31,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AutoscalingMin,
   KubernetesClusterLeoId,
   KubernetesServiceAccount,
-  LeonardoTestSuite,
-  ReleaseName
+  LeonardoTestSuite
 }
+import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -119,7 +119,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val savedCluster1 = makeKubeCluster(1).save()
     val result = gkeInterp.buildGalaxyChartOverrideValuesString(
       AppName("app1"),
-      ReleaseName("app1-galaxy-rls"),
+      Release("app1-galaxy-rls"),
       savedCluster1,
       NodepoolName("pool1"),
       userEmail,
@@ -132,7 +132,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build a release name" in {
     val releaseName = gkeInterp.buildReleaseName(AppName("app1"))
-    releaseName shouldBe ReleaseName("app1-galaxy-rls")
+    releaseName shouldBe Release("app1-galaxy-rls")
   }
 
   it should "check if a pod is done" in {

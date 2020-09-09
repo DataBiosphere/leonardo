@@ -49,6 +49,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VP
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
 import scala.collection.JavaConverters._
@@ -573,8 +574,9 @@ object Config {
   implicit private val ingressConfigReader: ValueReader[KubernetesIngressConfig] = ValueReader.relative { config =>
     KubernetesIngressConfig(
       config.as[NamespaceName]("namespace"),
-      config.as[ReleaseName]("release"),
-      config.as[ChartName]("chart"),
+      config.as[Release]("release"),
+      config.as[ChartName]("chartName"),
+      config.as[ChartVersion]("chartVersion"),
       config.as[ServiceName]("loadBalancerService"),
       config.as[List[ValueConfig]]("values"),
       config.as[List[SecretConfig]]("secrets")
@@ -584,7 +586,8 @@ object Config {
   implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
     GalaxyAppConfig(
       config.as[String]("releaseNameSuffix"),
-      config.as[ChartName]("chart"),
+      config.as[ChartName]("chartName"),
+      config.as[ChartVersion]("chartVersion"),
       config.as[String]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
       config.as[String]("serviceAccountSuffix"),
@@ -592,9 +595,10 @@ object Config {
     )
   }
 
-  implicit private val releaseNameReader: ValueReader[ReleaseName] = stringValueReader.map(ReleaseName)
+  implicit private val releaseNameReader: ValueReader[Release] = stringValueReader.map(Release)
   implicit private val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
   implicit private val chartNameReader: ValueReader[ChartName] = stringValueReader.map(ChartName)
+  implicit private val chartVersionReader: ValueReader[ChartVersion] = stringValueReader.map(ChartVersion)
   implicit private val valueConfigReader: ValueReader[ValueConfig] = stringValueReader.map(ValueConfig)
 
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>

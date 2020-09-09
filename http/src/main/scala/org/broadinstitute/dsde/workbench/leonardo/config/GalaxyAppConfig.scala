@@ -1,10 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import org.broadinstitute.dsde.workbench.leonardo.{ChartName, ServiceConfig}
+import org.broadinstitute.dsde.workbench.leonardo.ServiceConfig
+import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
-case class GalaxyAppConfig(releaseNameSuffix: String,
-                           chart: ChartName,
-                           namespaceNameSuffix: String,
-                           services: List[ServiceConfig],
-                           serviceAccountSuffix: String,
-                           uninstallKeepHistory: Boolean)
+final case class GalaxyAppConfig(releaseNameSuffix: String,
+                                 chartName: ChartName,
+                                 chartVersion: ChartVersion,
+                                 namespaceNameSuffix: String,
+                                 services: List[ServiceConfig],
+                                 serviceAccountSuffix: String,
+                                 uninstallKeepHistory: Boolean) {
+
+  def chartInfo: String = s"${chartName.asString}-${chartVersion.asString}"
+}
