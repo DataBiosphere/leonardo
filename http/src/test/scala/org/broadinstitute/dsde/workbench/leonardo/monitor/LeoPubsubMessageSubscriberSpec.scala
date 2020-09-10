@@ -777,7 +777,7 @@ class LeoPubsubMessageSubscriberSpec
                               savedApp2.appName,
                               Some(savedNodepool2.id),
                               savedCluster1.googleProject,
-        None,
+                              None,
                               Map.empty,
                               Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -946,7 +946,7 @@ class LeoPubsubMessageSubscriberSpec
                              AppName("fakeapp"),
                              Some(savedNodepool1.id),
                              savedCluster1.googleProject,
-        None,
+                             None,
                              Map.empty,
                              Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -984,7 +984,7 @@ class LeoPubsubMessageSubscriberSpec
                              savedApp1.appName,
                              Some(savedNodepool1.id),
                              savedCluster1.googleProject,
-                            Some(DiskId(-1)),
+                             Some(DiskId(-1)),
                              Map.empty,
                              Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1428,24 +1428,31 @@ class LeoPubsubMessageSubscriberSpec
     var deleteCalled = false
 
     val mockKubernetesService = new MockKubernetesService(PodStatus.Succeeded) {
-      override def createServiceAccount(clusterId: GKEModels.KubernetesClusterId, serviceAccount: KubernetesModels.KubernetesServiceAccount, namespaceName: KubernetesModels.KubernetesNamespace)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+      override def createServiceAccount(
+        clusterId: GKEModels.KubernetesClusterId,
+        serviceAccount: KubernetesModels.KubernetesServiceAccount,
+        namespaceName: KubernetesModels.KubernetesNamespace
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
         IO.raiseError(new Exception("this is an intentional test exception"))
 
-      override def deleteNamespace(clusterId: GKEModels.KubernetesClusterId, namespace: KubernetesModels.KubernetesNamespace)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
-        IO({
+      override def deleteNamespace(
+        clusterId: GKEModels.KubernetesClusterId,
+        namespace: KubernetesModels.KubernetesNamespace
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+        IO {
           deleteCalled = true
-        })
+        }
     }
 
     val gkeInterp =
       new GKEInterpreter[IO](Config.gkeInterpConfig,
-        vpcInterp,
-        MockGKEService,
-        mockKubernetesService,
-        MockHelm,
-        MockGalaxyDAO,
-        credentials,
-        blocker)
+                             vpcInterp,
+                             MockGKEService,
+                             mockKubernetesService,
+                             MockHelm,
+                             MockGalaxyDAO,
+                             credentials,
+                             blocker)
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
