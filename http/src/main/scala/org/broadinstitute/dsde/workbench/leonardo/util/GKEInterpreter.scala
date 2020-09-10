@@ -700,7 +700,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
-      raw"""rbac.serviceAccount=${ksa.value}"""
+      raw"""rbac.serviceAccount=${ksa.value}""",
+      // TODO
+      raw"""persistence={}"""
     ) ++ configs).mkString(",")
   }
 
