@@ -93,7 +93,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
                 nbExt.get should include("toc2/main  enabled")
 
                 val serverExt = notebookPage.executeCell("! jupyter serverextension list")
-                serverExt.get should include("pizzabutton  enabled")
+                //serverExt.get should include("pizzabutton  enabled")
                 serverExt.get should include("jupyterlab  enabled")
                 // should be installed by default
                 //serverExt.get should include("jupyter_nbextensions_configurator  enabled")
