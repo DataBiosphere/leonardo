@@ -199,6 +199,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Successfully created cluster ${dbCluster.getGkeClusterId.toString}! | trace id: ${ctx.traceId}"
       )
 
+      // TODO: Should we move nginx installation to a separate step so it doesn't fail cluster creation?
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
 
