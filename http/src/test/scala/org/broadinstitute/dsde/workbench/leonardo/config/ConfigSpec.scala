@@ -103,7 +103,7 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
     val expectedResult = GalaxyAppConfig(
       "galaxy-rls",
       ChartName("galaxy/galaxykubeman"),
-      ChartVersion("0.5.1"),
+      ChartVersion("0.5.2"),
       "galaxy-ns",
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
       "galaxy-ksa",
