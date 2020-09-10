@@ -77,9 +77,12 @@ trait LeonardoTestUtils
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(
     //TODO: Re-enable the below two lines when nbconvert is updated to 6.0.1
-    //nbExtensions = Map("map" -> "gmaps"),
-    //combinedExtensions = Map("pizza" -> "pizzabutton")
+    nbExtensions = Map("map" -> "gmaps"),
+    combinedExtensions = Map("pizza" -> "pizzabutton")
   )
+
+  val emptyExtensionClusterRequest = UserJupyterExtensionConfig()
+
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
   )

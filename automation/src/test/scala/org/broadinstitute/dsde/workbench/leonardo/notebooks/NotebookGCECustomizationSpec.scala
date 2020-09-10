@@ -73,9 +73,9 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
-          val extensionConfig = multiExtensionClusterRequest.copy(
+          val extensionConfig = emptyExtensionClusterRequest.copy(
             nbExtensions =
-              multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
+              emptyExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
           )
           withNewRuntime(
             billingProject,
