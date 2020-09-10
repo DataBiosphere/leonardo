@@ -199,7 +199,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Successfully created cluster ${dbCluster.getGkeClusterId.toString}! | trace id: ${ctx.traceId}"
       )
 
-      // TODO: Should we move nginx installation to a separate step so it doesn't fail cluster creation?
+      // TODO: Handle the case where currently, if ingress installation fails, the cluster is marked as `Error`ed
+      // and users can no longer create apps in the cluster's project
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
 
