@@ -47,10 +47,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
-  ClusterInvalidState,
-  DiskInvalidState
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
@@ -566,7 +563,7 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
-  it should "not handle DeleteDiskMessage when disk is not in Deleting status" in isolatedDbTest {
+  it should "handle DeleteDiskMessage when disk is not in Deleting status" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
@@ -575,7 +572,7 @@ class LeoPubsubMessageSubscriberSpec
       message = DeleteDiskMessage(disk.id, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
     } yield {
-      attempt shouldBe Left(DiskInvalidState(disk.id, disk.projectNameString, disk))
+      attempt shouldBe Right(())
     }
 
     res.unsafeRunSync()
@@ -1408,7 +1405,7 @@ class LeoPubsubMessageSubscriberSpec
     assertions.unsafeRunSync()
   }
 
-  it should "clean-up google resources on error id1" in isolatedDbTest {
+  it should "clean-up google resources on error" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
