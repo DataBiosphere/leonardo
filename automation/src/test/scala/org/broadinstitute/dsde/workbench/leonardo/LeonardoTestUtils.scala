@@ -76,8 +76,9 @@ trait LeonardoTestUtils
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(2, Seconds)))
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(
-    nbExtensions = Map("map" -> "gmaps"),
-    combinedExtensions = Map("pizza" -> "pizzabutton")
+    //TODO: Re-enable the below two lines when nbconvert is updated to 6.0.1
+    //nbExtensions = Map("map" -> "gmaps"),
+    //combinedExtensions = Map("pizza" -> "pizzabutton")
   )
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
