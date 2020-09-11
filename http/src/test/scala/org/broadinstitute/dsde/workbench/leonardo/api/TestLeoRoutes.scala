@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockWelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockJupyterDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
@@ -147,7 +147,12 @@ trait TestLeoRoutes {
   val kubernetesDnsCache = new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, blocker)
 
   val proxyService =
-    new MockProxyService(proxyConfig, mockGoogleDataprocDAO, whitelistAuthProvider, runtimeDnsCache, kubernetesDnsCache)
+    new MockProxyService(proxyConfig,
+                         mockGoogleDataprocDAO,
+                         MockJupyterDAO,
+                         whitelistAuthProvider,
+                         runtimeDnsCache,
+                         kubernetesDnsCache)
   val statusService =
     new StatusService(mockGoogleDataprocDAO, mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)

@@ -67,9 +67,10 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       }
     }
 
+    // TODO: re-enable this test
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" in { billingProject =>
+    "should install user specified notebook extensions" ignore { billingProject =>
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>

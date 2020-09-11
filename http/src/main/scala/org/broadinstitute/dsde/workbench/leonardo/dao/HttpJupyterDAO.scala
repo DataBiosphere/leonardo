@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
-import com.typesafe.scalalogging.LazyLogging
+import io.chrisdavenport.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
@@ -14,9 +14,11 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
 
-class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])
-    extends JupyterDAO[F]
-    with LazyLogging {
+//Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
+class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
+  implicit F: Concurrent[F],
+  logger: Logger[F]
+) extends JupyterDAO[F] {
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
       case HostReady(targetHost) =>
@@ -30,7 +32,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache:
             )
           )
           .handleError(_ => false)
-      case _ => Concurrent[F].pure(false)
+      case _ => F.pure(false)
     }
 
   def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
@@ -48,9 +50,43 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache:
               )
             )
           } yield res.forall(k => k.kernel.executionState == Idle)
-        case _ => Concurrent[F].pure(true)
+        case _ => F.pure(true)
       }
     } yield resp
+
+  override def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit] =
+    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
+      case HostReady(targetHost) =>
+        client
+          .successful(
+            Request[F](
+              method = Method.POST,
+              uri = Uri.unsafeFromString(
+                s"https://${targetHost.toString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals"
+              )
+            )
+          )
+          .flatMap(res => if (res) F.unit else logger.error("Fail to create new terminal"))
+      case _ => F.unit
+    }
+
+  override def terminalExists(googleProject: GoogleProject,
+                              runtimeName: RuntimeName,
+                              terminalName: TerminalName): F[Boolean] =
+    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
+      case HostReady(targetHost) =>
+        client
+          .successful(
+            Request[F](
+              method = Method.GET,
+              uri = Uri.unsafeFromString(
+                s"https://${targetHost.toString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals/${terminalName.asString}" // this returns 404 if the terminal doesn't exist
+              )
+            )
+          )
+      case _ => F.pure(false)
+    }
+
 }
 
 object HttpJupyterDAO {
@@ -63,6 +99,8 @@ object HttpJupyterDAO {
 trait JupyterDAO[F[_]] {
   def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
+  def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit]
+  def terminalExists(googleProject: GoogleProject, runtimeName: RuntimeName, terminalName: TerminalName): F[Boolean]
 }
 
 sealed abstract class ExecutionState
@@ -75,6 +113,7 @@ object ExecutionState {
   }
 }
 
+final case class TerminalName(asString: String) extends AnyVal
 final case class Session(kernel: Kernel)
 final case class Kernel(executionState: ExecutionState)
 final case class AllSessionsResponse(kernel: List[Kernel])

@@ -17,6 +17,7 @@ import cats.mtl.ApplicativeAsk
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
+import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -55,6 +56,16 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                     complete {
                       IO(logger.debug(s"Successfully set cookie for user $userInfo"))
                         .as(StatusCodes.NoContent)
+                    }
+                  }
+                }
+              }
+            } ~ pathPrefix("jupyter" / "terminals") {
+              pathSuffix(terminalNameSegment) { terminalName =>
+                (extractRequest & extractUserInfo) { (request, userInfo) =>
+                  logRequestResultForMetrics(userInfo) {
+                    complete {
+                      openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
                     }
                   }
                 }
@@ -172,22 +183,22 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
         }
     } yield res
 
+  private[api] def openTerminalHandler(userInfo: UserInfo,
+                                       googleProject: GoogleProject,
+                                       runtimeName: RuntimeName,
+                                       terminalName: TerminalName,
+                                       request: HttpRequest): IO[ToResponseMarshallable] =
+    for {
+      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO]()
+      res <- proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
+    } yield res
+
   private[api] def proxyRuntimeHandler(userInfo: UserInfo,
                                        googleProject: GoogleProject,
                                        runtimeName: RuntimeName,
                                        request: HttpRequest): IO[ToResponseMarshallable] =
     for {
       implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO]()
-      t <- ctx.ask
-      res <- proxyService.proxyRequest(userInfo, googleProject, runtimeName, request).onError {
-        case e =>
-          IO(
-            logger.warn(
-              s"${t.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${runtimeName.asString}",
-              e
-            )
-          ) <* IO
-            .fromFuture(IO(request.entity.discardBytes().future))
-      }
+      res <- proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
     } yield res
 }

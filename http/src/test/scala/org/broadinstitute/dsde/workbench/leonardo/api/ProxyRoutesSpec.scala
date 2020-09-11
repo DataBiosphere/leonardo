@@ -15,16 +15,21 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockProxyService, TestProxy}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.leonardo.service.MockDiskServiceInterp
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll}
+import org.mockito.Mockito._
+import org.mockito.Mockito.verify
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.collection.immutable
 import scala.concurrent.duration._
@@ -39,7 +44,8 @@ class ProxyRoutesSpec
     with TestProxy
     with TestComponent
     with GcsPathUtils
-    with TestLeoRoutes {
+    with TestLeoRoutes
+    with MockitoSugar {
   implicit val patience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
   implicit val routeTimeout = RouteTestTimeout(10 seconds)
   override def proxyConfig: ProxyConfig = CommonTestData.proxyConfig
@@ -139,6 +145,7 @@ class ProxyRoutesSpec
     val proxyService =
       new MockProxyService(proxyConfig,
                            mockGoogleDataprocDAO,
+                           MockJupyterDAO,
                            whitelistAuthProvider,
                            runtimeDnsCache,
                            kubernetesDnsCache,
@@ -375,6 +382,29 @@ class ProxyRoutesSpec
     }
   }
 
+  it should "create terminal trying to access a terminal not created yet" in {
+    val jupyterDAO = mock[JupyterDAO[IO]]
+    when {
+      jupyterDAO.terminalExists(GoogleProject(googleProject), RuntimeName(clusterName), TerminalName("1"))
+    } thenReturn IO.pure(false)
+
+    when {
+      jupyterDAO.createTerminal(GoogleProject(googleProject), RuntimeName(clusterName))
+    } thenReturn IO.unit
+
+    val httpRoutes = createHttpRoute(jupyterDAO)
+
+    Get(s"/proxy/$googleProject/$clusterName/jupyter/terminals/1")
+      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      verify(jupyterDAO, times(1)).terminalExists(GoogleProject(googleProject),
+                                                  RuntimeName(clusterName),
+                                                  TerminalName("1"))
+      verify(jupyterDAO, times(1)).createTerminal(GoogleProject(googleProject), RuntimeName(clusterName))
+    }
+  }
+
   "invalidateToken" should "remove a token from cache" in {
     // cache should not initially contain the token
     proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
@@ -398,6 +428,32 @@ class ProxyRoutesSpec
 
     // cache should not contain the token
     proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
+  }
+
+  def createHttpRoute(jupyterDAO: JupyterDAO[IO]): HttpRoutes = {
+    val proxyService =
+      new MockProxyService(proxyConfig,
+                           mockGoogleDataprocDAO,
+                           jupyterDAO,
+                           whitelistAuthProvider,
+                           runtimeDnsCache,
+                           kubernetesDnsCache)
+    proxyService.samResourceCache
+      .put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)), Some(runtimeSamResource.resourceId))
+    proxyService.samResourceCache
+      .put(AppCacheKey(GoogleProject(googleProject), AppName(appName)), Some(appSamId.resourceId))
+
+    new HttpRoutes(
+      swaggerConfig,
+      statusService,
+      proxyService,
+      leonardoService,
+      runtimeService,
+      MockDiskServiceInterp,
+      leoKubernetesService,
+      userInfoDirectives,
+      contentSecurityPolicy
+    )
   }
 
   /**
