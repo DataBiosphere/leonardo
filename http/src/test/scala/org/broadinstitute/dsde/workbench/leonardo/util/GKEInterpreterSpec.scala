@@ -31,9 +31,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AutoscalingMin,
   KubernetesClusterLeoId,
   KubernetesServiceAccount,
-  LeonardoTestSuite,
-  ReleaseName
+  LeonardoTestSuite
 }
+import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -119,7 +119,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val savedCluster1 = makeKubeCluster(1).save()
     val result = gkeInterp.buildGalaxyChartOverrideValuesString(
       AppName("app1"),
-      ReleaseName("app1-galaxy-rls"),
+      Release("app1-galaxy-rls"),
       savedCluster1,
       NodepoolName("pool1"),
       userEmail,
@@ -127,12 +127,12 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       KubernetesServiceAccount("app1-galaxy-ksa")
     )
 
-    result shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.repositories.cvmfs-gxy-main-app1-galaxy-rls=main.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1211904326.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0]=1211904326.jupyter.firecloud.org,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,rbac.serviceAccount=app1-galaxy-ksa"""
+    result shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.repositories.cvmfs-gxy-main-app1-galaxy-rls=main.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1211904326.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0]=1211904326.jupyter.firecloud.org,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,rbac.serviceAccount=app1-galaxy-ksa,persistence={}"""
   }
 
   it should "build a release name" in {
     val releaseName = gkeInterp.buildReleaseName(AppName("app1"))
-    releaseName shouldBe ReleaseName("app1-galaxy-rls")
+    releaseName shouldBe Release("app1-galaxy-rls")
   }
 
   it should "check if a pod is done" in {

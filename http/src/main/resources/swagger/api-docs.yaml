@@ -1278,8 +1278,10 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
   "/api/google/v1/apps/{googleProject}/{appName}":
     post:
-      summary: Creates a new app in the given project with the given name
-      description: Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
+      summary: Creates a new app in the given project with the given appName
+      description: >
+        The specified appName is suffixed and the resulting string must adhere to Google's name validation regex ?:[a-z](?:[-a-z0-9]{0,38}[a-z0-9])?.
+        Default labels appName, googleProject, serviceAccount, and creator cannot be overridden.
       operationId: createApp
       tags:
         - apps

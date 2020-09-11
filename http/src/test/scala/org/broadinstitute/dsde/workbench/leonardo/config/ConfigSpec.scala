@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   PersistentDiskMonitorConfig,
   PollMonitorConfig
 }
+import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -102,6 +103,7 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
     val expectedResult = GalaxyAppConfig(
       "galaxy-rls",
       ChartName("galaxy/galaxykubeman"),
+      ChartVersion("0.5.3"),
       "galaxy-ns",
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
       "galaxy-ksa",

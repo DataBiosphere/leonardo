@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClu
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import org.broadinstitute.dsp.{AuthContext, HelmAlgebra}
+import org.broadinstitute.dsp.{AuthContext, HelmAlgebra, Release}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
@@ -199,6 +199,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Successfully created cluster ${dbCluster.getGkeClusterId.toString}! | trace id: ${ctx.traceId}"
       )
 
+      // TODO: Handle the case where currently, if ingress installation fails, the cluster is marked as `Error`ed
+      // and users can no longer create apps in the cluster's project
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
 
@@ -444,7 +446,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
       _ <- logger.info(
-        s"Installing ingress helm chart ${config.ingressConfig.chart.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Installing ingress helm chart ${config.ingressConfig.chartInfo} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, config.ingressConfig.namespace)
@@ -452,8 +454,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Invoke helm
       _ <- helmClient
         .installChart(
-          org.broadinstitute.dsp.Release(config.ingressConfig.release.value),
-          org.broadinstitute.dsp.Chart(config.ingressConfig.chart.value),
+          org.broadinstitute.dsp.Release(config.ingressConfig.release.asString),
+          org.broadinstitute.dsp.ChartName(config.ingressConfig.chartName.asString),
+          org.broadinstitute.dsp.ChartVersion(config.ingressConfig.chartVersion.asString),
           org.broadinstitute.dsp.Values(config.ingressConfig.values.map(_.value).mkString(","))
         )
         .run(helmAuthContext)
@@ -493,7 +496,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ctx <- ev.ask
 
       _ <- logger.info(
-        s"Installing helm chart ${config.galaxyAppConfig.chart.value} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Installing helm chart ${config.galaxyAppConfig.chartInfo} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
@@ -514,8 +517,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Invoke helm
       _ <- helmClient
         .installChart(
-          org.broadinstitute.dsp.Release(releaseName.value),
-          org.broadinstitute.dsp.Chart(config.galaxyAppConfig.chart.value),
+          org.broadinstitute.dsp.Release(releaseName.asString),
+          org.broadinstitute.dsp.ChartName(config.galaxyAppConfig.chartName.asString),
+          org.broadinstitute.dsp.ChartVersion(config.galaxyAppConfig.chartVersion.asString),
           org.broadinstitute.dsp.Values(chartValues)
         )
         .run(helmAuthContext)
@@ -545,7 +549,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ctx <- ev.ask
 
       _ <- logger.info(
-        s"Uninstalling helm chart ${config.galaxyAppConfig.chart.value} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Uninstalling helm chart ${config.galaxyAppConfig.chartInfo} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
@@ -554,7 +558,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Invoke helm
       _ <- helmClient
-        .uninstall(org.broadinstitute.dsp.Release(releaseName.value), config.galaxyAppConfig.uninstallKeepHistory)
+        .uninstall(org.broadinstitute.dsp.Release(releaseName.asString), config.galaxyAppConfig.uninstallKeepHistory)
         .run(helmAuthContext)
 
       last <- streamFUntilDone(
@@ -658,7 +662,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   }
 
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
-                                                         release: ReleaseName,
+                                                         release: Release,
                                                          cluster: KubernetesCluster,
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail,
@@ -673,7 +677,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         List(
           raw"""configs.$k=$v""",
           raw"""extraEnv[$i].name=$k""",
-          raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.value}=galaxykubeman-configs""",
+          raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.asString}=galaxykubeman-configs""",
           raw"""extraEnv[$i].valueFrom.configMapKeyRef.key="$k"""
         )
     }
@@ -682,13 +686,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     // value override special characters such as '.'
     // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
     (List(
-      raw"""nfs.storageClass.name=nfs-${release.value}""",
-      raw"""cvmfs.repositories.cvmfs-gxy-data-${release.value}=data.galaxyproject.org""",
-      raw"""cvmfs.repositories.cvmfs-gxy-main-${release.value}=main.galaxyproject.org""",
-      raw"""cvmfs.cache.alienCache.storageClass=nfs-${release.value}""",
-      raw"""galaxy.persistence.storageClass=nfs-${release.value}""",
-      raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.value}""",
-      raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.value}""",
+      raw"""nfs.storageClass.name=nfs-${release.asString}""",
+      raw"""cvmfs.repositories.cvmfs-gxy-data-${release.asString}=data.galaxyproject.org""",
+      raw"""cvmfs.repositories.cvmfs-gxy-main-${release.asString}=main.galaxyproject.org""",
+      raw"""cvmfs.cache.alienCache.storageClass=nfs-${release.asString}""",
+      raw"""galaxy.persistence.storageClass=nfs-${release.asString}""",
+      raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.asString}""",
+      raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.asString}""",
       raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""galaxy.ingress.path=${ingressPath}""",
@@ -697,15 +701,17 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
-      raw"""rbac.serviceAccount=${ksa.value}"""
+      raw"""rbac.serviceAccount=${ksa.value}""",
+      // TODO Update during https://broadworkbench.atlassian.net/browse/IA-2171
+      raw"""persistence={}"""
     ) ++ configs).mkString(",")
   }
 
   // TODO: should we append a timestamp to the release name?
   // If we do then we should probably persist it to the database since we need it
   // at install and uninstall time.
-  private[util] def buildReleaseName(appName: AppName): ReleaseName =
-    ReleaseName(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix}")
+  private[util] def buildReleaseName(appName: AppName): Release =
+    Release(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix}")
 
   private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
     pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded

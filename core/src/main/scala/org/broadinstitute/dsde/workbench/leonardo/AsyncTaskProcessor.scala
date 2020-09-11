@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 import cats.effect.{Concurrent, Timer}
 import cats.implicits._
@@ -29,14 +28,12 @@ final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, a
 
   private def handler(task: Task[F]): F[Unit] =
     for {
-      now <- Timer[F].clock
-        .realTime(TimeUnit.MILLISECONDS)
-        .map(
-          Instant.ofEpochMilli
-        ) //TODO: use nowInstant once https://github.com/DataBiosphere/leonardo/pull/1404 is merged
+      now <- nowInstant[F]
       latency = (now.toEpochMilli - task.enqueuedTime.toEpochMilli).millis
       _ <- recordLatency(latency)
-      _ <- logger.info(s"executing ${task.traceId.asString}. Latency: ${latency.toSeconds} seconds")
+      _ <- logger.info(
+        s"Executing task with traceId ${task.traceId.asString} with latency of ${latency.toSeconds} seconds"
+      )
       _ <- task.op.handleErrorWith {
         case err =>
           task.errorHandler.traverse(cb => cb(err)) >> logger.error(err)(

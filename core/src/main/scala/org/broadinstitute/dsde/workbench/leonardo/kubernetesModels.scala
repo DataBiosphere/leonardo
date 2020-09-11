@@ -287,9 +287,6 @@ object AppType {
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 }
 
-final case class ReleaseName(value: String) extends AnyVal
-final case class ChartName(value: String) extends AnyVal
-
 final case class AppId(id: Long) extends AnyVal
 final case class AppName(value: String) extends AnyVal
 //These are async from the perspective of Front Leo saving the app record, but both must exist before the helm command is executed

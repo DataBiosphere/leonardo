@@ -8,14 +8,18 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
   SecretName,
   ServiceName
 }
-import org.broadinstitute.dsde.workbench.leonardo.{ChartName, ReleaseName}
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
 final case class KubernetesIngressConfig(namespace: NamespaceName,
-                                         release: ReleaseName,
-                                         chart: ChartName,
+                                         release: Release,
+                                         chartName: ChartName,
+                                         chartVersion: ChartVersion,
                                          loadBalancerService: ServiceName,
                                          values: List[ValueConfig],
-                                         secrets: List[SecretConfig])
+                                         secrets: List[SecretConfig]) {
+
+  def chartInfo: String = s"${chartName.asString}-${chartVersion.asString}"
+}
 
 final case class ValueConfig(value: String) extends AnyVal
 final case class SecretConfig(name: SecretName, secretFiles: List[SecretFile])
