@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, MockJupyterDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, MockJupyterDAO}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -21,6 +21,7 @@ import scala.concurrent.ExecutionContext
 class MockProxyService(
   proxyConfig: ProxyConfig,
   gdDAO: GoogleDataprocDAO,
+  jupyterDAO: JupyterDAO[IO] = MockJupyterDAO,
   authProvider: LeoAuthProvider[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
@@ -32,7 +33,7 @@ class MockProxyService(
   dbRef: DbReference[IO])
     extends ProxyService(proxyConfig,
                          gdDAO,
-                         MockJupyterDAO,
+                         jupyterDAO,
                          runtimeDnsCache,
                          kubernetesDnsCache,
                          authProvider,

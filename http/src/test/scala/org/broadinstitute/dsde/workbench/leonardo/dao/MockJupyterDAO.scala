@@ -13,9 +13,9 @@ class MockJupyterDAO(isUp: Boolean = true) extends JupyterDAO[IO] {
 
   override def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): IO[Unit] = IO.unit
 
-  override def ifTerminalExist(googleProject: GoogleProject,
-                               runtimeName: RuntimeName,
-                               terminalName: TerminalName): IO[Boolean] = IO.pure(true)
+  override def terminalExists(googleProject: GoogleProject,
+                              runtimeName: RuntimeName,
+                              terminalName: TerminalName): IO[Boolean] = IO.pure(true)
 }
 
 object MockJupyterDAO extends MockJupyterDAO(isUp = true)

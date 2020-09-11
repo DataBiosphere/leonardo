@@ -229,8 +229,8 @@ class ProxyService(
                    terminalName: TerminalName,
                    request: HttpRequest)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[HttpResponse] =
     for {
-      ifTerminalExist <- jupyterDAO.ifTerminalExist(googleProject, runtimeName, terminalName)
-      _ <- if (ifTerminalExist)
+      terminalExists <- jupyterDAO.terminalExists(googleProject, runtimeName, terminalName)
+      _ <- if (terminalExists)
         IO.unit
       else
         jupyterDAO.createTerminal(googleProject, runtimeName)

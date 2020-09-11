@@ -70,9 +70,9 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
       case _ => F.unit
     }
 
-  override def ifTerminalExist(googleProject: GoogleProject,
-                               runtimeName: RuntimeName,
-                               terminalName: TerminalName): F[Boolean] =
+  override def terminalExists(googleProject: GoogleProject,
+                              runtimeName: RuntimeName,
+                              terminalName: TerminalName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
       case HostReady(targetHost) =>
         client
@@ -100,7 +100,7 @@ trait JupyterDAO[F[_]] {
   def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
   def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit]
-  def ifTerminalExist(googleProject: GoogleProject, runtimeName: RuntimeName, terminalName: TerminalName): F[Boolean]
+  def terminalExists(googleProject: GoogleProject, runtimeName: RuntimeName, terminalName: TerminalName): F[Boolean]
 }
 
 sealed abstract class ExecutionState
