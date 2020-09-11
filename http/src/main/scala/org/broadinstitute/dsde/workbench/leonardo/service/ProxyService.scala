@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, Proxy}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
@@ -72,6 +72,7 @@ final case object AccessTokenExpiredException
 class ProxyService(
   proxyConfig: ProxyConfig,
   gdDAO: GoogleDataprocDAO,
+  jupyterDAO: JupyterDAO[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
@@ -188,9 +189,8 @@ class ProxyService(
 
   def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, AppContext]
-  ): IO[HttpResponse] =
-    for {
-      ctx <- ev.ask
+  ): IO[HttpResponse] = ev.ask.flatMap { ctx =>
+    val res = for {
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(googleProject, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
@@ -209,6 +209,32 @@ class ProxyService(
       }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
       r <- proxyInternal(hostContext, request)
+    } yield r
+
+    res.onError {
+      case e =>
+        IO(
+          logger.warn(
+            s"${ctx.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${runtimeName.asString}",
+            e
+          )
+        ) <* IO
+          .fromFuture(IO(request.entity.discardBytes().future))
+    }
+  }
+
+  def openTerminal(userInfo: UserInfo,
+                   googleProject: GoogleProject,
+                   runtimeName: RuntimeName,
+                   terminalName: TerminalName,
+                   request: HttpRequest)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[HttpResponse] =
+    for {
+      terminalExists <- jupyterDAO.terminalExists(googleProject, runtimeName, terminalName)
+      _ <- if (terminalExists)
+        IO.unit
+      else
+        jupyterDAO.createTerminal(googleProject, runtimeName)
+      r <- proxyRequest(userInfo, googleProject, runtimeName, request)
     } yield r
 
   def proxyAppRequest(userInfo: UserInfo,

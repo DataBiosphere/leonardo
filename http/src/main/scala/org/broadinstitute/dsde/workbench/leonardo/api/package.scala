@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import spray.json._
 import akka.http.scaladsl.server.PathMatchers.Segment
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 
 import scala.concurrent.Future
 
@@ -32,6 +33,7 @@ package object api {
   val runtimeNameSegment = Segment.map(RuntimeName)
   val appNameSegment = Segment.map(AppName)
   val serviceNameSegment = Segment.map(ServiceName)
+  val terminalNameSegment = Segment.map(TerminalName)
 }
 
 object ImplicitConversions {

@@ -135,6 +135,7 @@ object Boot extends IOApp {
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(proxyConfig,
                                           googleDependencies.googleDataprocDAO,
+                                          appDependencies.jupyterDAO,
                                           appDependencies.runtimeDnsCache,
                                           googleDependencies.kubernetesDnsCache,
                                           appDependencies.authProvider,
