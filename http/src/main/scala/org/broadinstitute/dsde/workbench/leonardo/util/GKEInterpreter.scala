@@ -702,7 +702,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
-      // TODO
+      // TODO Update during https://broadworkbench.atlassian.net/browse/IA-2171
       raw"""persistence={}"""
     ) ++ configs).mkString(",")
   }
