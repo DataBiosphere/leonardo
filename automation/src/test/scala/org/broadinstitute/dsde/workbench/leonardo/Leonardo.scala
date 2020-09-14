@@ -55,29 +55,12 @@ object Leonardo extends RestClient with LazyLogging {
 
       res.getOrElse(throw new Exception("Failed to parse list of runtime response"))
     }
-    def clusterPath(googleProject: GoogleProject,
-                    clusterName: RuntimeName,
-                    version: Option[ApiVersion] = None): String = {
-      val versionPath = version.map(_.toUrlSegment).getOrElse("")
-      s"api/cluster${versionPath}/${googleProject.value}/${clusterName.asString}"
-    }
 
     def runtimePath(googleProject: GoogleProject,
                     runtimeName: RuntimeName,
                     version: Option[ApiVersion] = None): String = {
       val versionPath = version.map(_.toUrlSegment).getOrElse("")
       s"api/google${versionPath}/runtimes/${googleProject.value}/${runtimeName.asString}"
-    }
-
-    def list(googleProject: GoogleProject)(implicit token: AuthToken): Seq[ClusterCopy] = {
-      logger.info(s"Listing active clusters in project: GET /api/clusters/${googleProject.value}")
-      handleClusterSeqResponse(parseResponse(getRequest(url + "api/clusters")))
-    }
-
-    def listIncludingDeleted(googleProject: GoogleProject)(implicit token: AuthToken): Seq[ClusterCopy] = {
-      val path = s"api/clusters/${googleProject.value}?includeDeleted=true"
-      logger.info(s"Listing clusters including deleted in project: GET /$path")
-      handleClusterSeqResponse(parseResponse(getRequest(s"$url/$path")))
     }
 
     def listIncludingDeletedRuntime(
@@ -87,26 +70,6 @@ object Leonardo extends RestClient with LazyLogging {
       logger.info(s"Listing runtimes including deleted in project: GET /$path")
       val parsedRequest = parseResponse(getRequest(s"$url/$path"))
       handleListRuntimeResponse(parsedRequest)
-    }
-
-    def create(googleProject: GoogleProject, clusterName: RuntimeName, clusterRequest: ClusterRequest)(
-      implicit token: AuthToken
-    ): ClusterCopy = {
-
-      val path = clusterPath(googleProject, clusterName, Some(ApiVersion.V2))
-      logger.info(s"Create cluster: PUT /$path")
-      handleClusterResponse(putRequest(url + path, clusterRequest))
-
-    }
-
-    def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): ClusterCopy = {
-      val path = clusterPath(googleProject, clusterName)
-
-      val responseString = parseResponse(getRequest(url + path))
-      val cluster = handleClusterResponse(responseString)
-      logger.info(s"Get cluster: GET /$path. Status = ${cluster.status}")
-
-      cluster
     }
 
     def getRuntime(googleProject: GoogleProject,
@@ -126,23 +89,11 @@ object Leonardo extends RestClient with LazyLogging {
       })
     }
 
-    def delete(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
-      val path = clusterPath(googleProject, clusterName)
-      logger.info(s"Delete cluster: DELETE /$path")
-      deleteRequest(url + path)
-    }
-
     def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): String = {
       val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
 
       logger.info(s"Delete runtime: DELETE /$path")
       deleteRequest(url + path)
-    }
-
-    def stop(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
-      val path = clusterPath(googleProject, clusterName) + "/stop"
-      logger.info(s"Stopping cluster: POST /$path")
-      postRequest(url + path)
     }
 
     def stopRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): String = {
@@ -151,24 +102,10 @@ object Leonardo extends RestClient with LazyLogging {
       postRequest(url + path)
     }
 
-    def start(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
-      val path = clusterPath(googleProject, clusterName) + "/start"
-      logger.info(s"Starting cluster: POST /$path")
-      postRequest(url + path)
-    }
-
     def startRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): String = {
       val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1)) + "/start"
       logger.info(s"Starting runtime: POST /$path")
       postRequest(url + path)
-    }
-
-    def update(googleProject: GoogleProject, clusterName: RuntimeName, clusterRequest: ClusterRequest)(
-      implicit token: AuthToken
-    ): ClusterCopy = {
-      val path = clusterPath(googleProject, clusterName)
-      logger.info(s"Update cluster: PATCH /$path")
-      handleClusterResponse(patchRequest(url + path, clusterRequest))
     }
   }
 }

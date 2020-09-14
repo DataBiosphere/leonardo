@@ -26,6 +26,7 @@ abstract class RuntimeFixtureSpec
   implicit val ronToken: AuthToken = ronAuthToken
 
   def toolDockerImage: Option[String] = None
+  def cloudService: Option[CloudService] = Some(CloudService.GCE)
   var ronCluster: ClusterCopy = _
   var clusterCreationFailureMsg: String = ""
 
@@ -76,7 +77,8 @@ abstract class RuntimeFixtureSpec
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(
           billingProject,
           runtimeName,
-          getRuntimeRequest(CloudService.GCE, toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR)))
+          getRuntimeRequest(cloudService.getOrElse(CloudService.GCE),
+                            toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR)))
         )
       } yield {
         ronCluster = ClusterCopy(
