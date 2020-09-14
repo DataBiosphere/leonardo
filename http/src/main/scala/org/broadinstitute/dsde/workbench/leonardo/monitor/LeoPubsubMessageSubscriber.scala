@@ -547,7 +547,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         disk.samResource,
         disk.auditInfo.creator,
         disk.googleProject
-      ) >> logger.info(f"Completed disk deletion for ${diskId} | trace id: ${ctx.traceId}")
+      ) >> logger.info(s"Completed disk deletion for ${diskId} | trace id: ${ctx.traceId}")
       whenTimeout = F.raiseError[Unit](
         new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
       )

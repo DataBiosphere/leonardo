@@ -1495,6 +1495,83 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
+  it should "not delete a disk that already existing on error id1" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = Some(disk),
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
+
+    val mockKubernetesService = new MockKubernetesService(PodStatus.Succeeded) {
+      override def createServiceAccount(
+        clusterId: GKEModels.KubernetesClusterId,
+        serviceAccount: KubernetesModels.KubernetesServiceAccount,
+        namespaceName: KubernetesModels.KubernetesNamespace
+      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+        IO.raiseError(new Exception("this is an intentional test exception"))
+    }
+
+    val gkeInterp =
+      new GKEInterpreter[IO](Config.gkeInterpConfig,
+                             vpcInterp,
+                             MockGKEService,
+                             mockKubernetesService,
+                             MockHelm,
+                             MockGalaxyDAO,
+                             credentials,
+                             blocker)
+
+    val assertions = for {
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
+      getCluster = clusterOpt.get
+      getAppOpt <- KubernetesServiceDbQueries
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
+        .transaction
+      getApp = getAppOpt.get
+      getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
+      getDisk = getDiskOpt.get
+    } yield {
+      getCluster.status shouldBe KubernetesClusterStatus.Running
+      //only the default should be left, the other has been deleted
+      getCluster.nodepools.size shouldBe 1
+      getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
+      getApp.app.errors.size shouldBe 1
+      getApp.app.status shouldBe AppStatus.Error
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getDisk.status shouldBe disk.status
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
+      msg = CreateAppMessage(
+        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedApp1.id,
+        savedApp1.appName,
+        Some(savedNodepool1.id),
+        savedCluster1.googleProject,
+        None,
+        Map.empty,
+        Some(tr)
+      )
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterp = gkeInterp)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
   def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
                         asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
                           InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
