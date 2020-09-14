@@ -739,7 +739,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                   val deleteMsg =
                     DeleteAppMessage(msg.appId, msg.appName, app.nodepool.id, msg.project, msg.createDisk, msg.traceId)
                   // This is a good-faith attempt at clean-up. We do not want to take any action if clean-up fails for some reason.
-                  deleteApp(deleteMsg, true).handleErrorWith { e =>
+                  deleteApp(deleteMsg, true, true).handleErrorWith { e =>
                     logger.error(e)(
                       s"An error occurred during resource clean up for app ${msg.appName} in project ${msg.project}. | trace id: ${ctx.traceId}"
                     )
@@ -806,9 +806,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
-    deleteApp(msg, false)
+    deleteApp(msg, false, false)
 
-  private[monitor] def deleteApp(msg: DeleteAppMessage, sync: Boolean)(
+  private[monitor] def deleteApp(msg: DeleteAppMessage, sync: Boolean, errorAfterDelete: Boolean)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -825,16 +825,18 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
       }
 
-      deleteApp = gkeInterp.deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName)).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.App, None),
-            Some(msg.appId),
-            false,
-            None,
-            None
-          )
-      }
+      deleteApp = gkeInterp
+        .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
+        .adaptError {
+          case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.App, None),
+              Some(msg.appId),
+              false,
+              None,
+              None
+            )
+        }
 
       deleteDisk = msg.diskId.traverse(diskId => deleteDiskForApp(diskId)).adaptError {
         case e =>

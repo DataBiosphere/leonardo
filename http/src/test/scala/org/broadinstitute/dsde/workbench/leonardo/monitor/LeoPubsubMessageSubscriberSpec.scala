@@ -1468,6 +1468,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.size shouldBe 1
       getApp.app.status shouldBe AppStatus.Error
       getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.app.auditInfo.destroyedDate shouldBe None
       getDisk.status shouldBe DiskStatus.Deleted
       deleteCalled shouldBe true
     }
@@ -1495,7 +1496,7 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
-  it should "not delete a disk that already existing on error id1" in isolatedDbTest {
+  it should "not delete a disk that already existing on error" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 

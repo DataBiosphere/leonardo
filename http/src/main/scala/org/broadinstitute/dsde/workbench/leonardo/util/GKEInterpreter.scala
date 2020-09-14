@@ -431,7 +431,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
-      _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
+      _ <- if (!params.errorAfterDelete) appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
+      else appQuery.updateStatus(dbApp.app.id, AppStatus.Error).transaction
     } yield ()
 
   private[util] def installNginx(dbCluster: KubernetesCluster,
