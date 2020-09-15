@@ -1,20 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
-import org.broadinstitute.dsde.workbench.leonardo.ClusterFixtureSpec
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec
 import org.scalatest.DoNotDiscover
 
 /**
  * This spec verifies JupyterLab functionality.
  */
 @DoNotDiscover
-class LabSpec extends ClusterFixtureSpec with LabTestUtils {
+class LabSpec extends RuntimeFixtureSpec with LabTestUtils {
 
   "Leonardo lab" - {
 
     // TODO: ignored until we officially support JupyterLab
     "should execute cells" ignore { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewLabNotebook(clusterFixture.cluster) { labNotebookPage =>
+        withNewLabNotebook(clusterFixture.runtime) { labNotebookPage =>
           labNotebookPage.runCodeInEmptyCell("1+1") shouldBe Some("2")
           labNotebookPage.runCodeInEmptyCell("2*3") shouldBe Some("6")
           labNotebookPage.runCodeInEmptyCell("""print 'Hello Notebook!'""") shouldBe Some("Hello Notebook!")

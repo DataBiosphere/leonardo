@@ -4,7 +4,6 @@ import cats.effect.IO
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.cluster.{ClusterAutopauseSpec, ClusterStatusTransitionsSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -171,13 +170,8 @@ trait GPAllocBeforeAndAfterAll extends BeforeAndAfterAll with BillingFixtures wi
 final class LeonardoSuite
     extends Suites(
       new RuntimeCreationDiskSpec,
-      new ClusterStatusTransitionsSpec,
       new LabSpec,
-      new NotebookClusterMonitoringSpec,
-      new NotebookCustomizationSpec,
-      new NotebookDataSyncingSpec,
       new LeoPubsubSpec,
-      new ClusterAutopauseSpec,
       new RuntimeAutopauseSpec,
       new RuntimePatchSpec,
       new RuntimeStatusTransitionsSpec,
