@@ -77,7 +77,6 @@ trait LeonardoTestUtils
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(
     nbExtensions = Map("saturn-iframe-extension" -> "https://app.terra.bio/jupyter-iframe-extension.js")
-    //combinedExtensions = Map("pizza" -> "pizzabutton")
   )
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
