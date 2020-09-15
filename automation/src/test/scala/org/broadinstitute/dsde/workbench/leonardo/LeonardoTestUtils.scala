@@ -76,8 +76,8 @@ trait LeonardoTestUtils
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(2, Seconds)))
 
   val multiExtensionClusterRequest = UserJupyterExtensionConfig(
-    nbExtensions = Map("map" -> "gmaps"),
-    combinedExtensions = Map("pizza" -> "pizzabutton")
+    nbExtensions = Map("saturn-iframe-extension" -> "https://app.terra.bio/jupyter-iframe-extension.js")
+    //combinedExtensions = Map("pizza" -> "pizzabutton")
   )
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")

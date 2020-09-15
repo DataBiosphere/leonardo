@@ -80,14 +80,12 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
               withNewNotebook(runtime, Python3) { notebookPage =>
                 // Check the extensions were installed
                 val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-                nbExt.get should include("jupyter-gmaps/extension  enabled")
-                nbExt.get should include("pizzabutton/index  enabled")
+                nbExt.get should include("jupyter-iframe-extension/mai enabled")
                 nbExt.get should include("translate_nbextension/main  enabled")
                 // should be installed by default
                 nbExt.get should include("toc2/main  enabled")
 
                 val serverExt = notebookPage.executeCell("! jupyter serverextension list")
-                serverExt.get should include("pizzabutton  enabled")
                 serverExt.get should include("jupyterlab  enabled")
                 // should be installed by default
                 serverExt.get should include("jupyter_nbextensions_configurator  enabled")
