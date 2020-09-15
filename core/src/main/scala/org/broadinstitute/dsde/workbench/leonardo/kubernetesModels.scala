@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              googleProject: GoogleProject,
@@ -295,11 +296,24 @@ final case class AppResources(namespace: Namespace,
                               services: List[KubernetesService],
                               kubernetesServiceAccount: Option[KubernetesServiceAccount])
 
+final case class Chart(name: ChartName, version: ChartVersion) {
+  override def toString: String = s"${name.asString}-${version.asString}"
+}
+object Chart {
+  def fromString(s: String): Option[Chart] = {
+    val nameAndVersion = s.split('-')
+    if (nameAndVersion.length == 2) {
+      Some(Chart(ChartName(nameAndVersion(0)), ChartVersion(nameAndVersion(1))))
+    } else None
+  }
+}
+
 final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
                      appType: AppType,
                      appName: AppName,
                      status: AppStatus,
+                     chart: Chart,
                      samResourceId: AppSamResourceId,
                      googleServiceAccount: WorkbenchEmail,
                      auditInfo: AuditInfo,

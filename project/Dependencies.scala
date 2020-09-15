@@ -141,6 +141,8 @@ object Dependencies {
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
     workbenchOpenTelemetryTest,
+    helmScalaSdk,
+    helmScalaSdkTest,
 //    "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
     "org.scalacheck" %% "scalacheck" % "1.14.1" % "test",
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,

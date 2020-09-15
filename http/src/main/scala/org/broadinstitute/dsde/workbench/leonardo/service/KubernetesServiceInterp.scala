@@ -379,6 +379,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
                                      ctx: AppContext): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
+    val galaxyConfig = leoKubernetesConfig.galaxyAppConfig
 
     val allLabels =
       DefaultKubernetesLabels(googleProject,
@@ -396,7 +397,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         Left(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
       else Right(diskOpt)
       namespaceName <- KubernetesName.withValidation(
-        s"${appName.value}-${leoKubernetesConfig.galaxyAppConfig.namespaceNameSuffix}",
+        s"${appName.value}-${galaxyConfig.namespaceNameSuffix}",
         NamespaceName.apply
       )
     } yield SaveApp(
@@ -406,6 +407,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         req.appType,
         appName,
         AppStatus.Precreating,
+        Chart(galaxyConfig.chartName, galaxyConfig.chartVersion),
         samResourceId,
         googleServiceAccount,
         auditInfo,
@@ -418,7 +420,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
           disk,
           req.appType match {
             case Galaxy =>
-              leoKubernetesConfig.galaxyAppConfig.services.map(config => KubernetesService(ServiceId(-1), config))
+              galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))
           },
           Option.empty
         ),

@@ -46,7 +46,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpec
 
-class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
   //used when we care about queue state
   def makeInterp(queue: InspectableQueue[IO, LeoPubsubMessage]) =
@@ -81,6 +81,7 @@ class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite wit
     clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
     val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
     app.appName shouldEqual appName
+    app.chart shouldEqual galaxyChart
     app.auditInfo.creator shouldEqual userInfo.userEmail
     app.customEnvironmentVariables shouldEqual customEnvVars
 

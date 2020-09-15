@@ -3,19 +3,19 @@ package config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{galaxyChartName, galaxyChartVersion}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
   PollMonitorConfig
 }
-import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration._
 
-class ConfigSpec extends AnyFlatSpec with Matchers {
+final class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read PersistentDiskConfig properly" in {
     val expectedResult = PersistentDiskConfig(
       DiskSize(30),
@@ -102,8 +102,8 @@ class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read GalaxyAppConfig properly" in {
     val expectedResult = GalaxyAppConfig(
       "galaxy-rls",
-      ChartName("galaxy/galaxykubeman"),
-      ChartVersion("0.5.3"),
+      galaxyChartName,
+      galaxyChartVersion,
       "galaxy-ns",
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
       "galaxy-ksa",
