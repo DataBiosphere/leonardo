@@ -2912,7 +2912,7 @@ components:
         cloudService:
           type: string
           enum: [gce, dataproc]
-    OneOfRuntimeConfig
+    OneOfRuntimeConfig:
       oneOf:
         - $ref: "#/components/schemas/GceConfig"
         - $ref: "#/components/schemas/GceWithPdConfig"
