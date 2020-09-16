@@ -2,10 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.{ClusterFixtureSpec, LeonardoConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudService, LeonardoConfig, RuntimeFixtureSpec}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
-
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration._
@@ -14,17 +13,18 @@ import scala.concurrent.duration._
  * This spec verifies Hail and Spark functionality.
  */
 @DoNotDiscover
-class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
+class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
   val expectedHailVersion = "0.2.54"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
+  override val cloudService: Option[CloudService] = Some(CloudService.Dataproc)
 
   "NotebookHailSpec" - {
     "should install the right Hail version" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+        withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
           // Verify we have the right hail version
           val importHail =
             """import hail as hl
@@ -75,9 +75,9 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
     // See https://broadworkbench.atlassian.net/browse/IA-1558
     "should import data from GCS" in { clusterFixture =>
       // Create a new bucket
-      withNewGoogleBucket(clusterFixture.cluster.googleProject) { bucketName =>
+      withNewGoogleBucket(clusterFixture.runtime.googleProject) { bucketName =>
         val ronPetServiceAccount =
-          Sam.user.petServiceAccountEmail(clusterFixture.cluster.googleProject.value)(ronAuthToken)
+          Sam.user.petServiceAccountEmail(clusterFixture.runtime.googleProject.value)(ronAuthToken)
         googleStorageDAO.setBucketAccessControl(bucketName,
                                                 EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
                                                 GcsRoles.Owner)
@@ -99,7 +99,7 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
                                                   GcsRoles.Owner)
 
           withWebDriver { implicit driver =>
-            withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+            withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
               // Import hail
               val importHail =
                 """import hail as hl
@@ -126,11 +126,11 @@ class NotebookHailSpec extends ClusterFixtureSpec with NotebookTestUtils {
     // See https://broadworkbench.atlassian.net/browse/IA-1637
     // This also simulates this featured workspace: https://app.terra.bio/#workspaces/fc-product-demo/2019_ASHG_Reproducible_GWAS
     "should import a pandas DataFrame into Hail" in { clusterFixture =>
-      withResourceFileInBucket(clusterFixture.cluster.googleProject,
+      withResourceFileInBucket(clusterFixture.runtime.googleProject,
                                ResourceFile("bucket-tests/hail_samples.csv"),
                                "text/plain") { gcsPath =>
         withWebDriver { implicit driver =>
-          withNewNotebook(clusterFixture.cluster, Python3) { notebookPage =>
+          withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
             // Localize the CSV
             val localizeResult = notebookPage.executeCell(s"! gsutil cp ${gcsPath.toUri} .")
             localizeResult shouldBe 'defined

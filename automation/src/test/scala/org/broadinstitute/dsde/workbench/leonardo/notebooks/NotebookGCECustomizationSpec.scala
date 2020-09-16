@@ -3,14 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
-import org.broadinstitute.dsde.workbench.leonardo.{
-  CloudService,
-  GPAllocFixtureSpec,
-  LeonardoApiClient,
-  LeonardoConfig,
-  RuntimeConfigRequestCopy,
-  UserScriptPath
-}
+import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoApiClient, UserScriptPath}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsPath, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.AuthScheme
@@ -70,7 +63,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
     // TODO: re-enable this test
     // Using nbtranslate extension from here:
     // https://github.com/ipython-contrib/jupyter_contrib_nbextensions/tree/master/src/jupyter_contrib_nbextensions/nbextensions/nbTranslate
-    "should install user specified notebook extensions" ignore { billingProject =>
+    "should install user specified notebook extensions" in { billingProject =>
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
@@ -87,14 +80,12 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
               withNewNotebook(runtime, Python3) { notebookPage =>
                 // Check the extensions were installed
                 val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-                nbExt.get should include("jupyter-gmaps/extension  enabled")
-                nbExt.get should include("pizzabutton/index  enabled")
+                nbExt.get should include("jupyter-iframe-extension/main  enabled")
                 nbExt.get should include("translate_nbextension/main  enabled")
                 // should be installed by default
                 nbExt.get should include("toc2/main  enabled")
 
                 val serverExt = notebookPage.executeCell("! jupyter serverextension list")
-                serverExt.get should include("pizzabutton  enabled")
                 serverExt.get should include("jupyterlab  enabled")
                 // should be installed by default
                 serverExt.get should include("jupyter_nbextensions_configurator  enabled")
@@ -211,48 +202,48 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       }
     }
 
-    // TODO: This test has flaky selenium logic, ignoring for now. More details in:
-    // https://broadworkbench.atlassian.net/browse/QA-1027
-    "should recover from out-of-memory errors" ignore { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
-      // Create a cluster with smaller memory size
-      withNewCluster(
-        billingProject,
-        request = defaultClusterRequest.copy(
-          machineConfig = Some(
-            RuntimeConfigRequestCopy.DataprocConfig(
-              cloudService = CloudService.Dataproc.asString,
-              numberOfWorkers = Some(0),
-              masterMachineType = Some("n1-standard-2"),
-              masterDiskSize = Some(500),
-              None,
-              None,
-              None,
-              None,
-              Map.empty
-            )
-          ),
-          toolDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl)
-        )
-      ) { cluster =>
-        withWebDriver { implicit driver =>
-          withNewNotebook(cluster) { notebookPage =>
-            // try to allocate 6G of RAM, which should not be possible for this machine type
-            val cell =
-              """import numpy
-                |result = [numpy.random.bytes(1024*1024) for x in range(6*1024)]
-                |print(len(result))
-                |""".stripMargin
-            notebookPage.addCodeAndExecute(cell, wait = false, timeout = 5.minutes)
-            // Kernel should restart automatically and still be functional
-            notebookPage.validateKernelDiedAndDismiss()
-            notebookPage
-              .executeCell("print('Still alive!')", timeout = 2.minutes, cellNumberOpt = Some(1))
-              .get shouldBe "Still alive!"
-          }
-        }
-      }
-    }
+//    // TODO: This test has flaky selenium logic, ignoring for now. More details in:
+//    // https://broadworkbench.atlassian.net/browse/QA-1027
+//    "should recover from out-of-memory errors" ignore { billingProject =>
+//      implicit val ronToken: AuthToken = ronAuthToken
+//
+//      // Create a cluster with smaller memory size
+//      withNewCluster(
+//        billingProject,
+//        request = defaultClusterRequest.copy(
+//          machineConfig = Some(
+//            RuntimeConfigRequestCopy.DataprocConfig(
+//              cloudService = CloudService.Dataproc.asString,
+//              numberOfWorkers = Some(0),
+//              masterMachineType = Some("n1-standard-2"),
+//              masterDiskSize = Some(500),
+//              None,
+//              None,
+//              None,
+//              None,
+//              Map.empty
+//            )
+//          ),
+//          toolDockerImage = Some(LeonardoConfig.Leonardo.pythonImageUrl)
+//        )
+//      ) { cluster =>
+//        withWebDriver { implicit driver =>
+//          withNewNotebook(cluster) { notebookPage =>
+//            // try to allocate 6G of RAM, which should not be possible for this machine type
+//            val cell =
+//              """import numpy
+//                |result = [numpy.random.bytes(1024*1024) for x in range(6*1024)]
+//                |print(len(result))
+//                |""".stripMargin
+//            notebookPage.addCodeAndExecute(cell, wait = false, timeout = 5.minutes)
+//            // Kernel should restart automatically and still be functional
+//            notebookPage.validateKernelDiedAndDismiss()
+//            notebookPage
+//              .executeCell("print('Still alive!')", timeout = 2.minutes, cellNumberOpt = Some(1))
+//              .get shouldBe "Still alive!"
+//          }
+//        }
+//      }
+//    }
   }
 }

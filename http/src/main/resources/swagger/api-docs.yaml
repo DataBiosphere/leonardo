@@ -291,7 +291,7 @@ paths:
         "202":
           description: Runtime deletion request accepted
         "403":
-          description: User does not have permission to perform action on cluster
+          description: User does not have permission to perform action on runtime
         "404":
           description: Runtime not found
           content:
@@ -2243,7 +2243,7 @@ components:
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         runtimeConfig:
-          $ref: "#/components/schemas/MachineConfig"
+          $ref: "#/components/schemas/OneOfRuntimeConfig"
         proxyUrl:
           type: string
           description: The URL to access a tool on the runtime
@@ -2406,7 +2406,7 @@ components:
           type: string
           description: The Google Project used to create the runtime
         runtimeConfig:
-          $ref: "#/components/schemas/MachineConfig"
+          $ref: "#/components/schemas/OneOfRuntimeConfig"
         proxyUrl:
           type: string
           description: The URL to access a tool on the runtime
@@ -2691,12 +2691,7 @@ components:
             script at this URI do not affect the cluster. Timestamped logs for this script can be
             found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
         runtimeConfig:
-          oneOf:
-            - $ref: "#/components/schemas/GceConfig"
-            - $ref: "#/components/schemas/GceWithPdConfig"
-            - $ref: "#/components/schemas/MachineConfig"
-          discriminator:
-            propertyName: cloudService
+          $ref: "#/components/schemas/OneOfRuntimeConfig"
         autopause:
           type: boolean
           description: Whether autopause feature is enabled for this specific cluster. If
@@ -2806,6 +2801,9 @@ components:
             - $ref: "#/components/schemas/UpdateDataprocConfig"
           discriminator:
             propertyName: cloudService
+            mapping:
+              gce: "#/components/schemas/UpdateGceConfig"
+              dataproc: "#/components/schemas/UpdateDataprocConfig"
         allowStop:
           type: boolean
           description: Whether leo should stop the runtime if it is necessary for the
@@ -2813,10 +2811,10 @@ components:
             was required. Defaults to false.
         autopause:
           type: boolean
-          description: Whether autopause feature is enabled for this specific cluster.
+          description: Whether autopause feature is enabled for this specific runtime.
         autopauseThreshold:
           type: integer
-          description: The number of minutes of idle time to elapse before the cluster is
+          description: The number of minutes of idle time to elapse before the runtime is
             autopaused. If autopause is set to false, this value is disregarded.
             A value of 0 is equivalent to autopause being turned off.
     CreateDiskRequest:
@@ -2914,6 +2912,16 @@ components:
         cloudService:
           type: string
           enum: [gce, dataproc]
+    OneOfRuntimeConfig:
+      oneOf:
+        - $ref: "#/components/schemas/GceConfig"
+        - $ref: "#/components/schemas/GceWithPdConfig"
+        - $ref: "#/components/schemas/MachineConfig"
+      discriminator:
+        propertyName: cloudService
+        mapping:
+          gce: "#/components/schemas/GceWithPdConfig"
+          dataproc: "#/components/schemas/MachineConfig"
     RuntimeImage:
       type: object
       properties:
@@ -3006,7 +3014,7 @@ components:
             workerDiskSize:
               type: integer
               description: >
-                Optional, the size in gigabytes of the disk on the master node.
+                Optional, the size in gigabytes of the disk on the worker nodes.
                 Minimum size is 10GB. If unspecified, default size is 100GB.
 
                 Ignored if numberOfWorkers is 0.
