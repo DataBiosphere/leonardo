@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "0.1.0"
+  version: "0.2.0"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -1646,14 +1646,14 @@ paths:
 
   ## Proxy API ##
 
-  "/proxy/{googleProject}/{clusterName}/jupyter":
+  "/proxy/{googleProject}/{runtimeName}/jupyter":
     get:
-      summary: Access Jupyter (if installed) on a Dataproc cluster
+      summary: Access Jupyter (if installed) on a Leonardo runtime
       description: >
         This URI supports all HTTP methods, not just GET as implied by this
         Swagger.
 
-        Proxies all requests through to the tool server running on the given cluster.
+        Proxies all requests through to the tool server running on the given runtime.
       operationId: proxyClusterJupyter
       tags:
         - proxy
@@ -1665,8 +1665,8 @@ paths:
           schema:
             type: string
         - in: path
-          name: clusterName
-          description: clusterName
+          name: runtimeName
+          description: runtimeName
           required: true
           schema:
             type: string
@@ -1680,19 +1680,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "404":
-          description: Cluster not found
+          description: Runtime not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "420":
-          description: Cluster not ready
+          description: Runtime not ready
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "422":
-          description: Cluster is stopped
+          description: Runtime is stopped
           content:
             application/json:
               schema:
@@ -1703,14 +1703,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/proxy/{googleProject}/{clusterName}/jupyter/lab":
+  "/proxy/{googleProject}/{runtimeName}/jupyter/lab":
     get:
-      summary: Access Jupyter Lab (if installed) on a Dataproc cluster
+      summary: Access Jupyter Lab (if installed) on a Leonardo runtime
       description: >
         This URI supports all HTTP methods, not just GET as implied by this
         Swagger.
 
-        Proxies all requests through to the tool server running on the given cluster.
+        Proxies all requests through to the tool server running on the given runtime.
       operationId: proxyClusterJupyterLab
       tags:
         - proxy
@@ -1722,8 +1722,8 @@ paths:
           schema:
             type: string
         - in: path
-          name: clusterName
-          description: clusterName
+          name: runtimeName
+          description: runtimeName
           required: true
           schema:
             type: string
@@ -1737,19 +1737,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "404":
-          description: Cluster not found
+          description: Runtime not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "420":
-          description: Cluster not ready
+          description: Runtime not ready
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "422":
-          description: Cluster is stopped
+          description: Runtime is stopped
           content:
             application/json:
               schema:
@@ -1760,14 +1760,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/proxy/{googleProject}/{clusterName}/rstudio":
+  "/proxy/{googleProject}/{runtimeName}/rstudio":
     get:
-      summary: Access RStudio (if installed) on a Dataproc cluster
+      summary: Access RStudio (if installed) on a Leonardo runtime
       description: >
         This URI supports all HTTP methods, not just GET as implied by this
         Swagger.
 
-        Proxies all requests through to the tool server running on the given cluster.
+        Proxies all requests through to the tool server running on the given runtime.
       operationId: proxyClusterRStudio
       tags:
         - proxy
@@ -1779,8 +1779,8 @@ paths:
           schema:
             type: string
         - in: path
-          name: clusterName
-          description: clusterName
+          name: runtimeName
+          description: runtimeName
           required: true
           schema:
             type: string
@@ -1794,19 +1794,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "404":
-          description: Cluster not found
+          description: Runtime not found
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "420":
-          description: Cluster not ready
+          description: Runtime not ready
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
         "422":
-          description: Cluster is stopped
+          description: Runtime is stopped
           content:
             application/json:
               schema:
@@ -1817,54 +1817,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/proxy/{googleProject}/{clusterName}/setCookie":
-    get:
-      summary: Sets a browser cookie needed to authorize connections to a Dataproc
-        cluster
-      description: >
-        If using Google token-based authorization to a cluster, the Leo proxy
-        accepts a
-
-        Google token passed as a cookie value. This endpoint facilitates setting that cookie.
-
-        It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
-      operationId: setCookie
-      tags:
-        - proxy
-      parameters:
-        - in: path
-          name: googleProject
-          required: true
-          schema:
-            type: string
-        - in: path
-          name: clusterName
-          description: clusterName
-          required: true
-          schema:
-            type: string
-      responses:
-        "204":
-          description: Successfully set a cookie
-        "401":
-          description: Proxy connection unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "404":
-          description: Cluster not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-        "500":
-          description: Internal Error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorReport"
-  /proxy/google/v1/apps/{googleProject}/{appName}/{serviceName}:
+  "/proxy/google/v1/apps/{googleProject}/{appName}/{serviceName}":
     get:
       summary: Access an app if the app and service name exists
       description: >
@@ -1927,22 +1880,91 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  /proxy/invalidateToken:
+  "/proxy/setCookie":
+    get:
+      summary: Sets a browser cookie needed to authorize connections to a Leonardo runtime
+      description: >
+        If using Google token-based authorization to a runtime, the Leo proxy
+        accepts a Google token passed as a cookie value. This endpoint facilitates setting that cookie.
+
+        It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
+      operationId: setCookie
+      tags:
+        - proxy
+      responses:
+        "204":
+          description: Successfully set a cookie
+        "401":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/invalidateToken":
     get:
       summary: Invalidates a token
       description: >
         If using Google token-based auth, call this endpoint when a user's
-        Google token is invalidated
-
-        (e.g. when logging out of the application). This ensures that the token is also invalidated in Leo
-
-        and that the user's proxied connections stop working.
+        Google token is invalidated (e.g. when logging out of the application).
+        This ensures that the token is also invalidated in Leo and that the user's
+        proxied connections stop working.
       operationId: invalidateToken
       tags:
         - proxy
       responses:
         "200":
           description: Successfully invalidated a token
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{runtimeName}/setCookie":
+    get:
+      deprecated: true
+      summary: (Deprecated) Sets a browser cookie needed to authorize connections to a Leonardo runtime
+      description: >
+        If using Google token-based authorization to a runtime, the Leo proxy
+        accepts a Google token passed as a cookie value. This endpoint facilitates setting that cookie.
+
+        It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
+      operationId: setCookieDeprecated
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: runtimeName
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Successfully set a cookie
+        "401":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
         "500":
           description: Internal Error
           content:
