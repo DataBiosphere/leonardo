@@ -29,6 +29,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              location: Location,
                              region: RegionName,
                              status: KubernetesClusterStatus,
+                             ingressChart: Chart,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
@@ -297,13 +298,19 @@ final case class AppResources(namespace: Namespace,
                               kubernetesServiceAccount: Option[KubernetesServiceAccount])
 
 final case class Chart(name: ChartName, version: ChartVersion) {
-  override def toString: String = s"${name.asString}-${version.asString}"
+  override def toString: String = s"${name.asString}${Chart.nameVersionSeparator}${version.asString}"
 }
 object Chart {
+  val nameVersionSeparator: Char = '-'
+
   def fromString(s: String): Option[Chart] = {
-    val nameAndVersion = s.split('-')
-    if (nameAndVersion.length == 2) {
-      Some(Chart(ChartName(nameAndVersion(0)), ChartVersion(nameAndVersion(1))))
+    val separatorIndex = s.lastIndexOf(nameVersionSeparator)
+    if (separatorIndex > 0) {
+      val name = s.substring(0, separatorIndex)
+      val version = s.substring(separatorIndex + 1)
+      if (!name.isEmpty && !version.isEmpty) {
+        Some(Chart(ChartName(name), ChartVersion(version)))
+      } else None
     } else None
   }
 }

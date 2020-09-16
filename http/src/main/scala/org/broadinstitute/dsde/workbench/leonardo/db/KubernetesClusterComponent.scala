@@ -26,6 +26,7 @@ final case class KubernetesClusterRecord(id: KubernetesClusterLeoId,
                                          createdDate: Instant,
                                          destroyedDate: Instant,
                                          dateAccessed: Instant,
+                                         ingressChart: Chart,
                                          loadBalancerIp: Option[IP],
                                          apiServerIp: Option[IP],
                                          networkName: Option[NetworkName],
@@ -43,6 +44,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
+  def ingressChart = column[Chart]("ingressChart", O.Length(254))
   def loadBalancerIp = column[Option[IP]]("loadBalancerIp", O.Length(254))
   def apiServerIp = column[Option[IP]]("apiServerIp", O.Length(254))
   def networkName = column[Option[NetworkName]]("networkName", O.Length(254))
@@ -62,6 +64,7 @@ case class KubernetesClusterTable(tag: Tag) extends Table[KubernetesClusterRecor
      createdDate,
      destroyedDate,
      dateAccessed,
+     ingressChart,
      loadBalancerIp,
      apiServerIp,
      networkName,
@@ -93,7 +96,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
     ).map(_.headOption)
 
   private[db] def save(saveCluster: SaveKubernetesCluster)(implicit ec: ExecutionContext): DBIO[KubernetesCluster] = {
-    val clusterRecord = saveCluster.toClusterRecord()
+    val clusterRecord = saveCluster.toClusterRecord
     for {
       clusterId <- kubernetesClusterQuery returning kubernetesClusterQuery.map(_.id) += clusterRecord
       nodepool <- nodepoolQuery.saveForCluster(saveCluster.defaultNodepool.copy(clusterId = clusterId).toNodepool())
@@ -175,6 +178,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       cr.location,
       cr.region,
       cr.status,
+      cr.ingressChart,
       AuditInfo(
         cr.creator,
         cr.createdDate,
@@ -218,9 +222,10 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
                                  location: Location,
                                  region: RegionName,
                                  status: KubernetesClusterStatus,
+                                 ingressChart: Chart,
                                  auditInfo: AuditInfo,
                                  defaultNodepool: DefaultNodepool) {
-  def toClusterRecord(): KubernetesClusterRecord =
+  def toClusterRecord: KubernetesClusterRecord =
     KubernetesClusterRecord(
       KubernetesClusterLeoId(0),
       googleProject,
@@ -232,6 +237,7 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
       auditInfo.createdDate,
       dummyDate,
       auditInfo.dateAccessed,
+      ingressChart,
       None,
       None,
       None,

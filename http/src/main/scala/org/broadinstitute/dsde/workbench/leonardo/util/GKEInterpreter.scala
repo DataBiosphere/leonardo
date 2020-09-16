@@ -446,7 +446,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
       _ <- logger.info(
-        s"Installing ingress helm chart ${config.ingressConfig.chartInfo} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Installing ingress helm chart ${config.ingressConfig.chart} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, config.ingressConfig.namespace)
@@ -496,7 +496,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ctx <- ev.ask
 
       _ <- logger.info(
-        s"Installing helm chart ${config.galaxyAppConfig.chartInfo} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
@@ -549,7 +549,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ctx <- ev.ask
 
       _ <- logger.info(
-        s"Uninstalling helm chart ${config.galaxyAppConfig.chartInfo} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Uninstalling helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)

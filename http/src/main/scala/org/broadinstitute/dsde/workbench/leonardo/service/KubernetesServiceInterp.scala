@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   Config,
   GalaxyAppConfig,
   KubernetesClusterConfig,
+  KubernetesIngressConfig,
   NodepoolConfig,
   PersistentDiskConfig
 }
@@ -50,7 +51,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 
 import scala.concurrent.ExecutionContext
 
-class LeoKubernetesServiceInterp[F[_]: Parallel](
+final class LeoKubernetesServiceInterp[F[_]: Parallel](
   protected val authProvider: LeoAuthProvider[F],
   protected val serviceAccountProvider: ServiceAccountProvider[F],
   protected val leoKubernetesConfig: LeoKubernetesConfig,
@@ -332,6 +333,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       location = leoKubernetesConfig.clusterConfig.location,
       region = leoKubernetesConfig.clusterConfig.region,
       status = KubernetesClusterStatus.Precreating,
+      ingressChart = leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
       defaultNodepool = nodepool
     )
@@ -436,6 +438,7 @@ object LeoKubernetesServiceInterp {
   case class LeoKubernetesConfig(serviceAccountConfig: ServiceAccountProviderConfig,
                                  clusterConfig: KubernetesClusterConfig,
                                  nodepoolConfig: NodepoolConfig,
+                                 ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,
                                  diskConfig: PersistentDiskConfig)
 }

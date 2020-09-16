@@ -133,6 +133,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
             c.location,
             c.region,
             c.status,
+            c.ingressChart,
             c.auditInfo,
             DefaultNodepool.fromNodepool(
               c.nodepools.headOption

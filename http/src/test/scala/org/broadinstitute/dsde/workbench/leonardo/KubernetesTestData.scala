@@ -104,6 +104,7 @@ object KubernetesTestData {
       location,
       region,
       KubernetesClusterStatus.Unspecified,
+      ingressChart,
       auditInfo,
       None,
       List(),

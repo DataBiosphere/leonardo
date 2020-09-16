@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import org.broadinstitute.dsde.workbench.leonardo.ServiceConfig
+import org.broadinstitute.dsde.workbench.leonardo.{Chart, ServiceConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 final case class GalaxyAppConfig(releaseNameSuffix: String,
@@ -11,5 +11,5 @@ final case class GalaxyAppConfig(releaseNameSuffix: String,
                                  serviceAccountSuffix: String,
                                  uninstallKeepHistory: Boolean) {
 
-  def chartInfo: String = s"${chartName.asString}-${chartVersion.asString}"
+  def chart: Chart = Chart(chartName, chartVersion)
 }

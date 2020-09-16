@@ -629,6 +629,7 @@ object Config {
   val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
                                                 gkeClusterConfig,
                                                 gkeNodepoolConfig,
+                                                gkeIngressConfig,
                                                 gkeGalaxyAppConfig,
                                                 persistentDiskConfig)
 
