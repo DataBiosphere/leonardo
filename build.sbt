@@ -4,15 +4,14 @@ import Testing._
 lazy val root = project.in(file("."))
   .settings(
     name := "leonardo",
-    skip in publish := true,
-    rootSettings
+    skip in publish := true
   ).aggregate(core, http, automation)
 
 lazy val core = project.in(file("core"))
   .settings(coreSettings)
 
 lazy val http = project.in(file("http"))
-  .settings(rootSettings)
+  .settings(httpSettings)
   .dependsOn(core % "test->test;compile->compile")
   .withTestSettings
 
