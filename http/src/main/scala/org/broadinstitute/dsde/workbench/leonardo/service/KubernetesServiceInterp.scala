@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{
   Config,
   GalaxyAppConfig,
   KubernetesClusterConfig,
+  KubernetesIngressConfig,
   NodepoolConfig,
   PersistentDiskConfig
 }
@@ -50,7 +51,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 
 import scala.concurrent.ExecutionContext
 
-class LeoKubernetesServiceInterp[F[_]: Parallel](
+final class LeoKubernetesServiceInterp[F[_]: Parallel](
   protected val authProvider: LeoAuthProvider[F],
   protected val serviceAccountProvider: ServiceAccountProvider[F],
   protected val leoKubernetesConfig: LeoKubernetesConfig,
@@ -332,6 +333,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
       location = leoKubernetesConfig.clusterConfig.location,
       region = leoKubernetesConfig.clusterConfig.region,
       status = KubernetesClusterStatus.Precreating,
+      ingressChart = leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
       defaultNodepool = nodepool
     )
@@ -379,6 +381,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
                                      ctx: AppContext): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
+    val galaxyConfig = leoKubernetesConfig.galaxyAppConfig
 
     val allLabels =
       DefaultKubernetesLabels(googleProject,
@@ -396,7 +399,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         Left(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
       else Right(diskOpt)
       namespaceName <- KubernetesName.withValidation(
-        s"${appName.value}-${leoKubernetesConfig.galaxyAppConfig.namespaceNameSuffix}",
+        s"${appName.value}-${galaxyConfig.namespaceNameSuffix}",
         NamespaceName.apply
       )
     } yield SaveApp(
@@ -406,6 +409,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
         req.appType,
         appName,
         AppStatus.Precreating,
+        Chart(galaxyConfig.chartName, galaxyConfig.chartVersion),
         samResourceId,
         googleServiceAccount,
         auditInfo,
@@ -418,7 +422,7 @@ class LeoKubernetesServiceInterp[F[_]: Parallel](
           disk,
           req.appType match {
             case Galaxy =>
-              leoKubernetesConfig.galaxyAppConfig.services.map(config => KubernetesService(ServiceId(-1), config))
+              galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))
           },
           Option.empty
         ),
@@ -434,6 +438,7 @@ object LeoKubernetesServiceInterp {
   case class LeoKubernetesConfig(serviceAccountConfig: ServiceAccountProviderConfig,
                                  clusterConfig: KubernetesClusterConfig,
                                  nodepoolConfig: NodepoolConfig,
+                                 ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,
                                  diskConfig: PersistentDiskConfig)
 }

@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCrea
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
@@ -29,6 +30,14 @@ object KubernetesTestData {
   val autoscalingConfig = AutoscalingConfig(AutoscalingMin(1), AutoscalingMax(2))
 
   val galaxyApp = AppType.Galaxy
+
+  val galaxyChartName = ChartName("galaxy/galaxykubeman")
+  val galaxyChartVersion = ChartVersion("0.5.3")
+  val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
+
+  val ingressChartName = ChartName("stable/nginx-ingress")
+  val ingressChartVersion = ChartVersion("1.41.3")
+  val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val serviceKind = KubernetesServiceKindName("ClusterIP")
   val protocol = Protocol("TCP")
@@ -95,6 +104,7 @@ object KubernetesTestData {
       location,
       region,
       KubernetesClusterStatus.Unspecified,
+      ingressChart,
       auditInfo,
       None,
       List(),
@@ -116,6 +126,7 @@ object KubernetesTestData {
       galaxyApp,
       name,
       AppStatus.Unspecified,
+      galaxyChart,
       appSamId,
       serviceAccountEmail,
       auditInfo,

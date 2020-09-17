@@ -141,6 +141,8 @@ object Dependencies {
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
     workbenchOpenTelemetryTest,
+    helmScalaSdk,
+    helmScalaSdkTest,
 //    "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
     "org.scalacheck" %% "scalacheck" % "1.14.1" % "test",
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
@@ -153,7 +155,7 @@ object Dependencies {
     scalaTestScalaCheck
   )
 
-  val rootDependencies = Seq(
+  val httpDependencies = Seq(
     // proactively pull in latest versions of Jackson libs, instead of relying on the versions
     // specified as transitive dependencies, due to OWASP DependencyCheck warnings for earlier versions.
     jacksonAnnotations,
@@ -183,8 +185,6 @@ object Dependencies {
     workbenchGoogleTest,
     workbenchErrorReporting,
     workbenchErrorReportingTest,
-    helmScalaSdk,
-    helmScalaSdkTest,
     "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
     "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
     "com.rms.miu" %% "slick-cats" % "0.10.1",

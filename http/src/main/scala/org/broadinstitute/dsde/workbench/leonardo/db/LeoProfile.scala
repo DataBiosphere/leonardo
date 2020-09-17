@@ -188,6 +188,11 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         _.toString,
         s => AppStatus.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid app status ${s}"))
       )
+    implicit val chartColumnType: BaseColumnType[Chart] =
+      MappedColumnType.base[Chart, String](
+        _.toString,
+        s => Chart.fromString(s).getOrElse(throw ColumnDecodingException(s"invalid chart ${s}"))
+      )
 
     implicit val errorSourceColumnType: BaseColumnType[ErrorSource] =
       MappedColumnType.base[ErrorSource, String](

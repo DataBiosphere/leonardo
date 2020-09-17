@@ -103,18 +103,18 @@ object Settings {
 
   val coreSettings = commonSettings ++ commonTestSettings ++ List(
     libraryDependencies ++= coreDependencies
-    //the version is applied in rootVersionSettings and is set to 0.1-githash.
+    //the version is applied in versionSettings and is set to 0.1-githash.
     //we don't really use it for anything but we might when we publish our model
-  ) ++ rootVersionSettings
+  ) ++ versionSettings
 
   //the full list of settings for the root project that's ultimately the one we build into a fat JAR and run
   //coreDefaultSettings (inside commonSettings) sets the project name, which we want to override, so ordering is important.
   //thus commonSettings needs to be added first.
-  val rootSettings = commonSettings ++ commonTestSettings ++ List(
-    libraryDependencies ++= rootDependencies
-    //the version is applied in rootVersionSettings and is set to 0.1-githash.
+  val httpSettings = commonSettings ++ commonTestSettings ++ List(
+    libraryDependencies ++= httpDependencies
+    //the version is applied in versionSettings and is set to 0.1-githash.
     //we don't really use it for anything but we might when we publish our model
-  ) ++ commonAssemblySettings ++ rootVersionSettings
+  ) ++ commonAssemblySettings ++ versionSettings
 
   val automationSettings = commonSettings ++ List(
     libraryDependencies ++= automationDependencies,

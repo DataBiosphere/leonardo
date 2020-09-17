@@ -62,4 +62,5 @@
     <include file="changesets/20200708_kubernetes_add_errors_and_region.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200817_add_ksa_and_gsa_to_app_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20200817_kubernetes_cluster_api_server.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20200915_add_chart_to_app_and_cluster_tables.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

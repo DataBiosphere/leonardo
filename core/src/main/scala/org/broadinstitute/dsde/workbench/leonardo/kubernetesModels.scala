@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              googleProject: GoogleProject,
@@ -28,6 +29,7 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              location: Location,
                              region: RegionName,
                              status: KubernetesClusterStatus,
+                             ingressChart: Chart,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
@@ -295,11 +297,30 @@ final case class AppResources(namespace: Namespace,
                               services: List[KubernetesService],
                               kubernetesServiceAccount: Option[KubernetesServiceAccount])
 
+final case class Chart(name: ChartName, version: ChartVersion) {
+  override def toString: String = s"${name.asString}${Chart.nameVersionSeparator}${version.asString}"
+}
+object Chart {
+  val nameVersionSeparator: Char = '-'
+
+  def fromString(s: String): Option[Chart] = {
+    val separatorIndex = s.lastIndexOf(nameVersionSeparator)
+    if (separatorIndex > 0) {
+      val name = s.substring(0, separatorIndex)
+      val version = s.substring(separatorIndex + 1)
+      if (!name.isEmpty && !version.isEmpty) {
+        Some(Chart(ChartName(name), ChartVersion(version)))
+      } else None
+    } else None
+  }
+}
+
 final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
                      appType: AppType,
                      appName: AppName,
                      status: AppStatus,
+                     chart: Chart,
                      samResourceId: AppSamResourceId,
                      googleServiceAccount: WorkbenchEmail,
                      auditInfo: AuditInfo,

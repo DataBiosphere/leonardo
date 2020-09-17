@@ -93,7 +93,7 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
     val savedCluster1 = makeKubeCluster(1).save()
 
     val newAsyncFields = KubernetesClusterAsyncFields(loadBalancerIp, apiServerIp, networkFields)
-    assert(savedCluster1.asyncFields != Some(newAsyncFields))
+    assert(!savedCluster1.asyncFields.contains(newAsyncFields))
 
     dbFutureValue(kubernetesClusterQuery.updateAsyncFields(savedCluster1.id, newAsyncFields)) shouldBe 1
     val updatedCluster1 = dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id))

@@ -19,6 +19,7 @@ final case class AppRecord(id: AppId,
                            appType: AppType,
                            appName: AppName,
                            status: AppStatus,
+                           chart: Chart,
                            samResourceId: AppSamResourceId,
                            googleServiceAccount: WorkbenchEmail,
                            kubernetesServiceAccount: Option[KubernetesServiceAccount],
@@ -37,6 +38,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def appType = column[AppType]("appType", O.Length(254))
   def appName = column[AppName]("appName", O.Length(254))
   def status = column[AppStatus]("status", O.Length(254))
+  def chart = column[Chart]("chart", O.Length(254))
   def samResourceId = column[AppSamResourceId]("samResourceId", O.Length(254))
   def googleServiceAccount = column[WorkbenchEmail]("googleServiceAccount", O.Length(254))
   def kubernetesServiceAccount = column[Option[KubernetesServiceAccount]]("kubernetesServiceAccount", O.Length(254))
@@ -55,6 +57,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       appType,
       appName,
       status,
+      chart,
       samResourceId,
       googleServiceAccount,
       kubernetesServiceAccount,
@@ -81,6 +84,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       app.appType,
       app.appName,
       app.status,
+      app.chart,
       app.samResourceId,
       app.googleServiceAccount,
       AuditInfo(
@@ -146,6 +150,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.appType,
         saveApp.app.appName,
         saveApp.app.status,
+        saveApp.app.chart,
         saveApp.app.samResourceId,
         saveApp.app.googleServiceAccount,
         ksaOpt,
@@ -167,6 +172,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
     getByIdQuery(id)
       .map(_.status)
       .update(status)
+
+  def updateChart(id: AppId, chart: Chart): DBIO[Int] =
+    getByIdQuery(id)
+      .map(_.chart)
+      .update(chart)
 
   def updateKubernetesServiceAccount(id: AppId, ksa: KubernetesServiceAccount): DBIO[Int] =
     getByIdQuery(id)
