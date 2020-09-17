@@ -401,17 +401,20 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         Left(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
       else Right(diskOpt)
 
-      // Generate namespace and app release names using a unique 6-character string prefix.
+      // Generate namespace and app release names using a random 6-character string prefix.
       //
       // Theoretically release names should only need to be unique within a namespace, but the Galaxy
       // installation requires that release names be unique within a cluster.
       //
-      // Note these names need to adhere to Kubernetes naming requirements; additionally the release
-      // name is used by the Galaxy chart templates to generate longer strings like preload-cache-cvmfs-gxy-main-<release>.
+      // Note these names must adhere to Kubernetes naming requirements; additionally the release
+      // name is used by the Galaxy chart templates to generate longer strings like preload-cache-cvmfs-gxy-main-<release>
+      // which also need to be valid Kubernetes names.
       //
-      // Previously we used appName instead of a 6-character uid, but it is better to decouple this string
-      // from UI-generated Leo app names.
-      uid = RandomStringUtils.randomAlphanumeric(6)
+      // Previously we used appName as the prefix instead of a 6-character uid, but thought it is better to
+      // decouple this string from UI-generated Leo app names because of hidden k8s/Galaxy constraints.
+      //
+      // There are DB constraints to handle potential name collisions.
+      uid = s"${RandomStringUtils.randomAlphabetic(1)}${RandomStringUtils.randomAlphanumeric(5)}".toLowerCase
       namespaceName <- KubernetesName.withValidation(
         s"${uid}-${galaxyConfig.namespaceNameSuffix}",
         NamespaceName.apply

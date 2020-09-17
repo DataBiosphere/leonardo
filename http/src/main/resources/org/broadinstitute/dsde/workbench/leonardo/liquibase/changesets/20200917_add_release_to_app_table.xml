@@ -7,8 +7,10 @@
             </column>
         </addColumn>
 
-        <sql>UPDATE APP SET `release` = 'dummyReleaseName' WHERE `release` IS NULL</sql>
+        <sql>UPDATE APP SET `release` = CONCAT('dummy-', UUID_SHORT()) WHERE `release` IS NULL</sql>
 
         <addNotNullConstraint columnName="release" columnDataType="VARCHAR(254)" tableName="APP"/>
+
+        <addUniqueConstraint columnNames="release" constraintName="IDX_APP_RELEASE_UNIQUE" tableName="APP"/>
     </changeSet>
 </databaseChangeLog>
