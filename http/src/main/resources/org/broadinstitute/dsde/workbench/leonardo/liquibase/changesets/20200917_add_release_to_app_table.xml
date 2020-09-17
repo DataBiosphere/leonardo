@@ -7,7 +7,7 @@
             </column>
         </addColumn>
 
-        <sql>UPDATE APP SET release = 'dummyReleaseName' WHERE release IS NULL</sql>
+        <sql>UPDATE APP SET `release` = 'dummyReleaseName' WHERE `release` IS NULL</sql>
 
         <addNotNullConstraint columnName="release" columnDataType="VARCHAR(254)" tableName="APP"/>
     </changeSet>
