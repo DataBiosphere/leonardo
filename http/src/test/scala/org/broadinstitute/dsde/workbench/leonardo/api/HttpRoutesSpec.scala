@@ -409,7 +409,7 @@ class HttpRoutesSpec
 
   it should "validate app name" in {
     Get("/api/google/v1/apps/googleProject1/1badApp") ~> routes.route ~> check {
-      status.intValue shouldBe 500
+      status.intValue shouldBe 400
     }
   }
 

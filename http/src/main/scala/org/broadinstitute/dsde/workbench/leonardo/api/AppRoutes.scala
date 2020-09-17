@@ -62,7 +62,7 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
                 }
               } ~
               pathPrefix(Segment) { appNameString =>
-                RouteValidation.validateKubernetesName(appNameString, AppName.apply) { appName =>
+                RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
                   pathEndOrSingleSlash {
                     post {
                       entity(as[CreateAppRequest]) { req =>
