@@ -205,6 +205,18 @@ object LeoPubsubMessage {
       )
   }
 
+  // cases:
+  // - Some(cluster), Some(nodepool)  [ cluster does not exist  ]
+  // - None, Some(nodepool)   [ cluster already exists ]
+  // - None, None  [ claimed nodepool ]
+  sealed trait ClusterNodepoolState extends Product with Serializable
+  object ClusterNodepoolState {
+    final case object Exists extends ClusterNodepoolState
+    final case class CreateNodepool(nodepoolId: NodepoolLeoId) extends ClusterNodepoolState
+    final case class CreateClusterAndNodepool(cluster: CreateCluster, nodepoolLeoId: NodepoolLeoId)
+        extends ClusterNodepoolState
+  }
+
   final case class CreateAppMessage(cluster: Option[CreateCluster],
                                     appId: AppId,
                                     appName: AppName,
