@@ -590,7 +590,7 @@ object Config {
       config.as[ChartVersion]("chartVersion"),
       config.as[String]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
-      config.as[String]("serviceAccountSuffix"),
+      config.as[KubernetesServiceAccount]("serviceAccountName"),
       config.as[Boolean]("uninstallKeepHistory")
     )
   }
@@ -599,6 +599,8 @@ object Config {
   implicit private val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
   implicit private val chartNameReader: ValueReader[ChartName] = stringValueReader.map(ChartName)
   implicit private val chartVersionReader: ValueReader[ChartVersion] = stringValueReader.map(ChartVersion)
+  implicit private val kubernetesServiceAccountReader: ValueReader[KubernetesServiceAccount] =
+    stringValueReader.map(KubernetesServiceAccount)
   implicit private val valueConfigReader: ValueReader[ValueConfig] = stringValueReader.map(ValueConfig)
 
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>

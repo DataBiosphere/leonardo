@@ -17,7 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsp.{ChartName, ChartVersion}
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              googleProject: GoogleProject,
@@ -321,6 +321,7 @@ final case class App(id: AppId,
                      appName: AppName,
                      status: AppStatus,
                      chart: Chart,
+                     release: Release,
                      samResourceId: AppSamResourceId,
                      googleServiceAccount: WorkbenchEmail,
                      auditInfo: AuditInfo,

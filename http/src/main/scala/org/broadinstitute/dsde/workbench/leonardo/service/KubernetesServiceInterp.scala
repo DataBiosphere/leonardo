@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   SaveKubernetesCluster
 }
 import cats.implicits._
+import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   Config,
   GalaxyAppConfig,
@@ -48,6 +49,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsp.Release
 
 import scala.concurrent.ExecutionContext
 
@@ -398,9 +400,25 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       disk <- if (req.appType == AppType.Galaxy && diskOpt.isEmpty)
         Left(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
       else Right(diskOpt)
+
+      // Generate namespace and app release names using a unique 6-character string prefix.
+      //
+      // Theoretically release names should only need to be unique within a namespace, but the Galaxy
+      // installation requires that release names be unique within a cluster.
+      //
+      // Note these names need to adhere to Kubernetes naming requirements; additionally the release
+      // name is used by the Galaxy chart templates to generate longer strings like preload-cache-cvmfs-gxy-main-<release>.
+      //
+      // Previously we used appName instead of a 6-character uid, but it is better to decouple this string
+      // from UI-generated Leo app names.
+      uid = RandomStringUtils.randomAlphanumeric(6)
       namespaceName <- KubernetesName.withValidation(
-        s"${appName.value}-${galaxyConfig.namespaceNameSuffix}",
+        s"${uid}-${galaxyConfig.namespaceNameSuffix}",
         NamespaceName.apply
+      )
+      release <- KubernetesName.withValidation(
+        s"${uid}-${galaxyConfig.releaseNameSuffix}",
+        Release.apply
       )
     } yield SaveApp(
       App(
@@ -410,6 +428,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         appName,
         AppStatus.Precreating,
         Chart(galaxyConfig.chartName, galaxyConfig.chartVersion),
+        release,
         samResourceId,
         googleServiceAccount,
         auditInfo,

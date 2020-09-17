@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterNam
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
+import org.broadinstitute.dsp.Release
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
 
@@ -193,6 +194,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         _.toString,
         s => Chart.fromString(s).getOrElse(throw ColumnDecodingException(s"invalid chart ${s}"))
       )
+    implicit val releaseColumnType: BaseColumnType[Release] =
+      MappedColumnType.base[Release, String](_.asString, Release.apply)
 
     implicit val errorSourceColumnType: BaseColumnType[ErrorSource] =
       MappedColumnType.base[ErrorSource, String](
