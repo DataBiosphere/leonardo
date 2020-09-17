@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCrea
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsp.{ChartName, ChartVersion}
+import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
 object KubernetesTestData {
   val kubeName0 = KubernetesClusterName("clustername00")
@@ -34,6 +34,8 @@ object KubernetesTestData {
   val galaxyChartName = ChartName("galaxy/galaxykubeman")
   val galaxyChartVersion = ChartVersion("0.5.3")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
+
+  val galaxyReleasePrefix = "gxy-release"
 
   val ingressChartName = ChartName("stable/nginx-ingress")
   val ingressChartVersion = ChartVersion("1.41.3")
@@ -127,6 +129,7 @@ object KubernetesTestData {
       name,
       AppStatus.Unspecified,
       galaxyChart,
+      Release(galaxyReleasePrefix + index),
       appSamId,
       serviceAccountEmail,
       auditInfo,

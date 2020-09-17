@@ -123,16 +123,11 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       savedCluster1,
       NodepoolName("pool1"),
       userEmail,
-      Map.empty,
+      Map("WORKSPACE_NAME" -> "test-workspace", "WORKSPACE_BUCKET" -> "gs://test-bucket"),
       KubernetesServiceAccount("app1-galaxy-ksa")
     )
 
-    result shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.repositories.cvmfs-gxy-main-app1-galaxy-rls=main.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1211904326.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0]=1211904326.jupyter.firecloud.org,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,rbac.serviceAccount=app1-galaxy-ksa,persistence={}"""
-  }
-
-  it should "build a release name" in {
-    val releaseName = gkeInterp.buildReleaseName(AppName("app1"))
-    releaseName shouldBe Release("app1-galaxy-rls")
+    result shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.repositories.cvmfs-gxy-main-app1-galaxy-rls=main.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1211904326.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0]=1211904326.jupyter.firecloud.org,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,rbac.serviceAccount=app1-galaxy-ksa,persistence={},configs.WORKSPACE_NAME=test-workspace,extraEnv[0].name=WORKSPACE_NAME,extraEnv[0].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[0].valueFrom.configMapKeyRef.key=WORKSPACE_NAME,configs.WORKSPACE_BUCKET=gs://test-bucket,extraEnv[1].name=WORKSPACE_BUCKET,extraEnv[1].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[1].valueFrom.configMapKeyRef.key=WORKSPACE_BUCKET"""
   }
 
   it should "check if a pod is done" in {

@@ -310,7 +310,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // Create KSA
-      ksaName = KubernetesServiceAccount(s"${app.appName.value}-${config.galaxyAppConfig.serviceAccountSuffix}")
+      ksaName = config.galaxyAppConfig.serviceAccount
       // TODO populate annotations in KSA for Workload Identity once wb-libs GKE client is fixed
       ksa = KubernetesModels.KubernetesServiceAccount(ServiceAccountName(ksaName.value), Map.empty)
 
@@ -334,14 +334,17 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // helm install galaxy and wait
-      _ <- installGalaxy(app.appName,
-                         dbCluster,
-                         googleCluster,
-                         dbApp.nodepool.nodepoolName,
-                         namespaceName,
-                         app.auditInfo.creator,
-                         app.customEnvironmentVariables,
-                         ksaName)
+      _ <- installGalaxy(
+        app.appName,
+        app.release,
+        dbCluster,
+        googleCluster,
+        dbApp.nodepool.nodepoolName,
+        namespaceName,
+        app.auditInfo.creator,
+        app.customEnvironmentVariables,
+        ksaName
+      )
 
       _ <- logger.info(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
@@ -423,7 +426,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // helm uninstall galaxy and wait
-      _ <- uninstallGalaxy(dbCluster, app.appName, namespaceName, googleCluster)
+      _ <- uninstallGalaxy(dbCluster, app.appName, app.release, namespaceName, googleCluster)
 
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
@@ -455,9 +458,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Invoke helm
       _ <- helmClient
         .installChart(
-          org.broadinstitute.dsp.Release(config.ingressConfig.release.asString),
-          org.broadinstitute.dsp.ChartName(config.ingressConfig.chartName.asString),
-          org.broadinstitute.dsp.ChartVersion(config.ingressConfig.chartVersion.asString),
+          config.ingressConfig.release,
+          config.ingressConfig.chartName,
+          config.ingressConfig.chartVersion,
           org.broadinstitute.dsp.Values(config.ingressConfig.values.map(_.value).mkString(","))
         )
         .run(helmAuthContext)
@@ -484,6 +487,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     } yield loadBalancerIp
 
   private[util] def installGalaxy(appName: AppName,
+                                  release: Release,
                                   dbCluster: KubernetesCluster,
                                   googleCluster: Cluster,
                                   nodepoolName: NodepoolName,
@@ -502,9 +506,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
 
-      releaseName = buildReleaseName(appName)
       chartValues = buildGalaxyChartOverrideValuesString(appName,
-                                                         releaseName,
+                                                         release,
                                                          dbCluster,
                                                          nodepoolName,
                                                          userEmail,
@@ -518,9 +521,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Invoke helm
       _ <- helmClient
         .installChart(
-          org.broadinstitute.dsp.Release(releaseName.asString),
-          org.broadinstitute.dsp.ChartName(config.galaxyAppConfig.chartName.asString),
-          org.broadinstitute.dsp.ChartVersion(config.galaxyAppConfig.chartVersion.asString),
+          release,
+          config.galaxyAppConfig.chartName,
+          config.galaxyAppConfig.chartVersion,
           org.broadinstitute.dsp.Values(chartValues)
         )
         .run(helmAuthContext)
@@ -542,6 +545,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
   private[util] def uninstallGalaxy(dbCluster: KubernetesCluster,
                                     appName: AppName,
+                                    release: Release,
                                     namespaceName: NamespaceName,
                                     googleCluster: Cluster)(
     implicit ev: ApplicativeAsk[F, AppContext]
@@ -555,11 +559,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
 
-      releaseName = buildReleaseName(appName)
-
       // Invoke helm
       _ <- helmClient
-        .uninstall(org.broadinstitute.dsp.Release(releaseName.asString), config.galaxyAppConfig.uninstallKeepHistory)
+        .uninstall(release, config.galaxyAppConfig.uninstallKeepHistory)
         .run(helmAuthContext)
 
       last <- streamFUntilDone(
@@ -678,8 +680,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         List(
           raw"""configs.$k=$v""",
           raw"""extraEnv[$i].name=$k""",
-          raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.asString}=galaxykubeman-configs""",
-          raw"""extraEnv[$i].valueFrom.configMapKeyRef.key="$k"""
+          raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.asString}-galaxykubeman-configs""",
+          raw"""extraEnv[$i].valueFrom.configMapKeyRef.key=$k"""
         )
     }
 
@@ -707,12 +709,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""persistence={}"""
     ) ++ configs).mkString(",")
   }
-
-  // TODO: should we append a timestamp to the release name?
-  // If we do then we should probably persist it to the database since we need it
-  // at install and uninstall time.
-  private[util] def buildReleaseName(appName: AppName): Release =
-    Release(s"${appName.value}-${config.galaxyAppConfig.releaseNameSuffix}")
 
   private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
     pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded

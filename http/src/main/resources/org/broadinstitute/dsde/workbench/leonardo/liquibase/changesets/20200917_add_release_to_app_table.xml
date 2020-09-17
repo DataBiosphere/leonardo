@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="rtitle" id="add_release_to_app_table">
+        <addColumn tableName="APP">
+            <column name="release" type="VARCHAR(254)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <sql>UPDATE APP SET `release` = CONCAT('dummy-', UUID_SHORT()) WHERE `release` IS NULL</sql>
+
+        <addNotNullConstraint columnName="release" columnDataType="VARCHAR(254)" tableName="APP"/>
+
+        <addUniqueConstraint columnNames="release" constraintName="IDX_APP_RELEASE_UNIQUE" tableName="APP"/>
+    </changeSet>
+</databaseChangeLog>

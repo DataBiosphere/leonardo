@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.config
 
-import org.broadinstitute.dsde.workbench.leonardo.{Chart, ServiceConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{Chart, KubernetesServiceAccount, ServiceConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 
 final case class GalaxyAppConfig(releaseNameSuffix: String,
@@ -8,7 +8,7 @@ final case class GalaxyAppConfig(releaseNameSuffix: String,
                                  chartVersion: ChartVersion,
                                  namespaceNameSuffix: String,
                                  services: List[ServiceConfig],
-                                 serviceAccountSuffix: String,
+                                 serviceAccount: KubernetesServiceAccount,
                                  uninstallKeepHistory: Boolean) {
 
   def chart: Chart = Chart(chartName, chartVersion)
