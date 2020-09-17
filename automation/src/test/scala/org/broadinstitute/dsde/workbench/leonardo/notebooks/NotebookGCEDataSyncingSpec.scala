@@ -172,6 +172,8 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               val syncIssueElements =
                 List(notebookPage.syncCopyButton, notebookPage.syncReloadButton, notebookPage.modalId)
 
+              notebookPage.addCodeAndExecute("%autosave 0")
+
               eventually(timeout(Span(2, Minutes)), interval(Span(30, Seconds))) { //wait for checkMeta tick
                 notebookPage areElementsPresent (syncIssueElements) shouldBe true
 
