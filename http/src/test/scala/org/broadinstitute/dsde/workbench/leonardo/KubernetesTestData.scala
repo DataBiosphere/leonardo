@@ -35,7 +35,7 @@ object KubernetesTestData {
   val galaxyChartVersion = ChartVersion("0.5.3")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
-  val galaxyRelease = Release("gxy1")
+  val galaxyReleasePrefix = "gxy-release"
 
   val ingressChartName = ChartName("stable/nginx-ingress")
   val ingressChartVersion = ChartVersion("1.41.3")
@@ -129,7 +129,7 @@ object KubernetesTestData {
       name,
       AppStatus.Unspecified,
       galaxyChart,
-      galaxyRelease,
+      Release(galaxyReleasePrefix + index),
       appSamId,
       serviceAccountEmail,
       auditInfo,
