@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.SamAuthProviderConfig
+import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig

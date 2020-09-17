@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
-import org.broadinstitute.dsde.workbench.leonardo.http.service.GetRuntimeResponse
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 import org.scalatest.concurrent.ScalaFutures
 

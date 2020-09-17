@@ -10,7 +10,7 @@ import cats.mtl.Ask
 import com.google.api.services.oauth2.Oauth2
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.withLogging
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
+import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
 class GoogleOAuth2Interpreter[F[_]: Async: Timer: StructuredLogger: ContextShift](client: Oauth2,

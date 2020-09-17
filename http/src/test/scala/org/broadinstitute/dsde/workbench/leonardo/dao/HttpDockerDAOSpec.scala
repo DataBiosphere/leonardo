@@ -7,11 +7,11 @@ import io.circe.DecodingFailure
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, GCR, GHCR}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO.containerConfigResponseDecoder
-import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
+import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
 import org.scalatest.BeforeAndAfterAll
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 

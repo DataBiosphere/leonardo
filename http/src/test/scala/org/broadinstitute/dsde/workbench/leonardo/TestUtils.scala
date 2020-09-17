@@ -2,13 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
 import cats.effect.IO
+import org.broadinstitute.dsde.workbench.leonardo.http.SslContextReader
+
 import javax.net.ssl.SSLContext
-import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeResponse
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.scalactic.Equality
-import org.scalatest.Assertion
 import org.scalatest.matchers.should.Matchers
-import org.broadinstitute.dsde.workbench.leonardo.http.SslContextReader
 
 object TestUtils extends Matchers {
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
@@ -206,31 +205,6 @@ object TestUtils extends Matchers {
                  errors = List.empty,
                  scopes = Set.empty,
                  userJupyterExtensionConfig = None)
-  }
-
-  def compareClusterAndCreateClusterAPIResponse(c: Runtime, createCluster: CreateRuntimeResponse): Assertion = {
-    c.id shouldBe createCluster.id
-    c.samResource shouldBe createCluster.samResource
-    c.runtimeName shouldBe createCluster.clusterName
-    c.googleProject shouldBe createCluster.googleProject
-    c.serviceAccount shouldBe createCluster.serviceAccountInfo
-    c.asyncRuntimeFields shouldBe createCluster.asyncRuntimeFields
-    c.auditInfo shouldBe createCluster.auditInfo
-    c.proxyUrl shouldBe createCluster.clusterUrl
-    c.status shouldBe createCluster.status
-    c.labels shouldBe createCluster.labels
-    c.jupyterUserScriptUri shouldBe createCluster.jupyterUserScriptUri
-    c.jupyterStartUserScriptUri shouldBe createCluster.jupyterStartUserScriptUri
-    c.errors shouldBe createCluster.errors
-    c.dataprocInstances shouldBe createCluster.dataprocInstances
-    c.userJupyterExtensionConfig shouldBe createCluster.userJupyterExtensionConfig
-    c.autopauseThreshold shouldBe createCluster.autopauseThreshold
-    c.defaultClientId shouldBe createCluster.defaultClientId
-    c.stopAfterCreation shouldBe createCluster.stopAfterCreation
-    c.runtimeImages shouldBe createCluster.clusterImages
-    c.scopes shouldBe createCluster.scopes
-    c.welderEnabled shouldBe createCluster.welderEnabled
-    c.customEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables
   }
 
   def sslContext(implicit as: ActorSystem): SSLContext = SslContextReader.getSSLContext[IO]().unsafeRunSync()

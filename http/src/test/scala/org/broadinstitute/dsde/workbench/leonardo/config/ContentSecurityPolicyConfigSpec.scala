@@ -1,5 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.config
-
+package org.broadinstitute.dsde.workbench.leonardo
+package config
 import org.broadinstitute.dsde.workbench.leonardo.{CommonTestData, LeonardoTestSuite}
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent.{
   ConnectSrc,

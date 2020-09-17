@@ -30,7 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImag
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
-import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidDataprocMachineConfigException
+import org.broadinstitute.dsde.workbench.leonardo.model.InvalidDataprocMachineConfigException
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
@@ -147,6 +147,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       // build cluster configuration
       initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
       initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
+      credentialsFileName = s"/etc/${RuntimeTemplateValues.serviceAccountCredentialsFilename}"
 
       // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
       // we will use the new custom dataproc image

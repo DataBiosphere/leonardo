@@ -3,104 +3,12 @@ package model
 
 import java.net.{MalformedURLException, URL}
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
-
   val exampleTime = Instant.parse("2018-08-07T10:12:35Z")
-
-  val cluster = makeCluster(1).copy(
-    asyncRuntimeFields =
-      Some(makeAsyncRuntimeFields(1).copy(googleId = GoogleId("4ba97751-026a-4555-961b-89ae6ce78df4"))),
-    auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
-    userJupyterExtensionConfig = Some(userJupyterExtensionConfig),
-    stopAfterCreation = true,
-    allowStop = false,
-    runtimeImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
-    welderEnabled = true
-  )
-
-  "ClusterRequestFormat" should "successfully decode json" in {
-    val inputJson =
-      """
-        |{
-        |}
-      """.stripMargin
-
-    val expectedClusterRequest =
-      CreateRuntimeRequest(labels = Map.empty, scopes = Set.empty)
-
-    val decodeResult = for {
-      json <- io.circe.parser.parse(inputJson)
-      r <- json.as[CreateRuntimeRequest]
-    } yield r
-    decodeResult shouldBe (Right(expectedClusterRequest))
-  }
-
-  it should "successfully decode cluster request with null values" in {
-    val inputJson =
-      """
-        |{
-        |  "defaultClientId": null,
-        |  "jupyterDockerImage": null,
-        |  "jupyterExtensionUri": null,
-        |  "jupyterUserScriptUri": null,
-        |  "jupyterStartUserScriptUri": null,
-        |  "machineConfig": null,
-        |  "rstudioDockerImage": null,
-        |  "scopes": null,
-        |  "stopAfterCreation": null,
-        |  "userJupyterExtensionConfig": null
-        |}
-      """.stripMargin
-
-    val expectedClusterRequest =
-      CreateRuntimeRequest(labels = Map.empty, scopes = Set.empty)
-
-    val decodeResult = for {
-      json <- io.circe.parser.parse(inputJson)
-      r <- json.as[CreateRuntimeRequest]
-    } yield r
-    decodeResult shouldBe (Right(expectedClusterRequest))
-  }
-
-  it should "successfully decode cluster request with jupyterExtensionUri properly" in {
-    val inputJson =
-      """
-        |{
-        |  "jupyterExtensionUri": "gs://extension_bucket/extension_path",
-        |  "jupyterUserScriptUri": "gs://userscript_bucket/userscript.sh",
-        |  "jupyterStartUserScriptUri": "gs://startscript_bucket/startscript.sh",
-        |  "labels": {},
-        |  "properties": {},
-        |  "scopes": [],
-        |  "userJupyterExtensionConfig": null
-        |}
-      """.stripMargin
-
-    val expectedClusterRequest = CreateRuntimeRequest(
-      labels = Map.empty,
-      scopes = Set.empty,
-      userJupyterExtensionConfig = Some(
-        UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://extension_bucket/extension_path"))
-      ),
-      jupyterUserScriptUri =
-        Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))),
-      jupyterStartUserScriptUri =
-        Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))))
-    )
-
-    val decodeResult = for {
-      json <- io.circe.parser.parse(inputJson)
-      r <- json.as[CreateRuntimeRequest]
-    } yield r
-    decodeResult shouldBe (Right(expectedClusterRequest))
-  }
 
 //  it should "serialize/deserialize to/from JSON" in {
 //

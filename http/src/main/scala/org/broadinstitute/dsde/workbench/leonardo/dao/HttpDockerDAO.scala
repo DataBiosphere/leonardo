@@ -18,7 +18,7 @@ import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.client.middleware.FollowRedirect
 import org.http4s.headers.Authorization
 import ContainerRegistry._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
+import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
 
 /**
  * Talks to Docker remote APIs to retrieve manifest information in order to try and figure out

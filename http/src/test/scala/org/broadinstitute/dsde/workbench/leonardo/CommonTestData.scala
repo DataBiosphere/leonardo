@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
-
 import org.broadinstitute.dsde.workbench.leonardo
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
@@ -23,14 +22,16 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, VM, Welder}
-import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
-import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
+import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
-import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
-import org.broadinstitute.dsde.workbench.leonardo.http.{userScriptStartupOutputUriMetadataKey, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  userScriptStartupOutputUriMetadataKey,
+  CreateRuntime2Request,
+  RuntimeConfigRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey,
@@ -39,6 +40,9 @@ import org.broadinstitute.dsde.workbench.model.google.{
   _
 }
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
+
+import scala.concurrent.duration._
 
 object CommonTestData {
 // values common to multiple tests, to reduce boilerplate
@@ -125,37 +129,12 @@ object CommonTestData {
     properties = Map.empty
   )
 
-  val testClusterRequest = CreateRuntimeRequest(
-    Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-    None,
-    None,
-    None,
-    None,
-    false,
-    Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
-    Some(true),
-    Some(30),
-    Some("ThisIsADefaultClientID")
-  )
-  val testClusterRequestWithExtensionAndScript = CreateRuntimeRequest(
-    Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-    Some(jupyterUserScriptUri),
-    Some(jupyterStartUserScriptUri),
-    None,
-    None,
-    false,
-    Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
-    None,
-    Some(30),
-    Some("ThisIsADefaultClientID")
-  )
-
   val mockSamDAO = new MockSamDAO
   val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 
-  val defaultUserInfo =
-    UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), 3600)
   val tokenAge = 500000
+  val defaultUserInfo =
+    UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), WorkbenchEmail("user1@example.com"), tokenAge)
   val tokenName = "LeoToken"
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
@@ -189,6 +168,20 @@ object CommonTestData {
   val defaultDataprocRuntimeConfig =
     RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty)
 
+  val defaultCreateRuntimeRequest = CreateRuntime2Request(
+    Map("lbl1" -> "true"),
+    None,
+    Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),
+    Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)))),
+    None,
+    Some(true),
+    Some(30.minutes),
+    None,
+    Some(ContainerImage("myrepo/myimage", DockerHub)),
+    Some(DockerHub),
+    Set.empty,
+    Map.empty
+  )
   val defaultGceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500), bootDiskSize = Some(DiskSize(50)))
   val defaultRuntimeConfigRequest =

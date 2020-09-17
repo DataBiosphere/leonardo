@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._

@@ -145,7 +145,6 @@ object Dependencies {
     enumeratum,
     akkaSlf4j,
     akkaHttp,
-    akkaHttpSprayJson,
     akkaTestKit,
     akkaHttpTestKit,
     akkaStream,
@@ -175,7 +174,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.0" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.1" % "test",
     "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,

@@ -1,5 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.config
-
+package org.broadinstitute.dsde.workbench.leonardo
+package config
 import java.nio.file.Path
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
