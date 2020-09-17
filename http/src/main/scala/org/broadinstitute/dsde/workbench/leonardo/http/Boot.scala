@@ -444,6 +444,7 @@ object Boot extends IOApp {
         googleDirectoryDAO,
         cryptoMiningUserPublisher,
         googleIamDAO,
+        gdDAO,
         dataprocService,
         kubernetesDnsCache,
         gkeService,
