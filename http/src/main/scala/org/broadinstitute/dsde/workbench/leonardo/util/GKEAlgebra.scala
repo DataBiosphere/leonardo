@@ -65,4 +65,7 @@ final case class DeleteClusterParams(clusterId: KubernetesClusterLeoId, googlePr
 
 final case class DeleteNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
 
-final case class DeleteAppParams(appId: AppId, googleProject: GoogleProject, appName: AppName)
+final case class DeleteAppParams(appId: AppId,
+                                 googleProject: GoogleProject,
+                                 appName: AppName,
+                                 errorAfterDelete: Boolean)

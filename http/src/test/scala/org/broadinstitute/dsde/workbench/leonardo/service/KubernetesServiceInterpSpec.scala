@@ -121,7 +121,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     createAppMessage.appId shouldBe getApp.app.id
     createAppMessage.nodepoolId shouldBe Some(getApp.nodepool.id)
     createAppMessage.project shouldBe project
-    createAppMessage.createDisk shouldBe true
+    createAppMessage.createDisk shouldBe getApp.app.appResources.disk.map(_.id)
     createAppMessage.cluster shouldBe Some(
       CreateCluster(getMinimalCluster.id, defaultNodepool.id)
     )
@@ -141,7 +141,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
 
     val message = publisherQueue.dequeue1.unsafeRunSync()
     message.messageType shouldBe LeoPubsubMessageType.CreateApp
-    message.asInstanceOf[CreateAppMessage].createDisk shouldBe false
+    message.asInstanceOf[CreateAppMessage].createDisk shouldBe None
 
     val appResult = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
