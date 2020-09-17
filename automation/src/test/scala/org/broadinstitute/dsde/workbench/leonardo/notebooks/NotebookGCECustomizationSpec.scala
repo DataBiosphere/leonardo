@@ -80,9 +80,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
               withNewNotebook(runtime, Python3) { notebookPage =>
                 // Check the extensions were installed
                 val nbExt = notebookPage.executeCell("! jupyter nbextension list")
-
                 nbExt.get should include("jupyter-iframe-extension/main  enabled")
-
                 nbExt.get should include("translate_nbextension/main  enabled")
                 // should be installed by default
                 nbExt.get should include("toc2/main  enabled")
