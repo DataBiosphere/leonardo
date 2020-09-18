@@ -898,7 +898,7 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors.size shouldBe 1
       getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
-      getApp.app.errors.map(_.source) should contain(ErrorSource.Nodepool)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
       //the nodepool does not exist, so we should not have updated its status
       getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
     }

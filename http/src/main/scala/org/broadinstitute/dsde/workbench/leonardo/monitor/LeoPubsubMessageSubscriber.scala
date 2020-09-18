@@ -643,7 +643,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                   PubsubKubernetesError(
                     AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
                     Some(msg.appId),
-                    true,
+                    false,
                     None,
                     Some(clusterId)
                   )
@@ -659,7 +659,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                   PubsubKubernetesError(
                     AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
                     Some(msg.appId),
-                    true,
+                    false,
                     Some(nodepoolId),
                     None
                   )
