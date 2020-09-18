@@ -81,6 +81,7 @@ class LeoPubsubMessageSubscriberSpec
   }
   val gdDAO = new MockGoogleDataprocDAO
   val storageDAO = new MockGoogleStorageDAO
+  // Kubernetes doesn't actually create a new Service Account when calling googleIamDAO
   val iamDAOKubernetes = new MockGoogleIamDAO {
     override def addIamPolicyBindingOnServiceAccount(serviceAccountProject: GoogleProject,
                                                      serviceAccountEmail: WorkbenchEmail,
