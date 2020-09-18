@@ -1453,6 +1453,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
+                             iamDAO,
                              blocker)
 
     val assertions = for {
@@ -1532,6 +1533,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
+                             iamDAO,
                              blocker)
 
     val assertions = for {
