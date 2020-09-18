@@ -8,7 +8,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppId,
   AppName,
   AuditInfo,
-  CreateCluster,
   DiskId,
   DiskSize,
   KubernetesClusterLeoId,
@@ -100,11 +99,12 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   it should "encode/decode CreateAppMessage properly" in {
     val traceId = TraceId(UUID.randomUUID().toString)
     val originalMessage = CreateAppMessage(
-      Some(CreateCluster(KubernetesClusterLeoId(1), NodepoolLeoId(1))),
+      GoogleProject("project1"),
+      Some(
+        ClusterNodepoolAction.CreateClusterAndNodepool(KubernetesClusterLeoId(1), NodepoolLeoId(1), NodepoolLeoId(2))
+      ),
       AppId(1),
       AppName("app1"),
-      Some(NodepoolLeoId(2)),
-      GoogleProject("project1"),
       Some(DiskId(1)),
       Map.empty,
       Some(traceId)

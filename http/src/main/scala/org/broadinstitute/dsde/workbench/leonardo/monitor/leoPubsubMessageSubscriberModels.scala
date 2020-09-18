@@ -1,8 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import scala.concurrent.duration.FiniteDuration
-import scala.util.control.NoStackTrace
+import ca.mrvisser.sealerate
 import cats.implicits._
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
@@ -10,11 +9,20 @@ import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  dataprocInCreateRuntimeMsgToDataprocRuntime,
+  RuntimeConfigRequest
+}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.{
+  CreateClusterAndNodepool,
+  CreateNodepool
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail, WorkbenchException}
+
+import scala.concurrent.duration.FiniteDuration
+import scala.util.control.NoStackTrace
 
 sealed trait RuntimeConfigInCreateRuntimeMessage extends Product with Serializable {
   def cloudService: CloudService
@@ -205,23 +213,10 @@ object LeoPubsubMessage {
       )
   }
 
-  // cases:
-  // - Some(cluster), Some(nodepool)  [ cluster does not exist  ]
-  // - None, Some(nodepool)   [ cluster already exists ]
-  // - None, None  [ claimed nodepool ]
-  sealed trait ClusterNodepoolState extends Product with Serializable
-  object ClusterNodepoolState {
-    final case object Exists extends ClusterNodepoolState
-    final case class CreateNodepool(nodepoolId: NodepoolLeoId) extends ClusterNodepoolState
-    final case class CreateClusterAndNodepool(cluster: CreateCluster, nodepoolLeoId: NodepoolLeoId)
-        extends ClusterNodepoolState
-  }
-
-  final case class CreateAppMessage(cluster: Option[CreateCluster],
+  final case class CreateAppMessage(project: GoogleProject,
+                                    clusterNodepoolAction: Option[ClusterNodepoolAction],
                                     appId: AppId,
                                     appName: AppName,
-                                    nodepoolId: Option[NodepoolLeoId],
-                                    project: GoogleProject,
                                     createDisk: Option[DiskId],
                                     customEnvironmentVariables: Map[String, String],
                                     traceId: Option[TraceId])
@@ -281,6 +276,36 @@ object LeoPubsubMessage {
   final case class UpdateDiskMessage(diskId: DiskId, newSize: DiskSize, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
+  }
+}
+
+sealed trait ClusterNodepoolActionType extends Product with Serializable {
+  def asString: String
+}
+object ClusterNodepoolActionType {
+  final case object CreateClusterAndNodepool extends ClusterNodepoolActionType {
+    val asString: String = "createClusterAndNodepool"
+  }
+  final case object CreateNodepool extends ClusterNodepoolActionType {
+    val asString: String = "createNodepool"
+  }
+  def values: Set[ClusterNodepoolActionType] = sealerate.values[ClusterNodepoolActionType]
+  def stringToObject: Map[String, ClusterNodepoolActionType] = values.map(v => v.toString -> v).toMap
+}
+
+sealed trait ClusterNodepoolAction extends Product with Serializable {
+  def actionType: ClusterNodepoolActionType
+}
+object ClusterNodepoolAction {
+  final case class CreateClusterAndNodepool(clusterId: KubernetesClusterLeoId,
+                                            defaultNodepoolId: NodepoolLeoId,
+                                            nodepoolId: NodepoolLeoId)
+      extends ClusterNodepoolAction {
+    val actionType: ClusterNodepoolActionType = ClusterNodepoolActionType.CreateClusterAndNodepool
+
+  }
+  final case class CreateNodepool(nodepoolId: NodepoolLeoId) extends ClusterNodepoolAction {
+    val actionType: ClusterNodepoolActionType = ClusterNodepoolActionType.CreateNodepool
   }
 }
 
@@ -353,12 +378,33 @@ object LeoPubsubCodec {
     Decoder.forProduct2("diskId", "traceId")(DeleteDiskMessage.apply)
 
   implicit val appIdDecoder: Decoder[AppId] = Decoder.decodeLong.map(AppId)
+
+  implicit val clusterNodepoolActionTypeDecoder: Decoder[ClusterNodepoolActionType] =
+    Decoder.decodeString.emap(x =>
+      ClusterNodepoolActionType.stringToObject.get(x).toRight(s"Invalid cluster nodepool action type: $x")
+    )
+
+  implicit val createClusterAndNodepoolDecoder: Decoder[CreateClusterAndNodepool] =
+    Decoder.forProduct3("clusterId", "defaultNodepoolId", "nodepoolId")(CreateClusterAndNodepool.apply)
+
+  implicit val createNodepoolDecoder: Decoder[CreateNodepool] =
+    Decoder.forProduct1("nodepoolId")(CreateNodepool.apply)
+
+  implicit val clusterNodepoolActionDecoder: Decoder[ClusterNodepoolAction] = Decoder.instance { message =>
+    for {
+      actionType <- message.downField("actionType").as[ClusterNodepoolActionType]
+      value <- actionType match {
+        case ClusterNodepoolActionType.CreateClusterAndNodepool => message.as[CreateClusterAndNodepool]
+        case ClusterNodepoolActionType.CreateNodepool           => message.as[CreateNodepool]
+      }
+    } yield value
+  }
+
   implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct8("cluster",
+    Decoder.forProduct7("project",
+                        "clusterNodepoolAction",
                         "appId",
                         "appName",
-                        "nodepoolId",
-                        "project",
                         "createDisk",
                         "customEnvironmentVariables",
                         "traceId")(CreateAppMessage.apply)
@@ -613,22 +659,42 @@ object LeoPubsubCodec {
     Encoder.forProduct3("messageType", "diskId", "traceId")(x => (x.messageType, x.diskId, x.traceId))
 
   implicit val appIdEncoder: Encoder[AppId] = Encoder.encodeLong.contramap(_.id)
+
+  implicit val clusterNodepoolActionTypeEncoder: Encoder[ClusterNodepoolActionType] =
+    Encoder.encodeString.contramap(_.asString)
+
+  implicit val createClusterAndNodepoolEncoder: Encoder[CreateClusterAndNodepool] =
+    Encoder.forProduct4("actionType", "clusterId", "defaultNodepoolId", "nodepoolId")(x =>
+      (x.actionType, x.clusterId, x.defaultNodepoolId, x.nodepoolId)
+    )
+
+  implicit val createNodepoolEncoder: Encoder[CreateNodepool] =
+    Encoder.forProduct2("actionType", "nodepoolId")(x => (x.actionType, x.nodepoolId))
+
+  implicit val clusterNodepoolActionEncoder: Encoder[ClusterNodepoolAction] =
+    Encoder.instance { message =>
+      message match {
+        case m: CreateClusterAndNodepool => m.asJson
+        case m: CreateNodepool           => m.asJson
+      }
+    }
+
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct9("messageType",
-                        "cluster",
-                        "appId",
-                        "appName",
-                        "nodepoolId",
-                        "project",
-                        "createDisk",
-                        "customEnvironmentVariables",
-                        "traceId")(x =>
+    Encoder.forProduct8(
+      "messageType",
+      "project",
+      "clusterNodepoolAction",
+      "appId",
+      "appName",
+      "createDisk",
+      "customEnvironmentVariables",
+      "traceId"
+    )(x =>
       (x.messageType,
-       x.cluster,
+       x.project,
+       x.clusterNodepoolAction,
        x.appId,
        x.appName,
-       x.nodepoolId,
-       x.project,
        x.createDisk,
        x.customEnvironmentVariables,
        x.traceId)

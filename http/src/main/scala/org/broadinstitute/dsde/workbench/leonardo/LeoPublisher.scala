@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
@@ -69,7 +69,20 @@ final class LeoPublisher[F[_]: Logger: Timer](
         case m: LeoPubsubMessage.DeleteAppMessage =>
           KubernetesServiceDbQueries.markPendingDeletion(m.nodepoolId, m.appId, m.diskId, now).transaction
         case m: LeoPubsubMessage.CreateAppMessage =>
-          KubernetesServiceDbQueries.markPendingCreating(m.nodepoolId, m.appId, m.cluster).transaction
+          m.clusterNodepoolAction match {
+            case Some(ClusterNodepoolAction.CreateClusterAndNodepool(clusterId, defaultNodepoolId, nodepoolId)) =>
+              KubernetesServiceDbQueries
+                .markPendingCreating(m.appId, Some(clusterId), Some(defaultNodepoolId), Some(nodepoolId))
+                .transaction
+            case Some(ClusterNodepoolAction.CreateNodepool(nodepoolId)) =>
+              KubernetesServiceDbQueries
+                .markPendingCreating(m.appId, None, None, Some(nodepoolId))
+                .transaction
+            case None =>
+              KubernetesServiceDbQueries
+                .markPendingCreating(m.appId, None, None, None)
+                .transaction
+          }
         case m: LeoPubsubMessage.BatchNodepoolCreateMessage =>
           KubernetesServiceDbQueries.markPendingBatchCreating(m.clusterId, m.nodepools).transaction
         case _ => F.unit

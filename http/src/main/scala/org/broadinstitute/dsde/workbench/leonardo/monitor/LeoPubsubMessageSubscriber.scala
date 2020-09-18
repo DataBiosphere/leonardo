@@ -630,37 +630,44 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // we can nack the message on errors. Monitoring all creations will be asynchronous,
       // and (3) and (4) will always be asynchronous.
 
-      // Create the cluster synchronously
-      createClusterResultOpt <- msg.cluster
-        .traverse { c =>
-          gkeInterp.createCluster(CreateClusterParams(c.clusterId, msg.project, List(c.defaultNodepoolId), false))
-        }
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-              Some(msg.appId),
-              false,
-              msg.cluster.map(_.defaultNodepoolId),
-              msg.cluster.map(_.clusterId)
-            )
-        }
-
-      // Create the nodepool synchronously if we didn't need to create the cluster
-      createNodepoolResultOpt <- if (createClusterResultOpt.isDefined) F.pure(none[CreateNodepoolResult])
-      else
-        msg.nodepoolId
-          .traverse(nodepoolId => gkeInterp.createNodepool(CreateNodepoolParams(nodepoolId, msg.project)))
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
-                Some(msg.appId),
-                false,
-                msg.nodepoolId,
-                None
+      // Create the cluster or nodepool synchronously if necessary
+      monitorClusterOrNodepool <- msg.clusterNodepoolAction match {
+        case Some(ClusterNodepoolAction.CreateClusterAndNodepool(clusterId, defaultNodepoolId, nodepoolId)) =>
+          for {
+            createClusterResult <- gkeInterp
+              .createCluster(
+                CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId), false)
               )
-          }
+              .adaptError {
+                case e =>
+                  PubsubKubernetesError(
+                    AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+                    Some(msg.appId),
+                    true,
+                    None,
+                    Some(clusterId)
+                  )
+              }
+            monitorOp = gkeInterp.pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
+          } yield monitorOp
+        case Some(ClusterNodepoolAction.CreateNodepool(nodepoolId)) =>
+          for {
+            createNodepoolResult <- gkeInterp
+              .createNodepool(CreateNodepoolParams(nodepoolId, msg.project))
+              .adaptError {
+                case e =>
+                  PubsubKubernetesError(
+                    AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
+                    Some(msg.appId),
+                    true,
+                    Some(nodepoolId),
+                    None
+                  )
+              }
+            monitorOp = gkeInterp.pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
+          } yield monitorOp
+        case None => F.pure(F.unit)
+      }
 
       // create disk asynchronously
       createDisk = createDiskForApp(msg).adaptError {
@@ -674,49 +681,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
       }
 
-      // monitor cluster creation and nodepool creation asynchronously
-      monitorClusterAndNodePool = for {
-        _ <- (msg.cluster, createClusterResultOpt).tupled
-          .traverse_ {
-            case (cluster, createClusterResult) =>
-              gkeInterp.pollCluster(
-                PollClusterParams(cluster.clusterId, msg.project, false, createClusterResult)
-              )
-          }
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-                Some(msg.appId),
-                false,
-                msg.cluster.map(_.defaultNodepoolId),
-                msg.cluster.map(_.clusterId)
-              )
-          }
-
-        _ <- ((msg.nodepoolId, createNodepoolResultOpt) match {
-          case (Some(nodePoolId), Some(createNodepoolResult)) =>
-            gkeInterp.pollNodepool(PollNodepoolParams(nodePoolId, createNodepoolResult))
-          case (Some(nodepoolId), None) =>
-            for {
-              createNodepoolResult <- gkeInterp.createNodepool(CreateNodepoolParams(nodepoolId, msg.project))
-              _ <- gkeInterp.pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
-            } yield ()
-          case _ => F.unit
-        }).adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
-              Some(msg.appId),
-              false,
-              msg.nodepoolId,
-              None
-            )
-        }
-      } yield ()
-
       // parallelize disk creation and cluster/nodepool monitoring
-      parPreAppCreationSetup = List(createDisk, monitorClusterAndNodePool).parSequence_
+      parPreAppCreationSetup = List(createDisk, monitorClusterOrNodepool).parSequence_
 
       // build asynchronous task
       task = for {

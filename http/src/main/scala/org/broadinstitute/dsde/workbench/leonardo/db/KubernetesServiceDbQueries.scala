@@ -42,7 +42,7 @@ object KubernetesServiceDbQueries {
   // if the cluster already exists, this is a no-op
   // if the cluster does not exist, this also saves a dummy nodepool with the cluster.
   // For more info on dummy nodepool, See: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/492175377/2020-05-29+Dummy+Nodepool+for+Galaxy
-  def saveOrGetForApp(
+  def saveOrGetClusterForApp(
     saveKubernetesCluster: SaveKubernetesCluster
   )(implicit ec: ExecutionContext): DBIO[SaveClusterResult] =
     for {
@@ -145,16 +145,15 @@ object KubernetesServiceDbQueries {
         .result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List.empty)).toList
 
-  def markPendingCreating(nodepoolId: Option[NodepoolLeoId], appId: AppId, createCluster: Option[CreateCluster])(
+  def markPendingCreating(appId: AppId,
+                          clusterId: Option[KubernetesClusterLeoId],
+                          defaultNodepoolId: Option[NodepoolLeoId],
+                          nodepoolId: Option[NodepoolLeoId])(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
     for {
-      _ <- createCluster.fold[DBIO[Unit]](DBIO.successful(()))(createCluster =>
-        for {
-          _ <- kubernetesClusterQuery.updateStatus(createCluster.clusterId, KubernetesClusterStatus.Provisioning)
-          _ <- nodepoolQuery.updateStatus(createCluster.defaultNodepoolId, NodepoolStatus.Provisioning)
-        } yield ()
-      )
+      _ <- clusterId.traverse(id => kubernetesClusterQuery.updateStatus(id, KubernetesClusterStatus.Provisioning))
+      _ <- defaultNodepoolId.traverse(id => nodepoolQuery.updateStatus(id, NodepoolStatus.Provisioning))
       _ <- nodepoolId.traverse(id => nodepoolQuery.updateStatus(id, NodepoolStatus.Provisioning))
       _ <- appQuery.updateStatus(appId, AppStatus.Provisioning)
     } yield ()

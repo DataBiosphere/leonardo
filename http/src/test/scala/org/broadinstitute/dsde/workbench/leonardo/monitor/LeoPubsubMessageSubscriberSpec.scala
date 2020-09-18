@@ -461,7 +461,6 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle UpdateRuntimeMessage and restart runtime for persistent disk size update" in isolatedDbTest {
-
     val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -656,11 +655,10 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
-        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        Some(savedNodepool1.id),
-        savedCluster1.googleProject,
         Some(disk.id),
         Map.empty,
         Some(tr)
@@ -706,11 +704,10 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
-        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        Some(savedNodepool1.id),
-        savedCluster1.googleProject,
         None,
         Map.empty,
         Some(tr)
@@ -770,23 +767,23 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg1 = CreateAppMessage(
-        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        Some(savedNodepool1.id),
-        savedCluster1.googleProject,
         None,
         Map.empty,
         Some(tr)
       )
-      msg2 = CreateAppMessage(None,
-                              savedApp2.id,
-                              savedApp2.appName,
-                              Some(savedNodepool2.id),
-                              savedCluster1.googleProject,
-                              None,
-                              Map.empty,
-                              Some(tr))
+      msg2 = CreateAppMessage(
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateNodepool(savedNodepool2.id)),
+        savedApp2.id,
+        savedApp2.appName,
+        None,
+        Map.empty,
+        Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -822,11 +819,14 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       tr <- traceId.ask
       msg = CreateAppMessage(
-        Some(CreateCluster(KubernetesClusterLeoId(-1), NodepoolLeoId(-1))),
+        project,
+        Some(
+          ClusterNodepoolAction.CreateClusterAndNodepool(KubernetesClusterLeoId(-1),
+                                                         NodepoolLeoId(-1),
+                                                         NodepoolLeoId(-1))
+        ),
         savedApp1.id,
         savedApp1.appName,
-        Some(NodepoolLeoId(-1)),
-        project,
         None,
         Map.empty,
         Some(tr)
@@ -865,11 +865,10 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       tr <- traceId.ask
       msg = CreateAppMessage(
-        Some(CreateCluster(savedCluster1.id, NodepoolLeoId(-1))),
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, NodepoolLeoId(-1), NodepoolLeoId(-2))),
         savedApp1.id,
         savedApp1.appName,
-        Some(NodepoolLeoId(-2)),
-        savedCluster1.googleProject,
         None,
         Map.empty,
         Some(tr)
@@ -908,11 +907,10 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
-        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, NodepoolLeoId(-2))),
         savedApp1.id,
         savedApp1.appName,
-        Some(NodepoolLeoId(-2)),
-        savedCluster1.googleProject,
         None,
         Map.empty,
         Some(tr)
@@ -948,14 +946,15 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       tr <- traceId.ask
-      msg = CreateAppMessage(None,
-                             savedApp1.id,
-                             AppName("fakeapp"),
-                             Some(savedNodepool1.id),
-                             savedCluster1.googleProject,
-                             None,
-                             Map.empty,
-                             Some(tr))
+      msg = CreateAppMessage(
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
+        savedApp1.id,
+        AppName("fakeapp"),
+        None,
+        Map.empty,
+        Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -986,14 +985,15 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       tr <- traceId.ask
-      msg = CreateAppMessage(None,
-                             savedApp1.id,
-                             savedApp1.appName,
-                             Some(savedNodepool1.id),
-                             savedCluster1.googleProject,
-                             Some(DiskId(-1)),
-                             Map.empty,
-                             Some(tr))
+      msg = CreateAppMessage(
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
+        savedApp1.id,
+        savedApp1.appName,
+        Some(DiskId(-1)),
+        Map.empty,
+        Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1351,15 +1351,13 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.status shouldBe NodepoolStatus.Running
       getDisk.status shouldBe DiskStatus.Ready
     }
-
     val res = for {
       tr <- traceId.ask
       msg = CreateAppMessage(
+        savedCluster1.googleProject,
         None,
         savedApp1.id,
         savedApp1.appName,
-        None,
-        savedCluster1.googleProject,
         Some(disk.id),
         Map.empty,
         Some(tr)
@@ -1490,11 +1488,10 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
-        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        Some(savedNodepool1.id),
-        savedCluster1.googleProject,
         Some(disk.id),
         Map.empty,
         Some(tr)
@@ -1568,11 +1565,10 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
-        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        Some(savedNodepool1.id),
-        savedCluster1.googleProject,
         None,
         Map.empty,
         Some(tr)

@@ -240,7 +240,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       )
       .get
 
-    val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetForApp(saveCluster1))
+    val saveResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster1))
 
     val x = saveResult match {
       case _: ClusterExists       => false
@@ -282,8 +282,8 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       )
       .get
 
-    val saveResult1IO = KubernetesServiceDbQueries.saveOrGetForApp(saveCluster1).transaction
-    val saveResult2IO = KubernetesServiceDbQueries.saveOrGetForApp(saveCluster2).transaction
+    val saveResult1IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster1).transaction
+    val saveResult2IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2).transaction
 
     the[KubernetesAppCreationException] thrownBy {
       saveResult1IO.unsafeRunSync()
@@ -311,7 +311,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
                               DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
       )
       .get
-    val saveClusterResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetForApp(saveCluster2))
+    val saveClusterResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2))
 
     val x = saveClusterResult match {
       case _: ClusterExists       => true
