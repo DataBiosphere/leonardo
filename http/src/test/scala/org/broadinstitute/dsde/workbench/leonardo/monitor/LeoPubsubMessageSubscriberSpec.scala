@@ -60,6 +60,7 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.Left
 
@@ -80,6 +81,12 @@ class LeoPubsubMessageSubscriberSpec
   }
   val gdDAO = new MockGoogleDataprocDAO
   val storageDAO = new MockGoogleStorageDAO
+  val iamDAOKubernetes = new MockGoogleIamDAO {
+    override def addIamPolicyBindingOnServiceAccount(serviceAccountProject: GoogleProject,
+                                                     serviceAccountEmail: WorkbenchEmail,
+                                                     memberEmail: WorkbenchEmail,
+                                                     rolesToAdd: Set[String]): Future[Unit] = Future.successful(())
+  }
   val iamDAO = new MockGoogleIamDAO
   val projectDAO = new MockGoogleProjectDAO
   val authProvider = mock[LeoAuthProvider[IO]]
@@ -109,7 +116,7 @@ class LeoPubsubMessageSubscriberSpec
                            MockHelm,
                            MockGalaxyDAO,
                            credentials,
-                           iamDAO,
+                           iamDAOKubernetes,
                            blocker)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
@@ -1142,7 +1149,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
-                             iamDAO,
+                             iamDAOKubernetes,
                              blocker)
 
     val assertions = for {
@@ -1195,7 +1202,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
-                             iamDAO,
+                             iamDAOKubernetes,
                              blocker)
 
     val assertions = for {
@@ -1453,7 +1460,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
-                             iamDAO,
+                             iamDAOKubernetes,
                              blocker)
 
     val assertions = for {
@@ -1533,7 +1540,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockHelm,
                              MockGalaxyDAO,
                              credentials,
-                             iamDAO,
+                             iamDAOKubernetes,
                              blocker)
 
     val assertions = for {
