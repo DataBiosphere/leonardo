@@ -6,7 +6,11 @@ import java.util.UUID
 
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  ServiceAccountName,
+  ServiceName
+}
 import org.broadinstitute.dsde.workbench.google2.{
   KubernetesName,
   Location,
@@ -162,7 +166,6 @@ object NodepoolStatus {
 final case class KubernetesClusterLeoId(id: Long) extends AnyVal
 final case class NamespaceId(id: Long) extends AnyVal
 final case class Namespace(id: NamespaceId, name: NamespaceName)
-final case class KubernetesServiceAccount(value: String) extends AnyVal
 
 final case class Nodepool(id: NodepoolLeoId,
                           clusterId: KubernetesClusterLeoId,
@@ -295,7 +298,7 @@ final case class AppName(value: String) extends AnyVal
 final case class AppResources(namespace: Namespace,
                               disk: Option[PersistentDisk],
                               services: List[KubernetesService],
-                              kubernetesServiceAccount: Option[KubernetesServiceAccount])
+                              kubernetesServiceAccountName: Option[ServiceAccountName])
 
 final case class Chart(name: ChartName, version: ChartVersion) {
   override def toString: String = s"${name.asString}${Chart.nameVersionSeparator}${version.asString}"

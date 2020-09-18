@@ -1,22 +1,26 @@
-package org.broadinstitute.dsde.workbench.leonardo
+package org.broadinstitute.dsde.workbench
+package leonardo
 package util
 
 import java.util.Base64
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
-import cats.effect.{Blocker, ConcurrentEffect, ContextShift, Timer}
+import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.container.v1.MasterAuthorizedNetworksConfig.CidrBlock
 import com.google.container.v1._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
+import org.broadinstitute.dsde.workbench.leonardo.ctxConversion
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
+import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
 import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
 import org.broadinstitute.dsde.workbench.google2.{KubernetesClusterNotFoundException, KubernetesModels}
+import org.broadinstitute.dsde.workbench.google2.tracedRetryGoogleF
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
   KubernetesNamespace,
   KubernetesPodStatus,
@@ -25,6 +29,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
   PodStatus
 }
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.GalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
@@ -50,8 +55,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   helmClient: HelmAlgebra[F],
   galaxyDAO: GalaxyDAO[F],
   credentials: GoogleCredentials,
+  googleIamDAO: GoogleIamDAO,
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
+  contextShift: ContextShift[IO],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
   F: ConcurrentEffect[F])
@@ -79,7 +86,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Get nodepools to pass in the create cluster request
       nodepools = dbCluster.nodepools
         .filter(n => params.nodepoolsToCreate.contains(n.id))
-        .map(buildGoogleNodepool)
+        .map(buildLegacyGoogleNodepool)
 
       _ <- if (nodepools.size != params.nodepoolsToCreate.size)
         F.raiseError[Unit](
@@ -100,44 +107,40 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network)
       kubeSubNetwork = KubernetesSubNetwork(dbCluster.googleProject, dbCluster.region, subnetwork)
 
-      createClusterReq = Cluster
-        .newBuilder()
+      legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
-        .addAllNodePools(
-          nodepools.asJava
-        )
-        .putResourceLabels("leonardo", "true")
-        // all the below code corresponds to security recommendations
-        .setLegacyAbac(LegacyAbac.newBuilder().setEnabled(false))
+        .setNodePools(nodepools.asJava)
+        .setLegacyAbac(new com.google.api.services.container.model.LegacyAbac().setEnabled(false))
         .setNetwork(kubeNetwork.idString)
         .setSubnetwork(kubeSubNetwork.idString)
+        .setResourceLabels(Map("leonardo" -> "true").asJava)
         .setNetworkPolicy(
-          NetworkPolicy
-            .newBuilder()
-            .setEnabled(true)
+          new com.google.api.services.container.model.NetworkPolicy().setEnabled(true)
         )
         .setMasterAuthorizedNetworksConfig(
-          MasterAuthorizedNetworksConfig
-            .newBuilder()
+          new com.google.api.services.container.model.MasterAuthorizedNetworksConfig()
             .setEnabled(true)
-            .addAllCidrBlocks(
+            .setCidrBlocks(
               config.clusterConfig.authorizedNetworks
-                .map(ip => CidrBlock.newBuilder().setCidrBlock(ip.value).build())
+                .map(ip => new com.google.api.services.container.model.CidrBlock().setCidrBlock(ip.value))
                 .asJava
             )
         )
-        .setIpAllocationPolicy( //otherwise it uses the legacy one, which is insecure. See https://cloud.google.com/kubernetes-engine/docs/how-to/alias-ips
-          IPAllocationPolicy
-            .newBuilder()
+        .setIpAllocationPolicy(
+          new com.google.api.services.container.model.IPAllocationPolicy()
             .setUseIpAliases(true)
         )
-        .build()
+        .setWorkloadIdentityConfig(
+          new com.google.api.services.container.model.WorkloadIdentityConfig()
+            .setWorkloadPool(s"${params.googleProject.value}.svc.id.goog")
+        )
 
       // Submit request to GKE
-      req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, createClusterReq)
+      // TODO: use legacy cluster once wb-libs is in place
+      req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, legacyCreateClusterRec)
       op <- gkeService.createCluster(req)
 
-    } yield CreateClusterResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op),
+    } yield CreateClusterResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName),
                                 kubeNetwork,
                                 kubeSubNetwork)
 
@@ -250,7 +253,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         buildGoogleNodepool(dbNodepool)
       )
       op <- gkeService.createNodepool(req)
-    } yield CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op))
+    } yield CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName))
 
   override def pollNodepool(params: PollNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
@@ -293,6 +296,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       namespaceName = app.appResources.namespace.name
       dbCluster = dbApp.cluster
       gkeClusterId = dbCluster.getGkeClusterId
+      googleProject = params.googleProject
 
       _ <- logger.info(
         s"Beginning app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
@@ -311,8 +315,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Create KSA
       ksaName = config.galaxyAppConfig.serviceAccount
+      gsa = dbApp.app.googleServiceAccount
       // TODO populate annotations in KSA for Workload Identity once wb-libs GKE client is fixed
-      ksa = KubernetesModels.KubernetesServiceAccount(ServiceAccountName(ksaName.value), Map.empty)
+      annotations = Map("iam.gke.io/gcp-service-account" -> gsa.value)
+      ksa = KubernetesModels.KubernetesServiceAccount(ksaName, annotations)
 
       _ <- logger.info(
         s"Creating Kubernetes service account ${ksaName.value} for app  ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
@@ -322,7 +328,27 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // update KSA in DB
       _ <- appQuery.updateKubernetesServiceAccount(app.id, ksaName).transaction
 
-      // TODO add workload identity IAM roles
+      // Associate GSA to newly created KSA
+      // This string is constructed based on Google requirements to associate a GSA to a KSA
+      // (https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#creating_a_relationship_between_ksas_and_gsas)
+      ksaToGsa = s"${googleProject.value}.svc.id.goog[${namespaceName.value}/${ksaName.value}]"
+      call = Async[F].liftIO(
+        IO.fromFuture(
+          IO(
+            googleIamDAO.addIamPolicyBindingOnServiceAccount(googleProject,
+                                                             gsa,
+                                                             WorkbenchEmail(ksaToGsa),
+                                                             Set("roles/iam.workloadIdentityUser"))
+          )
+        )
+      )
+      retryConfig = RetryPredicates.retryConfigWithPredicates(
+        when409
+      )
+      _ <- tracedRetryGoogleF(retryConfig)(
+        call,
+        s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
+      ).compile.lastOrError
 
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
@@ -349,7 +375,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
-
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
@@ -379,7 +404,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
       lastOp <- gkeService
         .pollOperation(
-          KubernetesOperationId(params.googleProject, dbCluster.location, op),
+          KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
           config.monitorConfig.nodepoolDelete.interval,
           config.monitorConfig.nodepoolDelete.maxAttempts
         )
@@ -494,7 +519,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail,
                                   customEnvironmentVariables: Map[String, String],
-                                  kubernetesServiceAccount: KubernetesServiceAccount)(
+                                  kubernetesServiceAccount: ServiceAccountName)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -664,13 +689,36 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     builderWithAutoscaling.build()
   }
 
+  private[util] def buildLegacyGoogleNodepool(nodepool: Nodepool): com.google.api.services.container.model.NodePool = {
+    val legacyGoogleNodepool = new com.google.api.services.container.model.NodePool()
+      .setConfig(new com.google.api.services.container.model.NodeConfig().setMachineType(nodepool.machineType.value))
+      .setInitialNodeCount(nodepool.numNodes.amount)
+      .setName(nodepool.nodepoolName.value)
+      .setManagement(
+        new com.google.api.services.container.model.NodeManagement().setAutoUpgrade(true).setAutoRepair(true)
+      )
+
+    nodepool.autoscalingConfig.fold(legacyGoogleNodepool)(config =>
+      nodepool.autoscalingEnabled match {
+        case true =>
+          legacyGoogleNodepool.setAutoscaling(
+            new com.google.api.services.container.model.NodePoolAutoscaling()
+              .setEnabled(true)
+              .setMinNodeCount(config.autoscalingMin.amount)
+              .setMaxNodeCount(config.autoscalingMax.amount)
+          )
+        case false => legacyGoogleNodepool
+      }
+    )
+  }
+
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
                                                          release: Release,
                                                          cluster: KubernetesCluster,
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail,
                                                          customEnvironmentVariables: Map[String, String],
-                                                         ksa: KubernetesServiceAccount): String = {
+                                                         ksa: ServiceAccountName): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"

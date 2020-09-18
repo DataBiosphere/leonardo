@@ -4,15 +4,16 @@ import java.nio.file.Files
 import java.util.Base64
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
   NamespaceName,
   PodName,
   SecretKey,
-  SecretName
+  SecretName,
+  ServiceAccountName
 }
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   MockComputePollOperation,
@@ -30,7 +31,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AutoscalingMax,
   AutoscalingMin,
   KubernetesClusterLeoId,
-  KubernetesServiceAccount,
   LeonardoTestSuite
 }
 import org.broadinstitute.dsp.Release
@@ -43,6 +43,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite {
 
   val projectDAO = new MockGoogleProjectDAO
+
+  val googleIamDao = new MockGoogleIamDAO
 
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig,
@@ -58,6 +60,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            MockHelm,
                            MockGalaxyDAO,
                            credentials,
+                           googleIamDao,
                            blocker)
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
@@ -124,7 +127,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       NodepoolName("pool1"),
       userEmail,
       Map("WORKSPACE_NAME" -> "test-workspace", "WORKSPACE_BUCKET" -> "gs://test-bucket"),
-      KubernetesServiceAccount("app1-galaxy-ksa")
+      ServiceAccountName("app1-galaxy-ksa")
     )
 
     result shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.repositories.cvmfs-gxy-main-app1-galaxy-rls=main.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1211904326.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0]=1211904326.jupyter.firecloud.org,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,rbac.serviceAccount=app1-galaxy-ksa,persistence={},configs.WORKSPACE_NAME=test-workspace,extraEnv[0].name=WORKSPACE_NAME,extraEnv[0].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[0].valueFrom.configMapKeyRef.key=WORKSPACE_NAME,configs.WORKSPACE_BUCKET=gs://test-bucket,extraEnv[1].name=WORKSPACE_BUCKET,extraEnv[1].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[1].valueFrom.configMapKeyRef.key=WORKSPACE_BUCKET"""

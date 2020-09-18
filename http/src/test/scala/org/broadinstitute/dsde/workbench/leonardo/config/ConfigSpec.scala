@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{galaxyChartName, galaxyChartVersion}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
@@ -106,7 +106,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       galaxyChartVersion,
       "gxy-ns",
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
-      KubernetesServiceAccount("gxy-ksa"),
+      ServiceAccountName("gxy-ksa"),
       true
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
