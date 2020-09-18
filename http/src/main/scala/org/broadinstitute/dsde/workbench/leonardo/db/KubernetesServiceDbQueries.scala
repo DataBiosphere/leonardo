@@ -74,10 +74,13 @@ object KubernetesServiceDbQueries {
                      appQuery.findActiveByNameQuery(appName),
                      labelFilter)
 
-  def getFullAppByName(googleProject: GoogleProject, appId: AppId, labelFilter: LabelMap = Map())(
+  def getFullAppByName(googleProject: GoogleProject,
+                       appId: AppId,
+                       labelFilter: LabelMap = Map(),
+                       includeDeletedClusterApps: Boolean = false)(
     implicit ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
-    getActiveFullApp(listClustersByProject(Some(googleProject)),
+    getActiveFullApp(listClustersByProject(Some(googleProject), includeDeletedClusterApps),
                      nodepoolQuery,
                      appQuery.getByIdQuery(appId),
                      labelFilter)

@@ -1583,6 +1583,75 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
+  it should "delete a cluster and put that app in error status on cluster error" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = Some(disk),
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
+    val mockAckConsumer = mock[AckReplyConsumer]
+
+    val mockGKEService = new MockGKEService {
+      override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(
+        implicit ev: ApplicativeAsk[IO, TraceId]
+      ): IO[com.google.container.v1.Operation] = IO.raiseError(new Exception("test exception"))
+    }
+
+    val gkeInterp =
+      new GKEInterpreter[IO](Config.gkeInterpConfig,
+                             vpcInterp,
+                             mockGKEService,
+                             new MockKubernetesService(PodStatus.Succeeded),
+                             MockHelm,
+                             MockGalaxyDAO,
+                             credentials,
+                             iamDAO,
+                             blocker)
+
+    val assertions = for {
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction
+      getCluster = clusterOpt.get
+      getAppOpt <- KubernetesServiceDbQueries
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getCluster.status shouldBe KubernetesClusterStatus.Deleted
+      getCluster.nodepools.map(_.status).distinct shouldBe List(NodepoolStatus.Deleted)
+      getApp.app.status shouldBe AppStatus.Error
+      getApp.app.errors.size shouldBe 1
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
+      msg = CreateAppMessage(
+        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedApp1.id,
+        savedApp1.appName,
+        Some(savedNodepool1.id),
+        savedCluster1.googleProject,
+        None,
+        Map.empty,
+        Some(tr)
+      )
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterp = gkeInterp)
+      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+    } yield ()
+
+    res.unsafeRunSync()
+    assertions.unsafeRunSync()
+  }
+
   def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
                         asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
                           InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
