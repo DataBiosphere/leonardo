@@ -152,6 +152,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       clusterNodepoolAction = saveClusterResult match {
         case ClusterExists(_) =>
+          // If we're claiming a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
           if (claimedNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
         case ClusterDoesNotExist(c, n) => Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
       }
