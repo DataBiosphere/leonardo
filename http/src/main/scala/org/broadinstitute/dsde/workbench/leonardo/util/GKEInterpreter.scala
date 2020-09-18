@@ -321,7 +321,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ksa = KubernetesModels.KubernetesServiceAccount(ksaName, annotations)
 
       _ <- logger.info(
-        s"Creating Kubernetes service account ${ksaName} for app  ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Creating Kubernetes service account ${ksaName.value} for app  ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
       _ <- kubeService.createServiceAccount(gkeClusterId, ksa, KubernetesNamespace(namespaceName))
 
@@ -331,7 +331,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Associate GSA to newly created KSA
       // This string is constructed based on Google requirements to associate a GSA to a KSA
       // (https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#creating_a_relationship_between_ksas_and_gsas)
-      ksaToGsa = s"${googleProject.value}.svc.id.goog[${namespaceName.value}/${ksaName}]"
+      ksaToGsa = s"${googleProject.value}.svc.id.goog[${namespaceName.value}/${ksaName.value}]"
       call = Async[F].liftIO(
         IO.fromFuture(
           IO(
@@ -347,7 +347,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
       _ <- tracedRetryGoogleF(retryConfig)(
         call,
-        s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName}"
+        s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
       ).compile.lastOrError
 
       // Resolve the cluster in Google
