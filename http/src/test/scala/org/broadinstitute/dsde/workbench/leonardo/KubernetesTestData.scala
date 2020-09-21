@@ -32,7 +32,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("galaxy/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("0.5.4")
+  val galaxyChartVersion = ChartVersion("0.5.3")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
