@@ -851,15 +851,14 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
         .transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
       getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
-      //the nodepool does not exist, so we should not have updated its status
-      getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
     }
 
     val res = for {
@@ -892,15 +891,14 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
         .transaction
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
       getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
-      //the nodepool does not exist, so we should not have updated its status
-      getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
     }
 
     val res = for {

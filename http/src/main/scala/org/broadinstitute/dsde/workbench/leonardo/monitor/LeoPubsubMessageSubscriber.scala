@@ -642,6 +642,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               .onError {
                 case _ =>
                   for {
+                    _ <- logger.info(
+                      s"Beginning clean up for cluster $clusterId due to an error during cluster creation"
+                    )
                     _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
                     _ <- gkeInterp.deleteAndPollCluster(DeleteClusterParams(clusterId, msg.project)).handleErrorWith {
                       e =>
