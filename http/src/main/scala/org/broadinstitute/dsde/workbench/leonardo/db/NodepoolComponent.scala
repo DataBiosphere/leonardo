@@ -102,14 +102,6 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
         fromNodepool(n)
     } yield n.copy(id = nodepoolId)
 
-  def markAsUnclaimed(ids: List[NodepoolLeoId])(implicit ec: ExecutionContext): DBIO[Unit] =
-    for {
-      _ <- nodepoolQuery
-        .filter(_.id inSetBind ids.toSet)
-        .map(_.status)
-        .update(NodepoolStatus.Unclaimed)
-    } yield ()
-
   private def fromNodepool(n: Nodepool) = NodepoolRecord(
     NodepoolLeoId(0),
     n.clusterId,
@@ -141,6 +133,14 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     findByNodepoolIdQuery(id)
       .map(_.status)
       .update(status)
+
+  def updateStatuses(ids: List[NodepoolLeoId], status: NodepoolStatus)(implicit ec: ExecutionContext): DBIO[Unit] =
+    for {
+      _ <- nodepoolQuery
+        .filter(_.id inSetBind ids.toSet)
+        .map(_.status)
+        .update(status)
+    } yield ()
 
   def markActiveAsDeletedForCluster(clusterId: KubernetesClusterLeoId, destroyedDate: Instant): DBIO[Int] =
     deleteFromQuery(findActiveByClusterIdQuery(clusterId), destroyedDate)

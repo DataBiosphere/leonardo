@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppName,
   AppStatus,
   AppType,
-  CreateCluster,
   KubernetesClusterStatus,
   LabelMap,
   LeonardoTestSuite,
@@ -35,12 +34,17 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
+import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.CreateNodepool
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,
   CreateAppMessage,
   DeleteAppMessage
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, LeoPubsubMessageType}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  ClusterNodepoolAction,
+  LeoPubsubMessage,
+  LeoPubsubMessageType
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -119,13 +123,12 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     message.messageType shouldBe LeoPubsubMessageType.CreateApp
     val createAppMessage = message.asInstanceOf[CreateAppMessage]
     createAppMessage.appId shouldBe getApp.app.id
-    createAppMessage.nodepoolId shouldBe Some(getApp.nodepool.id)
     createAppMessage.project shouldBe project
     createAppMessage.createDisk shouldBe getApp.app.appResources.disk.map(_.id)
-    createAppMessage.cluster shouldBe Some(
-      CreateCluster(getMinimalCluster.id, defaultNodepool.id)
-    )
     createAppMessage.customEnvironmentVariables shouldBe customEnvVars
+    createAppMessage.clusterNodepoolAction shouldBe Some(
+      ClusterNodepoolAction.CreateClusterAndNodepool(getMinimalCluster.id, defaultNodepool.id, getApp.nodepool.id)
+    )
   }
 
   it should "create an app with an existing disk" in isolatedDbTest {
@@ -474,7 +477,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     message.messageType shouldBe LeoPubsubMessageType.CreateApp
     val createAppMessage = message.asInstanceOf[CreateAppMessage]
     createAppMessage.appId shouldBe appResult.app.id
-    createAppMessage.nodepoolId shouldBe None
+    createAppMessage.clusterNodepoolAction shouldBe None
   }
 
   it should "be able to claim multiple nodepools" in isolatedDbTest {
@@ -523,7 +526,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     message1.messageType shouldBe LeoPubsubMessageType.CreateApp
     val createAppMessage1 = message1.asInstanceOf[CreateAppMessage]
     createAppMessage1.appId shouldBe appResult1.app.id
-    createAppMessage1.nodepoolId shouldBe None
+    createAppMessage1.clusterNodepoolAction shouldBe None
 
     val appName2 = AppName("app2")
     val appReq2 = appReq1.copy(diskConfig = Some(createDiskConfig1.copy(name = DiskName("newdisk"))))
@@ -551,7 +554,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     message2.messageType shouldBe LeoPubsubMessageType.CreateApp
     val createAppMessage2 = message2.asInstanceOf[CreateAppMessage]
     createAppMessage2.appId shouldBe appResult2.app.id
-    createAppMessage2.nodepoolId shouldBe None
+    createAppMessage2.clusterNodepoolAction shouldBe None
   }
 
   it should "be able to create a nodepool after a pool is completely claimed" in isolatedDbTest {
@@ -594,7 +597,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     message.messageType shouldBe LeoPubsubMessageType.CreateApp
     val createAppMessage = message.asInstanceOf[CreateAppMessage]
     createAppMessage.appId shouldBe appResult.app.id
-    createAppMessage.nodepoolId shouldBe None
+    createAppMessage.clusterNodepoolAction shouldBe None
 
     val appName2 = AppName("app2")
     val appReq2 = appReq.copy(diskConfig = Some(createDiskConfig.copy(name = DiskName("newdisk"))))
@@ -622,6 +625,6 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     message2.messageType shouldBe LeoPubsubMessageType.CreateApp
     val createAppMessage2 = message2.asInstanceOf[CreateAppMessage]
     createAppMessage2.appId shouldBe appResult2.app.id
-    createAppMessage2.nodepoolId shouldBe Some(appResult2.nodepool.id)
+    createAppMessage2.clusterNodepoolAction shouldBe Some(CreateNodepool(appResult2.nodepool.id))
   }
 }
