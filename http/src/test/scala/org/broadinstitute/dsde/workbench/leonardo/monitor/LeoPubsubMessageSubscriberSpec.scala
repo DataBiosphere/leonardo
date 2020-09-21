@@ -1602,7 +1602,7 @@ class LeoPubsubMessageSubscriberSpec
     val mockGKEService = new MockGKEService {
       override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(
         implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[com.google.container.v1.Operation] = IO.raiseError(new Exception("test exception"))
+      ): IO[com.google.api.services.container.model.Operation] = IO.raiseError(new Exception("test exception"))
     }
 
     val gkeInterp =
@@ -1634,11 +1634,10 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
-        Some(CreateCluster(savedCluster1.id, dummyNodepool.id)),
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        Some(savedNodepool1.id),
-        savedCluster1.googleProject,
         None,
         Map.empty,
         Some(tr)

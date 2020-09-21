@@ -642,7 +642,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               .onError {
                 case _ =>
                   for {
-                    _ <- gkeInterp.deleteAndPollCluster(DeleteClusterParams(clusterId, msg.project))
+                    _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
+                    _ <- gkeInterp.deleteAndPollCluster(DeleteClusterParams(clusterId, msg.project)).handleErrorWith {
+                      e =>
+                        // we do not want to bubble up errors with cluster clean-up
+                        logger.error(e)(
+                          s"An error occurred during resource clean up for cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
+                        )
+                    }
                   } yield ()
               }
               .adaptError {

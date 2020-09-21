@@ -311,7 +311,7 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
       )
       .get
 
-    val saveResult = KubernetesServiceDbQueries.saveOrGetForApp(saveCluster2).transaction.unsafeRunSync()
+    val saveResult = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2).transaction.unsafeRunSync()
     // We are verifying it saved a new cluster here.
     // We don't know the ID, but the method not returning the original DELETED cluster is sufficient
     saveResult.minimalCluster.id should not be savedCluster1.id
