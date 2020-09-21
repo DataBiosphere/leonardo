@@ -630,7 +630,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // we can nack the message on errors. Monitoring all creations will be asynchronous,
       // and (3) and (4) will always be asynchronous.
 
-      // Create the cluster or nodepool synchronously if necessary
+      // Create the cluster or nodepool synchronously if necessary.
+      // The monitor operation is returned so it can be run asynchronously.
       monitorClusterOrNodepool <- msg.clusterNodepoolAction match {
         case Some(ClusterNodepoolAction.CreateClusterAndNodepool(clusterId, defaultNodepoolId, nodepoolId)) =>
           for {
