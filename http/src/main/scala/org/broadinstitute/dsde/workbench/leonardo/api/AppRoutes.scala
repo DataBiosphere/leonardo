@@ -196,16 +196,6 @@ object AppRoutes {
       } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty))
     }
 
-//  implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
-//  implicit val getAppDecoder: Decoder[GetAppResponse] =
-//    Decoder.forProduct7("kubernetesRuntimeConfig",
-//                        "errors",
-//                        "status",
-//                        "proxyUrls",
-//                        "diskName",
-//                        "customEnvironmentVariables",
-//                        "auditInfo")(GetAppResponse.apply)
-
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
     n match {
       case n if n < 1   => Left("Minimum number of nodepools is 1")
@@ -214,27 +204,8 @@ object AppRoutes {
     }
   )
 
-//  implicit val numNodepoolsEncoder: Encoder[NumNodepools] = Encoder.encodeInt.contramap(_.value)
-
   implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] =
     Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
-
-//  implicit val listAppDecoder: Decoder[ListAppResponse] = Decoder.forProduct8("googleProject",
-//                                                                              "kubernetesRuntimeConfig",
-//                                                                              "errors",
-//                                                                              "status",
-//                                                                              "proxyUrls",
-//                                                                              "appName",
-//                                                                              "diskName",
-//                                                                              "auditInfo")(ListAppResponse.apply)
-
-//  implicit val createAppEncoder: Encoder[CreateAppRequest] =
-//    Encoder.forProduct5("kubernetesRuntimeConfig", "appType", "diskConfig", "labels", "customEnvironmentVariables")(x =>
-//      CreateAppRequest.unapply(x).get
-//    )
-
-//  implicit val batchNodepoolCreateEncoder: Encoder[BatchNodepoolCreateRequest] =
-//    Encoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(x => BatchNodepoolCreateRequest.unapply(x).get)
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =

@@ -1394,6 +1394,13 @@ paths:
           required: true
           schema:
             type: string
+        - in: query
+          name: deleteDisk
+          description: Whether or not the disk associated with the app should be deleted. Default to false if not specified.
+          required: false
+          schema:
+            type: boolean
+            default: false
       responses:
         "202":
           description: App deletion request accepted
@@ -3171,6 +3178,10 @@ components:
 
     GetAppResponse:
       description: the configuration of an app
+      required:
+        - kubernetesRuntimeConfig
+        - status
+        - auditInfo
       type: object
       properties:
         kubernetesRuntimeConfig:
@@ -3191,9 +3202,15 @@ components:
         customEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the app
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
 
     ListAppResponse:
       description: the configuration of an app
+      required:
+        - kubernetesRuntimeConfig
+        - status
+        - auditInfo
       type: object
       properties:
         googleProject:
@@ -3217,6 +3234,8 @@ components:
         appName:
           type: string
           description: the name of the app
+        auditInfo:
+          $ref: "#/components/schemas/AuditInfo"
 
     KubernetesRuntimeConfig:
       description: configuration for a kubernetes app runtime
