@@ -2428,7 +2428,7 @@ components:
         runtimeName:
           type: string
           description: The user-supplied name for the runtime
-        auditoInfo:
+        auditInfo:
           type: object
           $ref: "#/components/schemas/AuditInfo"
         googleProject:
