@@ -136,7 +136,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
 
       // Submit request to GKE
-      // TODO: use legacy cluster once wb-libs is in place
       req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, legacyCreateClusterRec)
       op <- gkeService.createCluster(req)
 
@@ -318,7 +317,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Create KSA
       ksaName = config.galaxyAppConfig.serviceAccount
       gsa = dbApp.app.googleServiceAccount
-      // TODO populate annotations in KSA for Workload Identity once wb-libs GKE client is fixed
       annotations = Map("iam.gke.io/gcp-service-account" -> gsa.value)
       ksa = KubernetesModels.KubernetesServiceAccount(ksaName, annotations)
 
@@ -628,13 +626,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             .filterNot(isPodDone)
             .map(_.name.value)
             .mkString(", ")} | trace id: ${ctx.traceId}"
-        logger.error(msg)
-
-        // TODO (RT): currently there seems to be a bug causing Galaxy pods to not terminate when `helm delete` is called.
-        // So we're currently _not_ throwing an error if deletion times out, but we should uncomment the below
-        // line once the Galaxy bug is fixed.
-
-        //>> F.raiseError[Unit](AppDeletionException(msg))
+        logger.error(msg) >>
+          F.raiseError[Unit](AppDeletionException(msg))
       } else F.unit
 
     } yield ()
