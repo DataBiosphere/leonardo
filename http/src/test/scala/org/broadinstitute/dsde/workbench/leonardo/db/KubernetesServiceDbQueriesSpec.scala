@@ -294,6 +294,29 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     }
   }
 
+  it should "allow creation of a cluster if a deleted one exists in the same project" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Deleted).save
+    val makeCluster2 = makeKubeCluster(2).copy(status = KubernetesClusterStatus.Precreating)
+
+    val saveCluster2 = Some(makeCluster2)
+      .map(c =>
+        SaveKubernetesCluster(c.googleProject,
+                              c.clusterName,
+                              c.location,
+                              c.region,
+                              c.status,
+                              c.ingressChart,
+                              c.auditInfo,
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
+      )
+      .get
+
+    val saveResult = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2).transaction.unsafeRunSync()
+    // We are verifying it saved a new cluster here.
+    // We don't know the ID, but the method not returning the original DELETED cluster is sufficient
+    saveResult.minimalCluster.id should not be savedCluster1.id
+  }
+
   it should "get cluster if exists for project" in isolatedDbTest {
     val makeCluster1 = makeKubeCluster(1).copy()
     val makeCluster2 = makeCluster1.copy(clusterName = kubeName0)

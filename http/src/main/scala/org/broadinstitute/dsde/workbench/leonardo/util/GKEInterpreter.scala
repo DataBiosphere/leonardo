@@ -381,8 +381,33 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     } yield ()
 
   override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
-    // TODO not yet implemented
-    F.unit
+    for {
+      ctx <- ev.ask
+      dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(params.clusterId).transaction
+      dbCluster <- F.fromOption(
+        dbClusterOpt,
+        KubernetesClusterNotFoundException(s"Cluster with id ${params.clusterId} not found in database")
+      )
+      op <- gkeService.deleteCluster(dbCluster.getGkeClusterId)
+      lastOp <- gkeService
+        .pollOperation(
+          KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+          config.monitorConfig.clusterDelete.interval,
+          config.monitorConfig.clusterDelete.maxAttempts
+        )
+        .compile
+        .lastOrError
+      _ <- if (lastOp.isDone)
+        logger.info(
+          s"Delete cluster operation has finished for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+        )
+      else
+        logger.error(
+          s"Delete cluster operation has failed or timed out for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+        ) >>
+          F.raiseError[Unit](ClusterDeletionException(params.clusterId))
+      _ <- kubernetesClusterQuery.markAsDeleted(params.clusterId, ctx.now).transaction
+    } yield ()
 
   override def deleteAndPollNodepool(
     params: DeleteNodepoolParams
@@ -776,6 +801,10 @@ sealed trait AppProcessingException extends Exception {
 
 final case class ClusterCreationException(message: String) extends AppProcessingException {
   override def getMessage: String = message
+}
+
+final case class ClusterDeletionException(clusterId: KubernetesClusterLeoId) extends AppProcessingException {
+  override def getMessage: String = s"Failed to poll clluster deletion operation to completion for cluster $clusterId"
 }
 
 final case class NodepoolCreationException(nodepoolId: NodepoolLeoId) extends AppProcessingException {
