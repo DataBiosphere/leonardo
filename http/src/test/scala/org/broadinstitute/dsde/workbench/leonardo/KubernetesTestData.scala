@@ -5,8 +5,13 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.Protocol
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCreateRequest
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  BatchNodepoolCreateRequest,
+  CreateAppRequest,
+  GetAppResponse,
+  GetAppResult,
+  ListAppResponse
+}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}

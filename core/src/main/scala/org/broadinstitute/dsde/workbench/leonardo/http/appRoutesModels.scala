@@ -16,7 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesRuntimeConfig,
   LabelMap,
   Nodepool,
-  NodepoolStatus
+  NodepoolStatus,
+  NumNodepools
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -26,6 +27,9 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   diskConfig: Option[PersistentDiskRequest],
                                   labels: LabelMap = Map.empty,
                                   customEnvironmentVariables: Map[String, String])
+
+final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
+                                            kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig])
 
 final case class DeleteAppRequest(userInfo: UserInfo,
                                   googleProject: GoogleProject,

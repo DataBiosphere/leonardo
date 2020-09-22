@@ -13,8 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.server.Directives._
-import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{BatchNodepoolCreateRequest}
+import io.circe.{Decoder, Encoder, KeyEncoder}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
@@ -197,7 +196,7 @@ object AppRoutes {
       } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty))
     }
 
-  implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
+//  implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
 //  implicit val getAppDecoder: Decoder[GetAppResponse] =
 //    Decoder.forProduct7("kubernetesRuntimeConfig",
 //                        "errors",
@@ -215,7 +214,7 @@ object AppRoutes {
     }
   )
 
-  implicit val numNodepoolsEncoder: Encoder[NumNodepools] = Encoder.encodeInt.contramap(_.value)
+//  implicit val numNodepoolsEncoder: Encoder[NumNodepools] = Encoder.encodeInt.contramap(_.value)
 
   implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] =
     Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
@@ -229,13 +228,13 @@ object AppRoutes {
 //                                                                              "diskName",
 //                                                                              "auditInfo")(ListAppResponse.apply)
 
-  implicit val createAppEncoder: Encoder[CreateAppRequest] =
-    Encoder.forProduct5("kubernetesRuntimeConfig", "appType", "diskConfig", "labels", "customEnvironmentVariables")(x =>
-      CreateAppRequest.unapply(x).get
-    )
+//  implicit val createAppEncoder: Encoder[CreateAppRequest] =
+//    Encoder.forProduct5("kubernetesRuntimeConfig", "appType", "diskConfig", "labels", "customEnvironmentVariables")(x =>
+//      CreateAppRequest.unapply(x).get
+//    )
 
-  implicit val batchNodepoolCreateEncoder: Encoder[BatchNodepoolCreateRequest] =
-    Encoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(x => BatchNodepoolCreateRequest.unapply(x).get)
+//  implicit val batchNodepoolCreateEncoder: Encoder[BatchNodepoolCreateRequest] =
+//    Encoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(x => BatchNodepoolCreateRequest.unapply(x).get)
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
