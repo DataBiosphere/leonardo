@@ -2,8 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.service
 
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.BatchNodepoolCreateRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.{
+  BatchNodepoolCreateRequest,
   CreateAppRequest,
   DeleteAppRequest,
   GetAppResponse,

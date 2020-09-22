@@ -13,8 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import akka.http.scaladsl.server.Directives._
-import io.circe.{Decoder, Encoder, KeyDecoder, KeyEncoder}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{BatchNodepoolCreateRequest}
+import io.circe.{Decoder, Encoder, KeyEncoder}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
@@ -197,15 +196,6 @@ object AppRoutes {
       } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty))
     }
 
-  implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
-  implicit val getAppDecoder: Decoder[GetAppResponse] =
-    Decoder.forProduct6("kubernetesRuntimeConfig",
-                        "errors",
-                        "status",
-                        "proxyUrls",
-                        "diskName",
-                        "customEnvironmentVariables")(GetAppResponse.apply)
-
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
     n match {
       case n if n < 1   => Left("Minimum number of nodepools is 1")
@@ -214,42 +204,26 @@ object AppRoutes {
     }
   )
 
-  implicit val numNodepoolsEncoder: Encoder[NumNodepools] = Encoder.encodeInt.contramap(_.value)
-
   implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] =
     Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
 
-  implicit val listAppDecoder: Decoder[ListAppResponse] = Decoder.forProduct7("googleProject",
-                                                                              "kubernetesRuntimeConfig",
-                                                                              "errors",
-                                                                              "status",
-                                                                              "proxyUrls",
-                                                                              "appName",
-                                                                              "diskName")(ListAppResponse.apply)
-
-  implicit val createAppEncoder: Encoder[CreateAppRequest] =
-    Encoder.forProduct5("kubernetesRuntimeConfig", "appType", "diskConfig", "labels", "customEnvironmentVariables")(x =>
-      CreateAppRequest.unapply(x).get
-    )
-
-  implicit val batchNodepoolCreateEncoder: Encoder[BatchNodepoolCreateRequest] =
-    Encoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(x => BatchNodepoolCreateRequest.unapply(x).get)
-
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct7("googleProject",
+    Encoder.forProduct8("googleProject",
                         "kubernetesRuntimeConfig",
                         "errors",
                         "status",
                         "proxyUrls",
                         "appName",
-                        "diskName")(x => ListAppResponse.unapply(x).get)
+                        "diskName",
+                        "auditInfo")(x => ListAppResponse.unapply(x).get)
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct6("kubernetesRuntimeConfig",
+    Encoder.forProduct7("kubernetesRuntimeConfig",
                         "errors",
                         "status",
                         "proxyUrls",
                         "diskName",
-                        "customEnvironmentVariables")(x => GetAppResponse.unapply(x).get)
+                        "customEnvironmentVariables",
+                        "auditInfo")(x => GetAppResponse.unapply(x).get)
 }

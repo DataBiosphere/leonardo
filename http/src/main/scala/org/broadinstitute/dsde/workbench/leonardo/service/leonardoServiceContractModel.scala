@@ -231,6 +231,3 @@ object GetRuntimeResponse {
     diskConfig
   )
 }
-
-final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
-                                            kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig])
