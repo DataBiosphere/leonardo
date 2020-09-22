@@ -198,13 +198,14 @@ object AppRoutes {
     }
 
   implicit val nameKeyDecoder: KeyDecoder[ServiceName] = KeyDecoder.decodeKeyString.map(ServiceName.apply)
-  implicit val getAppDecoder: Decoder[GetAppResponse] =
-    Decoder.forProduct6("kubernetesRuntimeConfig",
-                        "errors",
-                        "status",
-                        "proxyUrls",
-                        "diskName",
-                        "customEnvironmentVariables")(GetAppResponse.apply)
+//  implicit val getAppDecoder: Decoder[GetAppResponse] =
+//    Decoder.forProduct7("kubernetesRuntimeConfig",
+//                        "errors",
+//                        "status",
+//                        "proxyUrls",
+//                        "diskName",
+//                        "customEnvironmentVariables",
+//                        "auditInfo")(GetAppResponse.apply)
 
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
     n match {
@@ -219,13 +220,14 @@ object AppRoutes {
   implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] =
     Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
 
-  implicit val listAppDecoder: Decoder[ListAppResponse] = Decoder.forProduct7("googleProject",
-                                                                              "kubernetesRuntimeConfig",
-                                                                              "errors",
-                                                                              "status",
-                                                                              "proxyUrls",
-                                                                              "appName",
-                                                                              "diskName")(ListAppResponse.apply)
+//  implicit val listAppDecoder: Decoder[ListAppResponse] = Decoder.forProduct8("googleProject",
+//                                                                              "kubernetesRuntimeConfig",
+//                                                                              "errors",
+//                                                                              "status",
+//                                                                              "proxyUrls",
+//                                                                              "appName",
+//                                                                              "diskName",
+//                                                                              "auditInfo")(ListAppResponse.apply)
 
   implicit val createAppEncoder: Encoder[CreateAppRequest] =
     Encoder.forProduct5("kubernetesRuntimeConfig", "appType", "diskConfig", "labels", "customEnvironmentVariables")(x =>
@@ -237,19 +239,21 @@ object AppRoutes {
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =
-    Encoder.forProduct7("googleProject",
+    Encoder.forProduct8("googleProject",
                         "kubernetesRuntimeConfig",
                         "errors",
                         "status",
                         "proxyUrls",
                         "appName",
-                        "diskName")(x => ListAppResponse.unapply(x).get)
+                        "diskName",
+                        "auditInfo")(x => ListAppResponse.unapply(x).get)
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct6("kubernetesRuntimeConfig",
+    Encoder.forProduct7("kubernetesRuntimeConfig",
                         "errors",
                         "status",
                         "proxyUrls",
                         "diskName",
-                        "customEnvironmentVariables")(x => GetAppResponse.unapply(x).get)
+                        "customEnvironmentVariables",
+                        "auditInfo")(x => GetAppResponse.unapply(x).get)
 }

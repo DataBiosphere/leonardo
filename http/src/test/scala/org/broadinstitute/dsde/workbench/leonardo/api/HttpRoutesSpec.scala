@@ -12,6 +12,7 @@ import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
