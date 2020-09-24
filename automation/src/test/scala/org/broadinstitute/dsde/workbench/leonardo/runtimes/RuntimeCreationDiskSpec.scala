@@ -93,7 +93,7 @@ class RuntimeCreationDiskSpec
     )
 
     import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.eitherDoneCheckable
-
+    //adding comment
     // validate disk still exists after runtime is deleted
     val res = dependencies.use { dep =>
       implicit val client = dep.httpClient
