@@ -3,20 +3,18 @@ package http
 package api
 
 import java.net.URL
-import java.util.UUID
 
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
-import cats.effect.{IO, Timer}
+import cats.effect.IO
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import JsonCodec._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
-import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
@@ -28,250 +26,293 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeService
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 
 import scala.concurrent.duration._
 
-class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
-  implicit timer: Timer[IO]
-) {
-  val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
-    CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
-      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-      pathPrefix("google" / "v1" / "runtimes") {
-        pathEndOrSingleSlash {
-          parameterMap { params =>
-            traceRequestForService(serviceData) { span =>
-              get {
-                complete(
-                  listRuntimesHandler(
-                    userInfo,
-                    None,
-                    params,
-                    span
-                  )
-                )
-              }
-            }
-          }
-        } ~
-          pathPrefix(googleProjectSegment) { googleProject =>
+class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives) {
+  val routes: server.Route = traceRequestForService(serviceData) { span =>
+    extractAppContext(Some(span)) { implicit ctx =>
+      userInfoDirectives.requireUserInfo { userInfo =>
+        CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+          pathPrefix("google" / "v1" / "runtimes") {
             pathEndOrSingleSlash {
               parameterMap { params =>
-                traceRequestForService(serviceData) { span =>
-                  get {
-                    complete(
-                      listRuntimesHandler(
-                        userInfo,
-                        Some(googleProject),
-                        params,
-                        span
-                      )
+                get {
+                  complete(
+                    listRuntimesHandler(
+                      userInfo,
+                      None,
+                      params
                     )
-                  }
+                  )
                 }
+
               }
             } ~
-              pathPrefix(Segment) { runtimeNameString =>
-                RouteValidation.validateNameDirective(runtimeNameString, RuntimeName.apply) { runtimeName =>
-                  pathEndOrSingleSlash {
-                    traceRequestForService(serviceData) { span =>
-                      post {
-                        entity(as[CreateRuntime2Request]) { req =>
+              pathPrefix(googleProjectSegment) { googleProject =>
+                pathEndOrSingleSlash {
+                  parameterMap { params =>
+                    get {
+                      complete(
+                        listRuntimesHandler(
+                          userInfo,
+                          Some(googleProject),
+                          params
+                        )
+                      )
+                    }
+
+                  }
+                } ~
+                  pathPrefix(Segment) { runtimeNameString =>
+                    RouteValidation.validateNameDirective(runtimeNameString, RuntimeName.apply) { runtimeName =>
+                      pathEndOrSingleSlash {
+                        post {
+                          entity(as[CreateRuntime2Request]) { req =>
+                            complete(
+                              createRuntimeHandler(
+                                userInfo,
+                                googleProject,
+                                runtimeName,
+                                req
+                              )
+                            )
+                          }
+                        } ~ get {
                           complete(
-                            createRuntimeHandler(
+                            getRuntimeHandler(
                               userInfo,
                               googleProject,
-                              runtimeName,
-                              req,
-                              span
+                              runtimeName
                             )
                           )
-                        }
-                      }
-                    } ~ traceRequestForService(serviceData) { span =>
-                      get {
-                        complete(
-                          getRuntimeHandler(
-                            userInfo,
-                            googleProject,
-                            runtimeName,
-                            span
-                          )
-                        )
-                      }
-                    } ~
-                      patch {
-                        traceRequestForService(serviceData) { span =>
+                        } ~ patch {
+
                           entity(as[UpdateRuntimeRequest]) { req =>
                             complete(
                               updateRuntimeHandler(
                                 userInfo,
                                 googleProject,
                                 runtimeName,
-                                req,
-                                span
+                                req
                               )
                             )
                           }
-                        }
-                      } ~
-                      delete {
-                        parameterMap { params =>
-                          traceRequestForService(serviceData) { span =>
+
+                        } ~ delete {
+                          parameterMap { params =>
                             complete(
                               deleteRuntimeHandler(
                                 userInfo,
                                 googleProject,
                                 runtimeName,
-                                params,
-                                span
+                                params
+                              )
+                            )
+
+                          }
+                        }
+                      } ~
+                        path("stop") {
+
+                          post {
+                            complete(
+                              stopRuntimeHandler(
+                                userInfo,
+                                googleProject,
+                                runtimeName
                               )
                             )
                           }
-                        }
-                      }
-                  } ~
-                    path("stop") {
-                      traceRequestForService(serviceData) { span =>
-                        post {
-                          complete(
-                            stopRuntimeHandler(
-                              userInfo,
-                              googleProject,
-                              runtimeName,
-                              span
+
+                        } ~
+                        path("start") {
+
+                          post {
+                            complete(
+                              startRuntimeHandler(
+                                userInfo,
+                                googleProject,
+                                runtimeName
+                              )
                             )
-                          )
+                          }
+
                         }
-                      }
-                    } ~
-                    path("start") {
-                      traceRequestForService(serviceData) { span =>
-                        post {
-                          complete(
-                            startRuntimeHandler(
-                              userInfo,
-                              googleProject,
-                              runtimeName,
-                              span
-                            )
-                          )
-                        }
-                      }
                     }
-                }
+                  }
               }
           }
+        }
       }
     }
   }
-
   private[api] def createRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        req: CreateRuntime2Request,
-                                        span: Span): IO[ToResponseMarshallable] = {
-    val res = for {
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
-      _ <- runtimeService.createRuntime(
-        userInfo,
-        googleProject,
-        runtimeName,
-        req
+                                        req: CreateRuntime2Request)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask
+      apiCall = runtimeService.createRuntime(userInfo, googleProject, runtimeName, req)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "createRuntime")
+          .use(_ => apiCall)
       )
-      _ <- IO(span.end())
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
-    spanResource[IO](span, "createRuntime")
-      .use(_ => res)
-  }
+//    val res = for {
+//      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+//      _ <- runtimeService.createRuntime(
+//        userInfo,
+//        googleProject,
+//        runtimeName,
+//        req
+//      )
+//      _ <- IO(span.end())
+//    } yield StatusCodes.Accepted: ToResponseMarshallable
+//
+//    spanResource[IO](span, "createRuntime")
+//      .use(_ => res)
 
-  private[api] def getRuntimeHandler(userInfo: UserInfo,
-                                     googleProject: GoogleProject,
-                                     runtimeName: RuntimeName,
-                                     span: Span): IO[ToResponseMarshallable] = {
-    val res = for {
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
-      resp <- runtimeService.getRuntime(userInfo, googleProject, runtimeName)
+  private[api] def getRuntimeHandler(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask
+      apiCall = runtimeService.getRuntime(userInfo, googleProject, runtimeName)
+      resp <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "getRuntime")
+          .use(_ => apiCall)
+      )
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
-
-    spanResource[IO](span, "getRuntime")
-      .use(_ => res)
-  }
+//
+//    val res = for {
+//      ctx <- ev.ask
+//      resp <- runtimeService.getRuntime(userInfo, googleProject, runtimeName)
+//    } yield StatusCodes.OK -> resp: ToResponseMarshallable
+//
+//    spanResource[IO](span, "getRuntime")
+//      .use(_ => res)
 
   private[api] def listRuntimesHandler(userInfo: UserInfo,
                                        googleProject: Option[GoogleProject],
-                                       params: Map[String, String],
-                                       span: Span): IO[ToResponseMarshallable] = {
-    val res = for {
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
-      resp <- runtimeService.listRuntimes(userInfo, googleProject, params)
+                                       params: Map[String, String])(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask
+      apiCall = runtimeService.listRuntimes(userInfo, googleProject, params)
+      resp <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "listRuntime")
+          .use(_ => apiCall)
+      )
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
 
-    spanResource[IO](span, "listRuntime")
-      .use(_ => res)
-  }
+//    val res = for {
+//      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+//      resp <- runtimeService.listRuntimes(userInfo, googleProject, params)
+//    } yield StatusCodes.OK -> resp: ToResponseMarshallable
+//
+//    spanResource[IO](span, "listRuntime")
+//      .use(_ => res)
 
   private[api] def deleteRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        params: Map[String, String],
-                                        span: Span): IO[ToResponseMarshallable] = {
-    val res = for {
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+                                        params: Map[String, String])(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask
       deleteDisk = params
         .get("deleteDisk")
         .map(s => if (s == "true") true else false)
         .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
       request = DeleteRuntimeRequest(userInfo, googleProject, runtimeName, deleteDisk)
-      _ <- runtimeService.deleteRuntime(request)
+      apiCall = runtimeService.deleteRuntime(request)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "deleteRuntime")
+          .use(_ => apiCall)
+      )
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
-    spanResource[IO](span, "deleteRuntime")
-      .use(_ => res)
-  }
+//    val res = for {
+//      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+//      deleteDisk = params
+//        .get("deleteDisk")
+//        .map(s => if (s == "true") true else false)
+//        .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+//      request = DeleteRuntimeRequest(userInfo, googleProject, runtimeName, deleteDisk)
+//      _ <- runtimeService.deleteRuntime(request)
+//    } yield StatusCodes.Accepted: ToResponseMarshallable
+//
+//    spanResource[IO](span, "deleteRuntime")
+//      .use(_ => res)
 
-  private[api] def stopRuntimeHandler(userInfo: UserInfo,
-                                      googleProject: GoogleProject,
-                                      runtimeName: RuntimeName,
-                                      span: Span): IO[ToResponseMarshallable] = {
-    val res = for {
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
-      _ <- runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
+  private[api] def stopRuntimeHandler(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask
+      apiCall = runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "stopRuntime")
+          .use(_ => apiCall)
+      )
     } yield StatusCodes.Accepted: ToResponseMarshallable
+//    val res = for {
+//      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+//      _ <- runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
+//    } yield StatusCodes.Accepted: ToResponseMarshallable
+//
+//    spanResource[IO](span, "stopRuntime")
+//      .use(_ => res)
 
-    spanResource[IO](span, "stopRuntime")
-      .use(_ => res)
-  }
-
-  private[api] def startRuntimeHandler(userInfo: UserInfo,
-                                       googleProject: GoogleProject,
-                                       runtimeName: RuntimeName,
-                                       span: Span): IO[ToResponseMarshallable] = {
-    val res = for {
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
-      _ <- runtimeService.startRuntime(userInfo, googleProject, runtimeName)
-      _ <- IO(span.end())
+  private[api] def startRuntimeHandler(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask
+      apiCall = runtimeService.startRuntime(userInfo, googleProject, runtimeName)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "startRuntime")
+          .use(_ => apiCall)
+      )
     } yield StatusCodes.Accepted: ToResponseMarshallable
-
-    spanResource[IO](span, "startRuntime")
-      .use(_ => res)
-  }
+//    val res = for {
+//      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+//      _ <- runtimeService.startRuntime(userInfo, googleProject, runtimeName)
+//      _ <- IO(span.end())
+//    } yield StatusCodes.Accepted: ToResponseMarshallable
+//
+//    spanResource[IO](span, "startRuntime")
+//      .use(_ => res)
 
   private[api] def updateRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        req: UpdateRuntimeRequest,
-                                        span: Span): IO[ToResponseMarshallable] = {
-    val res = for {
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
-      _ <- runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
+                                        req: UpdateRuntimeRequest)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask
+      apiCall = runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
+      _ <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "updateRuntime")
+          .use(_ => apiCall)
+      )
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
-    spanResource[IO](span, "updateRuntime")
-      .use(_ => res)
-  }
+//    val res = for {
+//      implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+//      _ <- runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
+//    } yield StatusCodes.Accepted: ToResponseMarshallable
+//
+//    spanResource[IO](span, "updateRuntime")
+//      .use(_ => res)
 }
 
 object RuntimeRoutes {
