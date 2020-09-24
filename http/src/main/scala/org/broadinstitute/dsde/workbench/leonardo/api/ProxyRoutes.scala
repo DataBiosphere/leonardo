@@ -48,29 +48,34 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
         } ~
           // "runtimes" proxy routes
           pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
-            // Note this endpoint exists at the top-level /proxy/setCookie as well
+            // Note the setCookie route exists at the top-level /proxy/setCookie as well
             path("setCookie") {
-              extractUserInfo { userInfo =>
+              extractUserInfoOpt { userInfoOpt =>
                 get {
-                  CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+                  val cookieDirective = userInfoOpt match {
+                    case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
+                    case None           => CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName)
+                  }
+                  cookieDirective {
                     complete {
-                      IO(logger.debug(s"Successfully set cookie for user $userInfo"))
+                      IO(logger.debug(s"Successfully set cookie for user $userInfoOpt"))
                         .as(StatusCodes.NoContent)
                     }
                   }
                 }
               }
-            } ~ pathPrefix("jupyter" / "terminals") {
-              pathSuffix(terminalNameSegment) { terminalName =>
-                (extractRequest & extractUserInfo) { (request, userInfo) =>
-                  logRequestResultForMetrics(userInfo) {
-                    complete {
-                      openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
+            } ~
+              pathPrefix("jupyter" / "terminals") {
+                pathSuffix(terminalNameSegment) { terminalName =>
+                  (extractRequest & extractUserInfo) { (request, userInfo) =>
+                    logRequestResultForMetrics(userInfo) {
+                      complete {
+                        openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
+                      }
                     }
                   }
                 }
-              }
-            } ~
+              } ~
               (extractRequest & extractUserInfo) { (request, userInfo) =>
                 logRequestResultForMetrics(userInfo) {
                   // Proxy logic handled by the ProxyService class
@@ -84,22 +89,27 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
           // Top-level routes
           path("invalidateToken") {
             get {
-              extractToken { token =>
-                complete {
-                  proxyService.invalidateAccessToken(token).map { _ =>
-                    IO(logger.debug(s"Invalidated access token $token"))
-                      .as(StatusCodes.OK)
+              extractUserInfoOpt { userInfoOpt =>
+                CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
+                  complete {
+                    userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
+                      IO(logger.debug(s"Invalidated access token"))
+                        .as(StatusCodes.OK)
                   }
                 }
               }
             }
           } ~
           path("setCookie") {
-            extractUserInfo { userInfo =>
+            extractUserInfoOpt { userInfoOpt =>
               get {
-                CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+                val cookieDirective = userInfoOpt match {
+                  case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
+                  case None           => CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName)
+                }
+                cookieDirective {
                   complete {
-                    IO(logger.debug(s"Successfully set cookie for user $userInfo"))
+                    IO(logger.debug(s"Successfully set cookie for user $userInfoOpt"))
                       .as(StatusCodes.NoContent)
                   }
                 }
@@ -112,30 +122,43 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
   /**
    * Extracts the user token from either a cookie or Authorization header.
    */
-  private def extractToken: Directive1[String] =
+  private def extractTokenOpt: Directive1[Option[String]] =
     optionalHeaderValueByType[`Authorization`](()) flatMap {
 
       // We have an Authorization header, extract the token
       // Note the Authorization header overrides the cookie
-      case Some(header) => provide(header.credentials.token)
+      case Some(header) => provide(Some(header.credentials.token))
 
       // We don't have an Authorization header; check the cookie
       case None =>
         optionalCookie(CookieSupport.tokenCookieName) flatMap {
 
           // We have a cookie, extract the token
-          case Some(cookie) => provide(cookie.value)
+          case Some(cookie) => provide(Some(cookie.value))
 
-          // Not found in cookie or Authorization header, fail
-          case None => failWith(AuthenticationError())
+          // Not found in cookie or Authorization header
+          case None => provide(None)
         }
     }
 
   /**
    * Extracts the user token from the request, and looks up the cached UserInfo.
+   * Fails with AuthenticationError if a token cannot be retrieved.
    */
   private def extractUserInfo: Directive1[UserInfo] =
-    extractToken.flatMap(token => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()))
+    extractTokenOpt.flatMap {
+      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture())
+      case None        => failWith(AuthenticationError())
+    }
+
+  /**
+   * Like extractUserInfo, but returns None if a token cannot be retrieved.
+   */
+  private def extractUserInfoOpt: Directive1[Option[UserInfo]] =
+    extractTokenOpt.flatMap {
+      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()).map(_.some)
+      case None        => provide(None)
+    }
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
   private def logRequestResultForMetrics(userInfo: UserInfo): Directive0 = {
