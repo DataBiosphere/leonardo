@@ -770,8 +770,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
+      // set single_user to similuate a logged-in user to Galaxy
+      // https://docs.galaxyproject.org/en/latest/admin/options.html#single-user
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
+      // set admin_users to unlock admin functionality in Galaxy
+      // https://docs.galaxyproject.org/en/latest/admin/options.html#admin-users
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
+      // unset X-Frame-Options to allow Galaxy to be run by Terra in an iframe
+      // https://docs.galaxyproject.org/en/latest/admin/options.html#x-frame-options
+      raw"""galaxy.configs.galaxy\.yml.galaxy.x_frame_options=""",
       raw"""rbac.serviceAccount=${ksa.value}""",
       // TODO Update during https://broadworkbench.atlassian.net/browse/IA-2171
       raw"""persistence={}"""
