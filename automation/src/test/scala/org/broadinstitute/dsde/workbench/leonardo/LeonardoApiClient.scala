@@ -92,7 +92,7 @@ object LeonardoApiClient {
       .status(
         Request[IO](
           method = Method.POST,
-          headers = Headers.of(authHeader, defaultMediaType),
+          headers = Headers.of(authHeader, defaultMediaType, ),
           uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
           body = createRuntime2Request
         )
@@ -447,6 +447,9 @@ object LeonardoApiClient {
         else
           IO.unit
       }
+
+  private def genTraceIdHeader(): IO[Header] =
+    IO(UUID.randomUUID().toString).map(uuid => Header(traceIdHeaderString, uuid))
 }
 
 final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {

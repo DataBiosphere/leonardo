@@ -1,17 +1,27 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
+import java.time.Instant
+import java.util.UUID
+
 import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.server.Directive1
+<<<<<<< HEAD
 import akka.http.scaladsl.server.Directives.provide
+=======
+import akka.http.scaladsl.server.Directives.optionalHeaderValueByName
+>>>>>>> updating runtime routes
 import akka.http.scaladsl.server.directives.OnSuccessMagnet
 import akka.http.scaladsl.server.util.Tupler
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import spray.json._
 import akka.http.scaladsl.server.PathMatchers.Segment
+import cats.mtl.ApplicativeAsk
+import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
+import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.Future
 
@@ -45,6 +55,17 @@ package object api {
         case None    => d2
       }
   }
+
+  def extractAppContext(span: Option[Span]): Directive1[ApplicativeAsk[IO, AppContext]] =
+    //val traceIdFromHeader = req.headers.get(CaseInsensitiveString("X-Cloud-Trace-Context")).map(x => TraceId(x.value))
+    //traceIdFromHeader.fold(IO(TraceId(UUID.randomUUID().toString)))(IO.pure)
+    optionalHeaderValueByName(traceIdHeaderString).map {
+      case (uuidOpt) =>
+        val traceId = uuidOpt.getOrElse(UUID.randomUUID().toString)
+        val now = Instant.now()
+        val appContext = AppContext(TraceId(traceId), now, span)
+        ApplicativeAsk.const[IO, AppContext](appContext)
+    }
 }
 
 object ImplicitConversions {
