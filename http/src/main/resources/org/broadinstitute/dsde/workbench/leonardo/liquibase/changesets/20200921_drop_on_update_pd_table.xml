@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+    <changeSet logicalFilePath="leonardo" author="qi" id="drop_on_update_pd_table">
+        <sql>ALTER TABLE PERSISTENT_DISK CHANGE createdDate createdDate TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) NOT NULL</sql>
+        <dropDefaultValue  columnDataType="TIMESTAMP(6)"
+                           columnName="createdDate"
+                           tableName="PERSISTENT_DISK"/>
+    </changeSet>
+</databaseChangeLog>
