@@ -94,7 +94,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                   complete {
                     userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
                       IO(logger.debug(s"Invalidated access token"))
-                        .as(StatusCodes.OK)
+                        .as(StatusCodes.NoContent)
                   }
                 }
               }

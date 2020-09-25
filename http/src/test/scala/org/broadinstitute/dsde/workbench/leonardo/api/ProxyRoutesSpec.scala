@@ -246,6 +246,29 @@ class ProxyRoutesSpec
     result.futureValue shouldBe "Hello Leonardo!"
   }
 
+  it should "create terminal trying to access a terminal not created yet" in {
+    val jupyterDAO = mock[JupyterDAO[IO]]
+    when {
+      jupyterDAO.terminalExists(GoogleProject(googleProject), RuntimeName(clusterName), TerminalName("1"))
+    } thenReturn IO.pure(false)
+
+    when {
+      jupyterDAO.createTerminal(GoogleProject(googleProject), RuntimeName(clusterName))
+    } thenReturn IO.unit
+
+    val httpRoutes = createHttpRoute(jupyterDAO)
+
+    Get(s"/proxy/$googleProject/$clusterName/jupyter/terminals/1")
+      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      verify(jupyterDAO, times(1)).terminalExists(GoogleProject(googleProject),
+                                                  RuntimeName(clusterName),
+                                                  TerminalName("1"))
+      verify(jupyterDAO, times(1)).createTerminal(GoogleProject(googleProject), RuntimeName(clusterName))
+    }
+  }
+
   "app proxy routes" should "listen on /proxy/google/v1/apps/{project}/{name}/{service}" in {
     Get(s"/proxy/google/v1/apps/$googleProject/$appName/$serviceName")
       .addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
@@ -366,11 +389,13 @@ class ProxyRoutesSpec
     }
   }
 
-  it should "401 when not given an Authorization header" in {
+  it should "unset the cookie when not given an Authorization header" in {
     Get(s"/proxy/$googleProject/$clusterName/setCookie")
       .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       handled shouldBe true
-      status shouldEqual StatusCodes.Unauthorized
+      validateUnsetRawCookie(setCookie = header("Set-Cookie"))
+      status shouldEqual StatusCodes.NoContent
+      validateCors(origin = Some("http://example.com"))
     }
   }
 
@@ -379,29 +404,6 @@ class ProxyRoutesSpec
       .addHeader(Authorization(OAuth2BearerToken(expiredTokenCookie.value)))
       .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized
-    }
-  }
-
-  it should "create terminal trying to access a terminal not created yet" in {
-    val jupyterDAO = mock[JupyterDAO[IO]]
-    when {
-      jupyterDAO.terminalExists(GoogleProject(googleProject), RuntimeName(clusterName), TerminalName("1"))
-    } thenReturn IO.pure(false)
-
-    when {
-      jupyterDAO.createTerminal(GoogleProject(googleProject), RuntimeName(clusterName))
-    } thenReturn IO.unit
-
-    val httpRoutes = createHttpRoute(jupyterDAO)
-
-    Get(s"/proxy/$googleProject/$clusterName/jupyter/terminals/1")
-      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
-      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.OK
-      verify(jupyterDAO, times(1)).terminalExists(GoogleProject(googleProject),
-                                                  RuntimeName(clusterName),
-                                                  TerminalName("1"))
-      verify(jupyterDAO, times(1)).createTerminal(GoogleProject(googleProject), RuntimeName(clusterName))
     }
   }
 
@@ -420,10 +422,13 @@ class ProxyRoutesSpec
     proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
 
     // log out, passing a cookie
-    Get(s"/proxy/invalidateToken").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
+    Get(s"/proxy/invalidateToken")
+      .addHeader(Cookie(tokenCookie))
+      .addHeader(Origin("http://example.com")) ~> httpRoutes.route ~> check {
       handled shouldBe true
-      status shouldEqual StatusCodes.OK
-      header[`Set-Cookie`] shouldBe None
+      validateUnsetRawCookie(setCookie = header("Set-Cookie"))
+      status shouldEqual StatusCodes.NoContent
+      validateCors(origin = Some("http://example.com"))
     }
 
     // cache should not contain the token
