@@ -171,10 +171,10 @@ object LeonardoApiClient {
       .void
 
   def createApp(
-                 googleProject: GoogleProject,
-                 appName: AppName,
-                 createAppRequest: CreateAppRequest = defaultCreateAppRequest
-               )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    googleProject: GoogleProject,
+    appName: AppName,
+    createAppRequest: CreateAppRequest = defaultCreateAppRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
     client
       .expectOr[String](
         Request[IO](
@@ -184,10 +184,10 @@ object LeonardoApiClient {
           body = createAppRequest
         )
       )(resp =>
-    resp.bodyText.compile.string
-      .flatMap(body => IO.raiseError(RestError(resp.status, body)))
-    )
-    .void
+        resp.bodyText.compile.string
+          .flatMap(body => IO.raiseError(RestError(resp.status, body)))
+      )
+      .void
 
   //This line causes the body to be decoded as JSON, which will prevent error messagges from being seen
   //If you care about the error message, place the function before this line

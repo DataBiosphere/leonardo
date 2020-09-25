@@ -18,7 +18,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
-//@DoNotDiscover
+@DoNotDiscover
 class BatchNodepoolCreationSpec
     extends GPAllocFixtureSpec
     with LeonardoTestUtils
@@ -74,6 +74,10 @@ class BatchNodepoolCreationSpec
         val appDeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
           x => x.map(_.status).distinct == List(AppStatus.Deleted)
 
+        val appName1 = AppName("app1")
+        val app1DeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
+          x => x.filter(_.appName == appName1).map(_.status).distinct == List(AppStatus.Deleted)
+
         for {
           clusterName <- IO.fromEither(KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply))
           _ <- LeonardoApiClient.batchNodepoolCreate(
@@ -96,7 +100,6 @@ class BatchNodepoolCreationSpec
 
           _ = monitorBatchCreationResult.map(_.getNodePoolsList().size()) shouldBe Some(2)
 
-          appName1 = AppName("app1")
           diskConfig1 = Some(PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty))
 
           _ <- loggerIO.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@About to create app1")
@@ -127,8 +130,6 @@ class BatchNodepoolCreationSpec
                                            appName2,
                                            createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig2))
 
-
-
           _ <- loggerIO.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@About to get app2")
 
           //creating a second app with 1 precreated nodepool should cause a second user nodepool to be created
@@ -143,15 +144,25 @@ class BatchNodepoolCreationSpec
           clusterAfterApp2 <- getCluster
           _ = clusterAfterApp2.map(_.getNodePoolsList().size()) shouldBe Some(3)
 
+          // we can only delete 1 app at a time due to the google limitation that a cluster can only have 1 nodepool related operation ongoing at a time
           _ <- LeonardoApiClient.deleteApp(googleProject, appName1)
-          _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
+
           listApps = LeonardoApiClient.listApps(googleProject, true)
+
+          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+            testTimer,
+            app1DeletedDoneCheckable
+          ).compile.lastOrError
+
+          _ <- loggerIO.warn(s"@@@@@@@@ app1 delete result: $monitorApp1DeletionResult")
+
+          _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
           monitorAppDeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
             testTimer,
             appDeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.warn(s"@@@@@@@@ app delete result: ${monitorAppDeletionResult}")
+          _ <- loggerIO.warn(s"@@@@@@@@ all app delete result: $monitorAppDeletionResult")
 
         } yield ()
       }

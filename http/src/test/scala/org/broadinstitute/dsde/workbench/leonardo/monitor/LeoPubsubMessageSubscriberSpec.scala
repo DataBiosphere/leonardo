@@ -1151,7 +1151,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
-        whitelistAuthProvider,
+                             whitelistAuthProvider,
                              blocker)
 
     val assertions = for {
@@ -1462,7 +1462,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
-        whitelistAuthProvider,
+                             whitelistAuthProvider,
                              blocker)
 
     val assertions = for {
@@ -1542,7 +1542,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
-        whitelistAuthProvider,
+                             whitelistAuthProvider,
                              blocker)
 
     val assertions = for {
@@ -1618,7 +1618,7 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAO,
-        whitelistAuthProvider,
+                             whitelistAuthProvider,
                              blocker)
 
     val assertions = for {
