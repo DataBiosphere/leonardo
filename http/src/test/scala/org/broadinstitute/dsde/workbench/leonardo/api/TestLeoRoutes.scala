@@ -235,4 +235,11 @@ trait TestLeoRoutes {
 
     replaced shouldBe s"${expectedCookie.name}=${expectedCookie.value}; Max-Age=${age.toString}; Path=/; Secure; SameSite=None"
   }
+
+  protected def validateUnsetRawCookie(setCookie: Option[HttpHeader],
+                                       expectedCookie: HttpCookiePair = tokenCookie): Unit = {
+    setCookie shouldBe 'defined
+    setCookie.get.name shouldBe "Set-Cookie"
+    setCookie.get.value shouldBe s"${tokenName}=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None"
+  }
 }

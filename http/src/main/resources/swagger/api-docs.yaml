@@ -1586,11 +1586,12 @@ paths:
         Jupyter notebook
       description: >
         If using Google token-based authorization to a Jupyter notebook, the Leo
-        proxy accepts a
-
-        Google token passed as a cookie value. This endpoint facilitates setting that cookie.
+        proxy accepts a Google token passed as a cookie value. This endpoint facilitates setting that cookie.
 
         It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
+
+        If no bearer token is present, it unsets the cookie by returning a Set-Cookie header with a null
+        value and expiration date in the past.
       operationId: setCookieApi
       tags:
         - notebooks
@@ -1632,17 +1633,16 @@ paths:
       deprecated: true
       summary: (Deprecated) Invalidates a token
       description: >
-        If using Google token-based auth, call this endpoint when a user's
-        Google token is invalidated
+        If using Google token-based auth, clients can call this endpoint when a user's
+        Google token should be invalidated (e.g. when logging out of the application).
 
-        (e.g. when logging out of the application). This ensures that the token is also invalidated in Leo
-
-        and that the user's proxied notebook connections stop working.
+        This endpoint will unset the Leo token cookie and invalidate caches to ensure
+        the user's proxied notebook connections stop working.
       operationId: invalidateTokenApi
       tags:
         - notebooks
       responses:
-        "200":
+        "204":
           description: Successfully invalidated a token
         "500":
           description: Internal Error
@@ -1895,6 +1895,9 @@ paths:
         accepts a Google token passed as a cookie value. This endpoint facilitates setting that cookie.
 
         It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
+
+        If no bearer token is present, it unsets the cookie by returning a Set-Cookie header with a null
+        value and expiration date in the past.
       operationId: setCookie
       tags:
         - proxy
@@ -1917,15 +1920,16 @@ paths:
     get:
       summary: Invalidates a token
       description: >
-        If using Google token-based auth, call this endpoint when a user's
-        Google token is invalidated (e.g. when logging out of the application).
-        This ensures that the token is also invalidated in Leo and that the user's
-        proxied connections stop working.
+        If using Google token-based auth, clients can call this endpoint when a user's
+        Google token should be invalidated (e.g. when logging out of the application).
+
+        This endpoint will unset the Leo token cookie and invalidate caches to ensure
+        the user's proxied connections stop working.
       operationId: invalidateToken
       tags:
         - proxy
       responses:
-        "200":
+        "204":
           description: Successfully invalidated a token
         "500":
           description: Internal Error
@@ -1942,6 +1946,9 @@ paths:
         accepts a Google token passed as a cookie value. This endpoint facilitates setting that cookie.
 
         It accepts a bearer token in an Authorization header and responds with a Set-Cookie header.
+
+        If no bearer token is present, it unsets the cookie by returning a Set-Cookie header with a null
+        value and expiration date in the past.
       operationId: setCookieDeprecated
       tags:
         - proxy
