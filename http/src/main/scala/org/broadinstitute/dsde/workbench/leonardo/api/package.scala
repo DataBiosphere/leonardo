@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import akka.http.scaladsl.marshalling.Marshaller
+import akka.http.scaladsl.server.Directive1
+import akka.http.scaladsl.server.Directives.provide
 import akka.http.scaladsl.server.directives.OnSuccessMagnet
 import akka.http.scaladsl.server.util.Tupler
 import cats.effect.IO
@@ -34,6 +36,15 @@ package object api {
   val appNameSegment = Segment.map(AppName)
   val serviceNameSegment = Segment.map(ServiceName)
   val terminalNameSegment = Segment.map(TerminalName)
+
+  // Adds `orElse` to Directive1[Option[A]]
+  implicit private[api] class Directive1Support[A](d1: Directive1[Option[A]]) {
+    def orElse(d2: => Directive1[Option[A]]): Directive1[Option[A]] =
+      d1.flatMap {
+        case Some(a) => provide(Some(a))
+        case None    => d2
+      }
+  }
 }
 
 object ImplicitConversions {

@@ -50,7 +50,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
           pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
             // Note the setCookie route exists at the top-level /proxy/setCookie as well
             path("setCookie") {
-              extractUserInfoOpt { userInfoOpt =>
+              extractUserInfoFromHeader { userInfoOpt =>
                 get {
                   val cookieDirective = userInfoOpt match {
                     case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
@@ -101,7 +101,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
             }
           } ~
           path("setCookie") {
-            extractUserInfoOpt { userInfoOpt =>
+            extractUserInfoFromHeader { userInfoOpt =>
               get {
                 val cookieDirective = userInfoOpt match {
                   case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
@@ -120,42 +120,42 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
     }
 
   /**
-   * Extracts the user token from either a cookie or Authorization header.
+   * Extracts the user bearer token from an Authorization header.
    */
-  private def extractTokenOpt: Directive1[Option[String]] =
-    optionalHeaderValueByType[`Authorization`](()) flatMap {
+  private def extractTokenFromHeader: Directive1[Option[String]] =
+    optionalHeaderValueByType[`Authorization`](()).map(headerOpt => headerOpt.map(h => h.credentials.token))
 
-      // We have an Authorization header, extract the token
-      // Note the Authorization header overrides the cookie
-      case Some(header) => provide(Some(header.credentials.token))
+  /**
+   * Extracts the user bearer token from a LeoToken cookie.
+   */
+  private def extractTokenFromCookie: Directive1[Option[String]] =
+    optionalCookie(CookieSupport.tokenCookieName).map(cookieOpt => cookieOpt.map(c => c.value))
 
-      // We don't have an Authorization header; check the cookie
-      case None =>
-        optionalCookie(CookieSupport.tokenCookieName) flatMap {
-
-          // We have a cookie, extract the token
-          case Some(cookie) => provide(Some(cookie.value))
-
-          // Not found in cookie or Authorization header
-          case None => provide(None)
-        }
+  /**
+   * Extracts user info from an Authorization header or LeoToken cookie.
+   * Returns None if a token cannot be retrieved.
+   */
+  private def extractUserInfoOpt: Directive1[Option[UserInfo]] =
+    (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
+      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()).map(_.some)
+      case None        => provide(None)
     }
 
   /**
-   * Extracts the user token from the request, and looks up the cached UserInfo.
-   * Fails with AuthenticationError if a token cannot be retrieved.
+   * Like extractUserInfoOpt, but fails with AuthenticationError if a token cannot be retrieved.
    */
   private def extractUserInfo: Directive1[UserInfo] =
-    extractTokenOpt.flatMap {
+    (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
       case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture())
       case None        => failWith(AuthenticationError())
     }
 
   /**
-   * Like extractUserInfo, but returns None if a token cannot be retrieved.
+   * Extracts user info from an Authorization header _only_.
+   * Returns None if a token cannot be retrieved.
    */
-  private def extractUserInfoOpt: Directive1[Option[UserInfo]] =
-    extractTokenOpt.flatMap {
+  private def extractUserInfoFromHeader: Directive1[Option[UserInfo]] =
+    extractTokenFromHeader flatMap {
       case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()).map(_.some)
       case None        => provide(None)
     }
