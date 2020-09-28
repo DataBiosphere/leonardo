@@ -102,13 +102,13 @@ class BatchNodepoolCreationSpec
 
           diskConfig1 = Some(PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty))
 
-          _ <- loggerIO.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@About to create app1")
+          _ <- loggerIO.info("About to create app1")
 
           _ <- LeonardoApiClient.createApp(googleProject,
                                            appName1,
                                            createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig1))
 
-          _ <- loggerIO.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@About to get app1")
+          _ <- loggerIO.info("About to get app1")
 
           getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
           monitorApp1CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp1, 60, 10 seconds)(
@@ -116,7 +116,7 @@ class BatchNodepoolCreationSpec
             appDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.warn(s"@@@@@@@@ app1 monitor result: ${monitorApp1CreationResult}")
+          _ <- loggerIO.info(s"app1 monitor result: ${monitorApp1CreationResult}")
 
           clusterAfterApp1 <- getCluster
           _ = clusterAfterApp1.map(_.getNodePoolsList().size()) shouldBe Some(2)
@@ -124,13 +124,11 @@ class BatchNodepoolCreationSpec
           appName2 = AppName("app2")
           diskConfig2 = Some(PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty))
 
-          _ <- loggerIO.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@About to create app2")
+          _ <- loggerIO.info("About to create app2")
 
           _ <- LeonardoApiClient.createApp(googleProject,
                                            appName2,
                                            createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig2))
-
-          _ <- loggerIO.warn("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@About to get app2")
 
           //creating a second app with 1 precreated nodepool should cause a second user nodepool to be created
           getApp2 = LeonardoApiClient.getApp(googleProject, appName2)
@@ -139,7 +137,7 @@ class BatchNodepoolCreationSpec
             appDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.warn(s"@@@@@@@@ app2 monitor result: ${monitorApp2CreationResult}")
+          _ <- loggerIO.info(s"app2 monitor result: ${monitorApp2CreationResult}")
 
           clusterAfterApp2 <- getCluster
           _ = clusterAfterApp2.map(_.getNodePoolsList().size()) shouldBe Some(3)
@@ -154,7 +152,7 @@ class BatchNodepoolCreationSpec
             app1DeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.warn(s"@@@@@@@@ app1 delete result: $monitorApp1DeletionResult")
+          _ <- loggerIO.info(s"app1 delete result: $monitorApp1DeletionResult")
 
           _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
           monitorAppDeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
@@ -162,7 +160,7 @@ class BatchNodepoolCreationSpec
             appDeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.warn(s"@@@@@@@@ all app delete result: $monitorAppDeletionResult")
+          _ <- loggerIO.info(s"all app delete result: $monitorAppDeletionResult")
 
         } yield ()
       }
