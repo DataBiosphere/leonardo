@@ -246,7 +246,7 @@ class ProxyRoutesSpec
     result.futureValue shouldBe "Hello Leonardo!"
   }
 
-  it should "create terminal trying to access a terminal not created yet" in {
+  it should "create a new terminal when trying to access a terminal that was not created yet" in {
     val jupyterDAO = mock[JupyterDAO[IO]]
     when {
       jupyterDAO.terminalExists(GoogleProject(googleProject), RuntimeName(clusterName), TerminalName("1"))
