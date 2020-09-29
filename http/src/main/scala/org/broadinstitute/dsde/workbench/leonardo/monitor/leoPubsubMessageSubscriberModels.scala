@@ -749,7 +749,7 @@ sealed trait PubsubHandleMessageError extends NoStackTrace {
 }
 object PubsubHandleMessageError {
   final case class PubsubKubernetesError(dbError: AppError,
-                                         appId: AppId,
+                                         appId: Option[AppId],
                                          isRetryable: Boolean,
                                          nodepoolId: Option[NodepoolLeoId],
                                          clusterId: Option[KubernetesClusterLeoId])
@@ -811,19 +811,3 @@ final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
                                                   persistentDiskMonitorConfig: PersistentDiskMonitorConfig)
-
-final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-  override def getMessage: String =
-    s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
-  val isRetryable: Boolean = false
-}
-
-final case class PubsubKubernetesError(dbError: AppError,
-                                       appId: Option[AppId],
-                                       isRetryable: Boolean,
-                                       nodepoolId: Option[NodepoolLeoId],
-                                       clusterId: Option[KubernetesClusterLeoId])
-    extends PubsubHandleMessageError {
-  override def getMessage: String =
-    s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
-}
