@@ -77,6 +77,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         handleCreateAppMessage(msg)
       case msg: DeleteAppMessage =>
         handleDeleteAppMessage(msg)
+      case msg: DeleteKubernetesClusterMessage =>
+        handleDeleteKubernetesClusterMessage(msg)
       case msg: BatchNodepoolCreateMessage =>
         handleBatchNodepoolCreateMessage(msg)
     }
@@ -848,6 +850,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
         )
     } yield ()
+
+  private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = ???
 
   private def handleKubernetesError(e: Throwable)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     e match {
