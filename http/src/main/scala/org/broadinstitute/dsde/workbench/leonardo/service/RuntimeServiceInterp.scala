@@ -901,14 +901,17 @@ object RuntimeServiceInterp {
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             diskBeforeSave <- F.fromEither(
-              DiskServiceInterp.convertToDisk(userInfo,
-                                              serviceAccount,
-                                              googleProject,
-                                              req.name,
-                                              samResource,
-                                              diskConfig,
-                                              CreateDiskRequest.fromDiskConfigRequest(req),
-                                              ctx.now)
+              DiskServiceInterp.convertToDisk(
+                userInfo,
+                serviceAccount,
+                googleProject,
+                req.name,
+                samResource,
+                diskConfig,
+                CreateDiskRequest.fromDiskConfigRequest(req),
+                ctx.now,
+                if (willBeUsedBy == FormattedBy.Galaxy) true else false
+              )
             )
             _ <- authProvider
               .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)

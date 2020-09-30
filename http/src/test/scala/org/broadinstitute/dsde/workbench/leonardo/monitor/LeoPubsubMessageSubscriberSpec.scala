@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 }
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
+  DiskName,
   Event,
   GKEModels,
   KubernetesModels,
@@ -663,6 +664,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         Some(disk.id),
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -675,62 +677,29 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
-  it should "create an app with no disk" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-
-    val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
-        .transaction
-      getApp = getAppOpt.get
-    } yield {
-      getApp.app.errors shouldBe List()
-      getApp.cluster.asyncFields shouldBe Some(
-        KubernetesClusterAsyncFields(IP("1.2.3.4"),
-                                     IP("0.0.0.0"),
-                                     NetworkFields(Config.vpcConfig.networkName,
-                                                   Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
-      )
-      getApp.app.appResources.disk shouldBe None
-      getApp.app.status shouldBe AppStatus.Running
-      getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
-        ServiceAccountName("gxy-ksa")
-      )
-    }
-
-    val res = for {
-      tr <- traceId.ask
-      dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
-      msg = CreateAppMessage(
-        savedCluster1.googleProject,
-        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
-        savedApp1.id,
-        savedApp1.appName,
-        None,
-        Map.empty,
-        Some(tr)
-      )
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.handleCreateAppMessage(msg)
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-  }
-
-  it should "be able to create an multiple apps in a cluster" in isolatedDbTest {
+  it should "be able to create multiple apps in a cluster" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
 
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-    val savedApp2 = makeApp(2, savedNodepool1.id).save()
+    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = None,
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
+    val makeApp2 = makeApp(2, savedNodepool2.id)
+    val savedApp2 = makeApp2
+      .copy(appResources =
+        makeApp2.appResources.copy(
+          disk = None,
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
 
     val assertions = for {
       getAppOpt1 <- KubernetesServiceDbQueries
@@ -773,8 +742,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        None,
+        Some(DiskId(1)),
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       msg2 = CreateAppMessage(
@@ -782,8 +752,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(ClusterNodepoolAction.CreateNodepool(savedNodepool2.id)),
         savedApp2.id,
         savedApp2.appName,
-        None,
+        Some(DiskId(2)),
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -831,6 +802,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         None,
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -872,6 +844,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         None,
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -913,6 +886,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         None,
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -953,6 +927,7 @@ class LeoPubsubMessageSubscriberSpec
         AppName("fakeapp"),
         None,
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -992,6 +967,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         Some(DiskId(-1)),
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1362,6 +1338,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         Some(disk.id),
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1497,6 +1474,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         Some(disk.id),
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1575,6 +1553,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         None,
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1645,6 +1624,7 @@ class LeoPubsubMessageSubscriberSpec
         savedApp1.appName,
         None,
         Map.empty,
+        AppType.Galaxy,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)

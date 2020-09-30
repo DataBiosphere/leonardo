@@ -11,6 +11,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.container.v1._
+import com.google.cloud.compute.v1.Disk
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.leonardo.ctxConversion
@@ -18,9 +19,14 @@ import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
-import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
-import org.broadinstitute.dsde.workbench.google2.{KubernetesClusterNotFoundException, KubernetesModels}
-import org.broadinstitute.dsde.workbench.google2.tracedRetryGoogleF
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  tracedRetryGoogleF,
+  DiskName,
+  KubernetesClusterNotFoundException,
+  KubernetesModels,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
   KubernetesNamespace,
   KubernetesPodStatus,
@@ -35,6 +41,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.GalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, HelmAlgebra, Release}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
@@ -47,7 +54,8 @@ final case class GKEInterpreterConfig(securityFiles: SecurityFilesConfig,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
-                                      proxyConfig: ProxyConfig)
+                                      proxyConfig: ProxyConfig,
+                                      galaxyDiskConfig: GalaxyDiskConfig)
 class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   config: GKEInterpreterConfig,
   vpcAlg: VPCAlgebra[F],
@@ -361,6 +369,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
+      nfsDisk <- F.fromOption(
+        dbApp.app.appResources.disk,
+        AppCreationException(s"NFS disk not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}")
+      )
+
       // helm install galaxy and wait
       _ <- installGalaxy(
         app.appName,
@@ -371,7 +384,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         namespaceName,
         app.auditInfo.creator,
         app.customEnvironmentVariables,
-        ksaName
+        ksaName,
+        nfsDisk
       )
 
       _ <- logger.info(
@@ -499,6 +513,18 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       }
     } yield ()
 
+  def createGalaxyPostgresDisk(project: GoogleProject, zone: ZoneName, namespaceName: NamespaceName): Disk =
+    Disk
+      .newBuilder()
+      .setName(getGalaxyPostgresDiskName(namespaceName).value)
+      .setZone(zone.value)
+      .setSizeGb(config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString)
+      .setPhysicalBlockSizeBytes(config.galaxyDiskConfig.postgresDiskBlockSize.bytes.toString)
+      .build()
+
+  def getGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
+    DiskName(s"${namespaceName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
+
   private[util] def installNginx(dbCluster: KubernetesCluster,
                                  googleCluster: Cluster)(implicit ev: ApplicativeAsk[F, AppContext]): F[IP] =
     for {
@@ -555,7 +581,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail,
                                   customEnvironmentVariables: Map[String, String],
-                                  kubernetesServiceAccount: ServiceAccountName)(
+                                  kubernetesServiceAccount: ServiceAccountName,
+                                  nfsDisk: PersistentDisk)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
@@ -573,7 +600,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          nodepoolName,
                                                          userEmail,
                                                          customEnvironmentVariables,
-                                                         kubernetesServiceAccount)
+                                                         kubernetesServiceAccount,
+                                                         namespaceName,
+                                                         nfsDisk)
 
       _ <- logger.info(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
@@ -756,7 +785,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail,
                                                          customEnvironmentVariables: Map[String, String],
-                                                         ksa: ServiceAccountName): String = {
+                                                         ksa: ServiceAccountName,
+                                                         namespaceName: NamespaceName,
+                                                         nfsDisk: PersistentDisk): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
@@ -800,8 +831,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.rbac.enabled=false""",
       raw"""galaxy.rbac.serviceAccount=${ksa.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
-      // TODO Update during https://broadworkbench.atlassian.net/browse/IA-2171
-      raw"""persistence={}"""
+      raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
+      raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name.value}""",
+      raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
+      raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
+      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${getGalaxyPostgresDiskName(
+        namespaceName
+      ).value}""",
+      raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
+      raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
+      raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc"""
     ) ++ configs).mkString(",")
   }
 

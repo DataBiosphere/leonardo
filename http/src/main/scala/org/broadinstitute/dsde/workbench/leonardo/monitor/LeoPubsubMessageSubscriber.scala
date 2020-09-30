@@ -15,6 +15,7 @@ import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   DiskName,
@@ -22,16 +23,19 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDiskService,
   GoogleSubscriber,
   MachineTypeName,
-  OperationName
+  OperationName,
+  ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
+import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
 import scala.concurrent.ExecutionContext
@@ -511,7 +515,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         asyncTasks.enqueue1(
           Task(ctx.traceId,
                task,
-               Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creatiing Disk")),
+               Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
                ctx.now)
         )
       }
@@ -525,6 +529,51 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             s"Failed to create disk ${msg.name.value} in Google project ${msg.googleProject.value}"
           )
           _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, ctx.now).transaction[F]
+        } yield ()
+    }
+  }
+
+  private[monitor] def createGalaxyPostgresDiskOnlyInGoogle(project: GoogleProject,
+                                                            zone: ZoneName,
+                                                            appName: AppName,
+                                                            namespaceName: NamespaceName)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] = {
+    // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only creating the postgress disk in Google since we are not supporting persistence
+    // see: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/859406337/2020-10-02+Galaxy+disk+attachment+pre+post+alpha+release
+    val create = for {
+      ctx <- ev.ask
+      _ <- logger.info(s"Beginning postgres disk creation for app ${appName.value} | trace id: ${ctx.traceId}")
+      operation <- googleDiskService.createDisk(project,
+                                                zone,
+                                                gkeInterp.createGalaxyPostgresDisk(project, zone, namespaceName))
+      whenDone = logger.info(
+        s"Completed postgres disk creation for app ${appName.value} in project ${project.value} | trace id: ${ctx.traceId}"
+      )
+      _ <- computePollOperation.pollZoneOperation(
+        project,
+        zone,
+        OperationName(operation.getName),
+        config.persistentDiskMonitorConfig.create.interval,
+        config.persistentDiskMonitorConfig.create.maxAttempts,
+        None
+      )(
+        whenDone,
+        F.raiseError(
+          new TimeoutException(
+            s"Failed to create Galaxy postgres disk in a timely manner. Project: ${project.value}, AppName: ${appName.value}"
+          )
+        ),
+        F.unit
+      )
+    } yield ()
+
+    create.onError {
+      case e =>
+        for {
+          _ <- logger.error(e)(
+            s"Failed to create Galaxy postgres disk in Google project ${project.value}, AppName: ${appName.value}"
+          )
         } yield ()
     }
   }
@@ -577,6 +626,43 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                ctx.now)
         )
       }
+    } yield ()
+
+  private[monitor] def deleteGalaxyPostgresDiskOnlyInGoogle(project: GoogleProject,
+                                                            zone: ZoneName,
+                                                            appName: AppName,
+                                                            namespaceName: NamespaceName)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only deleting the postgress disk in Google since we are not supporting persistence
+    // see: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/859406337/2020-10-02+Galaxy+disk+attachment+pre+post+alpha+release
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Beginning postres disk deletion for app ${appName.value} in project ${project.value} | trace id: ${ctx.traceId}"
+      )
+      operation <- googleDiskService.deleteDisk(project, zone, gkeInterp.getGalaxyPostgresDiskName(namespaceName))
+      whenDone = logger.info(
+        s"Completed postgres disk deletion for app ${appName.value} in project ${project.value} | trace id: ${ctx.traceId}"
+      )
+      whenTimeout = F.raiseError[Unit](
+        new TimeoutException(
+          s"Failed to delete postres disk in app ${appName.value} in project ${project.value} in a timely manner"
+        )
+      )
+      whenInterrupted = F.unit
+      task = operation match {
+        case Some(op) =>
+          computePollOperation.pollZoneOperation(project,
+                                                 zone,
+                                                 OperationName(op.getName),
+                                                 config.persistentDiskMonitorConfig.delete.interval,
+                                                 config.persistentDiskMonitorConfig.create.maxAttempts,
+                                                 None)(whenDone, whenTimeout, whenInterrupted)
+        case None =>
+          whenDone
+      }
+      _ <- task
     } yield ()
 
   private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage)(
@@ -703,8 +789,25 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
       }
 
+      dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
+      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
+      app = dbApp.app
+      createSecondDisk = if (msg.appType == Galaxy) {
+        createGalaxyPostgresDiskOnlyInGoogle(msg.project,
+                                             ZoneName("us-central1-a"),
+                                             msg.appName,
+                                             app.appResources.namespace.name).adaptError {
+          case e =>
+            PubsubKubernetesError(AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
+                                  Some(msg.appId),
+                                  false,
+                                  None,
+                                  None)
+        }
+      } else { F.unit }
+
       // parallelize disk creation and cluster/nodepool monitoring
-      parPreAppCreationSetup = List(createDisk, monitorClusterOrNodepool).parSequence_
+      parPreAppCreationSetup = List(createDisk, createSecondDisk, monitorClusterOrNodepool).parSequence_
 
       // build asynchronous task
       task = for {
@@ -826,7 +929,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             )
         }
 
-      deleteDisk = msg.diskId.traverse(diskId => deleteDiskForApp(diskId)).adaptError {
+      deleteDisk = msg.diskId.traverse_(diskId => deleteDiskForApp(diskId)).adaptError {
         case e =>
           PubsubKubernetesError(
             AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
@@ -837,11 +940,29 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
       }
 
+      dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
+      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
+      app = dbApp.app
+      deletePostgresDisk = deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
+                                                                ZoneName("us-central1-a"),
+                                                                msg.appName,
+                                                                app.appResources.namespace.name)
+        .adaptError {
+          case e =>
+            PubsubKubernetesError(AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
+                                  Some(msg.appId),
+                                  false,
+                                  None,
+                                  None)
+        }
+
+      deleteDisksInParallel = List(deleteDisk, deletePostgresDisk).parSequence_
+
       // TODO: can some of this be done in parallel?
       task = for {
         _ <- deleteApp
         _ <- deleteNodepool
-        _ <- deleteDisk
+        _ <- deleteDisksInParallel
       } yield ()
 
       _ <- if (sync) task

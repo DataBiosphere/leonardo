@@ -217,7 +217,18 @@ object DiskServiceInterp {
                                      samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
-                                     now: Instant): Either[Throwable, PersistentDisk] = {
+                                     now: Instant): Either[Throwable, PersistentDisk] =
+    convertToDisk(userInfo, serviceAccount, googleProject, diskName, samResource, config, req, now, false)
+
+  private[service] def convertToDisk(userInfo: UserInfo,
+                                     serviceAccount: WorkbenchEmail,
+                                     googleProject: GoogleProject,
+                                     diskName: DiskName,
+                                     samResource: PersistentDiskSamResourceId,
+                                     config: PersistentDiskConfig,
+                                     req: CreateDiskRequest,
+                                     now: Instant,
+                                     willBeUsedByGalaxy: Boolean): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
       diskName,
@@ -245,7 +256,8 @@ object DiskServiceInterp {
       samResource,
       DiskStatus.Creating,
       AuditInfo(userInfo.userEmail, now, None, now),
-      req.size.getOrElse(config.defaultDiskSizeGB),
+      if (willBeUsedByGalaxy) req.size.getOrElse(config.defaultGalaxyNFSDiskSizeGB)
+      else req.size.getOrElse(config.defaultDiskSizeGB),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
       None,

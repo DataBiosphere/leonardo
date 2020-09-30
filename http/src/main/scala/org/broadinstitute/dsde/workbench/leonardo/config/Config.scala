@@ -290,7 +290,8 @@ object Config {
       config.as[DiskSize]("defaultDiskSizeGB"),
       config.as[DiskType]("defaultDiskType"),
       config.as[BlockSize]("defaultBlockSizeBytes"),
-      config.as[ZoneName]("zone")
+      config.as[ZoneName]("zone"),
+      config.as[DiskSize]("defaultGalaxyNFSDiskSizeGB")
     )
   }
 
@@ -596,6 +597,16 @@ object Config {
     )
   }
 
+  implicit private val appDiskConfigReader: ValueReader[GalaxyDiskConfig] = ValueReader.relative { config =>
+    GalaxyDiskConfig(
+      config.as[String]("nfsPersistenceName"),
+      config.as[String]("postgresPersistenceName"),
+      config.as[String]("postgresDiskNameSuffix"),
+      config.as[DiskSize]("postgresDiskSizeGB"),
+      config.as[BlockSize]("postgresDiskBlockSize")
+    )
+  }
+
   implicit private val releaseNameReader: ValueReader[Release] = stringValueReader.map(Release)
   implicit private val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
   implicit private val chartNameReader: ValueReader[ChartName] = stringValueReader.map(ChartName)
@@ -629,6 +640,7 @@ object Config {
   val gkeIngressConfig = config.as[KubernetesIngressConfig]("gke.ingress")
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
+  val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
   val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
                                                 gkeClusterConfig,
                                                 gkeNodepoolConfig,
@@ -699,5 +711,6 @@ object Config {
                          gkeGalaxyAppConfig,
                          gkeMonitorConfig,
                          gkeClusterConfig,
-                         proxyConfig)
+                         proxyConfig,
+                         gkeGalaxyDiskConfig)
 }

@@ -164,6 +164,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         app.appName,
         diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
         req.customEnvironmentVariables,
+        req.appType,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.enqueue1(createAppMessage)
