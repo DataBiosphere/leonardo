@@ -26,9 +26,6 @@ object AppRoutesTestJsonCodec {
 
   implicit val numNodepoolsEncoder: Encoder[NumNodepools] = Encoder.encodeInt.contramap(_.value)
 
-  implicit val batchNodepoolCreateEncoder: Encoder[BatchNodepoolCreateRequest] =
-    Encoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(x => BatchNodepoolCreateRequest.unapply(x).get)
-
   implicit val proxyUrlDecoder: Decoder[Map[ServiceName, URL]] =
     Decoder.decodeMap[ServiceName, URL](KeyDecoder.decodeKeyString.map(ServiceName), urlDecoder)
 
@@ -50,4 +47,13 @@ object AppRoutesTestJsonCodec {
                         "appName",
                         "diskName",
                         "auditInfo")(ListAppResponse.apply)
+
+  implicit val batchNodepoolCreateRequestEncoder: Encoder[BatchNodepoolCreateRequest] =
+    Encoder.forProduct3("numNodepools", "kubernetesRuntimeConfig", "clusterName")(x =>
+      (
+        x.numNodepools,
+        x.kubernetesRuntimeConfig,
+        x.clusterName
+      )
+    )
 }

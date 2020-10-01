@@ -252,6 +252,7 @@ object Boot extends IOApp {
                                                  appDependencies.galaxyDAO,
                                                  googleDependencies.credentials,
                                                  googleDependencies.googleIamDAO,
+                                                 appDependencies.authProvider,
                                                  appDependencies.blocker)
 
           val pubsubSubscriber =

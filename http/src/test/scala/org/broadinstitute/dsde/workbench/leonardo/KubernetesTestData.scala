@@ -5,6 +5,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.Protocol
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   BatchNodepoolCreateRequest,
   CreateAppRequest,
@@ -12,7 +13,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   GetAppResult,
   ListAppResponse
 }
-import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
@@ -37,7 +37,7 @@ object KubernetesTestData {
   val galaxyApp = AppType.Galaxy
 
   val galaxyChartName = ChartName("galaxy/galaxykubeman")
-  val galaxyChartVersion = ChartVersion("0.6.0")
+  val galaxyChartVersion = ChartVersion("0.7.1")
   val galaxyChart = Chart(galaxyChartName, galaxyChartVersion)
 
   val galaxyReleasePrefix = "gxy-release"
@@ -63,7 +63,7 @@ object KubernetesTestData {
     Map.empty
   )
 
-  val batchNodepoolCreateRequest = BatchNodepoolCreateRequest(NumNodepools(100), Some(kubernetesRuntimeConfig))
+  val batchNodepoolCreateRequest = BatchNodepoolCreateRequest(NumNodepools(100), Some(kubernetesRuntimeConfig), None)
 
   val testCluster = makeKubeCluster(1)
   val testNodepool = makeNodepool(1, testCluster.id)

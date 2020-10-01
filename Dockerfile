@@ -32,7 +32,7 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
 
 # Add the repos containing nginx and galaxy charts
 RUN helm repo add stable https://kubernetes-charts.storage.googleapis.com/ && \
-    helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
+    helm repo add galaxy https://github.com/cloudve/helm-charts/raw/sep29demo && \
     helm repo update
 
 # Add Leonardo as a service (it will start when the container starts)

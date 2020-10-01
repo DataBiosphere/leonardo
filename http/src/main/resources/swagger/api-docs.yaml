@@ -3179,9 +3179,13 @@ components:
       properties:
         numNodepools:
           type: integer
-          description: number of nodepools to pre-create in the cluster. We enforce a max of 200. There will be an additional default nodepool created as well.
+          description: Number of nodepools to pre-create in the cluster. We enforce a max of 200. There will be an additional default nodepool created as well.
+        clusterName:
+          type: string
+          description: The name the cluster will be given in google. Mainly used for testing purposes.
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
+
 
     GetAppResponse:
       description: the configuration of an app
