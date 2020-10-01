@@ -181,7 +181,10 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       app <- F.fromOption(appOpt, AppNotFoundException(googleProject, appName, ctx.traceId))
 
       hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
+      _ <- if (hasPermission) F.unit
+      else
+        log.info(s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404") >> F
+          .raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
   override def listApp(
@@ -274,7 +277,9 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       _ <- if (hasPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
       // create default nodepool with size dependant on number of nodes requested
-      saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now, Some(req.numNodepools)))
+      saveCluster <- F.fromEither(
+        getSavableCluster(userInfo, googleProject, ctx.now, Some(req.numNodepools), req.clusterName)
+      )
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
 
       // check if the cluster exists (we reject this request if it does)
@@ -298,7 +303,8 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
     userInfo: UserInfo,
     googleProject: GoogleProject,
     now: Instant,
-    numNodepools: Option[NumNodepools]
+    numNodepools: Option[NumNodepools],
+    clusterName: Option[KubernetesClusterName] = None
   ): Either[Throwable, SaveKubernetesCluster] = {
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
 
@@ -329,10 +335,10 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
 
     for {
       nodepool <- defaultNodepool
-      clusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
+      defaultClusterName <- KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply)
     } yield SaveKubernetesCluster(
       googleProject = googleProject,
-      clusterName = clusterName,
+      clusterName = clusterName.getOrElse(defaultClusterName),
       location = leoKubernetesConfig.clusterConfig.location,
       region = leoKubernetesConfig.clusterConfig.region,
       status = KubernetesClusterStatus.Precreating,

@@ -205,7 +205,7 @@ object AppRoutes {
   )
 
   implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] =
-    Decoder.forProduct2("numNodepools", "kubernetesRuntimeConfig")(BatchNodepoolCreateRequest.apply)
+    Decoder.forProduct3("numNodepools", "kubernetesRuntimeConfig", "clusterName")(BatchNodepoolCreateRequest.apply)
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =

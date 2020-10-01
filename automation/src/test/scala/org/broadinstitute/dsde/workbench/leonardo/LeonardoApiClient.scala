@@ -8,6 +8,7 @@ import cats.effect.{IO, Resource, Timer}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
+  BatchNodepoolCreateRequest,
   CreateAppRequest,
   CreateDiskRequest,
   CreateRuntime2Request,
@@ -26,6 +27,7 @@ import org.http4s.circe.CirceEntityEncoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
+
 import scala.concurrent.duration._
 import ApiJsonDecoder._
 import org.http4s._
@@ -84,6 +86,12 @@ object LeonardoApiClient {
     None,
     Map.empty,
     Map.empty
+  )
+
+  val defaultBatchNodepoolRequest = BatchNodepoolCreateRequest(
+    NumNodepools(10),
+    None,
+    None
   )
 
   def createRuntime(
@@ -162,7 +170,29 @@ object LeonardoApiClient {
       )
       .void
 
+  def createApp(
+    googleProject: GoogleProject,
+    appName: AppName,
+    createAppRequest: CreateAppRequest = defaultCreateAppRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    client
+      .expectOr[String](
+        Request[IO](
+          method = Method.POST,
+          headers = Headers.of(authHeader, defaultMediaType),
+          uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"),
+          body = createAppRequest
+        )
+      )(resp =>
+        resp.bodyText.compile.string
+          .flatMap(body => IO.raiseError(RestError(resp.status, body)))
+      )
+      .void
+
+  //This line causes the body to be decoded as JSON, which will prevent error messagges from being seen
+  //If you care about the error message, place the function before this line
   import org.http4s.circe.CirceEntityDecoder._
+
   def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
     implicit timer: Timer[IO],
     client: Client[IO],
@@ -332,26 +362,6 @@ object LeonardoApiClient {
       body <- response.bodyText.compile.foldMonoid
     } yield RestError(response.status, body)
 
-  def createApp(
-    googleProject: GoogleProject,
-    appName: AppName,
-    createAppRequest: CreateAppRequest = defaultCreateAppRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .successful(
-        Request[IO](
-          method = Method.POST,
-          headers = Headers.of(authHeader, defaultMediaType),
-          uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"),
-          body = createAppRequest
-        )
-      )
-      .flatMap { success =>
-        if (success)
-          IO.unit
-        else IO.raiseError(new Exception(s"Fail to create app ${googleProject.value}/${appName.value}"))
-      }
-
   def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                                 authHeader: Authorization): IO[Unit] =
     client
@@ -398,6 +408,25 @@ object LeonardoApiClient {
       )
     )(onError)
   }
+
+  def batchNodepoolCreate(
+    googleProject: GoogleProject,
+    req: BatchNodepoolCreateRequest = defaultBatchNodepoolRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    client
+      .successful(
+        Request[IO](
+          method = Method.POST,
+          headers = Headers.of(authHeader, defaultMediaType),
+          uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/batchNodepoolCreate"),
+          body = req
+        )
+      )
+      .flatMap { success =>
+        if (success)
+          IO.unit
+        else IO.raiseError(new Exception(s"Fail to create nodepools in ${googleProject.value}"))
+      }
 }
 
 final case class RestError(statusCode: Status, message: String) extends NoStackTrace {

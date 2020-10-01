@@ -37,6 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, HelmAlgebra, Release}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 
 import scala.collection.JavaConverters._
 import scala.concurrent.ExecutionContext
@@ -56,6 +57,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   galaxyDAO: GalaxyDAO[F],
   credentials: GoogleCredentials,
   googleIamDAO: GoogleIamDAO,
+  authProvider: LeoAuthProvider[F],
   blocker: Blocker
 )(implicit val executionContext: ExecutionContext,
   contextShift: ContextShift[IO],
@@ -484,6 +486,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
+      _ <- authProvider.notifyResourceDeleted(dbApp.app.samResourceId,
+                                              dbApp.app.auditInfo.creator,
+                                              params.googleProject)
       _ <- if (!params.errorAfterDelete) appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
       else appQuery.updateStatus(dbApp.app.id, AppStatus.Error).transaction
     } yield ()

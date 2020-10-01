@@ -4,6 +4,7 @@ import java.net.URL
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
   AppError,
@@ -28,9 +29,6 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   labels: LabelMap = Map.empty,
                                   customEnvironmentVariables: Map[String, String])
 
-final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
-                                            kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig])
-
 final case class DeleteAppRequest(userInfo: UserInfo,
                                   googleProject: GoogleProject,
                                   appName: AppName,
@@ -52,6 +50,10 @@ final case class ListAppResponse(googleProject: GoogleProject,
                                  appName: AppName,
                                  diskName: Option[DiskName],
                                  auditInfo: AuditInfo)
+
+final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
+                                            kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
+                                            clusterName: Option[KubernetesClusterName])
 
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 
