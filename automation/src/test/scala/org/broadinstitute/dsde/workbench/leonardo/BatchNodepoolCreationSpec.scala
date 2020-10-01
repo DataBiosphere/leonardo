@@ -38,8 +38,7 @@ class BatchNodepoolCreationSpec
 
   "batch nodepool creation should work" - {
     withNewProject { googleProject =>
-      val test = LeonardoApiClient.client.use { c =>
-        implicit val httpClient = c
+      val test = LeonardoApiClient.client.use { implicit c =>
         for {
           clusterName <- IO.fromEither(KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply))
           _ <- LeonardoApiClient.batchNodepoolCreate(googleProject,
