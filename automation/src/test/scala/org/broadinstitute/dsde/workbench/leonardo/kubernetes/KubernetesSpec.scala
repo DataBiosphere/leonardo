@@ -6,15 +6,14 @@ import org.http4s.client.Client
 import cats.effect.IO
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, PersistentDiskRequest}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
+import org.broadinstitute.dsde.workbench.leonardo.http.{GetAppResponse, ListAppResponse, PersistentDiskRequest}
 import org.http4s.{AuthScheme, Credentials}
 import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
-//@DoNotDiscover
+@DoNotDiscover
 class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
 
   implicit val authTokenForOldApiClient = ronAuthToken
@@ -29,6 +28,12 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
     withNewProject { googleProject =>
       val appName = randomAppName
       val appName2 = randomAppName
+
+      val app1DeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
+        x => x.filter(_.appName == appName).map(_.status).distinct == List(AppStatus.Deleted)
+
+      val app2DeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
+        x => x.filter(_.appName == appName2).map(_.status).distinct == List(AppStatus.Deleted)
 
       logger.info(s"Google Project 1 " + googleProject.value)
 
@@ -49,6 +54,8 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
 
         for {
 
+          _ <- loggerIO.info("About to create app")
+
           _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
 
           gar = LeonardoApiClient.getApp(googleProject, appName)
@@ -62,17 +69,54 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
             creatingDoneCheckable
           ).compile.lastOrError
 
+          _ <- loggerIO.info(s"app 1 monitor result: ${monitorStartingResult}")
+
           _ = monitorStartingResult.status shouldBe AppStatus.Running
 
-          _ <- LeonardoApiClient.deleteAppWithWait(googleProject, appName)
+          _ <- LeonardoApiClient.deleteApp(googleProject, appName)
 
-          _ <- monitorDeleteApp(googleProject, appName)
+          listApps = LeonardoApiClient.listApps(googleProject, true)
+
+          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+            testTimer,
+            app1DeletedDoneCheckable
+          ).compile.lastOrError
+
+          _ <- loggerIO.info(s"app1 delete result: $monitorApp1DeletionResult")
+
+          _ <- testTimer.sleep(480 seconds)
+
+          _ <- loggerIO.info("About to create app2")
 
           _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
 
-          getAppResponse <- LeonardoApiClient.getApp(googleProject, appName2)
+          gar = LeonardoApiClient.getApp(googleProject, appName2)
+
+          getAppResponse <- gar
 
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
+
+          monitorApp2CreationResult <- testTimer.sleep(180 seconds) >> streamFUntilDone(gar, 30, 30 seconds)(
+            testTimer,
+            creatingDoneCheckable
+          ).compile.lastOrError
+
+          _ <- loggerIO.info(s"app 2 monitor result: ${monitorApp2CreationResult}")
+
+          _ = monitorApp2CreationResult.status shouldBe AppStatus.Running
+
+          _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
+
+          listApps = LeonardoApiClient.listApps(googleProject, true)
+
+          monitorApp2DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+            testTimer,
+            app2DeletedDoneCheckable
+          ).compile.lastOrError
+
+          _ <- loggerIO.info(s"app 2 delete result: $monitorApp2DeletionResult")
+
+          _ <- testTimer.sleep(480 seconds)
 
         } yield ()
       }
@@ -84,6 +128,12 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
     withNewProject { googleProject =>
       val appName = randomAppName
       val appName2 = randomAppName
+
+      val app1DeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
+        x => x.filter(_.appName == appName).map(_.status).distinct == List(AppStatus.Deleted)
+
+      val app2DeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
+        x => x.filter(_.appName == appName2).map(_.status).distinct == List(AppStatus.Deleted)
 
       logger.info(s"Google Project 2 " + googleProject.value)
 
@@ -115,6 +165,9 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
           x => x.status == AppStatus.Running
 
         for {
+
+          _ <- loggerIO.info("About to create app 1")
+
           _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
 
           gar = LeonardoApiClient.getApp(googleProject, appName)
@@ -128,7 +181,11 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
             creatingDoneCheckable
           ).compile.lastOrError
 
+          _ <- loggerIO.info(s"app monitor result: ${monitorStartingResult}")
+
           _ = monitorStartingResult.status shouldBe AppStatus.Running
+
+          _ <- loggerIO.info("About to create app 2")
 
           _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest2)
 
@@ -143,7 +200,11 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
             creatingDoneCheckable
           ).compile.lastOrError
 
+          _ <- loggerIO.info(s"app monitor result: ${monitorStartingResult}")
+
           _ = monitorStartingResult.status shouldBe AppStatus.Running
+
+          _ <- loggerIO.info(s"listing apps")
 
           listOfApps <- LeonardoApiClient.listApps(googleProject)
 
@@ -154,6 +215,30 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
           app2StatusValue = listOfApps.collect { case resp if resp.appName == appName2 => resp.status }
 
           _ = app2StatusValue.head shouldBe AppStatus.Running
+
+          _ <- LeonardoApiClient.deleteApp(googleProject, appName)
+
+          listApps = LeonardoApiClient.listApps(googleProject, true)
+
+          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+            testTimer,
+            app1DeletedDoneCheckable
+          ).compile.lastOrError
+
+          _ <- loggerIO.info(s"app1 delete result: $monitorApp1DeletionResult")
+
+          _ <- testTimer.sleep(480 seconds)
+
+          _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
+
+          monitorApp2DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+            testTimer,
+            app2DeletedDoneCheckable
+          ).compile.lastOrError
+
+          _ <- loggerIO.info(s"app1 delete result: $monitorApp2DeletionResult")
+
+          _ <- testTimer.sleep(480 seconds)
         } yield ()
       }
       res.unsafeRunSync()
