@@ -13,7 +13,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
-@DoNotDiscover
+//@DoNotDiscover
 class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
 
   implicit val authTokenForOldApiClient = ronAuthToken
@@ -77,7 +77,7 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
 
           listApps = LeonardoApiClient.listApps(googleProject, true)
 
-          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,
             app1DeletedDoneCheckable
           ).compile.lastOrError
@@ -109,14 +109,12 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
 
           listApps = LeonardoApiClient.listApps(googleProject, true)
 
-          monitorApp2DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+          monitorApp2DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,
             app2DeletedDoneCheckable
           ).compile.lastOrError
 
           _ <- loggerIO.info(s"app 2 delete result: $monitorApp2DeletionResult")
-
-          _ <- testTimer.sleep(480 seconds)
 
         } yield ()
       }
@@ -220,25 +218,21 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
 
           listApps = LeonardoApiClient.listApps(googleProject, true)
 
-          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,
             app1DeletedDoneCheckable
           ).compile.lastOrError
 
           _ <- loggerIO.info(s"app1 delete result: $monitorApp1DeletionResult")
 
-          _ <- testTimer.sleep(480 seconds)
-
           _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
 
-          monitorApp2DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+          monitorApp2DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,
             app2DeletedDoneCheckable
           ).compile.lastOrError
 
           _ <- loggerIO.info(s"app1 delete result: $monitorApp2DeletionResult")
-
-          _ <- testTimer.sleep(480 seconds)
         } yield ()
       }
       res.unsafeRunSync()

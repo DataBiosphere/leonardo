@@ -19,7 +19,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
-@DoNotDiscover
+//@DoNotDiscover
 class BatchNodepoolCreationSpec
     extends GPAllocFixtureSpec
     with LeonardoTestUtils
