@@ -779,8 +779,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].workspace=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].namespace=${cluster.googleProject.value}""",
+      // TODO add this when Galaxy version is upgraded
+      //raw"""galaxy.configs.file_sources_conf\.yml[0].workspace=${workspaceName}""",
+      //raw"""galaxy.configs.file_sources_conf\.yml[0].namespace=${cluster.googleProject.value}""",
       raw"""galaxy.rbac.enabled=false""",
       raw"""galaxy.rbac.serviceAccount=${ksa.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
