@@ -37,7 +37,7 @@ class BatchNodepoolCreationSpec
       x.map(_.getStatus()) == Some(Cluster.Status.RUNNING) &&
         x.map(_.getNodePoolsList().asScala.toList.map(_.getStatus()).distinct) == Some(List(NodePool.Status.RUNNING))
 
-  "batch nodepool creation should work" - {
+  "batch nodepool creation should work" in { _ =>
     withNewProject { googleProject =>
       val test = LeonardoApiClient.client.use { implicit c =>
         for {
@@ -63,7 +63,7 @@ class BatchNodepoolCreationSpec
     }
   }
 
-  "app creation with batch nodepool creation should work" - {
+  "app creation with batch nodepool creation should work" in { _ =>
     withNewProject { googleProject =>
       val test = LeonardoApiClient.client.use { c =>
         implicit val httpClient = c
