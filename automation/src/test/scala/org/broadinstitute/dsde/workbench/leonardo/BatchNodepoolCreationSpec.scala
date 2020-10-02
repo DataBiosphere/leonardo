@@ -47,7 +47,7 @@ class BatchNodepoolCreationSpec
             val id = KubernetesClusterId(googleProject, LeonardoConfig.Leonardo.location, clusterName)
             gkeClient.getCluster(id)
           }
-          monitorCreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getCluster, 20, 10 seconds)(
+          monitorCreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getCluster, 60, 10 seconds)(
             testTimer,
             clusterDoneCheckable
           ).compile.lastOrError
@@ -88,7 +88,7 @@ class BatchNodepoolCreationSpec
             gkeClient.getCluster(id)
           }
 
-          monitorBatchCreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getCluster, 20, 10 seconds)(
+          monitorBatchCreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getCluster, 60, 10 seconds)(
             testTimer,
             clusterDoneCheckable
           ).compile.lastOrError
@@ -110,7 +110,7 @@ class BatchNodepoolCreationSpec
           _ <- loggerIO.info("About to get app1")
 
           getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
-          monitorApp1CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp1, 90, 10 seconds)(
+          monitorApp1CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp1, 120, 10 seconds)(
             testTimer,
             appDoneCheckable
           ).compile.lastOrError
@@ -132,7 +132,7 @@ class BatchNodepoolCreationSpec
 
           //creating a second app with 1 precreated nodepool should cause a second user nodepool to be created
           getApp2 = LeonardoApiClient.getApp(googleProject, appName2)
-          monitorApp2CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp2, 90, 10 seconds)(
+          monitorApp2CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp2, 120, 10 seconds)(
             testTimer,
             appDoneCheckable
           ).compile.lastOrError
