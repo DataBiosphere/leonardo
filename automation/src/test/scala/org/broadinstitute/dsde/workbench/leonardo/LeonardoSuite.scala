@@ -149,10 +149,11 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
           case Right(_) =>
             IO(logger.info(s"Created initial runtime ${project.value} / ${initalRuntimeName.asString}"))
           case Left(err) =>
-            IO(logger.warn(
-                 s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
-               ),
-               err)
+            IO(
+              logger
+                .warn(s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error",
+                      err)
+            )
         }
       } yield ()
     }
@@ -171,10 +172,11 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
           case Right(_) =>
             IO(logger.info(s"Deleted initial runtime ${project.value} / ${initalRuntimeName.asString}"))
           case Left(err) =>
-            IO(logger.warn(
-                 s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
-               ),
-               err)
+            IO(
+              logger
+                .warn(s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error",
+                      err)
+            )
         }
       } yield ()
     }
