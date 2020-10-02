@@ -13,7 +13,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
-//@DoNotDiscover
+@DoNotDiscover
 class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
 
   implicit val authTokenForOldApiClient = ronAuthToken
@@ -24,7 +24,7 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
     httpClient <- LeonardoApiClient.client
   } yield AppDependencies(httpClient)
 
-  "create app when cluster doesn't exist" - {
+  "create app when cluster doesn't exist" in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
       val appName2 = randomAppName
@@ -122,7 +122,7 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
     }
   }
 
-  "create app in a cluster that exists" - {
+  "create app in a cluster that exists" in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
       val appName2 = randomAppName
