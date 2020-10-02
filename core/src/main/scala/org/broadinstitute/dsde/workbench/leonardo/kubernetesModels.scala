@@ -232,10 +232,10 @@ final case class DefaultKubernetesLabels(googleProject: GoogleProject,
                                          serviceAccount: WorkbenchEmail) {
   val toMap: LabelMap =
     Map(
-      "appName" -> appName.toString,
-      "googleProject" -> googleProject.toString,
-      "creator" -> creator.toString,
-      "clusterServiceAccount" -> serviceAccount.toString
+      "appName" -> appName.value,
+      "googleProject" -> googleProject.value,
+      "creator" -> creator.value,
+      "clusterServiceAccount" -> serviceAccount.value
     )
 }
 
