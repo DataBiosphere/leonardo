@@ -1,4 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
+package apps
 
 import java.nio.file.Paths
 
