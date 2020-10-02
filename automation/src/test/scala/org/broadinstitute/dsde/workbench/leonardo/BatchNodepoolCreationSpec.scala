@@ -110,12 +110,13 @@ class BatchNodepoolCreationSpec
           _ <- loggerIO.info("About to get app1")
 
           getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
-          monitorApp1CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp1, 60, 10 seconds)(
+          monitorApp1CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp1, 90, 10 seconds)(
             testTimer,
             appDoneCheckable
           ).compile.lastOrError
 
           _ <- loggerIO.info(s"app1 monitor result: ${monitorApp1CreationResult}")
+          _ = monitorApp1CreationResult.status shouldBe AppStatus.Running
 
           clusterAfterApp1 <- getCluster
           _ = clusterAfterApp1.map(_.getNodePoolsList().size()) shouldBe Some(2)
@@ -131,12 +132,13 @@ class BatchNodepoolCreationSpec
 
           //creating a second app with 1 precreated nodepool should cause a second user nodepool to be created
           getApp2 = LeonardoApiClient.getApp(googleProject, appName2)
-          monitorApp2CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp2, 60, 10 seconds)(
+          monitorApp2CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp2, 90, 10 seconds)(
             testTimer,
             appDoneCheckable
           ).compile.lastOrError
 
           _ <- loggerIO.info(s"app2 monitor result: ${monitorApp2CreationResult}")
+          _ = monitorApp2CreationResult.status shouldBe AppStatus.Running
 
           clusterAfterApp2 <- getCluster
           _ = clusterAfterApp2.map(_.getNodePoolsList().size()) shouldBe Some(3)
