@@ -4,6 +4,7 @@ import cats.effect.IO
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
+import org.broadinstitute.dsde.workbench.leonardo.apps.BatchNodepoolCreationSpec
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -149,10 +150,11 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
           case Right(_) =>
             IO(logger.info(s"Created initial runtime ${project.value} / ${initalRuntimeName.asString}"))
           case Left(err) =>
-            IO(logger.warn(
-                 s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
-               ),
-               err)
+            IO(
+              logger
+                .warn(s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error",
+                      err)
+            )
         }
       } yield ()
     }
@@ -171,10 +173,11 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
           case Right(_) =>
             IO(logger.info(s"Deleted initial runtime ${project.value} / ${initalRuntimeName.asString}"))
           case Left(err) =>
-            IO(logger.warn(
-                 s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
-               ),
-               err)
+            IO(
+              logger
+                .warn(s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error",
+                      err)
+            )
         }
       } yield ()
     }

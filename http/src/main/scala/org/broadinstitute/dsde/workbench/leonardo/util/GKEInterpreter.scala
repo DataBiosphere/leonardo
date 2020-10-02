@@ -758,6 +758,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
     }
 
+    val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
+
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
     // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
@@ -777,6 +779,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].id=${workspaceName}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].doc=${workspaceName}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].workspace=${workspaceName}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].namespace=${cluster.googleProject.value}""",
       raw"""galaxy.rbac.enabled=false""",
       raw"""galaxy.rbac.serviceAccount=${ksa.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
