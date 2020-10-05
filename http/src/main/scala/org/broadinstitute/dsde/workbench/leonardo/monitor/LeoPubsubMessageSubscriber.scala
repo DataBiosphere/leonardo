@@ -858,6 +858,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       ctx <- ev.ask
       clusterId = msg.clusterId
       _ <- logger.info(
+        // TODO: ${ctx.traceId} ends up being None with manually published messages. Make sure that's not the case with cron-job-created messages
         s"Beginning clean-up of cluster $clusterId in project ${msg.project} because it has had no apps running for a period of time. | trace id: ${ctx.traceId}"
       )
       _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
@@ -928,7 +929,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         case leoEx: LeoException =>
           Some(ErrorReport.loggableString(leoEx.toErrorReport))
         case ee: com.google.api.gax.rpc.AbortedException
-            if ee.getStatusCode().getCode == 409 && ee.getMessage().contains("already exists") =>
+            if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
           None //this could happen when pubsub redelivers an event unexpectedly
         case _ =>
           Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")
