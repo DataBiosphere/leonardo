@@ -358,6 +358,5 @@ sealed trait SaveClusterResult {
 final case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultNodepool: DefaultNodepool)
     extends SaveClusterResult
 final case class ClusterExists(minimalCluster: KubernetesCluster) extends SaveClusterResult
-
 final case class GetAppAssertion(msg: String) extends LeoException(msg, StatusCodes.InternalServerError)
 final case class KubernetesAppCreationException(msg: String) extends LeoException(msg, StatusCodes.Conflict)
