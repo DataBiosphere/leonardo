@@ -194,7 +194,8 @@ final class LeonardoSuite
       new NotebookGCEClusterMonitoringSpec,
       new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec,
-      new BatchNodepoolCreationSpec
+      new BatchNodepoolCreationSpec,
+      new KubernetesSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
