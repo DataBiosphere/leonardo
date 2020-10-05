@@ -853,7 +853,29 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
   private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Unit] = ???
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      clusterId = msg.clusterId
+      _ <- logger.info(
+        s"Beginning clean-up of cluster $clusterId in project ${msg.project} because it has had no apps running for a period of time. | trace id: ${ctx.traceId}"
+      )
+      _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
+      // TODO "Asynchronously" retry failures for TBD exceptions. If all retries fail, send an alert?
+      _ <- gkeInterp
+        .deleteAndPollCluster(DeleteClusterParams(msg.clusterId, msg.project))
+        .onError {
+          case _ =>
+            for {
+              _ <- logger.error(
+                s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
+              )
+              _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
+              // TODO Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
+              // TODO Need mark the nodepools as Error'ed too?
+            } yield ()
+        }
+    } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     e match {
