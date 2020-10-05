@@ -34,11 +34,13 @@ import org.http4s._
 
 import scala.concurrent.ExecutionContext.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 
 import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
+
   implicit def http4sBody[A](body: A)(implicit encoder: EntityEncoder[IO, A]): EntityBody[IO] =
     encoder.toEntity(body).body
   implicit val cs = IO.contextShift(global)
@@ -395,6 +397,19 @@ object LeonardoApiClient {
         else
           IO.unit
       }
+
+  def deleteAppWithWait(googleProject: GoogleProject, appName: AppName)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[Unit] =
+    for {
+      _ <- deleteApp(googleProject, appName)
+      ioa = getApp(googleProject, appName).attempt
+      res <- timer.sleep(120 seconds) >> streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError
+      _ <- if (res.isDone) IO.unit
+      else IO.raiseError(new TimeoutException(s"delete app ${googleProject.value}/${appName.value}"))
+    } yield ()
 
   def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                              authHeader: Authorization): IO[GetAppResponse] =
