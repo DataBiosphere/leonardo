@@ -4,7 +4,7 @@ import cats.effect.IO
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.apps.BatchNodepoolCreationSpec
+import org.broadinstitute.dsde.workbench.leonardo.apps.{BatchNodepoolCreationSpec, KubernetesSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
