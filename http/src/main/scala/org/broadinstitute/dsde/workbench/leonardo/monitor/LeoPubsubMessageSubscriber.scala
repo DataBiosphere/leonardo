@@ -855,15 +855,16 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
     for {
+      // TODO: ${ctx.traceId} ends up being None with manually published messages. Make sure that's not the case with cron-job-created messages
       ctx <- ev.ask
       clusterId = msg.clusterId
       _ <- logger.info(
-        // TODO: ${ctx.traceId} ends up being None with manually published messages. Make sure that's not the case with cron-job-created messages
         s"Beginning clean-up of cluster $clusterId in project ${msg.project} because it has had no apps running for a period of time. | trace id: ${ctx.traceId}"
       )
+      // TODO: Should we check again that the cluster is okay to delete in case a user requested app creation since the cron job published the message?
       _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
-      // TODO "Asynchronously" retry failures for TBD exceptions. If all retries fail, send an alert?
       _ <- gkeInterp
+      // TODO: Should we retry failures and with what RetryConfig?. If all retries fail, send an alert?
         .deleteAndPollCluster(DeleteClusterParams(msg.clusterId, msg.project))
         .onError {
           case _ =>
@@ -872,8 +873,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
               )
               _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
-              // TODO Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
-              // TODO Need mark the nodepools as Error'ed too?
+              // TODO: Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
+              // TODO: Need mark the nodepool(s) as Error'ed too?
             } yield ()
         }
     } yield ()
