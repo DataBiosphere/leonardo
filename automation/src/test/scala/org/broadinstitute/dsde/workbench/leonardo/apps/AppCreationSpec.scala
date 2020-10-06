@@ -55,7 +55,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
         for {
 
-          _ <- loggerIO.info("AppCreationSpec: About to create app")
+          _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject}/${appName}")
 
           _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
 
@@ -70,7 +70,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             creatingDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"AppCreationSpec: app 1 monitor result: ${monitorStartingResult}")
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject}/${appName} monitor result: ${monitorStartingResult}"
+          )
 
           _ = monitorStartingResult.status shouldBe AppStatus.Running
 
@@ -83,11 +85,13 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             app1DeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"AppCreationSpec: app1 delete result: $monitorApp1DeletionResult")
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject}/${appName} delete result: $monitorApp1DeletionResult"
+          )
 
-          _ <- testTimer.sleep(480 seconds)
+          _ = app1DeletedDoneCheckable.isDone(monitorApp1DeletionResult) shouldBe true
 
-          _ <- loggerIO.info("AppCreationSpec: About to create app2")
+          _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject}/${appName2}")
 
           _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
 
@@ -102,7 +106,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             creatingDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"AppCreationSpec: app 2 monitor result: ${monitorApp2CreationResult}")
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject}/${appName2} monitor result: ${monitorApp2CreationResult}"
+          )
 
           _ = monitorApp2CreationResult.status shouldBe AppStatus.Running
 
@@ -115,7 +121,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             app2DeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"AppCreationSpec: app 2 delete result: $monitorApp2DeletionResult")
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject}/${appName2} delete result: $monitorApp2DeletionResult"
+          )
 
         } yield ()
       }
