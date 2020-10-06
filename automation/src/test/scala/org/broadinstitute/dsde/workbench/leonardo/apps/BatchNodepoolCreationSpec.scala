@@ -103,13 +103,13 @@ class BatchNodepoolCreationSpec
 
           diskConfig1 = Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
 
-          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject}/${appName1}")
+          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName1.value}")
 
           _ <- LeonardoApiClient.createApp(googleProject,
                                            appName1,
                                            createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig1))
 
-          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to get app ${googleProject}/${appName1}")
+          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to get app ${googleProject.value}/${appName1.value}")
 
           getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
           monitorApp1CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp1, 120, 10 seconds)(
@@ -118,7 +118,7 @@ class BatchNodepoolCreationSpec
           ).compile.lastOrError
 
           _ <- loggerIO.info(
-            s"BatchNodepoolCreationSpec: app ${googleProject}/${appName1} monitor result: ${monitorApp1CreationResult}"
+            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} monitor result: ${monitorApp1CreationResult}"
           )
           _ = monitorApp1CreationResult.status shouldBe AppStatus.Running
 
@@ -127,7 +127,7 @@ class BatchNodepoolCreationSpec
 
           diskConfig2 = Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
 
-          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject}/${appName2}")
+          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName2.value}")
 
           _ <- LeonardoApiClient.createApp(googleProject,
                                            appName2,
@@ -141,7 +141,7 @@ class BatchNodepoolCreationSpec
           ).compile.lastOrError
 
           _ <- loggerIO.info(
-            s"BatchNodepoolCreationSpec: app ${googleProject}/${appName2} monitor result: ${monitorApp2CreationResult}"
+            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName2.value} monitor result: ${monitorApp2CreationResult}"
           )
           _ = monitorApp2CreationResult.status shouldBe AppStatus.Running
 
@@ -159,7 +159,7 @@ class BatchNodepoolCreationSpec
           ).compile.lastOrError
 
           _ <- loggerIO.info(
-            s"BatchNodepoolCreationSpec: app ${googleProject}/${appName1} delete result: $monitorApp1DeletionResult"
+            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} delete result: $monitorApp1DeletionResult"
           )
 
           _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
