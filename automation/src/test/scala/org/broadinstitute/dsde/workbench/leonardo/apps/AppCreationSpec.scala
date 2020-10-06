@@ -91,6 +91,10 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
           _ = app1DeletedDoneCheckable.isDone(monitorApp1DeletionResult) shouldBe true
 
+          // TODO investigate why this is necessary - in theory the second app should be able
+          // to be created after the first is deleted.
+          _ <- testTimer.sleep(600 seconds)
+
           _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject}/${appName2}")
 
           _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
