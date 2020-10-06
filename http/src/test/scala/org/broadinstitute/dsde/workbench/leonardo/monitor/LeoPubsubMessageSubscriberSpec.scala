@@ -21,7 +21,8 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   MockComputePollOperation,
-  MockGKEService
+  MockGKEService,
+  MockKubernetesService => WbLibsMockKubernetesService
 }
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
@@ -34,7 +35,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeApp,
   makeKubeCluster,
@@ -1389,7 +1389,7 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getMinimalCluster.get.status shouldBe KubernetesClusterStatus.Error
       getMinimalCluster.get.nodepools.size shouldBe 3
-      getMinimalCluster.get.nodepools.filter(_.isDefault).size shouldBe 1
+      getMinimalCluster.get.nodepools.count(_.isDefault) shouldBe 1
       getMinimalCluster.get.nodepools.filterNot(_.isDefault).size shouldBe 2
       getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.size shouldBe 1
       //we should not have updated the status here, since the nodepools given were faulty
@@ -1654,6 +1654,45 @@ class LeoPubsubMessageSubscriberSpec
 
     res.unsafeRunSync()
     assertions.unsafeRunSync()
+  }
+
+  it should "handle deleteKubernetesClusterMessage" in isolatedDbTest {
+    val savedCluster = makeKubeCluster(1).save()
+
+    val gkeInterp =
+      new GKEInterpreter[IO](Config.gkeInterpConfig,
+                             vpcInterp,
+                             MockGKEService,
+                             WbLibsMockKubernetesService,
+                             MockHelm,
+                             MockGalaxyDAO,
+                             credentials,
+                             iamDAOKubernetes,
+                             whitelistAuthProvider,
+                             blocker)
+
+    val assertions = for {
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster.id).transaction
+      getCluster = clusterOpt.get
+    } yield {
+      getCluster.status shouldBe KubernetesClusterStatus.Deleted
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = DeleteKubernetesClusterMessage(
+        savedCluster.id,
+        savedCluster.googleProject,
+        Some(tr)
+      )
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterp = gkeInterp)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteKubernetesClusterMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
+    } yield ()
+
+    res.unsafeRunSync()
   }
 
   def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,

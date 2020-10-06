@@ -864,7 +864,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // TODO: Should we check again that the cluster is okay to delete in case a user requested app creation since the cron job published the message?
       _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
       _ <- gkeInterp
-      // TODO: Should we retry failures and with what RetryConfig?. If all retries fail, send an alert?
+      // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
         .deleteAndPollCluster(DeleteClusterParams(msg.clusterId, msg.project))
         .onError {
           case _ =>
