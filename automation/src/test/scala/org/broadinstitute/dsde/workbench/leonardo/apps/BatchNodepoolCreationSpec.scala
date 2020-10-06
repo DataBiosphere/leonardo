@@ -9,7 +9,7 @@ import com.google.container.v1.{Cluster, NodePool}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName}
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GKEService}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GKEService}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{GetAppResponse, ListAppResponse, PersistentDiskRequest}
 import org.http4s.headers.Authorization
@@ -48,10 +48,11 @@ class BatchNodepoolCreationSpec
             val id = KubernetesClusterId(googleProject, LeonardoConfig.Leonardo.location, clusterName)
             gkeClient.getCluster(id)
           }
-          monitorCreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getCluster, 60, 10 seconds)(
-            testTimer,
-            clusterDoneCheckable
-          ).compile.lastOrError
+          monitorCreationResult <- testTimer.sleep(30 seconds) >>
+            (getCluster, 60, 10 seconds)(
+              testTimer,
+              clusterDoneCheckable
+            ).compile.lastOrError
 
           _ = monitorCreationResult.map(_.getNodePoolsList().size()) shouldBe Some(
             defaultBatchNodepoolRequest.numNodepools.value + 1
@@ -152,7 +153,7 @@ class BatchNodepoolCreationSpec
 
           listApps = LeonardoApiClient.listApps(googleProject, true)
 
-          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,
             app1DeletedDoneCheckable
           ).compile.lastOrError
@@ -162,7 +163,7 @@ class BatchNodepoolCreationSpec
           )
 
           _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
-          monitorAppDeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+          monitorAppDeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,
             appDeletedDoneCheckable
           ).compile.lastOrError

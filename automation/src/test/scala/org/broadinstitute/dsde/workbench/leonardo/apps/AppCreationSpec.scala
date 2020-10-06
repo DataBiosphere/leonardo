@@ -65,7 +65,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
-          monitorStartingResult <- testTimer.sleep(120 seconds) >> streamFUntilDone(gar, 30, 30 seconds)(
+          monitorStartingResult <- testTimer.sleep(120 seconds) >> streamFUntilDone(gar, 120, 10 seconds)(
             testTimer,
             creatingDoneCheckable
           ).compile.lastOrError
@@ -101,7 +101,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
-          monitorApp2CreationResult <- testTimer.sleep(180 seconds) >> streamFUntilDone(gar, 30, 30 seconds)(
+          monitorApp2CreationResult <- testTimer.sleep(180 seconds) >> streamFUntilDone(gar, 120, 10 seconds)(
             testTimer,
             creatingDoneCheckable
           ).compile.lastOrError
