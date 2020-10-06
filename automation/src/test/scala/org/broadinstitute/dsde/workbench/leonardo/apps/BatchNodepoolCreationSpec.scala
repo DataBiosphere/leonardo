@@ -49,7 +49,7 @@ class BatchNodepoolCreationSpec
             gkeClient.getCluster(id)
           }
           monitorCreationResult <- testTimer.sleep(30 seconds) >>
-            (getCluster, 60, 10 seconds)(
+            streamFUntilDone(getCluster, 60, 10 seconds)(
               testTimer,
               clusterDoneCheckable
             ).compile.lastOrError
