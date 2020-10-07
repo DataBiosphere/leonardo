@@ -648,8 +648,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // The helm client requires a Google access token
       _ <- F.delay(credentials.refreshIfExpired())
 
-      // Don't use AppContext.now for the tmp file namebecause we want this to be unique
-      //for each helm invocation
+      // Don't use AppContext.now for the tmp file name because we want it to be unique
+      // for each helm invocation
       now <- nowInstant
 
       // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
