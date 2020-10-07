@@ -508,7 +508,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Installing ingress helm chart ${config.ingressConfig.chart} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, config.ingressConfig.namespace)
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, config.ingressConfig.namespace)
 
       // Invoke helm
       _ <- helmClient
@@ -559,7 +559,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
       chartValues = buildGalaxyChartOverrideValuesString(appName,
                                                          release,
@@ -612,7 +612,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Uninstalling helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster.id, namespaceName)
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
       // Invoke helm
       _ <- helmClient
@@ -639,7 +639,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
   private[util] def getHelmAuthContext(
     googleCluster: Cluster,
-    leoClusterId: KubernetesClusterLeoId,
+    dbCluster: KubernetesCluster,
     namespaceName: NamespaceName
   )(implicit ev: ApplicativeAsk[F, AppContext]): F[AuthContext] =
     for {
@@ -648,8 +648,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // The helm client requires a Google access token
       _ <- F.delay(credentials.refreshIfExpired())
 
+      // Don't use AppContext.now for the tmp file namebecause we want this to be unique
+      //for each helm invocation
+      now <- nowInstant
+
       // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
-      caCertFile <- writeTempFile(s"gke_ca_cert_${leoClusterId.id}_${ctx.now.toEpochMilli}",
+      caCertFile <- writeTempFile(s"gke_ca_cert_${dbCluster.id}_${now.toEpochMilli}",
                                   Base64.getDecoder.decode(googleCluster.getMasterAuth.getClusterCaCertificate),
                                   blocker)
 
@@ -659,6 +663,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         org.broadinstitute.dsp.KubeApiServer("https://" + googleCluster.getEndpoint),
         org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
       )
+
+      _ <- logger.info(s"Helm auth context for cluster ${dbCluster.getGkeClusterId.toString}: ${helmAuthContext
+        .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))} | trace id: ${ctx.traceId}")
 
     } yield helmAuthContext
 

@@ -4,16 +4,10 @@ import java.nio.file.Files
 import java.util.Base64
 
 import cats.effect.IO
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
-  NamespaceName,
-  PodName,
-  SecretKey,
-  SecretName,
-  ServiceAccountName
-}
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   MockComputePollOperation,
@@ -30,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AutoscalingConfig,
   AutoscalingMax,
   AutoscalingMin,
-  KubernetesClusterLeoId,
   LeonardoTestSuite
 }
 import org.broadinstitute.dsp.Release
@@ -110,7 +103,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       .build
 
     val authContext =
-      gkeInterp.getHelmAuthContext(googleCluster, KubernetesClusterLeoId(1), NamespaceName("ns")).unsafeRunSync()
+      gkeInterp.getHelmAuthContext(googleCluster, makeKubeCluster(1), NamespaceName("ns")).unsafeRunSync()
 
     authContext.namespace.asString shouldBe "ns"
     authContext.kubeApiServer.asString shouldBe "https://1.2.3.4"
