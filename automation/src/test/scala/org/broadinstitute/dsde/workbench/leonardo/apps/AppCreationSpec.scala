@@ -51,7 +51,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
       val res = dependencies.use { dep =>
         implicit val client = dep.httpClient
         val creatingDoneCheckable: DoneCheckable[GetAppResponse] =
-          x => x.status == AppStatus.Running
+          x => x.status == AppStatus.Running || x.status == AppStatus.Error
 
         for {
 

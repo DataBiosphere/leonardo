@@ -71,7 +71,7 @@ class BatchNodepoolCreationSpec
         val appName2 = randomAppName
 
         val appDoneCheckable: DoneCheckable[GetAppResponse] =
-          x => x.status == AppStatus.Running
+          x => x.status == AppStatus.Running || x.status == AppStatus.Error
 
         val appDeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
           x => x.map(_.status).distinct == List(AppStatus.Deleted)
