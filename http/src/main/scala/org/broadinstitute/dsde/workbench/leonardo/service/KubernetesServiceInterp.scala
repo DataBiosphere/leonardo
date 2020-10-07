@@ -246,7 +246,6 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           AppCannotBeDeletedException(request.googleProject, request.appName, appResult.app.status, ctx.traceId)
         )
 
-      _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
       diskOpt <- if (request.deleteDisk)
         appResult.app.appResources.disk.fold(
           F.raiseError[Option[DiskId]](
@@ -270,17 +269,19 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
         } yield ()
       } else {
-        val deleteMessage = DeleteAppMessage(
-          appResult.app.id,
-          appResult.app.appName,
-          appResult.nodepool.id,
-          appResult.cluster.googleProject,
-          diskOpt,
-          Some(ctx.traceId)
-        )
-        publisherQueue.enqueue1(deleteMessage)
+        for {
+          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+          deleteMessage = DeleteAppMessage(
+            appResult.app.id,
+            appResult.app.appName,
+            appResult.nodepool.id,
+            appResult.cluster.googleProject,
+            diskOpt,
+            Some(ctx.traceId)
+          )
+          _ <- publisherQueue.enqueue1(deleteMessage)
+        } yield ()
       }
-
     } yield ()
 
   override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
