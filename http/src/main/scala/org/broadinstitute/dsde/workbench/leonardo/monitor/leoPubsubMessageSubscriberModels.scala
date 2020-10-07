@@ -131,6 +131,10 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
     val asString = "deleteApp"
   }
 
+  final case object DeleteKubernetesCluster extends LeoPubsubMessageType {
+    val asString = "deleteKubernetesCluster"
+  }
+
   final case object BatchNodepoolCreate extends LeoPubsubMessageType {
     val asString = "batchNodepoolCreate"
   }
@@ -232,6 +236,13 @@ object LeoPubsubMessage {
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
+  }
+
+  final case class DeleteKubernetesClusterMessage(clusterId: KubernetesClusterLeoId,
+                                                  project: GoogleProject,
+                                                  traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteKubernetesCluster
   }
 
   final case class BatchNodepoolCreateMessage(clusterId: KubernetesClusterLeoId,
@@ -412,6 +423,9 @@ object LeoPubsubCodec {
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
     Decoder.forProduct6("appId", "appName", "nodepoolId", "project", "diskId", "traceId")(DeleteAppMessage.apply)
 
+  implicit val deleteKubernetesClusterDecoder: Decoder[DeleteKubernetesClusterMessage] =
+    Decoder.forProduct3("clusterId", "project", "traceId")(DeleteKubernetesClusterMessage.apply)
+
   implicit val batchNodepoolCreateDecoder: Decoder[BatchNodepoolCreateMessage] =
     Decoder.forProduct4("clusterId", "nodepools", "project", "traceId")(BatchNodepoolCreateMessage.apply)
 
@@ -423,17 +437,18 @@ object LeoPubsubCodec {
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
       value <- messageType match {
-        case LeoPubsubMessageType.CreateDisk          => message.as[CreateDiskMessage]
-        case LeoPubsubMessageType.UpdateDisk          => message.as[UpdateDiskMessage]
-        case LeoPubsubMessageType.DeleteDisk          => message.as[DeleteDiskMessage]
-        case LeoPubsubMessageType.CreateRuntime       => message.as[CreateRuntimeMessage]
-        case LeoPubsubMessageType.DeleteRuntime       => message.as[DeleteRuntimeMessage]
-        case LeoPubsubMessageType.StopRuntime         => message.as[StopRuntimeMessage]
-        case LeoPubsubMessageType.StartRuntime        => message.as[StartRuntimeMessage]
-        case LeoPubsubMessageType.UpdateRuntime       => message.as[UpdateRuntimeMessage]
-        case LeoPubsubMessageType.CreateApp           => message.as[CreateAppMessage]
-        case LeoPubsubMessageType.DeleteApp           => message.as[DeleteAppMessage]
-        case LeoPubsubMessageType.BatchNodepoolCreate => message.as[BatchNodepoolCreateMessage]
+        case LeoPubsubMessageType.CreateDisk              => message.as[CreateDiskMessage]
+        case LeoPubsubMessageType.UpdateDisk              => message.as[UpdateDiskMessage]
+        case LeoPubsubMessageType.DeleteDisk              => message.as[DeleteDiskMessage]
+        case LeoPubsubMessageType.CreateRuntime           => message.as[CreateRuntimeMessage]
+        case LeoPubsubMessageType.DeleteRuntime           => message.as[DeleteRuntimeMessage]
+        case LeoPubsubMessageType.StopRuntime             => message.as[StopRuntimeMessage]
+        case LeoPubsubMessageType.StartRuntime            => message.as[StartRuntimeMessage]
+        case LeoPubsubMessageType.UpdateRuntime           => message.as[UpdateRuntimeMessage]
+        case LeoPubsubMessageType.CreateApp               => message.as[CreateAppMessage]
+        case LeoPubsubMessageType.DeleteApp               => message.as[DeleteAppMessage]
+        case LeoPubsubMessageType.DeleteKubernetesCluster => message.as[DeleteKubernetesClusterMessage]
+        case LeoPubsubMessageType.BatchNodepoolCreate     => message.as[BatchNodepoolCreateMessage]
       }
     } yield value
   }
@@ -465,13 +480,11 @@ object LeoPubsubCodec {
       "bootDiskSize"
     )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize))
 
-  implicit val runtimeConfigEncoder: Encoder[RuntimeConfigInCreateRuntimeMessage] = Encoder.instance(x =>
-    x match {
-      case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig  => x.asJson
-      case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => x.asJson
-      case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => x.asJson
-    }
-  )
+  implicit val runtimeConfigEncoder: Encoder[RuntimeConfigInCreateRuntimeMessage] = Encoder.instance {
+    case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig  => x.asJson
+    case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => x.asJson
+    case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => x.asJson
+  }
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
     Encoder.forProduct17(
@@ -704,25 +717,30 @@ object LeoPubsubCodec {
     Encoder.forProduct5("messageType", "clusterId", "nodepools", "project", "traceId")(x =>
       (x.messageType, x.clusterId, x.nodepools, x.project, x.traceId)
     )
+
   implicit val deleteAppMessageEncoder: Encoder[DeleteAppMessage] =
     Encoder.forProduct7("messageType", "appId", "appName", "nodepoolId", "project", "diskId", "traceId")(x =>
       (x.messageType, x.appId, x.appName, x.nodepoolId, x.project, x.diskId, x.traceId)
     )
 
-  implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance { message =>
-    message match {
-      case m: CreateDiskMessage          => m.asJson
-      case m: UpdateDiskMessage          => m.asJson
-      case m: DeleteDiskMessage          => m.asJson
-      case m: CreateRuntimeMessage       => m.asJson
-      case m: DeleteRuntimeMessage       => m.asJson
-      case m: StopRuntimeMessage         => m.asJson
-      case m: StartRuntimeMessage        => m.asJson
-      case m: UpdateRuntimeMessage       => m.asJson
-      case m: CreateAppMessage           => m.asJson
-      case m: DeleteAppMessage           => m.asJson
-      case m: BatchNodepoolCreateMessage => m.asJson
-    }
+  implicit val deleteKubernetesClusterMessageEncoder: Encoder[DeleteKubernetesClusterMessage] =
+    Encoder.forProduct4("messageType", "clusterId", "project", "traceId")(x =>
+      (x.messageType, x.clusterId, x.project, x.traceId)
+    )
+
+  implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
+    case m: CreateDiskMessage              => m.asJson
+    case m: UpdateDiskMessage              => m.asJson
+    case m: DeleteDiskMessage              => m.asJson
+    case m: CreateRuntimeMessage           => m.asJson
+    case m: DeleteRuntimeMessage           => m.asJson
+    case m: StopRuntimeMessage             => m.asJson
+    case m: StartRuntimeMessage            => m.asJson
+    case m: UpdateRuntimeMessage           => m.asJson
+    case m: CreateAppMessage               => m.asJson
+    case m: DeleteAppMessage               => m.asJson
+    case m: DeleteKubernetesClusterMessage => m.asJson
+    case m: BatchNodepoolCreateMessage     => m.asJson
   }
 }
 
@@ -731,7 +749,7 @@ sealed trait PubsubHandleMessageError extends NoStackTrace {
 }
 object PubsubHandleMessageError {
   final case class PubsubKubernetesError(dbError: AppError,
-                                         appId: AppId,
+                                         appId: Option[AppId],
                                          isRetryable: Boolean,
                                          nodepoolId: Option[NodepoolLeoId],
                                          clusterId: Option[KubernetesClusterLeoId])
@@ -793,19 +811,3 @@ final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
                                                   persistentDiskMonitorConfig: PersistentDiskMonitorConfig)
-
-final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
-  override def getMessage: String =
-    s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"
-  val isRetryable: Boolean = false
-}
-
-final case class PubsubKubernetesError(dbError: AppError,
-                                       appId: Option[AppId],
-                                       isRetryable: Boolean,
-                                       nodepoolId: Option[NodepoolLeoId],
-                                       clusterId: Option[KubernetesClusterLeoId])
-    extends PubsubHandleMessageError {
-  override def getMessage: String =
-    s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
-}

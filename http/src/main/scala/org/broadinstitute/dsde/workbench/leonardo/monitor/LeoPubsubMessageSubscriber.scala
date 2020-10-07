@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.DiskNotFound
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{DiskNotFound, PubsubKubernetesError}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
@@ -77,6 +77,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         handleCreateAppMessage(msg)
       case msg: DeleteAppMessage =>
         handleDeleteAppMessage(msg)
+      case msg: DeleteKubernetesClusterMessage =>
+        handleDeleteKubernetesClusterMessage(msg)
       case msg: BatchNodepoolCreateMessage =>
         handleBatchNodepoolCreateMessage(msg)
     }
@@ -849,6 +851,34 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         )
     } yield ()
 
+  private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      // TODO: ${ctx.traceId} ends up being None with manually published messages. Make sure that's not the case with cron-job-created messages
+      ctx <- ev.ask
+      clusterId = msg.clusterId
+      _ <- logger.info(
+        s"Beginning clean-up of cluster $clusterId in project ${msg.project} because it has had no apps running for a period of time. | trace id: ${ctx.traceId}"
+      )
+      // TODO: Should we check again that the cluster is okay to delete in case a user requested app creation since the cron job published the message?
+      _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
+      _ <- gkeInterp
+      // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
+        .deleteAndPollCluster(DeleteClusterParams(msg.clusterId, msg.project))
+        .onError {
+          case _ =>
+            for {
+              _ <- logger.error(
+                s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
+              )
+              _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
+              // TODO: Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
+              // TODO: Need mark the nodepool(s) as Error'ed too?
+            } yield ()
+        }
+    } yield ()
+
   private def handleKubernetesError(e: Throwable)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     e match {
       case e: PubsubKubernetesError =>
@@ -900,7 +930,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         case leoEx: LeoException =>
           Some(ErrorReport.loggableString(leoEx.toErrorReport))
         case ee: com.google.api.gax.rpc.AbortedException
-            if ee.getStatusCode().getCode == 409 && ee.getMessage().contains("already exists") =>
+            if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
           None //this could happen when pubsub redelivers an event unexpectedly
         case _ =>
           Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")

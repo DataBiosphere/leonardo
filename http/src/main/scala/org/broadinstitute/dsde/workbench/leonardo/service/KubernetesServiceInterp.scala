@@ -96,6 +96,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now, None))
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
+      // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
       _ <- if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
         F.raiseError[Unit](
           KubernetesAppCreationException(
