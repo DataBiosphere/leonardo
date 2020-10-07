@@ -247,7 +247,6 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           AppCannotBeDeletedException(request.googleProject, request.appName, appResult.app.status, ctx.traceId)
         )
 
-      _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
       diskOpt <- if (request.deleteDisk)
         appResult.app.appResources.disk.fold(
           F.raiseError[Option[DiskId]](
@@ -256,15 +255,34 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         )(d => F.pure(Some(d.id)))
       else F.pure[Option[DiskId]](None)
 
-      deleteMessage = DeleteAppMessage(
-        appResult.app.id,
-        appResult.app.appName,
-        appResult.nodepool.id,
-        appResult.cluster.googleProject,
-        diskOpt,
-        Some(ctx.traceId)
-      )
-      _ <- publisherQueue.enqueue1(deleteMessage)
+      // If the app status is Error, we can assume that the underlying app/nodepool
+      // has already been deleted. So we just transition the app to Deleted status
+      // without sending a message to Back Leo.
+      //
+      // Note this has the side effect of not deleting the disk if requested to do so. The
+      // caller must manually delete the disk in this situation. We have the same behavior for
+      // runtimes.
+      _ <- if (appResult.app.status == AppStatus.Error) {
+        for {
+          _ <- authProvider.notifyResourceDeleted(appResult.app.samResourceId,
+                                                  appResult.app.auditInfo.creator,
+                                                  appResult.cluster.googleProject)
+          _ <- appQuery.markAsDeleted(appResult.app.id, ctx.now).transaction
+        } yield ()
+      } else {
+        for {
+          _ <- KubernetesServiceDbQueries.markPreDeleting(appResult.nodepool.id, appResult.app.id).transaction
+          deleteMessage = DeleteAppMessage(
+            appResult.app.id,
+            appResult.app.appName,
+            appResult.nodepool.id,
+            appResult.cluster.googleProject,
+            diskOpt,
+            Some(ctx.traceId)
+          )
+          _ <- publisherQueue.enqueue1(deleteMessage)
+        } yield ()
+      }
     } yield ()
 
   override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(

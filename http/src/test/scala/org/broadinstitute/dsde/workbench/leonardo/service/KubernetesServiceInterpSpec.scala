@@ -1,39 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.service
 
+import java.time.Instant
+
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AppAlreadyExistsException,
-  AppCannotBeDeletedException,
-  AppNotFoundException,
-  AppRequiresDiskException,
-  ClusterExistsException,
-  DiskAlreadyAttachedException,
-  LeoKubernetesServiceInterp
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.DeleteAppRequest
-import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppName,
-  AppStatus,
-  AppType,
-  KubernetesClusterStatus,
-  LabelMap,
-  LeonardoTestSuite,
-  NodepoolStatus
-}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  kubernetesClusterQuery,
-  persistentDiskQuery,
-  KubernetesAppCreationException,
-  KubernetesServiceDbQueries,
-  TestComponent
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppRequest, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.CreateNodepool
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,
@@ -45,10 +21,20 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessage,
   LeoPubsubMessageType
 }
+import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
+  AppStatus,
+  AppType,
+  KubernetesClusterStatus,
+  LabelMap,
+  LeonardoTestSuite,
+  NodepoolStatus
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.scalatest.flatspec.AnyFlatSpec
 
 final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
@@ -263,6 +249,55 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     the[AppCannotBeDeletedException] thrownBy {
       kubeServiceInterp.deleteApp(params).unsafeRunSync()
     }
+  }
+
+  it should "delete an app in Error status" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
+    }
+
+    // Set the app status to Error and the nodepool status to Deleted to simulate an error during
+    // app creation.
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Error))
+    dbFutureValue(nodepoolQuery.markAsDeleted(appResultPreStatusUpdate.get.nodepool.id, Instant.now))
+
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
+    }
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Error
+    appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
+    appResultPreDelete.get.nodepool.status shouldBe NodepoolStatus.Deleted
+    appResultPreDelete.get.nodepool.auditInfo.destroyedDate shouldBe 'defined
+
+    // Call deleteApp
+    val params = DeleteAppRequest(userInfo, project, appName, false)
+    kubeServiceInterp.deleteApp(params).unsafeRunSync()
+
+    // Verify database state
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listFullApps(Some(project), includeDeleted = true)
+    }
+    clusterPostDelete.length shouldEqual 1
+    val nodepool = clusterPostDelete.head.nodepools.head
+    nodepool.status shouldEqual NodepoolStatus.Deleted
+    nodepool.auditInfo.destroyedDate shouldBe 'defined
+    val app = nodepool.apps.head
+    app.status shouldEqual AppStatus.Deleted
+    app.auditInfo.destroyedDate shouldBe 'defined
+
+    // throw away create message
+    publisherQueue.dequeue1.unsafeRunSync() shouldBe a[CreateAppMessage]
+
+    // Verify no DeleteAppMessage message generated
+    publisherQueue.tryDequeue1.unsafeRunSync() shouldBe None
   }
 
   it should "list apps" in isolatedDbTest {

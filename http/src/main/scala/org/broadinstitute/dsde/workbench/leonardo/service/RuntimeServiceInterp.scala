@@ -316,6 +316,12 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case _ => F.pure(none[DiskId])
       }
 
+      // If there are no async runtime fields defined, we can assume that the underlying runtime
+      // has already been deleted. So we just transition the runtime to Deleted status without
+      // sending a message to Back Leo.
+      //
+      // Note this has the side effect of not deleting the disk if requested to do so. The
+      // caller must manually delete the disk in this situation. We have the same behavior for apps.
       _ <- if (runtime.asyncRuntimeFields.isDefined) {
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreDeleting, ctx.now).transaction >> publisherQueue
           .enqueue1(
