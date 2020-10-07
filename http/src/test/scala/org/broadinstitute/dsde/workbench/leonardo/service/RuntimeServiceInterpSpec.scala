@@ -489,7 +489,41 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
             .transaction
           message <- publisherQueue.tryDequeue1
+        } yield {
+          dbRuntimeOpt.get.status shouldBe RuntimeStatus.Deleting
+          message shouldBe (None)
+        }
+      }
+    } yield res
 
+    res.unsafeRunSync()
+  }
+
+  it should "delete a runtime with disk properly" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      service = makeRuntimeService(publisherQueue)
+      pd <- makePersistentDisk().save()
+      testRuntime <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig
+            .GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(pd.id), bootDiskSize = DiskSize(50))
+        )
+      )
+
+      _ <- service.deleteRuntime(
+        DeleteRuntimeRequest(userInfo, testRuntime.googleProject, testRuntime.runtimeName, true)
+      )
+      diskStatus <- persistentDiskQuery.getStatus(pd.id).transaction
+      _ = diskStatus shouldBe Some(DiskStatus.Deleting)
+      res <- withLeoPublisher(publisherQueue) {
+        for {
+          dbRuntimeOpt <- clusterQuery
+            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .transaction
+          message <- publisherQueue.tryDequeue1
         } yield {
           dbRuntimeOpt.get.status shouldBe RuntimeStatus.Deleting
           message shouldBe (None)
