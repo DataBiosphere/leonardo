@@ -9,7 +9,7 @@ import com.google.container.v1.{Cluster, NodePool}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName}
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GKEService}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GKEService}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{GetAppResponse, ListAppResponse, PersistentDiskRequest}
 import org.http4s.headers.Authorization
@@ -48,10 +48,11 @@ class BatchNodepoolCreationSpec
             val id = KubernetesClusterId(googleProject, LeonardoConfig.Leonardo.location, clusterName)
             gkeClient.getCluster(id)
           }
-          monitorCreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getCluster, 60, 10 seconds)(
-            testTimer,
-            clusterDoneCheckable
-          ).compile.lastOrError
+          monitorCreationResult <- testTimer.sleep(30 seconds) >>
+            streamFUntilDone(getCluster, 60, 10 seconds)(
+              testTimer,
+              clusterDoneCheckable
+            ).compile.lastOrError
 
           _ = monitorCreationResult.map(_.getNodePoolsList().size()) shouldBe Some(
             defaultBatchNodepoolRequest.numNodepools.value + 1
@@ -65,16 +66,16 @@ class BatchNodepoolCreationSpec
 
   "app creation with batch nodepool creation should work" in { _ =>
     withNewProject { googleProject =>
-      val test = LeonardoApiClient.client.use { c =>
-        implicit val httpClient = c
+      val test = LeonardoApiClient.client.use { implicit c =>
+        val appName1 = randomAppName
+        val appName2 = randomAppName
 
         val appDoneCheckable: DoneCheckable[GetAppResponse] =
-          x => x.status == AppStatus.Running
+          x => x.status == AppStatus.Running || x.status == AppStatus.Error
 
         val appDeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
           x => x.map(_.status).distinct == List(AppStatus.Deleted)
 
-        val appName1 = AppName("app1")
         val app1DeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
           x => x.filter(_.appName == appName1).map(_.status).distinct == List(AppStatus.Deleted)
 
@@ -100,15 +101,15 @@ class BatchNodepoolCreationSpec
 
           _ = monitorBatchCreationResult.map(_.getNodePoolsList().size()) shouldBe Some(2)
 
-          diskConfig1 = Some(PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty))
+          diskConfig1 = Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
 
-          _ <- loggerIO.info("About to create app1")
+          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName1.value}")
 
           _ <- LeonardoApiClient.createApp(googleProject,
                                            appName1,
                                            createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig1))
 
-          _ <- loggerIO.info("About to get app1")
+          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to get app ${googleProject.value}/${appName1.value}")
 
           getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
           monitorApp1CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp1, 120, 10 seconds)(
@@ -116,16 +117,17 @@ class BatchNodepoolCreationSpec
             appDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"app1 monitor result: ${monitorApp1CreationResult}")
+          _ <- loggerIO.info(
+            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} monitor result: ${monitorApp1CreationResult}"
+          )
           _ = monitorApp1CreationResult.status shouldBe AppStatus.Running
 
           clusterAfterApp1 <- getCluster
           _ = clusterAfterApp1.map(_.getNodePoolsList().size()) shouldBe Some(2)
 
-          appName2 = AppName("app2")
-          diskConfig2 = Some(PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty))
+          diskConfig2 = Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
 
-          _ <- loggerIO.info("About to create app2")
+          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName2.value}")
 
           _ <- LeonardoApiClient.createApp(googleProject,
                                            appName2,
@@ -138,7 +140,9 @@ class BatchNodepoolCreationSpec
             appDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"app2 monitor result: ${monitorApp2CreationResult}")
+          _ <- loggerIO.info(
+            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName2.value} monitor result: ${monitorApp2CreationResult}"
+          )
           _ = monitorApp2CreationResult.status shouldBe AppStatus.Running
 
           clusterAfterApp2 <- getCluster
@@ -149,20 +153,22 @@ class BatchNodepoolCreationSpec
 
           listApps = LeonardoApiClient.listApps(googleProject, true)
 
-          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,
             app1DeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"app1 delete result: $monitorApp1DeletionResult")
+          _ <- loggerIO.info(
+            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} delete result: $monitorApp1DeletionResult"
+          )
 
           _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
-          monitorAppDeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 60, 10 seconds)(
+          monitorAppDeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,
             appDeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"all app delete result: $monitorAppDeletionResult")
+          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: all app delete result: $monitorAppDeletionResult")
 
         } yield ()
       }

@@ -3,39 +3,26 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.util.UUID
 import java.util.concurrent.TimeoutException
 
-import cats.implicits._
 import cats.effect.{IO, Resource, Timer}
+import cats.implicits._
 import org.broadinstitute.dsde.workbench.DoneCheckable
+import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
-import org.broadinstitute.dsde.workbench.leonardo.http.{
-  BatchNodepoolCreateRequest,
-  CreateAppRequest,
-  CreateDiskRequest,
-  CreateRuntime2Request,
-  GetAppResponse,
-  GetPersistentDiskResponse,
-  ListAppResponse,
-  ListPersistentDiskResponse,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
+import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
+import org.http4s._
+import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.middleware.Logger
 import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
-import org.http4s.circe.CirceEntityEncoder._
-import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
-
-import scala.concurrent.duration._
-import ApiJsonDecoder._
-import org.http4s._
 
 import scala.concurrent.ExecutionContext.global
-import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.auth.AuthToken
-
+import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {

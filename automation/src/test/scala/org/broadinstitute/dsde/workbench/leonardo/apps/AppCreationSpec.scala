@@ -15,7 +15,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
+class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
 
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization =
@@ -36,7 +36,7 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
       val app2DeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
         x => x.filter(_.appName == appName2).map(_.status).distinct == List(AppStatus.Deleted)
 
-      logger.info(s"Google Project 1 " + googleProject.value)
+      logger.info(s"AppCreationSpec: Google Project 1 " + googleProject.value)
 
       val createAppRequest = defaultCreateAppRequest.copy(
         diskConfig = Some(
@@ -51,11 +51,11 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
       val res = dependencies.use { dep =>
         implicit val client = dep.httpClient
         val creatingDoneCheckable: DoneCheckable[GetAppResponse] =
-          x => x.status == AppStatus.Running
+          x => x.status == AppStatus.Running || x.status == AppStatus.Error
 
         for {
 
-          _ <- loggerIO.info("About to create app")
+          _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
           _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
 
@@ -65,12 +65,14 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
 
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
-          monitorStartingResult <- testTimer.sleep(120 seconds) >> streamFUntilDone(gar, 30, 30 seconds)(
+          monitorStartingResult <- testTimer.sleep(120 seconds) >> streamFUntilDone(gar, 120, 10 seconds)(
             testTimer,
             creatingDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"app 1 monitor result: ${monitorStartingResult}")
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorStartingResult}"
+          )
 
           _ = monitorStartingResult.status shouldBe AppStatus.Running
 
@@ -83,11 +85,17 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
             app1DeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"app1 delete result: $monitorApp1DeletionResult")
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorApp1DeletionResult"
+          )
 
-          _ <- testTimer.sleep(480 seconds)
+          _ = app1DeletedDoneCheckable.isDone(monitorApp1DeletionResult) shouldBe true
 
-          _ <- loggerIO.info("About to create app2")
+          // TODO investigate why this is necessary - in theory the second app should be able
+          // to be created after the first is deleted.
+          _ <- testTimer.sleep(600 seconds)
+
+          _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName2.value}")
 
           _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
 
@@ -97,12 +105,14 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
 
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
-          monitorApp2CreationResult <- testTimer.sleep(180 seconds) >> streamFUntilDone(gar, 30, 30 seconds)(
+          monitorApp2CreationResult <- testTimer.sleep(180 seconds) >> streamFUntilDone(gar, 120, 10 seconds)(
             testTimer,
             creatingDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"app 2 monitor result: ${monitorApp2CreationResult}")
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject.value}/${appName2.value} monitor result: ${monitorApp2CreationResult}"
+          )
 
           _ = monitorApp2CreationResult.status shouldBe AppStatus.Running
 
@@ -115,7 +125,9 @@ class KubernetesSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAl
             app2DeletedDoneCheckable
           ).compile.lastOrError
 
-          _ <- loggerIO.info(s"app 2 delete result: $monitorApp2DeletionResult")
+          _ <- loggerIO.info(
+            s"AppCreationSpec: app ${googleProject.value}/${appName2.value} delete result: $monitorApp2DeletionResult"
+          )
 
         } yield ()
       }
