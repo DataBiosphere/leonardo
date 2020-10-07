@@ -280,7 +280,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       persistentDiskToDelete <- runtimeConfig match {
         case x: RuntimeConfig.GceWithPdConfig =>
-          x.persistentDiskId.flatTraverse { diskId =>
+          x.persistentDiskId.flatTraverse[F, DiskId] { diskId =>
             for {
               diskOpt <- persistentDiskQuery.getPersistentDiskRecord(diskId).transaction
               disk <- F.fromEither(
@@ -307,11 +307,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                   F.unit)
               )
               _ <- RuntimeConfigQueries.updatePersistentDiskId(runtime.runtimeConfigId, None, ctx.now).transaction
-            } yield {
-              if (req.deleteDisk)
-                Some(diskId)
-              else None
-            }
+              res <- if (req.deleteDisk)
+                persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleting, ctx.now).transaction.as(Some(diskId))
+              else F.pure(none[DiskId])
+            } yield res
           }
         case _ => F.pure(none[DiskId])
       }
