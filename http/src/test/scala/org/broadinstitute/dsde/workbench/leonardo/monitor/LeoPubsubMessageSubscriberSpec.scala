@@ -19,9 +19,9 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{
+  MockGKEService,
   FakeGoogleComputeService,
   MockComputePollOperation,
-  MockGKEService,
   MockKubernetesService => WbLibsMockKubernetesService
 }
 import org.broadinstitute.dsde.workbench.google2.{
@@ -60,6 +60,7 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -915,19 +916,6 @@ class LeoPubsubMessageSubscriberSpec
         )
       )
       .save()
-    val mockAckConsumer = mock[AckReplyConsumer]
-
-    val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries
-        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
-        .transaction
-      getApp = getAppOpt.get
-    } yield {
-      getApp.app.errors.size shouldBe 1
-      getApp.app.status shouldBe AppStatus.Error
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
-      getApp.app.errors.map(_.source) should contain(ErrorSource.App)
-    }
 
     val res = for {
       tr <- traceId.ask
@@ -943,13 +931,12 @@ class LeoPubsubMessageSubscriberSpec
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
     } yield ()
 
-    res.unsafeRunSync()
-    verify(mockAckConsumer, times(1)).ack()
+    the[AppNotFoundException] thrownBy {
+      res.unsafeRunSync()
+    }
   }
 
   it should "handle error in createApp if createDisk is specified with no disk" in isolatedDbTest {
