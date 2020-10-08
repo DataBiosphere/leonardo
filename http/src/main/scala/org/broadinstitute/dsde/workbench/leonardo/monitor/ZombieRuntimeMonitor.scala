@@ -260,14 +260,16 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
         s"${traceId.asString} | Deleting inactive zombie runtime: ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
       )
       _ <- metrics.incrementCounter("numOfInactiveZombieRuntimes")
-      _ <- zombie.cloudService.interpreter
-        .deleteRuntime(
-          DeleteRuntimeParams(
-            zombie.googleProject,
-            zombie.runtimeName,
-            zombie.asyncRuntimeFields.isDefined
-          ) //TODO: think about this a bit more. We may want to delete disks in certain cases
+      runtimeOpt <- clusterQuery.getClusterById(zombie.id).transaction
+      runtime <- F.fromOption(
+        runtimeOpt,
+        new RuntimeException(
+          s"Inactive zombine runtime ${zombie.googleProject.value} / ${zombie.runtimeName.asString} not found in Leo DB | trace id: ${traceId}"
         )
+      )
+      //TODO: think about this a bit more. We may want to delete disks in certain cases
+      _ <- zombie.cloudService.interpreter
+        .deleteRuntime(DeleteRuntimeParams(runtime))
         .void
         .recoverWith {
           case e =>
