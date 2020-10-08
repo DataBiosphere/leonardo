@@ -801,13 +801,6 @@ object PubsubHandleMessageError {
       s"${diskId}, ${projectName} | Unable to process disk because not in correct state. Disk details: ${disk}"
     val isRetryable: Boolean = false
   }
-
-  final case class PostgresDiskError(project: GoogleProject, appName: AppName, diskName: DiskName, errorMessage: String)
-      extends PubsubHandleMessageError {
-    override def getMessage: String =
-      s"An error occurred with Postres Disk ${diskName.value} in app ${appName.value}. Project: ${project.value} \nOriginal message: ${errorMessage}"
-    val isRetryable: Boolean = false
-  }
 }
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
