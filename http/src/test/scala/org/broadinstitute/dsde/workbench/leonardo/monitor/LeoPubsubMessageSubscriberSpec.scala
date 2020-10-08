@@ -681,12 +681,14 @@ class LeoPubsubMessageSubscriberSpec
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
+    val disk1 = makePersistentDisk(Some(DiskName("disk1"))).save().unsafeRunSync()
+    val disk2 = makePersistentDisk(Some(DiskName("disk2"))).save().unsafeRunSync()
 
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
         makeApp1.appResources.copy(
-          disk = None,
+          disk = Some(disk1),
           services = List(makeService(1), makeService(2))
         )
       )
@@ -695,7 +697,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp2 = makeApp2
       .copy(appResources =
         makeApp2.appResources.copy(
-          disk = None,
+          disk = Some(disk2),
           services = List(makeService(1), makeService(2))
         )
       )
@@ -742,7 +744,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        Some(DiskId(1)),
+        Some(disk1.id),
         Map.empty,
         AppType.Galaxy,
         Some(tr)
@@ -752,7 +754,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(ClusterNodepoolAction.CreateNodepool(savedNodepool2.id)),
         savedApp2.id,
         savedApp2.appName,
-        Some(DiskId(2)),
+        Some(disk2.id),
         Map.empty,
         AppType.Galaxy,
         Some(tr)
