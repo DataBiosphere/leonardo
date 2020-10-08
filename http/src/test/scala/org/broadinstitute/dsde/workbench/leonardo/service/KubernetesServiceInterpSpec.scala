@@ -5,11 +5,39 @@ import java.time.Instant
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AppAlreadyExistsException,
+  AppCannotBeDeletedException,
+  AppNotFoundException,
+  AppRequiresDiskException,
+  ClusterConflictException,
+  ClusterExistsException,
+  DiskAlreadyAttachedException,
+  LeoKubernetesServiceInterp
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppRequest, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.DeleteAppRequest
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
+  AppStatus,
+  AppType,
+  KubernetesClusterStatus,
+  LabelMap,
+  LeoLenses,
+  LeonardoTestSuite,
+  NodepoolStatus
+}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  kubernetesClusterQuery,
+  persistentDiskQuery,
+  KubernetesAppCreationException,
+  KubernetesServiceDbQueries,
+  TestComponent
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.CreateNodepool
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,
@@ -22,16 +50,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageType
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppName,
-  AppStatus,
-  AppType,
-  KubernetesClusterStatus,
-  LabelMap,
-  LeoLenses,
-  LeonardoTestSuite,
-  NodepoolStatus
-}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpec
@@ -614,6 +632,30 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val createAppMessage2 = message2.asInstanceOf[CreateAppMessage]
     createAppMessage2.appId shouldBe appResult2.app.id
     createAppMessage2.clusterNodepoolAction shouldBe None
+  }
+
+  it should "reject create/delete app requests when a nodepool is processing" in isolatedDbTest {
+    val savedCluster1 =
+      makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running, googleProject = project).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Provisioning).save()
+    val savedNodepool2 = makeNodepool(2, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
+    val app2 = makeApp(1, savedNodepool2.id).copy(status = AppStatus.Running).save()
+
+    val appName = AppName("app7")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+
+    the[ClusterConflictException] thrownBy {
+      kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
+    }
+
+    the[ClusterConflictException] thrownBy {
+      kubeServiceInterp.deleteApp(DeleteAppRequest(userInfo, project, app2.appName, false)).unsafeRunSync()
+    }
   }
 
   it should "be able to create a nodepool after a pool is completely claimed" in isolatedDbTest {

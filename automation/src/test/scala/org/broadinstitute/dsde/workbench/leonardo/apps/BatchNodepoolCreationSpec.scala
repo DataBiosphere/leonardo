@@ -162,6 +162,8 @@ class BatchNodepoolCreationSpec
             s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} delete result: $monitorApp1DeletionResult"
           )
 
+          _ = monitorApp1DeletionResult.map(_.status).toSet shouldBe Set(AppStatus.Deleted, AppStatus.Running)
+
           _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
           monitorAppDeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
             testTimer,

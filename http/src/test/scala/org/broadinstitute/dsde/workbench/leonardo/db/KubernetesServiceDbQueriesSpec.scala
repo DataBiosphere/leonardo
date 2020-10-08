@@ -376,4 +376,13 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     getApp.app.errors should contain(error2)
   }
 
+  it should "correctly identify if theres an operation in progress" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Provisioning).save()
+    val savedNodepool2 = makeNodepool(2, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
+    val app2 = makeApp(1, savedNodepool2.id).copy(status = AppStatus.Running).save()
+
+    KubernetesServiceDbQueries.hasClusterOperationInProgress(savedCluster1.id).transaction.unsafeRunSync() shouldBe true
+  }
+
 }

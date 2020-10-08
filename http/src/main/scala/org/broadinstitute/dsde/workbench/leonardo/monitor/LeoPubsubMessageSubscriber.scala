@@ -958,10 +958,15 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       deleteDisksInParallel = List(deleteDisk, deletePostgresDisk).parSequence_
 
-      // TODO: can some of this be done in parallel?
+      // The app must be deleted before the nodepool and disk, to future proof against the app potentially flushing the postgres db somewhere
       task = for {
         _ <- deleteApp
         _ <- deleteNodepool
+        _ <- if (!errorAfterDelete)
+          appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >> authProvider
+            .notifyResourceDeleted(dbApp.app.samResourceId, dbApp.app.auditInfo.creator, msg.project)
+            .void
+        else F.unit
         _ <- deleteDisksInParallel
       } yield ()
 

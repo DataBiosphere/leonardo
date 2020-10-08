@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.rms.miu.slickcats.DBIOInstances._
+import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
 
 import scala.concurrent.ExecutionContext
 
@@ -84,6 +85,25 @@ object KubernetesServiceDbQueries {
                      nodepoolQuery,
                      appQuery.getByIdQuery(appId),
                      labelFilter)
+
+  def hasClusterOperationInProgress(clusterId: KubernetesClusterLeoId)(
+    implicit ec: ExecutionContext
+  ): DBIO[Boolean] =
+    for {
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(clusterId)
+      cluster <- clusterOpt match {
+        case None =>
+          DBIO.failed(
+            KubernetesClusterNotFoundException(
+              s"did not find cluster with id $clusterId while checking for concurrent cluster operations"
+            )
+          )
+        case Some(c) => DBIO.successful(c)
+      }
+      hasOperationInProgress = cluster.nodepools.exists(nodepool =>
+        NodepoolStatus.nonParellizableStatuses.contains(nodepool.status)
+      )
+    } yield hasOperationInProgress
 
   private[db] def getActiveFullApp(clusterQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq],
                                    nodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq],

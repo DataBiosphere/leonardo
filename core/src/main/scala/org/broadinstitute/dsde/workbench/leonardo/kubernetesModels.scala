@@ -163,6 +163,9 @@ object NodepoolStatus {
 
   val deletableStatuses: Set[NodepoolStatus] =
     Set(Unspecified, Running, Reconciling, Unclaimed, Error, RunningWithError)
+
+  val nonParellizableStatuses: Set[NodepoolStatus] =
+    Set(Deleting, Provisioning)
 }
 
 final case class KubernetesClusterLeoId(id: Long) extends AnyVal
