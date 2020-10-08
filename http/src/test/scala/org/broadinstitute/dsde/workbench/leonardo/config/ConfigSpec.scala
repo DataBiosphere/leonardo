@@ -22,7 +22,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       DiskType.Standard,
       BlockSize(4096),
       ZoneName("us-central1-a"),
-      DiskSize(300)
+      DiskSize(500)
     )
 
     Config.persistentDiskConfig shouldBe expectedResult
@@ -115,7 +115,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
 
   it should "read GalaxyDiskConfig properly" in {
     val expectedResult =
-      GalaxyDiskConfig("nfs-persistence", "postgres-persistence", "gxy-postres-disk", DiskSize(10), BlockSize(4096))
+      GalaxyDiskConfig("nfs-disk", "postgres-disk", "gxy-postres-disk", DiskSize(10), BlockSize(4096))
     Config.gkeGalaxyDiskConfig shouldBe expectedResult
   }
 }

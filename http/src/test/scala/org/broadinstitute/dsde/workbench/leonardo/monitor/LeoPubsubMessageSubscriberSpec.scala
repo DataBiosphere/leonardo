@@ -905,7 +905,16 @@ class LeoPubsubMessageSubscriberSpec
   it should "error on create if app doesn't exist" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+    val disk1 = makePersistentDisk(Some(DiskName("disk1"))).save().unsafeRunSync()
+    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = Some(disk1),
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
     val mockAckConsumer = mock[AckReplyConsumer]
 
     val assertions = for {
@@ -927,7 +936,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
         savedApp1.id,
         AppName("fakeapp"),
-        None,
+        Some(disk1.id),
         Map.empty,
         AppType.Galaxy,
         Some(tr)
