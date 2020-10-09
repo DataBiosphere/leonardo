@@ -111,6 +111,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       legacyCreateClusterRec = new com.google.api.services.container.model.Cluster()
         .setName(dbCluster.clusterName.value)
+        .setInitialClusterVersion(config.clusterConfig.version.value)
         .setNodePools(nodepools.asJava)
         .setLegacyAbac(new com.google.api.services.container.model.LegacyAbac().setEnabled(false))
         .setNetwork(kubeNetwork.idString)
