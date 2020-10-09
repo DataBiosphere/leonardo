@@ -824,9 +824,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
       raw"""galaxy.terra.launch.workspace=${workspaceName}""",
       raw"""galaxy.terra.launch.namespace=${cluster.googleProject.value}""",
+      // TODO template in dev/prod/etc from firecloud-develop
+      raw"""galaxy.configs.file_sources_conf\.yml[0].api_url=https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].drs_url=https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3""",
       raw"""galaxy.rbac.enabled=false""",
       raw"""galaxy.rbac.serviceAccount=${ksa.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
