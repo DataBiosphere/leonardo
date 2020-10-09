@@ -519,9 +519,12 @@ object Config {
   implicit private val cidrIPReader: ValueReader[CidrIP] = stringValueReader.map(CidrIP)
 
   implicit private val kubeClusterConfigReader: ValueReader[KubernetesClusterConfig] = ValueReader.relative { config =>
-    KubernetesClusterConfig(config.as[Location]("location"),
-                            config.as[RegionName]("region"),
-                            config.as[List[CidrIP]]("authorizedNetworks"))
+    KubernetesClusterConfig(
+      config.as[Location]("location"),
+      config.as[RegionName]("region"),
+      config.as[List[CidrIP]]("authorizedNetworks"),
+      config.as[KubernetesClusterVersion]("version")
+    )
   }
 
   implicit private val maxNodepoolsPerDefaultNodeReader: ValueReader[MaxNodepoolsPerDefaultNode] =
@@ -622,6 +625,8 @@ object Config {
   )
   implicit private val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
     stringValueReader.map(KubernetesServiceKindName)
+  implicit private val kubernetesClusterVersionReader: ValueReader[KubernetesClusterVersion] =
+    stringValueReader.map(KubernetesClusterVersion)
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")
