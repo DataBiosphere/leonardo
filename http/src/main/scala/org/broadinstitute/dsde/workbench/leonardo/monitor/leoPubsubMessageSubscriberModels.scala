@@ -695,7 +695,6 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    // TODO: why is this 9? where is messageType coming from?
     Encoder.forProduct9(
       "messageType",
       "project",

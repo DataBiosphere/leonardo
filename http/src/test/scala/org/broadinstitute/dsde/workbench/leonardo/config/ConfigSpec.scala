@@ -22,7 +22,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       DiskType.Standard,
       BlockSize(4096),
       ZoneName("us-central1-a"),
-      DiskSize(500)
+      DiskSize(250)
     )
 
     Config.persistentDiskConfig shouldBe expectedResult

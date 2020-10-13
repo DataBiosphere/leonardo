@@ -855,7 +855,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ).value}""",
       raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
-      raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc"""
+      raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
+      raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc""",
+      raw"""galaxy.persistence.size=200Gi"""
     ) ++ configs).mkString(",")
   }
 

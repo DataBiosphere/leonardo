@@ -89,7 +89,7 @@ object CommonTestData {
   val diskName = DiskName("disk-name")
   val googleId = GoogleId("google-id")
   val diskSamResource = PersistentDiskSamResourceId("disk-resource-id")
-  val diskSize = DiskSize(500)
+  val diskSize = DiskSize(250)
   val diskType = DiskType.Standard
   val blockSize = BlockSize(4096)
 
