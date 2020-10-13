@@ -596,7 +596,9 @@ object Config {
       config.as[String]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
-      config.as[Boolean]("uninstallKeepHistory")
+      config.as[Boolean]("uninstallKeepHistory"),
+      config.as[String]("orchUrl"),
+      config.as[String]("drsUrl")
     )
   }
 

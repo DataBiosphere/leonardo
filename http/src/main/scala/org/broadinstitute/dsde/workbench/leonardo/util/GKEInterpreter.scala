@@ -792,7 +792,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
+    val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
 
+    // Custom EV configs
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap {
       case ((k, v), i) =>
         List(
@@ -803,12 +805,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
     }
 
-    val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
-
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
     // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
     (List(
+      // Storage class configs
       raw"""nfs.storageClass.name=nfs-${release.asString}""",
       raw"""cvmfs.repositories.cvmfs-gxy-data-${release.asString}=data.galaxyproject.org""",
       raw"""cvmfs.repositories.cvmfs-gxy-main-${release.asString}=main.galaxyproject.org""",
@@ -816,22 +817,35 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.persistence.storageClass=nfs-${release.asString}""",
       raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.asString}""",
       raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.asString}""",
+      // Node selector config: this ensures the app is run on the user's nodepool
       raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      // Ingress configs
       raw"""galaxy.ingress.path=${ingressPath}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
+      // Galaxy configs
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].id=${workspaceName}""",
+      raw"""galaxy.terra.launch.workspace=${workspaceName}""",
+      raw"""galaxy.terra.launch.namespace=${cluster.googleProject.value}""",
+      // Note most of the below file_sources configs are specified in galaxykubeman,
+      // but helm can't update 1 item in a list if the value is an object.
+      // See https://github.com/helm/helm/issues/7569
+      raw"""galaxy.configs.file_sources_conf\.yml[0].api_url=${config.galaxyAppConfig.orchUrl}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].drs_url=${config.galaxyAppConfig.drsUrl}""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].doc=${workspaceName}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].id=${workspaceName}""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].workspace=${workspaceName}""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].namespace=${cluster.googleProject.value}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].on_anvil=True""",
+      // RBAC configs
       raw"""galaxy.rbac.enabled=false""",
       raw"""galaxy.rbac.serviceAccount=${ksa.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
+      // Persistence configs
       raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
       raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name.value}""",
       raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",

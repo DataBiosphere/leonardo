@@ -10,7 +10,9 @@ final case class GalaxyAppConfig(releaseNameSuffix: String,
                                  namespaceNameSuffix: String,
                                  services: List[ServiceConfig],
                                  serviceAccount: ServiceAccountName,
-                                 uninstallKeepHistory: Boolean) {
+                                 uninstallKeepHistory: Boolean,
+                                 orchUrl: String,
+                                 drsUrl: String) {
 
   def chart: Chart = Chart(chartName, chartVersion)
 }
