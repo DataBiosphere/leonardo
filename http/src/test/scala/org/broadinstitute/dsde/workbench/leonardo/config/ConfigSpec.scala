@@ -109,7 +109,9 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       "gxy-ns",
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
       ServiceAccountName("gxy-ksa"),
-      true
+      true,
+      "https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/",
+      "https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3"
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }
