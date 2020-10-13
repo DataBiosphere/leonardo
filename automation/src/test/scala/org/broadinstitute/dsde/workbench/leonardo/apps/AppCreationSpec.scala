@@ -42,7 +42,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
         diskConfig = Some(
           PersistentDiskRequest(
             randomDiskName,
-            Some(DiskSize(30)),
+            Some(DiskSize(500)),
             None,
             Map.empty
           )

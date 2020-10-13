@@ -23,6 +23,7 @@ import _root_.io.circe.syntax._
 import _root_.io.circe.parser.decode
 import LeoPubsubCodec._
 import io.circe.Printer
+import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.scalatest.flatspec.AnyFlatSpec
 
 class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
@@ -107,6 +108,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       AppName("app1"),
       Some(DiskId(1)),
       Map.empty,
+      Galaxy, // TODO: should this be an Option?
       Some(traceId)
     )
 

@@ -223,6 +223,7 @@ object LeoPubsubMessage {
                                     appName: AppName,
                                     createDisk: Option[DiskId],
                                     customEnvironmentVariables: Map[String, String],
+                                    appType: AppType,
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
@@ -412,12 +413,13 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct7("project",
+    Decoder.forProduct8("project",
                         "clusterNodepoolAction",
                         "appId",
                         "appName",
                         "createDisk",
                         "customEnvironmentVariables",
+                        "appType",
                         "traceId")(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
@@ -693,7 +695,8 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct8(
+    // TODO: why is this 9? where is messageType coming from?
+    Encoder.forProduct9(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -701,6 +704,7 @@ object LeoPubsubCodec {
       "appName",
       "createDisk",
       "customEnvironmentVariables",
+      "appType",
       "traceId"
     )(x =>
       (x.messageType,
@@ -710,6 +714,7 @@ object LeoPubsubCodec {
        x.appName,
        x.createDisk,
        x.customEnvironmentVariables,
+       x.appType,
        x.traceId)
     )
 
