@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.leonardo.{Leonardo, LeonardoConfig, RuntimeFixtureSpec}
-import org.broadinstitute.dsde.workbench.service.Orchestration
 import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration.DurationLong
@@ -88,11 +87,6 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     }
 
     "should allow BigQuerying via the command line" in { runtimeFixture =>
-      // project owners have the bigquery role automatically, so this also tests granting it to users
-      val ownerToken = hermioneAuthToken
-      Orchestration.billing.addGoogleRoleToBillingProjectUser(runtimeFixture.runtime.googleProject.value,
-                                                              ronEmail,
-                                                              "bigquery.jobUser")(ownerToken)
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime) { notebookPage =>
           val query =
