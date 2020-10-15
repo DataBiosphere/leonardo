@@ -22,14 +22,14 @@ class MockGoogleOAuth2DAO extends GoogleOAuth2DAO[IO] {
           UserInfo(OAuth2BearerToken(accessToken),
                    WorkbenchUserId("1234567890"),
                    WorkbenchEmail("non_whitelisted@example.com"),
-                   (1 hour).toMillis)
+                   (1 hour).toSeconds)
         )
       case _ =>
         IO(
           UserInfo(OAuth2BearerToken(accessToken),
                    WorkbenchUserId("1234567890"),
                    WorkbenchEmail("user1@example.com"),
-                   (1 hour).toMillis)
+                   (1 hour).toSeconds)
         )
     }
 }
