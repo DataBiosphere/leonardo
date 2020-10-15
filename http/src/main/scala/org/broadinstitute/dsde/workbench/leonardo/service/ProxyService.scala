@@ -20,6 +20,7 @@ import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import fs2.concurrent.InspectableQueue
+import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
@@ -86,7 +87,8 @@ class ProxyService(
   timer: Timer[IO],
   cs: ContextShift[IO],
   dbRef: DbReference[IO],
-  metrics: OpenTelemetryMetrics[IO])
+  metrics: OpenTelemetryMetrics[IO],
+  loggerIO: Logger[IO])
     extends LazyLogging {
 
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
@@ -110,6 +112,9 @@ class ProxyService(
         }
       }
     )
+
+  def googleTokenCacheMetrics: CacheMetrics[IO] =
+    CacheMetrics("googleTokenCache", IO(googleTokenCache.size), IO(googleTokenCache.stats))
 
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
@@ -147,6 +152,9 @@ class ProxyService(
         }
       }
     )
+
+  def samResourceCacheMetrics: CacheMetrics[IO] =
+    CacheMetrics("samResourceCache", IO(samResourceCache.size), IO(samResourceCache.stats))
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(
     implicit ev: ApplicativeAsk[IO, AppContext]
@@ -198,12 +206,6 @@ class ProxyService(
 
   def invalidateAccessToken(token: String): IO[Unit] =
     blocker.blockOn(IO(googleTokenCache.invalidate(token)))
-
-  def googleTokenCacheMetrics: CacheMetrics[IO] =
-    CacheMetrics("googleTokenCache", IO(googleTokenCache.size), IO(googleTokenCache.stats))
-
-  def samResourceCacheMetrics: CacheMetrics[IO] =
-    CacheMetrics("samResourceCache", IO(samResourceCache.size), IO(samResourceCache.stats))
 
   def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, AppContext]

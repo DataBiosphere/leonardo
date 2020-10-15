@@ -6,6 +6,7 @@ import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import fs2.concurrent.InspectableQueue
+import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2DAO
@@ -32,7 +33,8 @@ class MockProxyService(
   timer: Timer[IO],
   cs: ContextShift[IO],
   dbRef: DbReference[IO],
-  metrics: OpenTelemetryMetrics[IO])
+  metrics: OpenTelemetryMetrics[IO],
+  logger: Logger[IO])
     extends ProxyService(proxyConfig,
                          jupyterDAO,
                          runtimeDnsCache,
