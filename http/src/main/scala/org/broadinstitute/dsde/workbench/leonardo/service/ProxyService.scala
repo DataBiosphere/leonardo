@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -122,8 +123,12 @@ class ProxyService(
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
     for {
+      cache <- blocker.blockOn(IO(googleTokenCache.get(token))).adaptError {
+        case _ =>
+          // Rethrow AuthenticationError if unable to look up the token
+          AuthenticationError()
+      }
       now <- nowInstant
-      cache <- blocker.blockOn(IO(googleTokenCache.get(token)))
       res <- cache match {
         case (userInfo, expireTime) =>
           if (expireTime.isAfter(now))
