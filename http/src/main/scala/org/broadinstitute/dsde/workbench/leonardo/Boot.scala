@@ -49,7 +49,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoKubernetesServiceInterp, _}
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -281,7 +281,15 @@ object Boot extends IOApp {
           )
         }
 
-        val frontLeoOnlyProcesses = List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
+        val frontLeoOnlyProcesses = List(
+          dateAccessedUpdater.process, // We only need to update dateAccessed in front leo
+          appDependencies.authProvider.cacheMetrics.process,
+          appDependencies.samDAO.cacheMetrics.process,
+          proxyService.googleTokenCacheMetrics.process,
+          proxyService.samResourceCacheMetrics.process,
+          appDependencies.runtimeDnsCache.cacheMetrics.process,
+          googleDependencies.kubernetesDnsCache.cacheMetrics.process
+        )
 
         val extraProcesses = leoExecutionModeConfig match {
           case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
@@ -319,16 +327,17 @@ object Boot extends IOApp {
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
 
-      samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
-      concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
-      implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
-      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
-      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
       // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
       // As best practice, we should have all related metrics under same prefix separated by `/`
       implicit0(openTelemetry: OpenTelemetryMetrics[F]) <- OpenTelemetryMetrics
         .resource[F](applicationConfig.leoServiceAccountJsonFile, applicationConfig.applicationName, blocker)
+
+      samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
+      concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
+      implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
+      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
       welderDao = new HttpWelderDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
       dockerDao = HttpDockerDAO[F](clientWithRetryAndLogging)
       jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
@@ -476,7 +485,7 @@ final case class AppDependencies[F[_]](
   jupyterDAO: HttpJupyterDAO[F],
   rStudioDAO: RStudioDAO[F],
   serviceAccountProvider: ServiceAccountProvider[F],
-  authProvider: LeoAuthProvider[F],
+  authProvider: SamAuthProvider[F],
   blocker: Blocker,
   semaphore: Semaphore[F],
   leoPublisher: LeoPublisher[F],

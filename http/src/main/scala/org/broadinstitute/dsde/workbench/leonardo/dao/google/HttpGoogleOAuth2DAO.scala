@@ -5,6 +5,7 @@ package google
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Async, Blocker, ContextShift, Timer}
+import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.api.services.oauth2.Oauth2
 import io.chrisdavenport.log4cats.StructuredLogger

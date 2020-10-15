@@ -1,43 +1,33 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import cats.effect.{Blocker, IO}
+import java.nio.file.Paths
+
+import cats.effect.IO
+import cats.implicits._
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import io.circe.parser._
+import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
+import org.http4s.client.middleware.{Retry, RetryPolicy}
 import org.http4s.{HttpApp, Response, Status, Uri}
 import org.scalatest.BeforeAndAfterAll
-import io.circe.parser._
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
-import cats.implicits._
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.concurrent.duration._
-import java.nio.file.Paths
-import java.util.UUID
-
-import scala.concurrent.ExecutionContext.global
-import cats.mtl.ApplicativeAsk
-import org.http4s.client.middleware.{Retry, RetryPolicy}
-
 import scala.util.control.NoStackTrace
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.matchers.should.Matchers
 
-class HttpSamDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll {
-  implicit val timer = IO.timer(global)
-  implicit val cs = IO.contextShift(global)
-  val blocker = Blocker.liftExecutionContext(global)
-
+class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfterAll {
   val config = HttpSamDaoConfig(Uri.unsafeFromString("localhost"),
                                 false,
                                 1 seconds,
                                 10,
                                 ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test")))
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
-  implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   "HttpSamDAO" should "get Sam ok status" in {
     val okResponse =

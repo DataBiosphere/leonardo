@@ -31,8 +31,10 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 import scala.collection.immutable
@@ -83,7 +85,8 @@ class ProxyService(
   executionContext: ExecutionContext,
   timer: Timer[IO],
   cs: ContextShift[IO],
-  dbRef: DbReference[IO])
+  dbRef: DbReference[IO],
+  metrics: OpenTelemetryMetrics[IO])
     extends LazyLogging {
 
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
@@ -94,6 +97,7 @@ class ProxyService(
     .newBuilder()
     .expireAfterWrite(proxyConfig.tokenCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.tokenCacheMaxSize)
+    .recordStats()
     .build(
       new CacheLoader[String, (UserInfo, Instant)] {
         def load(key: String): (UserInfo, Instant) = {
@@ -126,6 +130,7 @@ class ProxyService(
     .newBuilder()
     .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.internalIdCacheMaxSize)
+    .recordStats()
     .build(
       new CacheLoader[SamResourceCacheKey, Option[String]] {
         def load(key: SamResourceCacheKey): Option[String] = {
@@ -194,10 +199,17 @@ class ProxyService(
   def invalidateAccessToken(token: String): IO[Unit] =
     blocker.blockOn(IO(googleTokenCache.invalidate(token)))
 
+  def googleTokenCacheMetrics: CacheMetrics[IO] =
+    CacheMetrics("googleTokenCache", IO(googleTokenCache.size), IO(googleTokenCache.stats))
+
+  def samResourceCacheMetrics: CacheMetrics[IO] =
+    CacheMetrics("samResourceCache", IO(samResourceCache.size), IO(samResourceCache.stats))
+
   def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, AppContext]
-  ): IO[HttpResponse] = ev.ask.flatMap { ctx =>
-    val res = for {
+  ): IO[HttpResponse] =
+    for {
+      ctx <- ev.ask
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(googleProject, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
@@ -217,19 +229,6 @@ class ProxyService(
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
       r <- proxyInternal(hostContext, request)
     } yield r
-
-    // TODO remove?
-    res.onError {
-      case e =>
-        IO(
-          logger.warn(
-            s"${ctx.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${runtimeName.asString}",
-            e
-          )
-        ) <* IO
-          .fromFuture(IO(request.entity.discardBytes().future))
-    }
-  }
 
   def openTerminal(userInfo: UserInfo,
                    googleProject: GoogleProject,

@@ -15,6 +15,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2DAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
@@ -23,12 +24,11 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockProxyService
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.leonardo.service.MockDiskServiceInterp
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.mockito.Mockito.{verify, _}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll}
-import org.mockito.Mockito._
-import org.mockito.Mockito.verify
 import org.scalatestplus.mockito.MockitoSugar
 
 import scala.collection.immutable
@@ -144,11 +144,11 @@ class ProxyRoutesSpec
     val queue = InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync
     val proxyService =
       new MockProxyService(proxyConfig,
-                           mockGoogleDataprocDAO,
                            MockJupyterDAO,
                            whitelistAuthProvider,
                            runtimeDnsCache,
                            kubernetesDnsCache,
+                           MockGoogleOAuth2DAO,
                            Some(queue))
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
                                       Some(runtimeSamResource.resourceId))
@@ -438,11 +438,11 @@ class ProxyRoutesSpec
   def createHttpRoute(jupyterDAO: JupyterDAO[IO]): HttpRoutes = {
     val proxyService =
       new MockProxyService(proxyConfig,
-                           mockGoogleDataprocDAO,
                            jupyterDAO,
                            whitelistAuthProvider,
                            runtimeDnsCache,
-                           kubernetesDnsCache)
+                           kubernetesDnsCache,
+                           MockGoogleOAuth2DAO)
     proxyService.samResourceCache
       .put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)), Some(runtimeSamResource.resourceId))
     proxyService.samResourceCache

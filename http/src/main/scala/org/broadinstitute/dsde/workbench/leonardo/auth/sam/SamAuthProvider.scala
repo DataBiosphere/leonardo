@@ -5,7 +5,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect, Sync}
+import cats.effect.{Blocker, ContextShift, Effect, Sync, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
@@ -14,18 +14,20 @@ import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 
 import scala.concurrent.duration._
 
-class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
-                                            config: SamAuthProviderConfig,
-                                            saProvider: ServiceAccountProvider[F],
-                                            blocker: Blocker)(implicit cs: ContextShift[F])
+class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao: SamDAO[F],
+                                                                         config: SamAuthProviderConfig,
+                                                                         saProvider: ServiceAccountProvider[F],
+                                                                         blocker: Blocker)(implicit cs: ContextShift[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
@@ -36,6 +38,7 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
     .newBuilder()
     .expireAfterWrite(config.authCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(config.authCacheMaxSize)
+    .recordStats()
     .build(
       new CacheLoader[AuthCacheKey, java.lang.Boolean] {
         override def load(key: AuthCacheKey): java.lang.Boolean = {
@@ -45,6 +48,9 @@ class SamAuthProvider[F[_]: Effect: Logger](samDao: SamDAO[F],
         }
       }
     )
+
+  def cacheMetrics: CacheMetrics[F] =
+    CacheMetrics("authCache", Effect[F].delay(authCache.size), Effect[F].delay(authCache.stats))
 
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],
