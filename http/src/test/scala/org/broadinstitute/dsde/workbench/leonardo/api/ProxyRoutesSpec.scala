@@ -15,7 +15,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2DAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
@@ -148,7 +148,7 @@ class ProxyRoutesSpec
                            whitelistAuthProvider,
                            runtimeDnsCache,
                            kubernetesDnsCache,
-                           MockGoogleOAuth2DAO,
+                           MockGoogleOAuth2Service,
                            Some(queue))
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
                                       Some(runtimeSamResource.resourceId))
@@ -442,7 +442,7 @@ class ProxyRoutesSpec
                            whitelistAuthProvider,
                            runtimeDnsCache,
                            kubernetesDnsCache,
-                           MockGoogleOAuth2DAO)
+                           MockGoogleOAuth2Service)
     proxyService.samResourceCache
       .put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)), Some(runtimeSamResource.resourceId))
     proxyService.samResourceCache

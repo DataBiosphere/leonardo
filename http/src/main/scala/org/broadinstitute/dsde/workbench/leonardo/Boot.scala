@@ -44,7 +44,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAcc
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2DAO, HttpGoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2Service, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
@@ -409,7 +409,7 @@ object Boot extends IOApp {
       errorReporting <- ErrorReporting.fromCredential(scopedCredential,
                                                       applicationConfig.applicationName,
                                                       ProjectName.of(applicationConfig.leoGoogleProject.value))
-      googleOauth2DAO <- GoogleOAuth2DAO.resource(blocker, semaphore)
+      googleOauth2DAO <- GoogleOAuth2Service.resource(blocker, semaphore)
 
       googleDependencies = GoogleDependencies(
         petGoogleStorageDAO,
@@ -471,7 +471,7 @@ final case class GoogleDependencies[F[_]](
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   errorReporting: ErrorReporting[F],
   credentials: GoogleCredentials,
-  googleOauth2DAO: GoogleOAuth2DAO[F]
+  googleOauth2DAO: GoogleOAuth2Service[F]
 )
 
 final case class AppDependencies[F[_]](

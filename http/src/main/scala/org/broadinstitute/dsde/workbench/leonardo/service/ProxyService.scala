@@ -24,7 +24,7 @@ import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2DAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
@@ -80,7 +80,7 @@ class ProxyService(
   kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
   dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
-  googleOauth2DAO: GoogleOAuth2DAO[IO],
+  googleOauth2Service: GoogleOAuth2Service[IO],
   blocker: Blocker
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
@@ -104,9 +104,12 @@ class ProxyService(
       new CacheLoader[String, (UserInfo, Instant)] {
         def load(key: String): (UserInfo, Instant) = {
           implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+          // UserInfo only stores a _relative_ expiration time to when the tokeninfo call was made
+          // (e.g. tokenExpiresIn). So we also cache the _absolute_ expiration by doing
+          // (now + tokenExpiresIn).
           val res = for {
             now <- nowInstant
-            userInfo <- googleOauth2DAO.getUserInfoFromToken(key)
+            userInfo <- googleOauth2Service.getUserInfoFromToken(key)
           } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
           res.unsafeRunSync()
         }

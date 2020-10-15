@@ -11,14 +11,14 @@ import com.google.api.services.oauth2.Oauth2
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
-trait GoogleOAuth2DAO[F[_]] {
+trait GoogleOAuth2Service[F[_]] {
   def getUserInfoFromToken(accessToken: String)(implicit ev: ApplicativeAsk[F, TraceId]): F[UserInfo]
 }
-object GoogleOAuth2DAO {
+object GoogleOAuth2Service {
   def resource[F[_]: Async: ContextShift: Timer: StructuredLogger](
     blocker: Blocker,
     blockerBound: Semaphore[F]
-  ): Resource[F, GoogleOAuth2DAO[F]] =
+  ): Resource[F, GoogleOAuth2Service[F]] =
     for {
       httpTransport <- Resource.liftF(Sync[F].delay(GoogleNetHttpTransport.newTrustedTransport))
       jsonFactory = JacksonFactory.getDefaultInstance
@@ -26,5 +26,5 @@ object GoogleOAuth2DAO {
       client = new Oauth2.Builder(httpTransport, jsonFactory, null)
         .setApplicationName("leonardo")
         .build()
-    } yield new HttpGoogleOAuth2DAO[F](client, blocker, blockerBound)
+    } yield new GoogleOAuth2Interpreter[F](client, blocker, blockerBound)
 }

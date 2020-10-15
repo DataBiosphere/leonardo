@@ -9,7 +9,7 @@ import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2DAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, MockJupyterDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
@@ -26,7 +26,7 @@ class MockProxyService(
   authProvider: LeoAuthProvider[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
-  googleOauth2DAO: GoogleOAuth2DAO[IO],
+  googleOauth2Service: GoogleOAuth2Service[IO],
   queue: Option[InspectableQueue[IO, UpdateDateAccessMessage]] = None
 )(implicit system: ActorSystem,
   executionContext: ExecutionContext,
@@ -41,7 +41,7 @@ class MockProxyService(
                          kubernetesDnsCache,
                          authProvider,
                          queue.getOrElse(InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
-                         googleOauth2DAO,
+                         googleOauth2Service,
                          Blocker.liftExecutionContext(ExecutionContext.global)) {
 
   override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =

@@ -13,10 +13,10 @@ import org.broadinstitute.dsde.workbench.google2.withLogging
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
-class HttpGoogleOAuth2DAO[F[_]: Async: Timer: StructuredLogger: ContextShift](client: Oauth2,
-                                                                              blocker: Blocker,
-                                                                              blockerBound: Semaphore[F])
-    extends GoogleOAuth2DAO[F] {
+class GoogleOAuth2Interpreter[F[_]: Async: Timer: StructuredLogger: ContextShift](client: Oauth2,
+                                                                                  blocker: Blocker,
+                                                                                  blockerBound: Semaphore[F])
+    extends GoogleOAuth2Service[F] {
   override def getUserInfoFromToken(accessToken: String)(implicit ev: ApplicativeAsk[F, TraceId]): F[UserInfo] =
     for {
       tokenInfo <- blockAndLogF(Async[F].delay(client.tokeninfo().setAccessToken(accessToken).execute()),

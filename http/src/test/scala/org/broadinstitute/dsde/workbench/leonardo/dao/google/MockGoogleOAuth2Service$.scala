@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmai
 
 import scala.concurrent.duration._
 
-class MockGoogleOAuth2DAO extends GoogleOAuth2DAO[IO] {
+class MockGoogleOAuth2Service extends GoogleOAuth2Service[IO] {
   override def getUserInfoFromToken(accessToken: String)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UserInfo] =
     accessToken match {
       case "expired" =>
@@ -33,4 +33,4 @@ class MockGoogleOAuth2DAO extends GoogleOAuth2DAO[IO] {
         )
     }
 }
-object MockGoogleOAuth2DAO extends MockGoogleOAuth2DAO
+object MockGoogleOAuth2Service extends MockGoogleOAuth2Service
