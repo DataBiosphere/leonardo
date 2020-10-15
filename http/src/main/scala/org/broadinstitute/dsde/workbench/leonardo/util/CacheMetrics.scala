@@ -9,15 +9,14 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
 
-class CacheMetrics[F[_]: Async: Timer] private (name: String)(implicit metrics: OpenTelemetryMetrics[F],
-                                                              logger: Logger[F]) {
+class CacheMetrics[F[_]] private (name: String)(implicit F: Async[F],
+                                                timer: Timer[F],
+                                                metrics: OpenTelemetryMetrics[F],
+                                                logger: Logger[F]) {
   def process(sizeF: () => F[Long], statsF: () => F[CacheStats]): Stream[F, Unit] =
     (Stream.sleep[F](1 minute) ++ Stream.eval(recordMetrics(sizeF, statsF))).repeat
 
-  private def recordMetrics(sizeF: () => F[Long], statsF: () => F[CacheStats])(
-    implicit metrics: OpenTelemetryMetrics[F],
-    logger: Logger[F]
-  ): F[Unit] =
+  private def recordMetrics(sizeF: () => F[Long], statsF: () => F[CacheStats]): F[Unit] =
     for {
       size <- sizeF()
       _ <- metrics.gauge(s"cache/$name/size", size)
