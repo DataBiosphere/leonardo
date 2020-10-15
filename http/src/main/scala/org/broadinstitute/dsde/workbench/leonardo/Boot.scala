@@ -44,7 +44,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAcc
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2DAO, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
@@ -134,12 +134,12 @@ object Boot extends IOApp {
       val dateAccessedUpdater =
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(proxyConfig,
-                                          googleDependencies.googleDataprocDAO,
                                           appDependencies.jupyterDAO,
                                           appDependencies.runtimeDnsCache,
                                           googleDependencies.kubernetesDnsCache,
                                           appDependencies.authProvider,
                                           appDependencies.dateAccessedUpdaterQueue,
+                                          googleDependencies.googleOauth2DAO,
                                           appDependencies.blocker)
       val statusService = new StatusService(googleDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,
@@ -400,6 +400,8 @@ object Boot extends IOApp {
       errorReporting <- ErrorReporting.fromCredential(scopedCredential,
                                                       applicationConfig.applicationName,
                                                       ProjectName.of(applicationConfig.leoGoogleProject.value))
+      googleOauth2DAO <- GoogleOAuth2DAO.resource(blocker, semaphore)
+
       googleDependencies = GoogleDependencies(
         petGoogleStorageDAO,
         googleComputeService,
@@ -415,7 +417,8 @@ object Boot extends IOApp {
         kubeService,
         openTelemetry,
         errorReporting,
-        kubernetesScopedCredential
+        kubernetesScopedCredential,
+        googleOauth2DAO
       )
     } yield AppDependencies(
       storage,
@@ -458,7 +461,8 @@ final case class GoogleDependencies[F[_]](
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   errorReporting: ErrorReporting[F],
-  credentials: GoogleCredentials
+  credentials: GoogleCredentials,
+  googleOauth2DAO: GoogleOAuth2DAO[F]
 )
 
 final case class AppDependencies[F[_]](

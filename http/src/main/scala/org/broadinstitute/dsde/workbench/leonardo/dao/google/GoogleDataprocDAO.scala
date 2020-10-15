@@ -2,15 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 package google
 
-import java.time.Instant
 import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import org.broadinstitute.dsde.workbench.google2.{OperationName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
 
 import scala.concurrent.Future
 import scala.concurrent.duration.FiniteDuration
@@ -38,8 +37,6 @@ trait GoogleDataprocDAO {
                     clusterName: RuntimeName,
                     numWorkers: Option[Int] = None,
                     numPreemptibles: Option[Int] = None): Future[Unit]
-
-  def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)]
 }
 
 final case class CreateClusterConfig(

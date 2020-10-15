@@ -3,6 +3,7 @@ package http
 package service
 
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
@@ -22,7 +23,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2DAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
@@ -71,12 +72,12 @@ final case object AccessTokenExpiredException
 
 class ProxyService(
   proxyConfig: ProxyConfig,
-  gdDAO: GoogleDataprocDAO,
   jupyterDAO: JupyterDAO[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
   dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
+  googleOauth2DAO: GoogleOAuth2DAO[IO],
   blocker: Blocker
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
@@ -94,9 +95,15 @@ class ProxyService(
     .expireAfterWrite(proxyConfig.tokenCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.tokenCacheMaxSize)
     .build(
-      new CacheLoader[String, Future[(UserInfo, Instant)]] {
-        def load(key: String): Future[(UserInfo, Instant)] =
-          gdDAO.getUserInfoAndExpirationFromAccessToken(key)
+      new CacheLoader[String, (UserInfo, Instant)] {
+        def load(key: String): (UserInfo, Instant) = {
+          implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+          val res = for {
+            now <- nowInstant
+            userInfo <- googleOauth2DAO.getUserInfoFromToken(key)
+          } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
+          res.unsafeRunSync()
+        }
       }
     )
 
@@ -104,7 +111,7 @@ class ProxyService(
   def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
     for {
       now <- nowInstant
-      cache <- blocker.blockOn(IO.fromFuture(IO(googleTokenCache.get(token))))
+      cache <- blocker.blockOn(IO(googleTokenCache.get(token)))
       res <- cache match {
         case (userInfo, expireTime) =>
           if (expireTime.isAfter(now))
@@ -211,6 +218,7 @@ class ProxyService(
       r <- proxyInternal(hostContext, request)
     } yield r
 
+    // TODO remove?
     res.onError {
       case e =>
         IO(
