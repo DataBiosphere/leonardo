@@ -512,7 +512,7 @@ object Config {
   val dataprocMonitorConfig = config.as[DataprocMonitorConfig]("dataproc.monitor")
   val uiConfig = config.as[ClusterUIConfig]("ui")
   val samAuthConfig = config.as[SamAuthProviderConfig]("auth.providerConfig")
-  val httpSamDap2Config = config.as[HttpSamDaoConfig]("auth.providerConfig")
+  val httpSamDaoConfig = config.as[HttpSamDaoConfig]("auth.providerConfig")
   val liquibaseConfig = config.as[LiquibaseConfig]("liquibase")
   val welderConfig = config.as[WelderConfig]("welder")
   val dbConcurrency = config.as[Long]("mysql.concurrency")

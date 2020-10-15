@@ -2,12 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 package google
 
-import java.time.Instant
 import java.util.UUID
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.data.OptionT
 import cats.implicits._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
@@ -21,15 +19,13 @@ import com.google.api.services.dataproc.model.{
   ClusterStatus => _,
   _
 }
-import com.google.api.services.oauth2.Oauth2
 import org.broadinstitute.dsde.workbench.google.AbstractHttpGoogleDAO
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes._
 import org.broadinstitute.dsde.workbench.google2.{InstanceName, OperationName, RegionName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService
 import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.GoogleInstrumentedService
+import org.broadinstitute.dsde.workbench.model.WorkbenchException
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchException, WorkbenchUserId}
 
 import scala.collection.JavaConverters._
 import scala.concurrent.duration.FiniteDuration
@@ -55,12 +51,6 @@ class HttpGoogleDataprocDAO(
       .setApplicationName(appName)
       .build()
   }
-
-  // TODO move out of this DAO
-  private lazy val oauth2 =
-    new Oauth2.Builder(httpTransport, jsonFactory, null)
-      .setApplicationName(appName)
-      .build()
 
   override def createCluster(createClusterConfig: CreateClusterConfig): Future[GoogleOperation] = {
     val cluster = new DataprocCluster()
@@ -207,25 +197,6 @@ class HttpGoogleDataprocDAO(
           .setUpdateMask(mask)
         retry(retryPredicates: _*)(() => executeGoogleRequest(request)).void
       case None => Future.successful(())
-    }
-  }
-
-  override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] = {
-    val request = oauth2.tokeninfo().setAccessToken(accessToken)
-    retry(retryPredicates: _*)(() => executeGoogleRequest(request)).map { tokenInfo =>
-      (UserInfo(OAuth2BearerToken(accessToken),
-                WorkbenchUserId(tokenInfo.getUserId),
-                WorkbenchEmail(tokenInfo.getEmail),
-                tokenInfo.getExpiresIn.toInt),
-       Instant.now().plusSeconds(tokenInfo.getExpiresIn.toInt))
-    } recover {
-      case e: GoogleJsonResponseException =>
-        val msg = s"Call to Google OAuth API failed. Status: ${e.getStatusCode}. Message: ${e.getDetails.getMessage}"
-        logger.error(msg, e)
-        throw new WorkbenchException(msg, e)
-      // Google throws IllegalArgumentException when passed an invalid token. Handle this case and rethrow a 401.
-      case _: IllegalArgumentException =>
-        throw AuthenticationError()
     }
   }
 

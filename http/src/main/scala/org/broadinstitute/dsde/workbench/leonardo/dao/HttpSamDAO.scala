@@ -14,7 +14,7 @@ import _root_.io.circe.syntax._
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect, Resource}
+import cats.effect.{Blocker, ContextShift, Effect, Resource, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.api.services.plus.PlusScopes
@@ -25,8 +25,10 @@ import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
 import org.http4s._
@@ -41,7 +43,9 @@ import scala.util.control.NoStackTrace
 
 class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, blocker: Blocker)(
   implicit logger: Logger[F],
-  cs: ContextShift[F]
+  cs: ContextShift[F],
+  timer: Timer[F],
+  metrics: OpenTelemetryMetrics[F]
 ) extends SamDAO[F]
     with Http4sClientDsl[F] {
   private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_READ_ONLY)
@@ -50,6 +54,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     .newBuilder()
     .expireAfterWrite(config.petCacheExpiryTime.toMinutes, TimeUnit.MINUTES)
     .maximumSize(config.petCacheMaxSize)
+    .recordStats()
     .build(
       new CacheLoader[UserEmailAndProject, Option[String]] {
         def load(userEmailAndProject: UserEmailAndProject): Option[String] = {
@@ -59,6 +64,10 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         }
       }
     )
+
+  val recordCacheMetricsProcess: Stream[F, Unit] =
+    CacheMetrics("petTokenCache")
+      .process(() => Effect[F].delay(petTokenCache.size), () => Effect[F].delay(petTokenCache.stats))
 
   def getStatus(implicit ev: ApplicativeAsk[F, TraceId]): F[StatusCheckResponse] =
     httpClient.expectOr[StatusCheckResponse](
@@ -322,9 +331,14 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
 }
 
 object HttpSamDAO {
-  def apply[F[_]: Effect](httpClient: Client[F],
-                          config: HttpSamDaoConfig,
-                          blocker: Blocker)(implicit logger: Logger[F], contextShift: ContextShift[F]): HttpSamDAO[F] =
+  def apply[F[_]: Effect](
+    httpClient: Client[F],
+    config: HttpSamDaoConfig,
+    blocker: Blocker
+  )(implicit logger: Logger[F],
+    contextShift: ContextShift[F],
+    timer: Timer[F],
+    metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
     new HttpSamDAO[F](httpClient, config, blocker)
 
   implicit val samRoleEncoder: Encoder[SamRole] = Encoder.encodeString.contramap(_.asString)

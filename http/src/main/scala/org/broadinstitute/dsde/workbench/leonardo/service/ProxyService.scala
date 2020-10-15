@@ -3,6 +3,7 @@ package http
 package service
 
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
@@ -18,20 +19,25 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
+import fs2.Stream
 import fs2.concurrent.InspectableQueue
+import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
 import scala.collection.immutable
@@ -71,18 +77,20 @@ final case object AccessTokenExpiredException
 
 class ProxyService(
   proxyConfig: ProxyConfig,
-  gdDAO: GoogleDataprocDAO,
   jupyterDAO: JupyterDAO[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
   dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
+  googleOauth2Service: GoogleOAuth2Service[IO],
   blocker: Blocker
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
   timer: Timer[IO],
   cs: ContextShift[IO],
-  dbRef: DbReference[IO])
+  dbRef: DbReference[IO],
+  metrics: OpenTelemetryMetrics[IO],
+  loggerIO: Logger[IO])
     extends LazyLogging {
 
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
@@ -93,18 +101,36 @@ class ProxyService(
     .newBuilder()
     .expireAfterWrite(proxyConfig.tokenCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.tokenCacheMaxSize)
+    .recordStats()
     .build(
-      new CacheLoader[String, Future[(UserInfo, Instant)]] {
-        def load(key: String): Future[(UserInfo, Instant)] =
-          gdDAO.getUserInfoAndExpirationFromAccessToken(key)
+      new CacheLoader[String, (UserInfo, Instant)] {
+        def load(key: String): (UserInfo, Instant) = {
+          implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+          // UserInfo only stores a _relative_ expiration time to when the tokeninfo call was made
+          // (e.g. tokenExpiresIn). So we also cache the _absolute_ expiration by doing
+          // (now + tokenExpiresIn).
+          val res = for {
+            now <- nowInstant
+            userInfo <- googleOauth2Service.getUserInfoFromToken(key)
+          } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
+          res.unsafeRunSync()
+        }
       }
     )
+
+  val recordGoogleTokenCacheMetricsProcess: Stream[IO, Unit] =
+    CacheMetrics("googleTokenCache")
+      .process(() => IO(googleTokenCache.size), () => IO(googleTokenCache.stats))
 
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
     for {
+      cache <- blocker.blockOn(IO(googleTokenCache.get(token))).adaptError {
+        case _ =>
+          // Rethrow AuthenticationError if unable to look up the token
+          AuthenticationError()
+      }
       now <- nowInstant
-      cache <- blocker.blockOn(IO.fromFuture(IO(googleTokenCache.get(token))))
       res <- cache match {
         case (userInfo, expireTime) =>
           if (expireTime.isAfter(now))
@@ -119,6 +145,7 @@ class ProxyService(
     .newBuilder()
     .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
     .maximumSize(proxyConfig.internalIdCacheMaxSize)
+    .recordStats()
     .build(
       new CacheLoader[SamResourceCacheKey, Option[String]] {
         def load(key: SamResourceCacheKey): Option[String] = {
@@ -135,6 +162,10 @@ class ProxyService(
         }
       }
     )
+
+  val recordSamResourceCacheMetricsProcess: Stream[IO, Unit] =
+    CacheMetrics("samResourceCache")
+      .process(() => IO(samResourceCache.size), () => IO(samResourceCache.stats))
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(
     implicit ev: ApplicativeAsk[IO, AppContext]
@@ -189,8 +220,9 @@ class ProxyService(
 
   def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
     implicit ev: ApplicativeAsk[IO, AppContext]
-  ): IO[HttpResponse] = ev.ask.flatMap { ctx =>
-    val res = for {
+  ): IO[HttpResponse] =
+    for {
+      ctx <- ev.ask
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(googleProject, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
@@ -210,18 +242,6 @@ class ProxyService(
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
       r <- proxyInternal(hostContext, request)
     } yield r
-
-    res.onError {
-      case e =>
-        IO(
-          logger.warn(
-            s"${ctx.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${runtimeName.asString}",
-            e
-          )
-        ) <* IO
-          .fromFuture(IO(request.entity.discardBytes().future))
-    }
-  }
 
   def openTerminal(userInfo: UserInfo,
                    googleProject: GoogleProject,

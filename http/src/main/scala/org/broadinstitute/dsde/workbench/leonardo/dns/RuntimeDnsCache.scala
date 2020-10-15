@@ -4,16 +4,19 @@ import java.util.concurrent.TimeUnit
 
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect}
+import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.implicits._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
+import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.leonardo.{GoogleId, Runtime, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 
@@ -26,10 +29,12 @@ final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: R
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
  */
-class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger](proxyConfig: ProxyConfig,
-                                                          dbRef: DbReference[F],
-                                                          cacheConfig: CacheConfig,
-                                                          blocker: Blocker)(implicit ec: ExecutionContext) {
+class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMetrics](
+  proxyConfig: ProxyConfig,
+  dbRef: DbReference[F],
+  cacheConfig: CacheConfig,
+  blocker: Blocker
+)(implicit ec: ExecutionContext) {
 
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
     blocker.blockOn(Effect[F].delay(projectClusterToHostStatus.get(key)))
@@ -61,6 +66,11 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger](proxyConfig: ProxyConf
         }
       }
     )
+
+  val recordCacheMetricsProcess: Stream[F, Unit] =
+    CacheMetrics("runtimeDnsCache")
+      .process(() => Effect[F].delay(projectClusterToHostStatus.size),
+               () => Effect[F].delay(projectClusterToHostStatus.stats))
 
   private def host(googleId: GoogleId): Host =
     Host(googleId.value + proxyConfig.proxyDomain)

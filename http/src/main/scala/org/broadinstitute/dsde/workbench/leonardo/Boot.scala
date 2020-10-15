@@ -44,12 +44,12 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAcc
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.HttpGoogleDataprocDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2Service, HttpGoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoKubernetesServiceInterp, _}
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProvider}
+import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
@@ -134,12 +134,12 @@ object Boot extends IOApp {
       val dateAccessedUpdater =
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(proxyConfig,
-                                          googleDependencies.googleDataprocDAO,
                                           appDependencies.jupyterDAO,
                                           appDependencies.runtimeDnsCache,
                                           googleDependencies.kubernetesDnsCache,
                                           appDependencies.authProvider,
                                           appDependencies.dateAccessedUpdaterQueue,
+                                          googleDependencies.googleOauth2DAO,
                                           appDependencies.blocker)
       val statusService = new StatusService(googleDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,
@@ -281,7 +281,15 @@ object Boot extends IOApp {
           )
         }
 
-        val frontLeoOnlyProcesses = List(dateAccessedUpdater.process) //We only need to update dateAccessed in front leo
+        val frontLeoOnlyProcesses = List(
+          dateAccessedUpdater.process, // We only need to update dateAccessed in front leo
+          appDependencies.authProvider.recordCacheMetricsProcess,
+          appDependencies.samDAO.recordCacheMetricsProcess,
+          proxyService.recordGoogleTokenCacheMetricsProcess,
+          proxyService.recordSamResourceCacheMetricsProcess,
+          appDependencies.runtimeDnsCache.recordCacheMetricsProcess,
+          googleDependencies.kubernetesDnsCache.recordCacheMetricsProcess
+        )
 
         val extraProcesses = leoExecutionModeConfig match {
           case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
@@ -319,16 +327,17 @@ object Boot extends IOApp {
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
 
-      samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDap2Config, blocker)
-      concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
-      implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
-      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
-      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
       // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
       // As best practice, we should have all related metrics under same prefix separated by `/`
       implicit0(openTelemetry: OpenTelemetryMetrics[F]) <- OpenTelemetryMetrics
         .resource[F](applicationConfig.leoServiceAccountJsonFile, applicationConfig.applicationName, blocker)
+
+      samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDaoConfig, blocker)
+      concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
+      implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
+      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
       welderDao = new HttpWelderDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
       dockerDao = HttpDockerDAO[F](clientWithRetryAndLogging)
       jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
@@ -400,6 +409,8 @@ object Boot extends IOApp {
       errorReporting <- ErrorReporting.fromCredential(scopedCredential,
                                                       applicationConfig.applicationName,
                                                       ProjectName.of(applicationConfig.leoGoogleProject.value))
+      googleOauth2DAO <- GoogleOAuth2Service.resource(blocker, semaphore)
+
       googleDependencies = GoogleDependencies(
         petGoogleStorageDAO,
         googleComputeService,
@@ -415,7 +426,8 @@ object Boot extends IOApp {
         kubeService,
         openTelemetry,
         errorReporting,
-        kubernetesScopedCredential
+        kubernetesScopedCredential,
+        googleOauth2DAO
       )
     } yield AppDependencies(
       storage,
@@ -458,7 +470,8 @@ final case class GoogleDependencies[F[_]](
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   errorReporting: ErrorReporting[F],
-  credentials: GoogleCredentials
+  credentials: GoogleCredentials,
+  googleOauth2DAO: GoogleOAuth2Service[F]
 )
 
 final case class AppDependencies[F[_]](
@@ -472,7 +485,7 @@ final case class AppDependencies[F[_]](
   jupyterDAO: HttpJupyterDAO[F],
   rStudioDAO: RStudioDAO[F],
   serviceAccountProvider: ServiceAccountProvider[F],
-  authProvider: LeoAuthProvider[F],
+  authProvider: SamAuthProvider[F],
   blocker: Blocker,
   semaphore: Semaphore[F],
   leoPublisher: LeoPublisher[F],

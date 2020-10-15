@@ -1,21 +1,16 @@
 package org.broadinstitute.dsde.workbench.google.mock
 
-import java.time.Instant
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
-import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, OperationName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.{Master, SecondaryWorker, Worker}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, InstanceName, OperationName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.{CreateClusterConfig, GoogleDataprocDAO}
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 import scala.concurrent.Future
-import scala.concurrent.duration._
 
 class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
@@ -90,30 +85,6 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
   override def getClusterErrorDetails(operationName: Option[OperationName]): Future[Option[RuntimeErrorDetails]] =
     Future.successful(None)
-
-  override def getUserInfoAndExpirationFromAccessToken(accessToken: String): Future[(UserInfo, Instant)] =
-    Future.successful {
-      accessToken match {
-        case "expired" =>
-          (UserInfo(OAuth2BearerToken(accessToken),
-                    WorkbenchUserId("1234567890"),
-                    WorkbenchEmail("expiredUser@example.com"),
-                    -10),
-           Instant.now.minusSeconds(10))
-        case "unauthorized" =>
-          (UserInfo(OAuth2BearerToken(accessToken),
-                    WorkbenchUserId("1234567890"),
-                    WorkbenchEmail("non_whitelisted@example.com"),
-                    (1 hour).toMillis),
-           Instant.now.plus(1, ChronoUnit.HOURS))
-        case _ =>
-          (UserInfo(OAuth2BearerToken(accessToken),
-                    WorkbenchUserId("1234567890"),
-                    WorkbenchEmail("user1@example.com"),
-                    (1 hour).toMillis),
-           Instant.now.plus(1, ChronoUnit.HOURS))
-      }
-    }
 
   override def getClusterStagingBucket(googleProject: GoogleProject,
                                        clusterName: RuntimeName): Future[Option[GcsBucketName]] =
