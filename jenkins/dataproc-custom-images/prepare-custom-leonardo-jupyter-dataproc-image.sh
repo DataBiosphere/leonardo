@@ -27,7 +27,7 @@ terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.6"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.11"
 
 # leonardo_jupyter will be discontinued soon
-welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:59be71a"
+welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:4d380f2"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_base="us.gcr.io/anvil-gcr-public/anvil-rstudio-base:0.0.2"
 anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.3"
