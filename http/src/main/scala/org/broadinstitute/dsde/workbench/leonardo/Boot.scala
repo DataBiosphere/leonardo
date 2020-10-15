@@ -283,12 +283,12 @@ object Boot extends IOApp {
 
         val frontLeoOnlyProcesses = List(
           dateAccessedUpdater.process, // We only need to update dateAccessed in front leo
-          appDependencies.authProvider.cacheMetrics.process,
-          appDependencies.samDAO.cacheMetrics.process,
-          proxyService.googleTokenCacheMetrics.process,
-          proxyService.samResourceCacheMetrics.process,
-          appDependencies.runtimeDnsCache.cacheMetrics.process,
-          googleDependencies.kubernetesDnsCache.cacheMetrics.process
+          appDependencies.authProvider.recordCacheMetricsProcess,
+          appDependencies.samDAO.recordCacheMetricsProcess,
+          proxyService.recordGoogleTokenCacheMetricsProcess,
+          proxyService.recordSamResourceCacheMetricsProcess,
+          appDependencies.runtimeDnsCache.recordCacheMetricsProcess,
+          googleDependencies.kubernetesDnsCache.recordCacheMetricsProcess
         )
 
         val extraProcesses = leoExecutionModeConfig match {

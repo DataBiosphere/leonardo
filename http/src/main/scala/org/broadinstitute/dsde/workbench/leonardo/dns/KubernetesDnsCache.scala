@@ -6,6 +6,7 @@ import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.implicits._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
+import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.AppName
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
@@ -62,8 +63,9 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTe
         }
       )
 
-  def cacheMetrics: CacheMetrics[F] =
-    CacheMetrics("kubernetesDnsCache", Effect[F].delay(hostStatusCache.size), Effect[F].delay(hostStatusCache.stats))
+  val recordCacheMetricsProcess: Stream[F, Unit] =
+    CacheMetrics("kubernetesDnsCache")
+      .process(() => Effect[F].delay(hostStatusCache.size), () => Effect[F].delay(hostStatusCache.stats))
 
   private def hostStatusByAppResult(appResult: GetAppResult): F[HostStatus] =
     appResult.cluster.asyncFields.map(_.loadBalancerIp) match {

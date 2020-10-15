@@ -19,6 +19,7 @@ import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
+import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
@@ -117,8 +118,9 @@ class ProxyService(
       }
     )
 
-  def googleTokenCacheMetrics: CacheMetrics[IO] =
-    CacheMetrics("googleTokenCache", IO(googleTokenCache.size), IO(googleTokenCache.stats))
+  val recordGoogleTokenCacheMetricsProcess: Stream[IO, Unit] =
+    CacheMetrics("googleTokenCache")
+      .process(() => IO(googleTokenCache.size), () => IO(googleTokenCache.stats))
 
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
@@ -161,8 +163,9 @@ class ProxyService(
       }
     )
 
-  def samResourceCacheMetrics: CacheMetrics[IO] =
-    CacheMetrics("samResourceCache", IO(samResourceCache.size), IO(samResourceCache.stats))
+  val recordSamResourceCacheMetricsProcess: Stream[IO, Unit] =
+    CacheMetrics("samResourceCache")
+      .process(() => IO(samResourceCache.size), () => IO(samResourceCache.stats))
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(
     implicit ev: ApplicativeAsk[IO, AppContext]

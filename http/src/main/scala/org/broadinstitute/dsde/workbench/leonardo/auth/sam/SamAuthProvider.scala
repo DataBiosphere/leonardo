@@ -9,6 +9,7 @@ import cats.effect.{Blocker, ContextShift, Effect, Sync, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
 import com.google.common.cache.{CacheBuilder, CacheLoader}
+import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -49,8 +50,8 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
       }
     )
 
-  def cacheMetrics: CacheMetrics[F] =
-    CacheMetrics("authCache", Effect[F].delay(authCache.size), Effect[F].delay(authCache.stats))
+  val recordCacheMetricsProcess: Stream[F, Unit] =
+    CacheMetrics("authCache").process(() => Effect[F].delay(authCache.size), () => Effect[F].delay(authCache.stats))
 
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],

@@ -65,8 +65,9 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       }
     )
 
-  def cacheMetrics: CacheMetrics[F] =
-    CacheMetrics("petTokenCache", Effect[F].delay(petTokenCache.size), Effect[F].delay(petTokenCache.stats))
+  val recordCacheMetricsProcess: Stream[F, Unit] =
+    CacheMetrics("petTokenCache")
+      .process(() => Effect[F].delay(petTokenCache.size), () => Effect[F].delay(petTokenCache.stats))
 
   def getStatus(implicit ev: ApplicativeAsk[F, TraceId]): F[StatusCheckResponse] =
     httpClient.expectOr[StatusCheckResponse](

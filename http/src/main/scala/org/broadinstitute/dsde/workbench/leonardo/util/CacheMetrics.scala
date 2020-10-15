@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import cats.effect.{Effect, Timer}
+import cats.effect.{Async, Effect, Timer}
 import cats.implicits._
 import com.google.common.cache.CacheStats
 import fs2.Stream
@@ -9,19 +9,20 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
 
-class CacheMetrics[F[_]: Timer: Effect] private (name: String, sizeF: F[Long], statsF: F[CacheStats])(
-  implicit metrics: OpenTelemetryMetrics[F],
-  logger: Logger[F]
-) {
-  val process: Stream[F, Unit] =
-    (Stream.sleep[F](1 minute) ++ Stream.eval(updateMetrics)).repeat
+class CacheMetrics[F[_]: Async: Timer] private (name: String)(implicit metrics: OpenTelemetryMetrics[F],
+                                                              logger: Logger[F]) {
+  def process(sizeF: () => F[Long], statsF: () => F[CacheStats]): Stream[F, Unit] =
+    (Stream.sleep[F](1 minute) ++ Stream.eval(recordMetrics(sizeF, statsF))).repeat
 
-  private def updateMetrics =
+  private def recordMetrics(sizeF: () => F[Long], statsF: () => F[CacheStats])(
+    implicit metrics: OpenTelemetryMetrics[F],
+    logger: Logger[F]
+  ): F[Unit] =
     for {
-      size <- sizeF
+      size <- sizeF()
       _ <- metrics.gauge(s"cache/$name/size", size)
       _ <- logger.info(s"CacheMetrics: $name size: $size")
-      stats <- statsF
+      stats <- statsF()
       _ <- logger.info(s"CacheMetrics: $name stats: ${stats.toString}")
       _ <- metrics.gauge(s"cache/$name/hitCount", stats.hitCount)
       _ <- metrics.gauge(s"cache/$name/missCount", stats.missCount)
@@ -32,8 +33,6 @@ class CacheMetrics[F[_]: Timer: Effect] private (name: String, sizeF: F[Long], s
     } yield ()
 }
 object CacheMetrics {
-  def apply[F[_]: Timer: Effect: OpenTelemetryMetrics: Logger](name: String,
-                                                               sizeF: F[Long],
-                                                               statsF: F[CacheStats]): CacheMetrics[F] =
-    new CacheMetrics(name, sizeF, statsF)
+  def apply[F[_]: Timer: Effect: OpenTelemetryMetrics: Logger](name: String): CacheMetrics[F] =
+    new CacheMetrics(name)
 }

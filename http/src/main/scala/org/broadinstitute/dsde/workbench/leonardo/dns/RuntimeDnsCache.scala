@@ -7,6 +7,7 @@ import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.implicits._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
+import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
@@ -66,10 +67,10 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMe
       }
     )
 
-  def cacheMetrics: CacheMetrics[F] =
-    CacheMetrics("runtimeDnsCache",
-                 Effect[F].delay(projectClusterToHostStatus.size),
-                 Effect[F].delay(projectClusterToHostStatus.stats))
+  val recordCacheMetricsProcess: Stream[F, Unit] =
+    CacheMetrics("runtimeDnsCache")
+      .process(() => Effect[F].delay(projectClusterToHostStatus.size),
+               () => Effect[F].delay(projectClusterToHostStatus.stats))
 
   private def host(googleId: GoogleId): Host =
     Host(googleId.value + proxyConfig.proxyDomain)
