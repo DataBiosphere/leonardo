@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth
 
+import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
@@ -49,12 +50,12 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       case false => (List.empty, List.empty)
     }
 
-  def filterUserVisible[R](resources: List[R], userInfo: UserInfo)(
+  def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
     ev: ApplicativeAsk[IO, TraceId]
   ): IO[List[R]] =
-    resources.traverseFilter { a =>
+    resources.toList.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
         case false => None
@@ -62,14 +63,14 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     }
 
   def filterUserVisibleWithProjectFallback[R](
-    resources: List[(GoogleProject, R)],
+    resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
   )(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
     ev: ApplicativeAsk[IO, TraceId]
   ): IO[List[(GoogleProject, R)]] =
-    resources.traverseFilter { a =>
+    resources.toList.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
         case false => None

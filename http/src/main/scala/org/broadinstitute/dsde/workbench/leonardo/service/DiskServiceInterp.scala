@@ -7,6 +7,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
+import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
@@ -111,8 +112,11 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     for {
       paramMap <- F.fromEither(processListParameters(params))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, googleProject).transaction
-      samVisibleDisks <- authProvider
-        .filterUserVisibleWithProjectFallback(disks.map(d => (d.googleProject, d.samResource)), userInfo)
+      diskAndProjects = disks.map(d => (d.googleProject, d.samResource))
+      samVisibleDisks <- NonEmptyList.fromList(diskAndProjects).traverse { ds =>
+        authProvider
+          .filterUserVisibleWithProjectFallback(ds, userInfo)
+      }
     } yield {
       // Making the assumption that users will always be able to access disks that they create
       disks
