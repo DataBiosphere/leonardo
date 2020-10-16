@@ -4,11 +4,16 @@ package auth.sam
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.implicits._
+import cats.mtl.ApplicativeAsk
+import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.leonardo.model.SamResource
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchUserId}
+import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -326,9 +331,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   it should "filter user visible resources" in {
     // positive tests
     val newRuntime = RuntimeSamResourceId("new_runtime")
-    println(mockSam.runtimeCreators)
     mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
-    println(mockSam.runtimeCreators)
     samAuthProvider.filterUserVisible(List(runtimeSamResource, newRuntime), userInfo).unsafeRunSync() shouldBe List(
       runtimeSamResource
     )
@@ -393,6 +396,29 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
       .filterUserVisible(List(diskSamResource, newDisk), unauthorizedUserInfo)
+      .unsafeRunSync() shouldBe List.empty
+  }
+
+  it should "not call Sam when filtering an empty list" in {
+    val mockSam = new MockSamDAO {
+      override def getResourcePolicies[R](authHeader: Authorization)(
+        implicit sr: SamResource[R],
+        decoder: Decoder[R],
+        ev: ApplicativeAsk[IO, TraceId]
+      ): IO[List[(R, SamPolicyName)]] =
+        IO.raiseError(
+          new RuntimeException(
+            "SamAuthProviderSpec: getResourcePolicies should not be called when passing an empty list to filterUserVisible()"
+          )
+        )
+    }
+
+    val samAuthProvider =
+      new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider, blocker)
+
+    samAuthProvider.filterUserVisible(List.empty[RuntimeSamResourceId], userInfo).unsafeRunSync() shouldBe List.empty
+    samAuthProvider
+      .filterUserVisibleWithProjectFallback(List.empty[(GoogleProject, PersistentDiskSamResourceId)], userInfo)
       .unsafeRunSync() shouldBe List.empty
   }
 

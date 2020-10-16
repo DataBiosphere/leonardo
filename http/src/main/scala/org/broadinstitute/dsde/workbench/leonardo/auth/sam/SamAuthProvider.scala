@@ -145,14 +145,17 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     implicit sr: SamResource[R],
     decoder: Decoder[R],
     ev: ApplicativeAsk[F, TraceId]
-  ): F[List[R]] = {
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    for {
-      resourcePolicies <- samDao
-        .getResourcePolicies[R](authHeader)
-      res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
-    } yield resources.filter(r => res.exists(_._1 == r))
-  }
+  ): F[List[R]] =
+    if (resources.isEmpty) {
+      Effect[F].pure(List.empty)
+    } else {
+      val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+      for {
+        resourcePolicies <- samDao
+          .getResourcePolicies[R](authHeader)
+        res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
+      } yield resources.filter(r => res.exists(_._1 == r))
+    }
 
   def filterUserVisibleWithProjectFallback[R](
     resources: List[(GoogleProject, R)],
@@ -161,21 +164,24 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     implicit sr: SamResource[R],
     decoder: Decoder[R],
     ev: ApplicativeAsk[F, TraceId]
-  ): F[List[(GoogleProject, R)]] = {
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
-    for {
-      projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader)
-      owningProjects = projectPolicies.collect {
-        case (r, SamPolicyName.Owner) => r.googleProject
+  ): F[List[(GoogleProject, R)]] =
+    if (resources.isEmpty) {
+      Effect[F].pure(List.empty)
+    } else {
+      val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+      for {
+        projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader)
+        owningProjects = projectPolicies.collect {
+          case (r, SamPolicyName.Owner) => r.googleProject
+        }
+        resourcePolicies <- samDao
+          .getResourcePolicies[R](authHeader)
+        res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
+      } yield resources.filter {
+        case (project, r) =>
+          owningProjects.contains(project) || res.exists(_._1 == r)
       }
-      resourcePolicies <- samDao
-        .getResourcePolicies[R](authHeader)
-      res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
-    } yield resources.filter {
-      case (project, r) =>
-        owningProjects.contains(project) || res.exists(_._1 == r)
     }
-  }
 
   override def notifyResourceCreated[R](
     samResource: R,
