@@ -333,7 +333,9 @@ object Boot extends IOApp {
       implicit0(openTelemetry: OpenTelemetryMetrics[F]) <- OpenTelemetryMetrics
         .resource[F](applicationConfig.leoServiceAccountJsonFile, applicationConfig.applicationName, blocker)
 
-      samDao = HttpSamDAO[F](clientWithRetryAndLogging, httpSamDaoConfig, blocker)
+      // Note the Sam client intentionally doesn't use clientWithRetryAndLogging because the logs are
+      // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
+      samDao = HttpSamDAO[F](clientWithRetryWithCustomSSL, httpSamDaoConfig, blocker)
       concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)

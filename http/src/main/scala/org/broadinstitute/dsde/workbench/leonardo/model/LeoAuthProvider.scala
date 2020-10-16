@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
+import cats.data.NonEmptyList
 import cats.mtl.ApplicativeAsk
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
@@ -120,14 +121,14 @@ trait LeoAuthProvider[F[_]] {
     ev: ApplicativeAsk[F, TraceId]
   ): F[(List[sr.ActionCategory], List[ProjectAction])]
 
-  def filterUserVisible[R](resources: List[R], userInfo: UserInfo)(
+  def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
     ev: ApplicativeAsk[F, TraceId]
   ): F[List[R]]
 
   def filterUserVisibleWithProjectFallback[R](
-    resources: List[(GoogleProject, R)],
+    resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
   )(
     implicit sr: SamResource[R],

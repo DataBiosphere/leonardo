@@ -9,7 +9,7 @@ import _root_.io.chrisdavenport.log4cats.Logger
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
-import cats.data.OptionT
+import cats.data.{NonEmptyList, OptionT}
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
@@ -538,8 +538,11 @@ class LeonardoService(
     for {
       paramMap <- IO.fromEither(processListParameters(params))
       clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProjectOpt).transaction
-      samVisibleClusters <- authProvider
-        .filterUserVisibleWithProjectFallback(clusters.map(c => (c.googleProject, c.samResource)), userInfo)
+      clustersAndProjects = clusters.map(c => (c.googleProject, c.samResource))
+      samVisibleClusters <- NonEmptyList.fromList(clustersAndProjects).traverse { cs =>
+        authProvider
+          .filterUserVisibleWithProjectFallback(cs, userInfo)
+      }
     } yield {
       // Making the assumption that users will always be able to access clusters that they create
       // Fix for https://github.com/DataBiosphere/leonardo/issues/821

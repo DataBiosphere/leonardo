@@ -7,6 +7,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
+import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
@@ -223,12 +224,15 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
       runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
+      runtimesAndProjects = runtimes.map(r => (r.googleProject, r.samResource))
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
-      samVisibleRuntimes <- authProvider
-        .filterUserVisibleWithProjectFallback(
-          runtimes.map(r => (r.googleProject, r.samResource)),
-          userInfo
-        )
+      samVisibleRuntimes <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>
+        authProvider
+          .filterUserVisibleWithProjectFallback(
+            rs,
+            userInfo
+          )
+      }
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
     } yield {
       // Making the assumption that users will always be able to access runtimes that they create

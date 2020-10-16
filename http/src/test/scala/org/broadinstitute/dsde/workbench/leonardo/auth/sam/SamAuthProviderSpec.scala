@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package auth.sam
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -326,44 +327,50 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   it should "filter user visible resources" in {
     // positive tests
     val newRuntime = RuntimeSamResourceId("new_runtime")
-    println(mockSam.runtimeCreators)
     mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
-    println(mockSam.runtimeCreators)
-    samAuthProvider.filterUserVisible(List(runtimeSamResource, newRuntime), userInfo).unsafeRunSync() shouldBe List(
+    samAuthProvider
+      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), userInfo)
+      .unsafeRunSync() shouldBe List(
       runtimeSamResource
     )
 
     val newDisk = PersistentDiskSamResourceId("new_disk")
     mockSam.createResource(newDisk, userEmail2, project).unsafeRunSync()
-    samAuthProvider.filterUserVisible(List(diskSamResource, newDisk), userInfo).unsafeRunSync() shouldBe List(
+    samAuthProvider
+      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), userInfo)
+      .unsafeRunSync() shouldBe List(
       diskSamResource
     )
 
     val newApp = AppSamResourceId("new_app")
     mockSam.createResourceWithManagerPolicy(newApp, userEmail2, project).unsafeRunSync()
     println(mockSam.appCreators)
-    samAuthProvider.filterUserVisible(List(appSamId, newApp), userInfo).unsafeRunSync() shouldBe List(
+    samAuthProvider.filterUserVisible(NonEmptyList.of(appSamId, newApp), userInfo).unsafeRunSync() shouldBe List(
       appSamId
     )
-    samAuthProvider.filterUserVisible(List(appSamId, newApp), projectOwnerUserInfo).unsafeRunSync() shouldBe List(
+    samAuthProvider
+      .filterUserVisible(NonEmptyList.of(appSamId, newApp), projectOwnerUserInfo)
+      .unsafeRunSync() shouldBe List(
       appSamId,
       newApp
     )
 
     // negative tests
     samAuthProvider
-      .filterUserVisible(List(runtimeSamResource, newRuntime), unauthorizedUserInfo)
+      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterUserVisible(List(runtimeSamResource, newRuntime), projectOwnerUserInfo)
+      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), projectOwnerUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterUserVisible(List(diskSamResource, newDisk), unauthorizedUserInfo)
+      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterUserVisible(List(diskSamResource, newDisk), projectOwnerUserInfo)
+      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), projectOwnerUserInfo)
       .unsafeRunSync() shouldBe List.empty
-    samAuthProvider.filterUserVisible(List(appSamId, newApp), unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
+    samAuthProvider
+      .filterUserVisible(NonEmptyList.of(appSamId, newApp), unauthorizedUserInfo)
+      .unsafeRunSync() shouldBe List.empty
   }
 
   it should "filter user visible resources with project fallback" in {
@@ -371,28 +378,30 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     val newRuntime = RuntimeSamResourceId("new_runtime")
     mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
     samAuthProvider
-      .filterUserVisibleWithProjectFallback(List((project, runtimeSamResource), (project, newRuntime)), userInfo)
+      .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
+                                            userInfo)
       .unsafeRunSync() shouldBe List((project, runtimeSamResource))
     samAuthProvider
-      .filterUserVisibleWithProjectFallback(List((project, runtimeSamResource), (project, newRuntime)),
+      .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
                                             projectOwnerUserInfo)
       .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
 
     val newDisk = PersistentDiskSamResourceId("new_disk")
     mockSam.createResource(newDisk, userEmail2, project).unsafeRunSync()
     samAuthProvider
-      .filterUserVisibleWithProjectFallback(List((project, diskSamResource), (project, newDisk)), userInfo)
+      .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, diskSamResource), (project, newDisk)), userInfo)
       .unsafeRunSync() shouldBe List((project, diskSamResource))
     samAuthProvider
-      .filterUserVisibleWithProjectFallback(List((project, diskSamResource), (project, newDisk)), projectOwnerUserInfo)
+      .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, diskSamResource), (project, newDisk)),
+                                            projectOwnerUserInfo)
       .unsafeRunSync() shouldBe List((project, diskSamResource), (project, newDisk))
 
     // negative tests
     samAuthProvider
-      .filterUserVisible(List(runtimeSamResource, newRuntime), unauthorizedUserInfo)
+      .filterUserVisible(NonEmptyList.of(runtimeSamResource, newRuntime), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
     samAuthProvider
-      .filterUserVisible(List(diskSamResource, newDisk), unauthorizedUserInfo)
+      .filterUserVisible(NonEmptyList.of(diskSamResource, newDisk), unauthorizedUserInfo)
       .unsafeRunSync() shouldBe List.empty
   }
 

@@ -4,6 +4,7 @@ package auth.sam
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
+import cats.data.NonEmptyList
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Sync, Timer}
 import cats.implicits._
@@ -141,7 +142,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     } yield (callerActions, projectCallerActions)
   }
 
-  override def filterUserVisible[R](resources: List[R], userInfo: UserInfo)(
+  override def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
     ev: ApplicativeAsk[F, TraceId]
@@ -155,7 +156,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
   }
 
   def filterUserVisibleWithProjectFallback[R](
-    resources: List[(GoogleProject, R)],
+    resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
   )(
     implicit sr: SamResource[R],

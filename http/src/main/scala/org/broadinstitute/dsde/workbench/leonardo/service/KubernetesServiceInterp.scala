@@ -7,6 +7,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
+import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
@@ -198,7 +199,9 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       params <- F.fromEither(LeonardoService.processListParameters(params))
       allClusters <- KubernetesServiceDbQueries.listFullApps(googleProject, params._1, params._2).transaction
       samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
-      samVisibleApps <- authProvider.filterUserVisible(samResources, userInfo)
+      samVisibleApps <- NonEmptyList.fromList(samResources).traverse { apps =>
+        authProvider.filterUserVisible(apps, userInfo)
+      }
     } yield {
       //we construct this list of clusters by first filtering apps the user doesn't have permissions to see
       //then we build back up by filtering nodepools without apps and clusters without nodepools

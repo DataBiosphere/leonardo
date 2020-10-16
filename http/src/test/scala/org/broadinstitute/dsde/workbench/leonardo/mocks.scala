@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import com.google.auth.Credentials
@@ -100,12 +101,12 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
   ): IO[(List[sr.ActionCategory], List[ProjectAction])] = ???
 
   override def filterUserVisible[R](
-    resources: List[R],
+    resources: NonEmptyList[R],
     userInfo: UserInfo
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: ApplicativeAsk[IO, TraceId]): IO[List[R]] = ???
 
   override def filterUserVisibleWithProjectFallback[R](
-    resources: List[(GoogleProject, R)],
+    resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: ApplicativeAsk[IO, TraceId]): IO[List[(GoogleProject, R)]] =
     ???
