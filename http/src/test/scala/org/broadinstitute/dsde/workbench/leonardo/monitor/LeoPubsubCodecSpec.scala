@@ -108,7 +108,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       AppName("app1"),
       Some(DiskId(1)),
       Map.empty,
-      Galaxy, // TODO: should this be an Option?
+      Galaxy,
       Some(traceId)
     )
 
