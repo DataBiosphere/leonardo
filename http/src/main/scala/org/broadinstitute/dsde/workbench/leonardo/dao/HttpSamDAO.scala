@@ -322,6 +322,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       traceId <- ev.ask
       body <- response.bodyText.compile.foldMonoid
       _ <- logger.error(s"${traceId} | Sam call failed: $body")
+      _ <- metrics.incrementCounter("sam/errorResponse")
     } yield AuthProviderException(traceId, body, response.status.code)
 
   private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(
