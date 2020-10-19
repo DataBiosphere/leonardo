@@ -19,14 +19,16 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RouteValidation._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, LeonardoService}
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
+import scala.util.control.NoStackTrace
 case class AuthenticationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
                          StatusCodes.Unauthorized)
+    with NoStackTrace
 
 // TODO: This can probably renamed to legacyRuntimeRoutes
 // Future runtime related APIs should be added to `RuntimeRoutes`

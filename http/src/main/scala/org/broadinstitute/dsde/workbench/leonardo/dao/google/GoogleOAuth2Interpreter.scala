@@ -19,12 +19,15 @@ class GoogleOAuth2Interpreter[F[_]: Async: Timer: StructuredLogger: ContextShift
     extends GoogleOAuth2Service[F] {
   override def getUserInfoFromToken(accessToken: String)(implicit ev: ApplicativeAsk[F, TraceId]): F[UserInfo] =
     for {
-      tokenInfo <- blockAndLogF(Async[F].delay(client.tokeninfo().setAccessToken(accessToken).execute()),
-                                "com.google.api.services.oauth2.Oauth2.tokeninfo(<token>)").adaptError {
-        case _ =>
-          // Rethrow AuthenticationError if unable to look up the token
-          AuthenticationError()
-      }
+      tokenInfo <- blockAndLogF(
+        Async[F].delay(client.tokeninfo().setAccessToken(accessToken).execute()).adaptError {
+          case _ =>
+            // Rethrow AuthenticationError if unable to look up the token
+            // Do this before logging the error because tokeninfo errors are verbose
+            AuthenticationError()
+        },
+        "com.google.api.services.oauth2.Oauth2.tokeninfo(<token>)"
+      )
       userInfo = UserInfo(OAuth2BearerToken(accessToken),
                           WorkbenchUserId(tokenInfo.getUserId),
                           WorkbenchEmail(tokenInfo.getEmail),
