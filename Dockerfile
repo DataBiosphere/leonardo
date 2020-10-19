@@ -13,7 +13,7 @@ RUN mkdir /helm-go-lib-build && \
     cd helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 
-FROM oracle/graalvm-ce:20.2.0-java8
+FROM oracle/graalvm-ce:20.0.0-java8
 
 EXPOSE 8080
 EXPOSE 5050
@@ -34,9 +34,6 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
 RUN helm repo add stable https://kubernetes-charts.storage.googleapis.com/ && \
     helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
     helm repo update
-
-# Fix CVE-2019-12450 and CVE-2017-12652
-RUN yum update -y -q libpng glib2
 
 # Add Leonardo as a service (it will start when the container starts)
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
