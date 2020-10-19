@@ -13,7 +13,7 @@ RUN mkdir /helm-go-lib-build && \
     cd helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 
-FROM oracle/graalvm-ce:20.0.0-java8
+FROM oracle/graalvm-ce:20.2.0-java8
 
 EXPOSE 8080
 EXPOSE 5050
