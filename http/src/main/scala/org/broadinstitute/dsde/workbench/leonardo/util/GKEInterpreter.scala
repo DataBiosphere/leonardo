@@ -820,6 +820,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Node selector config: this ensures the app is run on the user's nodepool
       raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      raw"""galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: ${nodepoolName.value}""",
       // Ingress configs
       raw"""galaxy.ingress.path=${ingressPath}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
