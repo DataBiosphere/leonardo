@@ -268,7 +268,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       metadata <- getShutdownScript(runtime, blocker)
-      _ <- logger.info("XXX shutdown script is " + metadata)
       _ <- googleComputeService.addInstanceMetadata(runtime.googleProject,
                                                     config.gceConfig.zoneName,
                                                     InstanceName(runtime.runtimeName.asString),
@@ -319,7 +318,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     if (params.runtime.asyncRuntimeFields.isDefined) {
       for {
         metadata <- getShutdownScript(params.runtime, blocker)
-        _ <- logger.info("XXX shutdown script is " + metadata)
         _ <- googleComputeService.addInstanceMetadata(params.runtime.googleProject,
                                                       config.gceConfig.zoneName,
                                                       InstanceName(params.runtime.runtimeName.asString),
