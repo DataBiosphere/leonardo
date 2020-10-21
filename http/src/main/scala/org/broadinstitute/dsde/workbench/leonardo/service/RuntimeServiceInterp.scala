@@ -224,9 +224,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
       runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
-      runtimesAndProjects = runtimes.map(r => (r.googleProject, r.samResource))
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
-      samVisibleRuntimes <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>
+      runtimesAndProjects = runtimes.map(r => (r.googleProject, r.samResource))
+      samVisibleRuntimesOpt <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>
         authProvider
           .filterUserVisibleWithProjectFallback(
             rs,
@@ -234,15 +234,20 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           )
       }
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done visible runtimes")))
-    } yield {
-      // Making the assumption that users will always be able to access runtimes that they create
-      // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-      runtimes
-        .filter(c =>
-          c.auditInfo.creator == userInfo.userEmail || samVisibleRuntimes.contains((c.googleProject, c.samResource))
-        )
-        .toVector
-    }
+      res = samVisibleRuntimesOpt match {
+        case None => Vector.empty
+        case Some(samVisibleRuntimes) =>
+          val samVisibleRuntimesSet = samVisibleRuntimes.toSet
+          // Making the assumption that users will always be able to access runtimes that they create
+          // Fix for https://github.com/DataBiosphere/leonardo/issues/821
+          runtimes
+            .filter(c =>
+              c.auditInfo.creator == userInfo.userEmail || samVisibleRuntimesSet
+                .contains((c.googleProject, c.samResource))
+            )
+            .toVector
+      }
+    } yield res
 
   override def deleteRuntime(req: DeleteRuntimeRequest)(
     implicit ev: ApplicativeAsk[F, AppContext]

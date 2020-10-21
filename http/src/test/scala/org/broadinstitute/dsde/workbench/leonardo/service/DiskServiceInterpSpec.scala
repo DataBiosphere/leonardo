@@ -150,6 +150,27 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     res.unsafeRunSync()
   }
 
+  it should "list disks belonging to other users" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    // Make disks belonging to different users than the calling user
+    val res = for {
+      disk1 <- LeoLenses.diskToCreator
+        .set(WorkbenchEmail("a_different_user@example.com"))(makePersistentDisk(Some(DiskName("d1"))))
+        .save()
+      disk2 <- LeoLenses.diskToCreator
+        .set(WorkbenchEmail("a_different_user2@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
+        .save()
+      listResponse <- diskService.listDisks(userInfo, None, Map.empty)
+    } yield {
+      // Since the calling user is whitelisted in the auth provider, it should return
+      // the disks belonging to other users.
+      listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
+    }
+
+    res.unsafeRunSync()
+  }
+
   it should "delete a disk" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 

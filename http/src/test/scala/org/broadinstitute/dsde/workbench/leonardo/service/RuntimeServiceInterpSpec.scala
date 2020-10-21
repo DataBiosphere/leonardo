@@ -471,6 +471,33 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
+  // See https://broadworkbench.atlassian.net/browse/PROD-440
+  // AoU relies on the ability for project owners to list other users' runtimes.
+  it should "list runtimes belonging to other users" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    // Make runtimes belonging to different users than the calling user
+    val res = for {
+      samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      runtime1 = LeoLenses.runtimeToCreator.set(WorkbenchEmail("different_user1@example.com"))(
+        makeCluster(1).copy(samResource = samResource1)
+      )
+      runtime2 = LeoLenses.runtimeToCreator.set(WorkbenchEmail("different_user2@example.com"))(
+        makeCluster(2).copy(samResource = samResource2)
+      )
+      _ <- IO(runtime1.save())
+      _ <- IO(runtime2.save())
+      listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
+    } yield {
+      // Since the calling user is whitelisted in the auth provider, it should return
+      // the runtimes belonging to other users.
+      listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
+    }
+
+    res.unsafeRunSync()
+  }
+
   it should "delete a runtime" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 

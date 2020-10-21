@@ -199,31 +199,35 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       params <- F.fromEither(LeonardoService.processListParameters(params))
       allClusters <- KubernetesServiceDbQueries.listFullApps(googleProject, params._1, params._2).transaction
       samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
-      samVisibleApps <- NonEmptyList.fromList(samResources).traverse { apps =>
+      samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
         authProvider.filterUserVisible(apps, userInfo)
       }
-    } yield {
-      //we construct this list of clusters by first filtering apps the user doesn't have permissions to see
-      //then we build back up by filtering nodepools without apps and clusters without nodepools
-      allClusters
-        .map { c =>
-          c.copy(nodepools =
-            c.nodepools
-              .map { n =>
-                n.copy(apps = n.apps.filter { a =>
-                  // Making the assumption that users will always be able to access apps that they create
-                  // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-                  samVisibleApps
-                    .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
-                })
-              }
-              .filterNot(_.apps.isEmpty)
-          )
-        }
-        .filterNot(_.nodepools.isEmpty)
-        .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase))
-        .toVector
-    }
+      res = samVisibleAppsOpt match {
+        case None => Vector.empty
+        case Some(samVisibleApps) =>
+          val samVisibleAppsSet = samVisibleApps.toSet
+          // we construct this list of clusters by first filtering apps the user doesn't have permissions to see
+          // then we build back up by filtering nodepools without apps and clusters without nodepools
+          allClusters
+            .map { c =>
+              c.copy(nodepools =
+                c.nodepools
+                  .map { n =>
+                    n.copy(apps = n.apps.filter { a =>
+                      // Making the assumption that users will always be able to access apps that they create
+                      // Fix for https://github.com/DataBiosphere/leonardo/issues/821
+                      samVisibleAppsSet
+                        .contains(a.samResourceId) || a.auditInfo.creator == userInfo.userEmail
+                    })
+                  }
+                  .filterNot(_.apps.isEmpty)
+              )
+            }
+            .filterNot(_.nodepools.isEmpty)
+            .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase))
+            .toVector
+      }
+    } yield res
 
   override def deleteApp(request: DeleteAppRequest)(
     implicit as: ApplicativeAsk[F, AppContext]
