@@ -539,19 +539,24 @@ class LeonardoService(
       paramMap <- IO.fromEither(processListParameters(params))
       clusters <- LeonardoServiceDbQueries.listClusters(paramMap._1, paramMap._2, googleProjectOpt).transaction
       clustersAndProjects = clusters.map(c => (c.googleProject, c.samResource))
-      samVisibleClusters <- NonEmptyList.fromList(clustersAndProjects).traverse { cs =>
+      samVisibleClustersOpt <- NonEmptyList.fromList(clustersAndProjects).traverse { cs =>
         authProvider
           .filterUserVisibleWithProjectFallback(cs, userInfo)
       }
-    } yield {
-      // Making the assumption that users will always be able to access clusters that they create
-      // Fix for https://github.com/DataBiosphere/leonardo/issues/821
-      clusters
-        .filter(c =>
-          c.auditInfo.creator == userInfo.userEmail || samVisibleClusters.contains((c.googleProject, c.samResource))
-        )
-        .toVector
-    }
+      res = samVisibleClustersOpt match {
+        case None => Vector.empty
+        case Some(samVisibleClusters) =>
+          val samVisibleClustersSet = samVisibleClusters.toSet
+          // Making the assumption that users will always be able to access clusters that they create
+          // Fix for https://github.com/DataBiosphere/leonardo/issues/821
+          clusters
+            .filter(c =>
+              c.auditInfo.creator == userInfo.userEmail || samVisibleClustersSet
+                .contains((c.googleProject, c.samResource))
+            )
+            .toVector
+      }
+    } yield res
 
   private[service] def calculateAutopauseThreshold(autopause: Option[Boolean],
                                                    autopauseThreshold: Option[Int],

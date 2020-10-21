@@ -113,29 +113,33 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       paramMap <- F.fromEither(processListParameters(params))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, googleProject).transaction
       diskAndProjects = disks.map(d => (d.googleProject, d.samResource))
-      samVisibleDisks <- NonEmptyList.fromList(diskAndProjects).traverse { ds =>
+      samVisibleDisksOpt <- NonEmptyList.fromList(diskAndProjects).traverse { ds =>
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
       }
-    } yield {
-      // Making the assumption that users will always be able to access disks that they create
-      disks
-        .filter(d =>
-          d.auditInfo.creator == userInfo.userEmail || samVisibleDisks.contains((d.googleProject, d.samResource))
-        )
-        .map(d =>
-          ListPersistentDiskResponse(d.id,
-                                     d.googleProject,
-                                     d.zone,
-                                     d.name,
-                                     d.status,
-                                     d.auditInfo,
-                                     d.size,
-                                     d.diskType,
-                                     d.blockSize)
-        )
-        .toVector
-    }
+      res = samVisibleDisksOpt match {
+        case None => Vector.empty
+        case Some(samVisibleDisks) =>
+          val samVisibleDisksSet = samVisibleDisks.toSet
+          // Making the assumption that users will always be able to access disks that they create
+          disks
+            .filter(d =>
+              d.auditInfo.creator == userInfo.userEmail || samVisibleDisksSet.contains((d.googleProject, d.samResource))
+            )
+            .map(d =>
+              ListPersistentDiskResponse(d.id,
+                                         d.googleProject,
+                                         d.zone,
+                                         d.name,
+                                         d.status,
+                                         d.auditInfo,
+                                         d.size,
+                                         d.diskType,
+                                         d.blockSize)
+            )
+            .toVector
+      }
+    } yield res
 
   override def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
     implicit as: ApplicativeAsk[F, AppContext]

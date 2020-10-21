@@ -9,12 +9,14 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRes
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
 import org.broadinstitute.dsde.workbench.leonardo.http.dataprocRuntimeToDataprocInCreateRuntimeMsg
-import org.broadinstitute.dsde.workbench.model.IP
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 
 object LeoLenses {
   val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)
 
   val runtimeToAuditInfo: Lens[Runtime, AuditInfo] = GenLens[Runtime](_.auditInfo)
+
+  val runtimeToCreator: Lens[Runtime, WorkbenchEmail] = GenLens[Runtime](_.auditInfo.creator)
 
   val runtimeToRuntimeConfigId: Lens[Runtime, RuntimeConfigId] = GenLens[Runtime](_.runtimeConfigId)
 
@@ -90,6 +92,8 @@ object LeoLenses {
 
   val diskToDestroyedDate: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
 
+  val diskToCreator: Lens[PersistentDisk, WorkbenchEmail] = GenLens[PersistentDisk](_.auditInfo.creator)
+
   val runtimeConfigPrism = Prism[RuntimeConfig, RuntimeConfigInCreateRuntimeMessage] {
     case x: RuntimeConfig.GceConfig =>
       Some(
@@ -146,4 +150,6 @@ object LeoLenses {
   }(identity)
 
   val appToServices: Lens[App, List[KubernetesService]] = GenLens[App](_.appResources.services)
+
+  val appToCreator: Lens[App, WorkbenchEmail] = GenLens[App](_.auditInfo.creator)
 }

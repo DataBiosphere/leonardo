@@ -8,8 +8,8 @@ import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppRequest, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
+import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppRequest, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.CreateNodepool
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,
@@ -28,9 +28,11 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   KubernetesClusterStatus,
   LabelMap,
+  LeoLenses,
   LeonardoTestSuite,
   NodepoolStatus
 }
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -384,6 +386,28 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val listPartialLabelApp2 = kubeServiceInterp.listApp(userInfo, None, Map(label2)).unsafeRunSync()
     listPartialLabelApp2.length shouldEqual 1
     listPartialLabelApp2.map(_.appName) should contain(appName2)
+  }
+
+  it should "list apps belonging to different users" in isolatedDbTest {
+    // Make apps belonging to different users than the calling user
+    val res = for {
+      savedCluster <- IO(makeKubeCluster(1).save())
+      savedNodepool1 <- IO(makeNodepool(1, savedCluster.id).save())
+      app1 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user1@example.com"))(makeApp(1, savedNodepool1.id))
+      _ <- IO(app1.save())
+
+      savedNodepool2 <- IO(makeNodepool(2, savedCluster.id).save())
+      app2 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user2@example.com"))(makeApp(2, savedNodepool2.id))
+      _ <- IO(app2.save())
+
+      listResponse <- kubeServiceInterp.listApp(userInfo, None, Map.empty)
+    } yield {
+      // Since the calling user is whitelisted in the auth provider, it should return
+      // the apps belonging to other users.
+      listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName)
+    }
+
+    res.unsafeRunSync()
   }
 
   it should "get app" in isolatedDbTest {
