@@ -12,5 +12,5 @@ export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 
 # If RStudio is installed, cleanly shut it down
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-    docker exec -u root -i $RSTUDIO_SERVER_NAME rstudio-server stop
+    docker exec -u rstudio -i $RSTUDIO_SERVER_NAME rstudio-server stop
 fi
