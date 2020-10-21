@@ -465,6 +465,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
     } yield ()
 
+  // This function DOES NOT update the app status to deleted after polling is complete
+  // It decouples the AppStatus from the kubernetes entity, and makes it more representative of the app from the user's perspective
+  // Currently, the only caller of this function updates the status after the nodepool is also deleted
   override def deleteAndPollApp(params: DeleteAppParams)(
     implicit ev: ApplicativeAsk[F, AppContext]
   ): F[Unit] =
@@ -503,14 +506,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       _ <- if (!params.errorAfterDelete) {
-        for {
-          _ <- authProvider.notifyResourceDeleted(dbApp.app.samResourceId,
-                                                  dbApp.app.auditInfo.creator,
-                                                  params.googleProject)
-          _ <- appQuery.markAsDeleted(dbApp.app.id, ctx.now).transaction
-        } yield ()
+        F.unit
       } else {
-        appQuery.updateStatus(dbApp.app.id, AppStatus.Error).transaction
+        appQuery.updateStatus(dbApp.app.id, AppStatus.Error).transaction.void
       }
     } yield ()
 

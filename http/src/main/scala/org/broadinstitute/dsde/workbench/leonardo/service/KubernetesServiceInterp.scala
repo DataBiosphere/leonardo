@@ -107,6 +107,10 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       else F.unit
 
       clusterId = saveClusterResult.minimalCluster.id
+
+      hasOperationInProgress <- KubernetesServiceDbQueries.hasClusterOperationInProgress(clusterId).transaction
+      _ <- if (hasOperationInProgress) F.raiseError[Unit](ClusterConflictException(googleProject, appName)) else F.unit
+
       claimedNodepoolOpt <- nodepoolQuery.claimNodepool(clusterId).transaction
       nodepool <- claimedNodepoolOpt match {
         case None =>
@@ -254,6 +258,13 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         F.raiseError[Unit](
           AppCannotBeDeletedException(request.googleProject, request.appName, appResult.app.status, ctx.traceId)
         )
+
+      hasOperationInProgress <- KubernetesServiceDbQueries
+        .hasClusterOperationInProgress(appResult.cluster.id)
+        .transaction
+      _ <- if (hasOperationInProgress)
+        F.raiseError[Unit](ClusterConflictException(appResult.cluster.googleProject, appResult.app.appName))
+      else F.unit
 
       diskOpt <- if (request.deleteDisk)
         appResult.app.appResources.disk.fold(
@@ -546,5 +557,11 @@ case class AppRequiresDiskException(googleProject: GoogleProject, appName: AppNa
 case class ClusterExistsException(googleProject: GoogleProject)
     extends LeoException(
       s"Cannot pre-create nodepools for project $googleProject because a cluster already exists",
+      StatusCodes.Conflict
+    )
+
+case class ClusterConflictException(googleProject: GoogleProject, appName: AppName)
+    extends LeoException(
+      s"Cannot perform your create/delete request for app $appName in project $googleProject because the cluster is currently busy. Please try again later.",
       StatusCodes.Conflict
     )
