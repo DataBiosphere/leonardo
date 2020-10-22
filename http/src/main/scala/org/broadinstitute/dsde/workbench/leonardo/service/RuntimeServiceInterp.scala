@@ -23,7 +23,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleStorageService,
   InstanceName,
   MachineTypeName,
-  OperationName
+  OperationName,
+  PollError
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
@@ -300,21 +301,36 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                           InstanceName(runtime.runtimeName.asString),
                                                           config.gceConfig.userDiskDeviceName)
               _ <- detachOp.traverse(op =>
-                computePollOperation.pollZoneOperation(
-                  req.googleProject,
-                  disk.zone,
-                  OperationName(op.getName),
-                  3 seconds,
-                  5,
-                  None
-                )(F.unit,
-                  F.raiseError(
-                    new RuntimeException(
-                      s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner"
+                (
+                  computePollOperation
+                    .pollZoneOperation(
+                      req.googleProject,
+                      disk.zone,
+                      OperationName(op.getName),
+                      3 seconds,
+                      5,
+                      None
+                    )(
+                      F.unit,
+                      F.raiseError(
+                        new RuntimeException(
+                          s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner"
+                        )
+                      ),
+                      F.unit
                     )
-                  ),
-                  F.unit)
+                  )
+                  .recoverWith {
+                    case e: PollError =>
+                      if (e.operation.getHttpErrorStatusCode == 400) {
+                        log.info(
+                          s"Detach Disk ${disk.name} failed with 400 Error. Continuing deleting Runtime ${runtime.runtimeName}"
+                        )
+                      } else F.raiseError(e)
+
+                  }
               )
+
               _ <- RuntimeConfigQueries.updatePersistentDiskId(runtime.runtimeConfigId, None, ctx.now).transaction
               res <- if (req.deleteDisk)
                 persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleting, ctx.now).transaction.as(Some(diskId))
