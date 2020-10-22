@@ -246,7 +246,7 @@ class ZombieRuntimeMonitorSpec
     }
   }
 
-  it should "detect inactive zombie dataproc cluster" in isolatedDbTest {
+  it should "detect inactive zombie dataproc cluster" ignore isolatedDbTest {
     // create 2 running clusters in the same project
     val savedDeletedRuntime1 = deletedRuntime1.save()
     savedDeletedRuntime1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual deletedRuntime1
