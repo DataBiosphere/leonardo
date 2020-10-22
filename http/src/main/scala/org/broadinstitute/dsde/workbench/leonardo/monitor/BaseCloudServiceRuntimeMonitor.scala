@@ -101,9 +101,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         runtimeAlg
           .deleteRuntime(
             DeleteRuntimeParams(
-              runtimeAndRuntimeConfig.runtime.googleProject,
-              runtimeAndRuntimeConfig.runtime.runtimeName,
-              runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined
+              runtimeAndRuntimeConfig.runtime
             )
           )
           .void, //TODO is this right when deleting or stopping fails?

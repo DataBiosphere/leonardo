@@ -212,13 +212,17 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   override def deleteRuntime(
     params: DeleteRuntimeParams
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
-    for {
-      _ <- if (params.isAsyncRuntimeFields) //check if runtime has been created
-        Async[F].liftIO(
-          IO.fromFuture(IO(gdDAO.deleteCluster(params.googleProject, params.runtimeName)))
+    if (params.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
+      for {
+        metadata <- getShutdownScript(params.runtime, blocker)
+        _ <- params.runtime.dataprocInstances.find(_.dataprocRole == Master).traverse { instance =>
+          googleComputeService.addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
+        }
+        _ <- Async[F].liftIO(
+          IO.fromFuture(IO(gdDAO.deleteCluster(params.runtime.googleProject, params.runtime.runtimeName)))
         )
-      else Async[F].unit
-    } yield None
+      } yield None
+    } else Async[F].pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {

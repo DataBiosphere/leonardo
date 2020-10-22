@@ -315,10 +315,19 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
   override def deleteRuntime(
     params: DeleteRuntimeParams
   )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
-    if (params.isAsyncRuntimeFields)
-      googleComputeService
-        .deleteInstance(params.googleProject, config.gceConfig.zoneName, InstanceName(params.runtimeName.asString))
-    else F.pure(None)
+    if (params.runtime.asyncRuntimeFields.isDefined) {
+      for {
+        metadata <- getShutdownScript(params.runtime, blocker)
+        _ <- googleComputeService.addInstanceMetadata(params.runtime.googleProject,
+                                                      config.gceConfig.zoneName,
+                                                      InstanceName(params.runtime.runtimeName.asString),
+                                                      metadata)
+        op <- googleComputeService
+          .deleteInstance(params.runtime.googleProject,
+                          config.gceConfig.zoneName,
+                          InstanceName(params.runtime.runtimeName.asString))
+      } yield op
+    } else F.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     Async[F].unit
