@@ -149,7 +149,7 @@ pipeline {
         string(name: "terra_jupyter_python", defaultValue: "0.0.15")
         string(name: "terra_jupyter_bioconductor", defaultValue: "1.0.5")
         string(name: "terra_jupyter_gatk", defaultValue: "1.0.5")
-        string(name: "terra_jupyter_aou", defaultValue: "1.0.7")
+        string(name: "terra_jupyter_aou", defaultValue: "1.0.14")
         string(name: "anvil_rstudio_base", defaultValue: "0.0.4")
         string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.6")
         string(name: "welder_server", defaultValue: "59be71a",
@@ -267,11 +267,15 @@ pipeline {
                                 }
 
                                 if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
-                                    println("Using version $version for $image in this build of custom GCE images")
-                                    // Not replace aou version because we want to fix bake 2 aou versions until aou migrate to new version
-                                    sh """
-                                       sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
-                                    """
+                                    if (image != 'terra-jupyter-aou'){
+                                        println("Using version $version for $image in this build of custom GCE images")
+                                        sh """
+                                           sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                                        """
+                                    } else {
+                                        println("not updating version for image $image")
+                                    }
+
                                 }
                             }
                         }
