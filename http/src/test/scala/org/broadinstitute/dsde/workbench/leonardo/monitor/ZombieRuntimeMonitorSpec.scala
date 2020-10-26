@@ -98,7 +98,7 @@ class ZombieRuntimeMonitorSpec
           c.status shouldBe RuntimeStatus.Deleted
           c.auditInfo.destroyedDate shouldBe 'defined
           c.errors.size shouldBe 1
-          c.errors.head.errorCode shouldBe -1
+          c.errors.head.errorCode shouldBe None
           c.errors.head.errorMessage should include("An underlying resource was removed in Google")
         }
       }
@@ -127,7 +127,7 @@ class ZombieRuntimeMonitorSpec
         c1.status shouldBe RuntimeStatus.Deleted
         c1.auditInfo.destroyedDate shouldBe 'defined
         c1.errors.size shouldBe 1
-        c1.errors.head.errorCode shouldBe -1
+        c1.errors.head.errorCode shouldBe None
         c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
@@ -156,7 +156,7 @@ class ZombieRuntimeMonitorSpec
           c.status shouldBe RuntimeStatus.Deleted
           c.auditInfo.destroyedDate shouldBe 'defined
           c.errors.size shouldBe 1
-          c.errors.head.errorCode shouldBe -1
+          c.errors.head.errorCode shouldBe None
           c.errors.head.errorMessage should include("An underlying resource was removed in Google")
         }
       }
@@ -237,7 +237,7 @@ class ZombieRuntimeMonitorSpec
         c2.auditInfo.destroyedDate shouldBe 'defined
         c2.labels.get(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
         c2.errors.size shouldBe 1
-        c2.errors.head.errorCode shouldBe -1
+        c2.errors.head.errorCode shouldBe None
         c2.errors.head.errorMessage should include("An underlying resource was removed in Google")
 
         c1.status shouldBe RuntimeStatus.Running
@@ -316,7 +316,7 @@ class ZombieRuntimeMonitorSpec
         c1.auditInfo.destroyedDate shouldBe 'defined
         c1.labels.get(Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey) shouldBe Some("false")
         c1.errors.size shouldBe 1
-        c1.errors.head.errorCode shouldBe -1
+        c1.errors.head.errorCode shouldBe None
         c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
@@ -403,13 +403,13 @@ class ZombieRuntimeMonitorSpec
         c1.status shouldBe RuntimeStatus.Deleted
         c1.auditInfo.destroyedDate shouldBe 'defined
         c1.errors.size shouldBe 1
-        c1.errors.head.errorCode shouldBe -1
+        c1.errors.head.errorCode shouldBe None
         c1.errors.head.errorMessage should include("An underlying resource was removed in Google")
 
         c2.status shouldBe RuntimeStatus.Deleted
         c2.auditInfo.destroyedDate shouldBe 'defined
         c2.errors.size shouldBe 1
-        c2.errors.head.errorCode shouldBe -1
+        c2.errors.head.errorCode shouldBe None
         c2.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }
@@ -483,7 +483,7 @@ class ZombieRuntimeMonitorSpec
         c3.status shouldBe RuntimeStatus.Deleted
         c3.auditInfo.destroyedDate shouldBe 'defined
         c3.errors.size shouldBe 1
-        c3.errors.head.errorCode shouldBe -1
+        c3.errors.head.errorCode shouldBe None
         c3.errors.head.errorMessage should include("An underlying resource was removed in Google")
       }
     }

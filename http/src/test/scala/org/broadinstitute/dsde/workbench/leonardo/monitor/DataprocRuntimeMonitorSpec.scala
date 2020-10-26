@@ -201,7 +201,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
-      error.head.errorCode shouldBe -1
+      error.head.errorCode shouldBe None
       error.head.errorMessage shouldBe ("Error not available")
     }
 
@@ -234,7 +234,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
-      error.head.errorCode shouldBe 4
+      error.head.errorCode shouldBe Some(4)
       error.head.errorMessage shouldBe ("time out")
     }
 
@@ -310,7 +310,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
-      error.head.errorCode shouldBe -1
+      error.head.errorCode shouldBe None
       error.head.errorMessage shouldBe ("Cluster failed to start")
     }
 
