@@ -27,7 +27,6 @@ import scala.concurrent.ExecutionContext
 /**
  * This monitor periodically sweeps the Leo database and checks for and handles zombie runtimes.
  * There are two types of zombie runtimes:
- * Active zombie : a runtime that is deleted on the Google side, but still marked as active in the Leo DB
  * Inactive zombie : a runtime that is in Deleted status in the Leo DB, but still running in Google
  */
 class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
@@ -62,45 +61,6 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(
         s"Starting active zombie detection across ${activeRuntimeMap.size} projects with concurrency of ${config.concurrency}"
       )
-      activeZombies <- activeRuntimeMap.toList.parFlatTraverse[F, ZombieCandidate] {
-        case (project, zombieCandidates) =>
-          semaphore.withPermit(
-            // Check if the project is active
-            isProjectActiveInGoogle(project).flatMap {
-              case true =>
-                // If the project is active, check each individual runtime
-                zombieCandidates.toList.traverseFilter {
-                  candidate =>
-                    // If the runtime is less than one minute old, it may not exist in Google because it is still Provisioning, so it's not a zombie
-                    candidate.cloudService.interpreter
-                      .getRuntimeStatus(
-                        GetRuntimeStatusParams(candidate.googleProject, candidate.runtimeName, Some(config.gceZoneName))
-                      )
-                      .attempt
-                      .flatMap {
-                        case Left(e) =>
-                          logger
-                            .warn(e)(
-                              s"Unable to check status of runtime ${candidate.googleProject.value} / ${candidate.runtimeName.asString} for active zombie runtime detection"
-                            )
-                            .as(None)
-                        case Right(RuntimeStatus.Deleted) =>
-                          F.pure(zombieIfOlderThanCreationHangTolerance(candidate, startInstant))
-                        case Right(RuntimeStatus.Error) =>
-                          // If the dataproc cluster (only dataproc has ERROR status) is in ERROR status, we will mark the cluster in ERROR status in DB
-                          nowInstant
-                            .flatMap(n => erroredDataprocCluster(candidate, n))
-                            .as(None)
-                        case Right(_) =>
-                          F.pure(None)
-                      }
-                }
-              case false =>
-                // If the project is inactive, all runtimes in the project are zombies
-                F.pure(zombieCandidates.toList)
-            }
-          )
-      }
 
       // Get all deleted runtimes that haven't been confirmed from the Leo DB
       unconfirmedDeletedRuntimes <- ZombieMonitorQueries.listInactiveZombieQuery.transaction
@@ -131,13 +91,11 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
         .map(_.flattenOption)
 
       // Delete runtime on Leo side if active zombie, or on Google side if inactive zombie
-      _ <- activeZombies.parTraverse(zombie => semaphore.withPermit(handleActiveZombieRuntime(zombie, startInstant)))
       _ <- inactiveZombies.parTraverse(zombie => semaphore.withPermit(handleInactiveZombieRuntime(zombie)))
       end <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       duration = end - start
       _ <- logger.info(
-        s"Detected ${activeZombies.size} active zombie runtimes in ${activeZombies.map(_.googleProject).toSet.size} projects " +
-          s"and ${inactiveZombies.size} inactive zombie runtimes. " +
+        s"Detected ${inactiveZombies.size} inactive zombie runtimes. " +
           s"Elapsed time = ${duration} milli seconds."
       )
     } yield ()
@@ -182,39 +140,6 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     cloudService.interpreter
       .getRuntimeStatus(GetRuntimeStatusParams(googleProject, runtimeName, Some(config.gceZoneName)))
       .map(s => s != RuntimeStatus.Deleted)
-
-  private def zombieIfOlderThanCreationHangTolerance(candidate: ZombieCandidate,
-                                                     now: Instant): Option[ZombieCandidate] = {
-    val milliSecondsSinceRuntimeCreation: Long = now.toEpochMilli - candidate.createdDate.toEpochMilli
-    if (milliSecondsSinceRuntimeCreation < config.creationHangTolerance.toMillis) {
-      None
-    } else {
-      Some(candidate)
-    }
-  }
-
-  private def handleActiveZombieRuntime(zombie: ZombieCandidate,
-                                        now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    for {
-      traceId <- ev.ask
-      _ <- logger.info(
-        s"${traceId.asString} | Deleting active zombie runtime: ${zombie.googleProject} / ${zombie.runtimeName}"
-      ) //TODO: do we need to delete sam resource as well?
-      _ <- metrics.incrementCounter("numOfActiveZombieRuntimes")
-      _ <- dbRef.inTransaction {
-        for {
-          _ <- clusterQuery.completeDeletion(zombie.id, now)
-          _ <- labelQuery
-            .save(zombie.id, LabelResourceType.Runtime, config.deletionConfirmationLabelKey, "false")
-          error = RuntimeError(
-            s"An underlying resource was removed in Google. Runtime(${zombie.runtimeName.asString}) has been marked deleted in Leo.",
-            None,
-            now
-          )
-          _ <- clusterErrorQuery.save(zombie.id, error)
-        } yield ()
-      }
-    } yield ()
 
   private def erroredDataprocCluster(zombie: ZombieCandidate,
                                      now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
