@@ -14,7 +14,7 @@ class ClusterErrorComponentSpec extends AnyFlatSpecLike with TestComponent with 
     val savedCluster1 = makeCluster(1).save()
 
     lazy val timestamp = Instant.now().truncatedTo(ChronoUnit.SECONDS)
-    val clusterError = RuntimeError("Some Error", 10, timestamp)
+    val clusterError = RuntimeError("Some Error", Some(10), timestamp)
 
     dbFutureValue(clusterErrorQuery.get(savedCluster1.id)) shouldEqual List.empty
     dbFutureValue(clusterErrorQuery.save(savedCluster1.id, clusterError))

@@ -7,7 +7,11 @@ import LeoProfile.api._
 
 import scala.concurrent.ExecutionContext
 
-case class ClusterErrorRecord(id: Long, clusterId: Long, errorMessage: String, errorCode: Int, timestamp: Timestamp)
+case class ClusterErrorRecord(id: Long,
+                              clusterId: Long,
+                              errorMessage: String,
+                              errorCode: Option[Int],
+                              timestamp: Timestamp)
 
 class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTER_ERROR") {
   def id = column[Long]("id", O.AutoInc)
@@ -16,7 +20,7 @@ class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTE
 
   def errorMessage = column[String]("errorMessage", O.Length(1024))
 
-  def errorCode = column[Int]("errorCode")
+  def errorCode = column[Option[Int]]("errorCode")
 
   def timestamp = column[Timestamp]("timestamp", O.SqlType("TIMESTAMP(6)"))
 

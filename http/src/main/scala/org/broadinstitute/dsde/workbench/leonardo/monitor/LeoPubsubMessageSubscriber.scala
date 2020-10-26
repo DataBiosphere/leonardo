@@ -247,7 +247,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
         deleteDisk.handleErrorWith(e =>
           clusterErrorQuery
-            .save(runtime.id, RuntimeError(e.getMessage, -1, ctx.now))
+            .save(runtime.id, RuntimeError(e.getMessage, None, ctx.now))
             .transaction
             .void
         )
@@ -1062,7 +1062,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")
       }
       _ <- errorMessage.traverse(m =>
-        (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, -1, now)) >>
+        (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, None, now)) >>
           clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
       _ <- if (e.isReportWorthy)
@@ -1073,7 +1073,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private def handleRuntimeMessageError(runtimeId: Long, now: Instant, msg: String)(e: Throwable): F[Unit] = {
     val m = s"${msg} due to ${e.getMessage}"
     for {
-      _ <- clusterErrorQuery.save(runtimeId, RuntimeError(m, -1, now)).transaction
+      _ <- clusterErrorQuery.save(runtimeId, RuntimeError(m, None, now)).transaction
       _ <- logger.error(e)(m)
       _ <- if (e.isReportWorthy)
         errorReporting.reportError(e)

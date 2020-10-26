@@ -21,7 +21,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue(clusterQuery.listWithLabels) shouldEqual Seq()
 
-    lazy val err1 = RuntimeError("some failure", 10, Instant.now().truncatedTo(ChronoUnit.SECONDS))
+    lazy val err1 = RuntimeError("some failure", Some(10), Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = GoogleId(UUID.randomUUID().toString)
     val cluster1 = makeCluster(1).copy(
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(googleId = cluster1UUID)),

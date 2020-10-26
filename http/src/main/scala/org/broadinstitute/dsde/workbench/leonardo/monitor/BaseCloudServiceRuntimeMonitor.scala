@@ -486,7 +486,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     val result = for {
       ctx <- ev.ask
       _ <- clusterErrorQuery
-        .save(runtimeId, RuntimeError(errorDetails.longMessage, errorDetails.code.getOrElse(-1), ctx.now))
+        .save(runtimeId, RuntimeError(errorDetails.longMessage, errorDetails.code, ctx.now))
         .transaction
         .void
         .adaptError {

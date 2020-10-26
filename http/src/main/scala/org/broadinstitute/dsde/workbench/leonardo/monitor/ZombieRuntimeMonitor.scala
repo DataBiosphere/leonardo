@@ -208,7 +208,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
             .save(zombie.id, LabelResourceType.Runtime, config.deletionConfirmationLabelKey, "false")
           error = RuntimeError(
             s"An underlying resource was removed in Google. Runtime(${zombie.runtimeName.asString}) has been marked deleted in Leo.",
-            -1,
+            None,
             now
           )
           _ <- clusterErrorQuery.save(zombie.id, error)
@@ -245,7 +245,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
                |from your Cloud environment prior to deleting, try to access the machine via notebook or terminal. 
                |If you can't connect to the cluster, please contact customer support and we can help you move your data.
                |""".stripMargin,
-            -1,
+            None,
             now
           )
           _ <- clusterErrorQuery.save(zombie.id, e)
