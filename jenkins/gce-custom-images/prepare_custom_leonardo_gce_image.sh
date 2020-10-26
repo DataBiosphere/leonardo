@@ -156,6 +156,9 @@ apt-get install -y -q dpkg-dev
 python_version=$(python3 --version)
 log "Using $python_version packaged in the base (Debian 9) image..."
 
+log "Installing python requests module..."
+pip3 install requests
+
 log "Downloading Ansible playbook files and the image hardening script..."
 daisy_sources_path=$(curl --silent -H "$vm_metadata_google_header" "$daisy_sources_metadata_url")
 gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_requirements_file}" .
