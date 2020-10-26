@@ -193,6 +193,9 @@ else
     log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
 fi
 
+log 'Cached docker images:'
+docker images
+
 log 'Making systemd additions...'
 mkdir -p /etc/systemd/system/google-startup-scripts.service.d
 cat > /etc/systemd/system/google-startup-scripts.service.d/override.conf <<EOF
