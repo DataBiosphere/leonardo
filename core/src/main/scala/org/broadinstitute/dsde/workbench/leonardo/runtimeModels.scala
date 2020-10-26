@@ -390,7 +390,7 @@ final case class RunningRuntime(googleProject: GoogleProject,
                                 containers: List[RuntimeContainerServiceType])
 
 final case class RuntimeName(asString: String) extends AnyVal
-final case class RuntimeError(errorMessage: String, errorCode: Int, timestamp: Instant)
+final case class RuntimeError(errorMessage: String, errorCode: Option[Int], timestamp: Instant)
 final case class RuntimeErrorDetails(longMessage: String,
                                      code: Option[Int] = None,
                                      shortMessage: Option[String] = None,

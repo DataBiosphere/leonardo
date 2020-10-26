@@ -265,7 +265,7 @@ class LeoPubsubMessageSubscriberSpec
         clusterErrorQuery.get(runtime.id).transaction.map { error =>
           val dummyNow = Instant.now()
           error.head.copy(timestamp = dummyNow) shouldBe RuntimeError(s"Fail to delete ${disk.name} in a timely manner",
-                                                                      -1,
+                                                                      None,
                                                                       dummyNow)
         }
       )
