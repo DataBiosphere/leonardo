@@ -36,7 +36,7 @@ anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconducto
 
 # This array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou openidc_proxy anvil_rstudio_base anvil_rstudio_bioconductor"
+docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_base anvil_rstudio_bioconductor"
 
 # Variables for downloading the Ansible playbook files for hardening
 cis_hardening_dir="cis-harden-images/debian9"
@@ -119,7 +119,8 @@ retry 5 apt-get install -y -q \
     curl \
     gnupg2 \
     software-properties-common \
-    libffi-dev
+    libffi-dev \
+    python3-pip
 
 # Install google-fluent-d
 # https://cloud.google.com/logging/docs/agent/installation
@@ -155,6 +156,9 @@ apt-get install -y -q dpkg-dev
 
 python_version=$(python3 --version)
 log "Using $python_version packaged in the base (Debian 9) image..."
+
+log "Installing python requests module..."
+pip3 install requests
 
 log "Downloading Ansible playbook files and the image hardening script..."
 daisy_sources_path=$(curl --silent -H "$vm_metadata_google_header" "$daisy_sources_metadata_url")
@@ -216,6 +220,9 @@ if [[ -n ${docker_image_var_names:?} ]]; then
 else
     log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
 fi
+
+log 'Cached docker images:'
+docker images
 
 log 'Making systemd additions...'
 mkdir -p /etc/systemd/system/google-startup-scripts.service.d
