@@ -172,9 +172,7 @@ object Boot extends IOApp {
       )
 
       val zombieClusterMonitor =
-        ZombieRuntimeMonitor[IO](zombieRuntimeMonitorConfig,
-                                 googleDependencies.googleProjectDAO,
-                                 googleDependencies.googleDataproc)
+        ZombieRuntimeMonitor[IO](zombieRuntimeMonitorConfig)
 
       val leoKubernetesService: LeoKubernetesServiceInterp[IO] =
         new LeoKubernetesServiceInterp(appDependencies.authProvider,
