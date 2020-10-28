@@ -9,7 +9,7 @@ import scala.util.Try
 @DoNotDiscover
 class RStudioSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
-  override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBaseImage.imageUrl)
+  override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBioconductorImaeg.imageUrl)
 
   "RStudioSpec" - {
 
