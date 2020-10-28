@@ -217,8 +217,6 @@ log 'Installing gvisor...'
 curl -fsSL https://gvisor.dev/archive.key | sudo apt-key add -
 add-apt-repository "deb https://storage.googleapis.com/gvisor/releases release main"
 retry 5 apt-get update
-# the apt-get install automatically configures docker, no need for additional steps
-# https://gvisor.dev/docs/user_guide/quick_start/docker/
 retry 5 apt-get install -y -q runsc
 runsc install
 jq '.runtimes.runsc += {"runtimeArgs":["--network=host"]}' /etc/docker/daemon.json > /etc/docker/daemon.json.tmp \
