@@ -2,7 +2,7 @@
 # configuring memory options in container mode. See discussion in:
 # https://docs.docker.com/compose/compose-file/#resources
 # https://github.com/docker/compose/issues/4513
-version: '2'
+version: '2.4'
 services:
   welder:
     container_name: "${WELDER_SERVER_NAME}"
@@ -12,6 +12,8 @@ services:
     # when Application Default Credentials are available.
     # See https://broadworkbench.atlassian.net/browse/IA-1026
     entrypoint: "tail -f /dev/null"
+    # TODO gvisor doesn't work in welder for some reason
+    #runtime: runsc
     network_mode: host
     restart: always
     environment:

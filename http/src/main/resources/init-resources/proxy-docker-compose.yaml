@@ -1,8 +1,9 @@
-version: '2'
+version: '2.4'
 services:
   proxy:
     container_name: "${PROXY_SERVER_NAME}"
     image: "${PROXY_DOCKER_IMAGE}"
+    runtime: runsc
     network_mode: host
     volumes:
     - /certs/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
