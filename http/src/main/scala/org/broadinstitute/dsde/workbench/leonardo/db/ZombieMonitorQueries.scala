@@ -3,7 +3,6 @@ package db
 
 import java.time.Instant
 
-import cats.data.Chain
 import cats.implicits._
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -16,35 +15,6 @@ import slick.dbio.DBIO
 import scala.concurrent.ExecutionContext
 
 object ZombieMonitorQueries {
-
-  def listActiveZombieQuery(
-    implicit ec: ExecutionContext
-  ): DBIO[Map[GoogleProject, Chain[ZombieCandidate]]] = {
-    val runtimes = clusterQuery.filter(_.status inSetBind RuntimeStatus.activeStatuses)
-    val joinedQuery = runtimes.join(RuntimeConfigQueries.runtimeConfigs).on(_.runtimeConfigId === _.id)
-    joinedQuery.result.map { rs =>
-      rs.toList.foldMap { r =>
-        val asyncRuntimeFields = (r._1.googleId, r._1.operationName, r._1.stagingBucket).mapN {
-          (googleId, operationName, stagingBucket) =>
-            AsyncRuntimeFields(googleId, OperationName(operationName), GcsBucketName(stagingBucket), r._1.hostIp map IP)
-        }
-        Map(
-          r._1.googleProject -> Chain(
-            ZombieCandidate(
-              r._1.id,
-              r._1.googleProject,
-              r._1.runtimeName,
-              r._1.status,
-              r._1.auditInfo.createdDate,
-              asyncRuntimeFields,
-              r._2.runtimeConfig.cloudService
-            )
-          )
-        )
-      }
-    }
-  }
-
   private def unconfirmedRuntimeLabels: Query[LabelTable, LabelRecord, Seq] =
     labelQuery
       .filter(_.resourceType === LabelResourceType.runtime)

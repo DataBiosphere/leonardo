@@ -1,19 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.Parallel
 import cats.effect.concurrent.Semaphore
-import cats.effect.{Concurrent, ContextShift, IO, Timer}
+import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.{DataprocClusterName, GoogleDataprocService}
 import org.broadinstitute.dsde.workbench.leonardo.config.ZombieRuntimeMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -27,19 +23,15 @@ import scala.concurrent.ExecutionContext
 /**
  * This monitor periodically sweeps the Leo database and checks for and handles zombie runtimes.
  * There are two types of zombie runtimes:
- * Active zombie : a runtime that is deleted on the Google side, but still marked as active in the Leo DB
  * Inactive zombie : a runtime that is in Deleted status in the Leo DB, but still running in Google
  */
 class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
-  config: ZombieRuntimeMonitorConfig,
-  googleProjectDAO: GoogleProjectDAO,
-  googleDataprocService: GoogleDataprocService[F]
+  config: ZombieRuntimeMonitorConfig
 )(implicit F: Concurrent[F],
   metrics: OpenTelemetryMetrics[F],
   logger: Logger[F],
   dbRef: DbReference[F],
   ec: ExecutionContext,
-  cs: ContextShift[IO],
   runtimes: RuntimeInstances[F]) {
 
   val process: Stream[F, Unit] =
@@ -53,55 +45,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       start <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       tid = TraceId(s"fromZombieCheck_${start}")
       implicit0(traceId: ApplicativeAsk[F, TraceId]) = ApplicativeAsk.const[F, TraceId](tid)
-      startInstant = Instant.ofEpochMilli(start)
       semaphore <- Semaphore[F](config.concurrency)
-
-      // Get active runtimes from the Leo DB, grouped by project
-      activeRuntimeMap <- ZombieMonitorQueries.listActiveZombieQuery.transaction
-
-      _ <- logger.info(
-        s"Starting active zombie detection across ${activeRuntimeMap.size} projects with concurrency of ${config.concurrency}"
-      )
-      activeZombies <- activeRuntimeMap.toList.parFlatTraverse[F, ZombieCandidate] {
-        case (project, zombieCandidates) =>
-          semaphore.withPermit(
-            // Check if the project is active
-            isProjectActiveInGoogle(project).flatMap {
-              case true =>
-                // If the project is active, check each individual runtime
-                zombieCandidates.toList.traverseFilter {
-                  candidate =>
-                    // If the runtime is less than one minute old, it may not exist in Google because it is still Provisioning, so it's not a zombie
-                    candidate.cloudService.interpreter
-                      .getRuntimeStatus(
-                        GetRuntimeStatusParams(candidate.googleProject, candidate.runtimeName, Some(config.gceZoneName))
-                      )
-                      .attempt
-                      .flatMap {
-                        case Left(e) =>
-                          logger
-                            .warn(e)(
-                              s"Unable to check status of runtime ${candidate.googleProject.value} / ${candidate.runtimeName.asString} for active zombie runtime detection"
-                            )
-                            .as(None)
-                        case Right(RuntimeStatus.Deleted) =>
-                          F.pure(zombieIfOlderThanCreationHangTolerance(candidate, startInstant))
-                        case Right(RuntimeStatus.Error) =>
-                          // If the dataproc cluster (only dataproc has ERROR status) is in ERROR status, we will mark the cluster in ERROR status in DB
-                          nowInstant
-                            .flatMap(n => erroredDataprocCluster(candidate, n))
-                            .as(None)
-                        case Right(_) =>
-                          F.pure(None)
-                      }
-                }
-              case false =>
-                // If the project is inactive, all runtimes in the project are zombies
-                F.pure(zombieCandidates.toList)
-            }
-          )
-      }
-
       // Get all deleted runtimes that haven't been confirmed from the Leo DB
       unconfirmedDeletedRuntimes <- ZombieMonitorQueries.listInactiveZombieQuery.transaction
 
@@ -131,13 +75,11 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
         .map(_.flattenOption)
 
       // Delete runtime on Leo side if active zombie, or on Google side if inactive zombie
-      _ <- activeZombies.parTraverse(zombie => semaphore.withPermit(handleActiveZombieRuntime(zombie, startInstant)))
       _ <- inactiveZombies.parTraverse(zombie => semaphore.withPermit(handleInactiveZombieRuntime(zombie)))
       end <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       duration = end - start
       _ <- logger.info(
-        s"Detected ${activeZombies.size} active zombie runtimes in ${activeZombies.map(_.googleProject).toSet.size} projects " +
-          s"and ${inactiveZombies.size} inactive zombie runtimes. " +
+        s"Detected ${inactiveZombies.size} inactive zombie runtimes. " +
           s"Elapsed time = ${duration} milli seconds."
       )
     } yield ()
@@ -148,32 +90,6 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       labelQuery.save(runtimeId, LabelResourceType.Runtime, config.deletionConfirmationLabelKey, "true")
     }.void
 
-  private def isProjectActiveInGoogle(googleProject: GoogleProject): F[Boolean] = {
-    // Check the project and its billing info
-    val res = for {
-      isBillingActive <- F.liftIO(IO.fromFuture(IO(googleProjectDAO.isBillingActive(googleProject.value))))
-      // short circuit
-      isProjectActive <- if (!isBillingActive) F.pure(false)
-      else F.liftIO(IO.fromFuture(IO(googleProjectDAO.isProjectActive(googleProject.value))))
-    } yield isProjectActive
-
-    res.recoverWith {
-      case e: GoogleJsonResponseException if e.getStatusCode == 403 =>
-        logger
-          .info(e)(
-            s"Unable to check status of project ${googleProject.value} for zombie runtime detection " +
-              s"due to a 403 from google. We are assuming this is a free credits project that has been cleaned up. " +
-              s"Marking project as a zombie."
-          )
-          .as(false)
-
-      case e =>
-        logger
-          .warn(e)(s"Unable to check status of project ${googleProject.value} for zombie runtime detection")
-          .as(true)
-    }
-  }
-
   private[monitor] def ifRuntimeExistInGoogle(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
@@ -182,76 +98,6 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     cloudService.interpreter
       .getRuntimeStatus(GetRuntimeStatusParams(googleProject, runtimeName, Some(config.gceZoneName)))
       .map(s => s != RuntimeStatus.Deleted)
-
-  private def zombieIfOlderThanCreationHangTolerance(candidate: ZombieCandidate,
-                                                     now: Instant): Option[ZombieCandidate] = {
-    val milliSecondsSinceRuntimeCreation: Long = now.toEpochMilli - candidate.createdDate.toEpochMilli
-    if (milliSecondsSinceRuntimeCreation < config.creationHangTolerance.toMillis) {
-      None
-    } else {
-      Some(candidate)
-    }
-  }
-
-  private def handleActiveZombieRuntime(zombie: ZombieCandidate,
-                                        now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    for {
-      traceId <- ev.ask
-      _ <- logger.info(
-        s"${traceId.asString} | Deleting active zombie runtime: ${zombie.googleProject} / ${zombie.runtimeName}"
-      ) //TODO: do we need to delete sam resource as well?
-      _ <- metrics.incrementCounter("numOfActiveZombieRuntimes")
-      _ <- dbRef.inTransaction {
-        for {
-          _ <- clusterQuery.completeDeletion(zombie.id, now)
-          _ <- labelQuery
-            .save(zombie.id, LabelResourceType.Runtime, config.deletionConfirmationLabelKey, "false")
-          error = RuntimeError(
-            s"An underlying resource was removed in Google. Runtime(${zombie.runtimeName.asString}) has been marked deleted in Leo.",
-            None,
-            now
-          )
-          _ <- clusterErrorQuery.save(zombie.id, error)
-        } yield ()
-      }
-    } yield ()
-
-  private def erroredDataprocCluster(zombie: ZombieCandidate,
-                                     now: Instant)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
-    for {
-      traceId <- ev.ask
-      _ <- logger.info(
-        s"${traceId.asString} | Error-ed dataproc cluster: ${zombie.googleProject} / ${zombie.runtimeName}"
-      )
-      _ <- metrics.incrementCounter("numOfErroredDataprocClusters")
-      cluster <- googleDataprocService.getCluster(zombie.googleProject,
-                                                  config.dataprocRegion,
-                                                  DataprocClusterName(zombie.runtimeName.asString))
-      c <- F.fromOption(
-        cluster,
-        new RuntimeException(
-          s"${zombie.googleProject.value}/${zombie.runtimeName.asString} not found in Google. This should never happen"
-        )
-      )
-      error = c.getStatus.getDetail
-      _ <- dbRef.inTransaction {
-        for {
-          _ <- clusterQuery.updateClusterStatus(zombie.id, RuntimeStatus.Error, now)
-          e = RuntimeError(
-            s"""
-               |Unrecoverable ERROR state for Spark Cloud Environment: ${error}
-               |
-               |Please Delete and Recreate your Cloud environment. If you have important data you’d like to retrieve 
-               |from your Cloud environment prior to deleting, try to access the machine via notebook or terminal. 
-               |If you can't connect to the cluster, please contact customer support and we can help you move your data.
-               |""".stripMargin,
-            None,
-            now
-          )
-          _ <- clusterErrorQuery.save(zombie.id, e)
-        } yield ()
-      }
-    } yield ()
 
   private def handleInactiveZombieRuntime(zombie: ZombieCandidate)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
     for {
@@ -284,15 +130,12 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
 
 object ZombieRuntimeMonitor {
   def apply[F[_]: Parallel: ContextShift: Timer](
-    config: ZombieRuntimeMonitorConfig,
-    googleProjectDAO: GoogleProjectDAO,
-    googleDataprocService: GoogleDataprocService[F]
+    config: ZombieRuntimeMonitorConfig
   )(implicit F: Concurrent[F],
     metrics: OpenTelemetryMetrics[F],
     logger: Logger[F],
     dbRef: DbReference[F],
     ec: ExecutionContext,
-    cs: ContextShift[IO],
     runtimes: RuntimeInstances[F]): ZombieRuntimeMonitor[F] =
-    new ZombieRuntimeMonitor(config, googleProjectDAO, googleDataprocService)
+    new ZombieRuntimeMonitor(config)
 }
