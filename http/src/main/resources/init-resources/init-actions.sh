@@ -215,8 +215,6 @@ END
 
     # Install RStudio license file, if specified
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-      # TODO: remove the gsutil stat command when https://github.com/broadinstitute/firecloud-develop/pull/2105
-      # is merged because then we'll expect the license file to always be present.
       STAT_EXIT_CODE=0
       gsutil -q stat ${RSTUDIO_LICENSE_FILE} || STAT_EXIT_CODE=$?
       if [ $STAT_EXIT_CODE -eq 0 ] ; then
@@ -333,14 +331,14 @@ END
             gsutil cp $ext /etc
             JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
             docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
           elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
             JUPYTER_EXTENSION_FILE=`basename $ext`
             curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
             docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+            retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
           else
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
+            retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
           fi
         done
       fi
@@ -356,9 +354,9 @@ END
             gsutil cp $ext /etc
             JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
             docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
           else
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
+            retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
           fi
         done
       fi
@@ -375,9 +373,9 @@ END
             gsutil cp $ext /etc
             JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
             docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
+            retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
           else
-            retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
+            retry 3 docker exec -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
           fi
         done
       fi
@@ -458,14 +456,6 @@ END
             retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
           fi
         done
-      fi
-
-      STEP_TIMINGS+=($(date +%s))
-
-      # fix for https://broadworkbench.atlassian.net/browse/IA-1453
-      # TODO: remove this when we stop supporting the legacy docker image
-      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' ${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh
       fi
 
       STEP_TIMINGS+=($(date +%s))

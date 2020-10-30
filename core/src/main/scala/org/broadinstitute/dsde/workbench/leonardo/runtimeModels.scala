@@ -404,19 +404,3 @@ final case class IpRange(value: String) extends AnyVal
 final case class NetworkTag(value: String) extends ValueObject
 final case class GoogleOperation(name: OperationName, id: GoogleId)
 final case class GoogleId(value: String) extends AnyVal
-
-sealed trait RuntimeOperation extends Product with Serializable {
-  def asString: String
-  final override def toString = asString
-}
-object RuntimeOperation {
-  final case object Creating extends RuntimeOperation {
-    val asString = "creating"
-  }
-  final case object Restarting extends RuntimeOperation {
-    val asString = "restarting"
-  }
-  final case object Stopping extends RuntimeOperation {
-    val asString = "stopping"
-  }
-}
