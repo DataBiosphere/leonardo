@@ -38,6 +38,15 @@ object KubernetesServiceDbQueries {
       labelFilter
     )
 
+  // Called by MonitorAtBoot to determine which apps need monitoring
+  def listMonitoredApps(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
+    // note we only use AppStatus to trigger monitoring; not cluster status or nodepool status
+    joinFullAppAndUnmarshal(
+      kubernetesClusterQuery,
+      nodepoolQuery,
+      appQuery.filter(_.status inSetBind AppStatus.monitoredStatuses)
+    )
+
   // this is intended to be called first by any kubernetes /app endpoints to enforce one cluster per project
   // an error is thrown if the cluster is creating, due to the fact that we do not allow apps to be created while the cluster for that project is creating, since that means another app is already queued and waiting on this cluster
   // if the cluster already exists, this is a no-op

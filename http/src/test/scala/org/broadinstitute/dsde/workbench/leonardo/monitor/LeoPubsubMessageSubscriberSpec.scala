@@ -1168,7 +1168,7 @@ class LeoPubsubMessageSubscriberSpec
     val mockGKEService = new MockGKEService {
       override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
         implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[v1.Operation] = IO.raiseError(new Exception(exceptionMessage))
+      ): IO[Option[v1.Operation]] = IO.raiseError(new Exception(exceptionMessage))
     }
     val gkeInterp =
       new GKEInterpreter[IO](Config.gkeInterpConfig,
@@ -1583,7 +1583,7 @@ class LeoPubsubMessageSubscriberSpec
     val mockGKEService = new MockGKEService {
       override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(
         implicit ev: ApplicativeAsk[IO, TraceId]
-      ): IO[com.google.api.services.container.model.Operation] = IO.raiseError(new Exception("test exception"))
+      ): IO[Option[com.google.api.services.container.model.Operation]] = IO.raiseError(new Exception("test exception"))
     }
 
     val gkeInterp =
@@ -1669,6 +1669,150 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.handleDeleteKubernetesClusterMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
     } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "be idempotent for create app" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+
+    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val makeApp1 = makeApp(1, savedNodepool1.id)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = Some(disk),
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
+
+    val assertions = for {
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
+      getCluster = clusterOpt.get
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+      getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
+      getDisk = getDiskOpt.get
+    } yield {
+      getCluster.status shouldBe KubernetesClusterStatus.Running
+      getCluster.nodepools.size shouldBe 2
+      getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
+      getApp.app.errors shouldBe List()
+      getApp.app.status shouldBe AppStatus.Running
+      getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
+        ServiceAccountName("gxy-ksa")
+      )
+      getApp.cluster.status shouldBe KubernetesClusterStatus.Running
+      getApp.nodepool.status shouldBe NodepoolStatus.Running
+      getApp.cluster.asyncFields shouldBe Some(
+        KubernetesClusterAsyncFields(IP("1.2.3.4"),
+                                     IP("0.0.0.0"),
+                                     NetworkFields(Config.vpcConfig.networkName,
+                                                   Config.vpcConfig.subnetworkName,
+                                                   Config.vpcConfig.subnetworkIpRange))
+      )
+      getDisk.status shouldBe DiskStatus.Ready
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
+      msg = CreateAppMessage(
+        savedCluster1.googleProject,
+        Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
+        savedApp1.id,
+        savedApp1.appName,
+        Some(disk.id),
+        Map.empty,
+        savedApp1.appType,
+        Some(tr)
+      )
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      // send message twice
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "be idempotent for delete app" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 0
+      getApp.app.status shouldBe AppStatus.Deleted
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+    }
+
+    val res = for {
+      tr <- traceId.ask
+      msg = DeleteAppMessage(savedApp1.id,
+                             savedApp1.appName,
+                             savedNodepool1.id,
+                             savedCluster1.googleProject,
+                             None,
+                             Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      // send message twice
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "be idempotent for create disk" in isolatedDbTest {
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res = for {
+      disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
+      tr <- traceId.ask
+      now <- IO(Instant.now)
+
+      message = CreateDiskMessage.fromDisk(disk, Some(tr))
+      // send 2 messages
+      _ <- leoSubscriber.messageResponder(message)
+      _ <- leoSubscriber.messageResponder(message)
+      updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
+    } yield {
+      updatedDisk shouldBe 'defined
+      updatedDisk.get.googleId.get.value shouldBe "target"
+    }
+
+    res.unsafeRunSync()
+  }
+  it should "be idempotent for delete disk" in isolatedDbTest {
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res = for {
+      disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
+      tr <- traceId.ask
+
+      message = DeleteDiskMessage(disk.id, Some(tr))
+      // send 2 messages
+      _ <- leoSubscriber.messageResponder(message)
+      _ <- leoSubscriber.messageResponder(message)
+      updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
+    } yield {
+      updatedDisk shouldBe 'defined
+      updatedDisk.get.status shouldBe DiskStatus.Deleting
+    }
 
     res.unsafeRunSync()
   }

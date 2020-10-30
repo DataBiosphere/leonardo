@@ -152,4 +152,6 @@ object LeoLenses {
   val appToServices: Lens[App, List[KubernetesService]] = GenLens[App](_.appResources.services)
 
   val appToCreator: Lens[App, WorkbenchEmail] = GenLens[App](_.auditInfo.creator)
+
+  val appToDisk: Lens[App, Option[PersistentDisk]] = GenLens[App](_.appResources.disk)
 }
