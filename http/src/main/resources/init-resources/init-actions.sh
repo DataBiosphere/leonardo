@@ -322,6 +322,16 @@ END
 
       STEP_TIMINGS+=($(date +%s))
 
+      # Ugly hack alert!
+      #
+      # Prior to terra-jupyter-base:0.0.16, the jupyter_install_*_extension.sh scripts expect to be run
+      # as root and contain `sudo -E -u jupyter-user` commands. This is no longer possible with gvisor (IA-2315)
+      # so we are instead running them as jupyter-user and stripping out the sudo commands.
+      #
+      # Though terra-jupyter-base has been updated, we include this sed command here for backwards
+      # compatibility, so older image versions can still be used.
+      retry 3 docker exec ${JUPYTER_SERVER_NAME} /bin/bash -c "find /etc/jupyter/scripts/extension -name *.sh | xargs sed -i 's/sudo -E -u jupyter-user //g'"
+
       # Install NbExtensions
       if [ ! -z "${JUPYTER_NB_EXTENSIONS}" ] ; then
         for ext in ${JUPYTER_NB_EXTENSIONS}
