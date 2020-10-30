@@ -47,7 +47,6 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           customEnvVarsConfigUri: String,
                                           memLimit: String,
                                           welderMemLimit: String,
-                                          runtimeOperation: String,
                                           updateWelder: String,
                                           disableDelocalization: String,
                                           rstudioLicenseFile: String,
@@ -77,7 +76,6 @@ case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimePr
                                                 clusterFilesConfig: SecurityFilesConfig,
                                                 clusterResourcesConfig: ClusterResourcesConfig,
                                                 clusterResourceConstraints: Option[RuntimeResourceConstraints],
-                                                runtimeOperation: RuntimeOperation,
                                                 welderAction: Option[WelderAction],
                                                 isGceFormatted: Boolean,
                                                 useGceStartupScript: Boolean)
@@ -113,7 +111,6 @@ object RuntimeTemplateValuesConfig {
       clusterFilesConfig,
       clusterResourcesConfig,
       clusterResourceConstraints,
-      RuntimeOperation.Creating,
       None,
       isFormatted,
       false
@@ -128,7 +125,6 @@ object RuntimeTemplateValuesConfig {
                   clusterFilesConfig: SecurityFilesConfig,
                   clusterResourcesConfig: ClusterResourcesConfig,
                   clusterResourceConstraints: Option[RuntimeResourceConstraints],
-                  runtimeOperation: RuntimeOperation,
                   welderAction: Option[WelderAction],
                   useGceStartupScript: Boolean): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
@@ -149,7 +145,6 @@ object RuntimeTemplateValuesConfig {
       clusterFilesConfig,
       clusterResourcesConfig,
       clusterResourceConstraints,
-      runtimeOperation,
       welderAction,
       false,
       useGceStartupScript
@@ -232,7 +227,6 @@ object RuntimeTemplateValues {
         .getOrElse(""),
       config.clusterResourceConstraints.map(_.memoryLimit.toString).getOrElse(""),
       config.welderConfig.welderReservedMemory.map(_.toString).getOrElse(""),
-      config.runtimeOperation.asString,
       (config.welderAction == Some(UpdateWelder)).toString,
       (config.welderAction == Some(DisableDelocalization)).toString,
       config.initBucketName

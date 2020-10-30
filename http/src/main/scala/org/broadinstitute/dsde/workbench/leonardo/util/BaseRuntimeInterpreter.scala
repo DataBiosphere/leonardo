@@ -176,7 +176,6 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.clusterFilesConfig,
       config.clusterResourcesConfig,
       Some(runtimeResourceConstraints),
-      RuntimeOperation.Restarting,
       welderAction,
       useGceStartupScript
     )
@@ -212,7 +211,6 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       config.clusterFilesConfig,
       config.clusterResourcesConfig,
       None,
-      RuntimeOperation.Stopping,
       None,
       false
     )

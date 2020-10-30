@@ -17,7 +17,6 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       CommonTestData.clusterFilesConfig,
       CommonTestData.clusterResourcesConfig,
       Some(CommonTestData.clusterResourceConstraints),
-      RuntimeOperation.Restarting,
       Some(WelderAction.UpdateWelder),
       false
     )
@@ -73,7 +72,6 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.rstudioLicenseFile shouldBe GcsPath(CommonTestData.initBucketName,
                                                  GcsObjectName("rstudio-license-file.lic")).toUri
       result.rstudioServerName shouldBe "rstudio-server"
-      result.runtimeOperation shouldBe RuntimeOperation.Restarting.asString
       result.stagingBucketName shouldBe CommonTestData.stagingBucketName.value
       result.updateWelder shouldBe "true"
       result.welderDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
