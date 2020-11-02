@@ -15,31 +15,18 @@ import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
+import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
-class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives)(
-  implicit timer: Timer[IO]
-) {
-  val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
-    CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
-      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
-      pathPrefix("google" / "v1" / "disks") {
-        pathEndOrSingleSlash {
-          parameterMap { params =>
-            get {
-              complete(
-                listDisksHandler(
-                  userInfo,
-                  None,
-                  params
-                )
-              )
-            }
-          }
-        } ~
-          pathPrefix(googleProjectSegment) { googleProject =>
+class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives) {
+  val routes: server.Route = traceRequestForService(serviceData) { span =>
+    extractAppContext(Some(span)) { implicit ctx =>
+      userInfoDirectives.requireUserInfo { userInfo =>
+        CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+          implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+          pathPrefix("google" / "v1" / "disks") {
             pathEndOrSingleSlash {
               parameterMap { params =>
                 get {
@@ -53,119 +40,126 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                 }
               }
             } ~
-              pathPrefix(Segment) { diskNameString =>
-                RouteValidation.validateNameDirective(diskNameString, DiskName.apply) { diskName =>
-                  pathEndOrSingleSlash {
-                    post {
-                      entity(as[CreateDiskRequest]) { req =>
-                        complete(
-                          createDiskHandler(
-                            userInfo,
-                            googleProject,
-                            diskName,
-                            req
-                          )
+              pathPrefix(googleProjectSegment) { googleProject =>
+                pathEndOrSingleSlash {
+                  parameterMap { params =>
+                    get {
+                      complete(
+                        listDisksHandler(
+                          userInfo,
+                          Some(googleProject),
+                          params
                         )
-                      }
-                    } ~
-                      get {
-                        complete(
-                          getDiskHandler(
-                            userInfo,
-                            googleProject,
-                            diskName
-                          )
-                        )
-                      } ~
-                      patch {
-                        entity(as[UpdateDiskRequest]) { req =>
-                          complete(
-                            updateDiskHandler(
-                              userInfo,
-                              googleProject,
-                              diskName,
-                              req
-                            )
-                          )
-                        }
-                      } ~
-                      delete {
-                        complete(
-                          deleteDiskHandler(
-                            userInfo,
-                            googleProject,
-                            diskName
-                          )
-                        )
-                      }
+                      )
+                    }
                   }
-                }
+                } ~
+                  pathPrefix(Segment) { diskNameString =>
+                    RouteValidation.validateNameDirective(diskNameString, DiskName.apply) { diskName =>
+                      pathEndOrSingleSlash {
+                        post {
+                          entity(as[CreateDiskRequest]) { req =>
+                            complete(
+                              createDiskHandler(
+                                userInfo,
+                                googleProject,
+                                diskName,
+                                req
+                              )
+                            )
+                          }
+                        } ~
+                          get {
+                            complete(
+                              getDiskHandler(
+                                userInfo,
+                                googleProject,
+                                diskName
+                              )
+                            )
+                          } ~
+                          patch {
+                            entity(as[UpdateDiskRequest]) { req =>
+                              complete(
+                                updateDiskHandler(
+                                  userInfo,
+                                  googleProject,
+                                  diskName,
+                                  req
+                                )
+                              )
+                            }
+                          } ~
+                          delete {
+                            complete(
+                              deleteDiskHandler(
+                                userInfo,
+                                googleProject,
+                                diskName
+                              )
+                            )
+                          }
+                      }
+                    }
+                  }
               }
           }
+        }
       }
     }
   }
 
-  private[api] def createDiskHandler(userInfo: UserInfo,
-                                     googleProject: GoogleProject,
-                                     diskName: DiskName,
-                                     req: CreateDiskRequest): IO[ToResponseMarshallable] =
+  private[api] def createDiskHandler(
+    userInfo: UserInfo,
+    googleProject: GoogleProject,
+    diskName: DiskName,
+    req: CreateDiskRequest
+  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      _ <- diskService.createDisk(
-        userInfo,
-        googleProject,
-        diskName,
-        req
-      )
+      ctx <- ev.ask
+      apiCall = diskService.createDisk(userInfo, googleProject, diskName, req)
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
-  private[api] def getDiskHandler(userInfo: UserInfo,
-                                  googleProject: GoogleProject,
-                                  diskName: DiskName): IO[ToResponseMarshallable] =
+  private[api] def getDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      resp <- diskService.getDisk(userInfo, googleProject, diskName)
+      ctx <- ev.ask
+      apiCall = diskService.getDisk(userInfo, googleProject, diskName)
+      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getDisk").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
-  private[api] def listDisksHandler(userInfo: UserInfo,
-                                    googleProject: Option[GoogleProject],
-                                    params: Map[String, String]): IO[ToResponseMarshallable] =
+  private[api] def listDisksHandler(
+    userInfo: UserInfo,
+    googleProject: Option[GoogleProject],
+    params: Map[String, String]
+  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      resp <- diskService.listDisks(userInfo, googleProject, params)
+      ctx <- ev.ask
+      apiCall = diskService.listDisks(userInfo, googleProject, params)
+      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listDisks").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
-  private[api] def deleteDiskHandler(userInfo: UserInfo,
-                                     googleProject: GoogleProject,
-                                     diskName: DiskName): IO[ToResponseMarshallable] =
+  private[api] def deleteDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      _ <- diskService.deleteDisk(userInfo, googleProject, diskName)
+      ctx <- ev.ask
+      apiCall = diskService.deleteDisk(userInfo, googleProject, diskName)
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
-  private[api] def updateDiskHandler(userInfo: UserInfo,
-                                     googleProject: GoogleProject,
-                                     diskName: DiskName,
-                                     req: UpdateDiskRequest): IO[ToResponseMarshallable] =
+  private[api] def updateDiskHandler(
+    userInfo: UserInfo,
+    googleProject: GoogleProject,
+    diskName: DiskName,
+    req: UpdateDiskRequest
+  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      _ <- diskService.updateDisk(userInfo, googleProject, diskName, req)
+      ctx <- ev.ask
+      apiCall = diskService.updateDisk(userInfo, googleProject, diskName, req)
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 }
 
