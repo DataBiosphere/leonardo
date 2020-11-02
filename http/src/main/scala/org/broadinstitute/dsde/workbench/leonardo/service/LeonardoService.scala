@@ -70,9 +70,13 @@ case class RuntimeCannotBeStoppedException(googleProject: GoogleProject,
       StatusCodes.Conflict
     )
 
-case class RuntimeCannotBeDeletedException(googleProject: GoogleProject, runtimeName: RuntimeName)
-    extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be deleted in Creating status",
-                         StatusCodes.Conflict)
+case class RuntimeCannotBeDeletedException(googleProject: GoogleProject,
+                                           runtimeName: RuntimeName,
+                                           status: RuntimeStatus = RuntimeStatus.Creating)
+    extends LeoException(
+      s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be deleted in ${status} status",
+      StatusCodes.Conflict
+    )
 
 case class RuntimeCannotBeStartedException(googleProject: GoogleProject,
                                            runtimeName: RuntimeName,

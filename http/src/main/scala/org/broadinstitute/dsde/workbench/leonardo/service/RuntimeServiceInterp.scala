@@ -285,7 +285,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](AuthorizationError(req.userInfo.userEmail))
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
-      else F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName))
+      else
+        F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName, runtime.status))
       // delete the runtime
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       persistentDiskToDelete <- runtimeConfig match {
