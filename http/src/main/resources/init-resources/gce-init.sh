@@ -102,11 +102,11 @@ export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
 export MEM_LIMIT=$(memLimit)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
+export WELDER_ENABLED=$(welderEnabled)
 
 JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
 JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
-WELDER_ENABLED=$(welderEnabled)
 IS_GCE_FORMATTED=$(isGceFormatted)
 JUPYTER_HOME=/etc/jupyter
 JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
