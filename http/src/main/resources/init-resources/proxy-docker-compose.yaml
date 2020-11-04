@@ -3,7 +3,8 @@ services:
   proxy:
     container_name: "${PROXY_SERVER_NAME}"
     image: "${PROXY_DOCKER_IMAGE}"
-    runtime: runsc
+    # TODO gvisor doesn't work with apache for some reason
+    #runtime: runsc
     network_mode: host
     volumes:
     - /certs/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
