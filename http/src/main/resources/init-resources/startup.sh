@@ -133,7 +133,26 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
     # update container MEM_LIMIT to reflect VM's MEM_LIMIT
-    docker update $JUPYTER_SERVER_NAME --memory $MEM_LIMIT
+    # Note: previously we updated the running container via:
+    #   docker update $JUPYTER_SERVER_NAME --memory $MEM_LIMIT
+    # However the runsc docker runtime (gvisor) does not support in-place `docker update` so we
+    # need to actually restart the container with the new MEM_LIMIT.
+    CUR_MEM_LIMIT=$(cat /sys/fs/cgroup/memory/docker/$(docker inspect --format="{{.Id}}" jupyter-server)/memory.limit_in_bytes)
+    regexp='^[0-9]+$'
+    if [[ "$CUR_MEM_LIMIT" =~ $regexp ]] ; then
+        if [[ "${CUR_MEM_LIMIT}b" != "$MEM_LIMIT" ]] ; then
+            echo "Memory limit changed from ${CUR_MEM_LIMIT}b to $MEM_LIMIT. Restarting Jupyter container."
+            docker-compose -f /etc/jupyter-docker-compose*.yaml stop
+            docker-compose -f /etc/jupyter-docker-compose*.yaml rm -f
+            docker-compose -f /etc/jupyter-docker-compose*.yaml up -d &> start_output.txt || EXIT_CODE=$?
+            failScriptIfError
+        else
+            echo "Memory limit unchanged: $MEM_LIMIT. Not updating Jupyter container."
+        fi
+    else
+        echo "Unable to detect current memory limit from docker: $CUR_MEM_LIMIT. Not updating Jupyter container."
+    fi
+
 
     # See IA-1901: Jupyter UI stalls indefinitely on initial R kernel connection after cluster create/resume
     # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
