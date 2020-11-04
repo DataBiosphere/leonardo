@@ -378,7 +378,8 @@ object RuntimeRoutes {
       as <- x.downField("allowStop").as[Option[Boolean]]
       ap <- x.downField("autopause").as[Option[Boolean]]
       at <- x.downField("autopauseThreshold").as[Option[Int]]
-    } yield UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes))
+      lm <- x.downField("labels").as[Option[LabelMap]]
+    } yield UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), lm)
   }
 
   implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap { x =>
