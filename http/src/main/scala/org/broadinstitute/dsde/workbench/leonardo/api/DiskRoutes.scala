@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.DiskName
@@ -28,7 +28,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
-          implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+          implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
           pathPrefix("google" / "v1" / "disks") {
             pathEndOrSingleSlash {
               parameterMap { params =>
@@ -117,19 +117,19 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     googleProject: GoogleProject,
     diskName: DiskName,
     req: CreateDiskRequest
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = diskService.createDisk(userInfo, googleProject, diskName, req)
       _ <- metrics.incrementCounter("createDisk")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
   private[api] def getDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = diskService.getDisk(userInfo, googleProject, diskName)
       _ <- metrics.incrementCounter("getDisk")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getDisk").use(_ => apiCall))
@@ -139,19 +139,19 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     userInfo: UserInfo,
     googleProject: Option[GoogleProject],
     params: Map[String, String]
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = diskService.listDisks(userInfo, googleProject, params)
       _ <- metrics.incrementCounter("listDisks")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listDisks").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
   private[api] def deleteDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = diskService.deleteDisk(userInfo, googleProject, diskName)
       _ <- metrics.incrementCounter("deleteDisk")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteDisk").use(_ => apiCall))
@@ -162,9 +162,9 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     googleProject: GoogleProject,
     diskName: DiskName,
     req: UpdateDiskRequest
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = diskService.updateDisk(userInfo, googleProject, diskName, req)
       _ <- metrics.incrementCounter("updateDisk")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateDisk").use(_ => apiCall))

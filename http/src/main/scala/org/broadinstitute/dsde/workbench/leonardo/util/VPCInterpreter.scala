@@ -4,7 +4,7 @@ import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, ContextShift, IO, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 final case class InvalidVPCSetupException(project: GoogleProject)
     extends LeoException(s"Invalid VPC configuration in project ${project.value}")
@@ -56,7 +56,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
 
   override def setUpProjectNetwork(
     params: SetUpProjectNetworkParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[(NetworkName, SubnetworkName)] =
+  )(implicit ev: Ask[F, TraceId]): F[(NetworkName, SubnetworkName)] =
     for {
       // For high-security projects, the network and subnetwork are pre-created and specified by project label.
       // See https://github.com/broadinstitute/gcp-dm-templates/blob/44b13216e5284d1ce46f58514fe51404cdf8f393/firecloud_project.py#L355-L359
@@ -104,7 +104,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
 
   override def setUpProjectFirewalls(
     params: SetUpProjectFirewallsParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  )(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       // create firewalls in the Leonardo network
       _ <- config.vpcConfig.firewallsToAdd.parTraverse_ { fw =>
@@ -129,7 +129,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
                                 create: F[Operation],
                                 fail: Throwable,
                                 msg: String)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Unit] = {
     val getAndCreate = for {
       existing <- get

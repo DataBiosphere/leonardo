@@ -3,7 +3,7 @@ package util
 
 import java.time.Instant
 
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.Operation
 import monocle.Prism
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
@@ -20,15 +20,17 @@ import scala.concurrent.duration.FiniteDuration
  * Currently has interpreters for Dataproc and GCE.
  */
 trait RuntimeAlgebra[F[_]] {
-  def createRuntime(params: CreateRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateRuntimeResponse]
-  def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus]
-  def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]]
-  def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-  def stopRuntime(params: StopRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Option[Operation]]
-  def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
-  def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-  def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
-  def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+  def createRuntime(params: CreateRuntimeParams)(
+    implicit ev: Ask[F, AppContext]
+  ): F[CreateGoogleRuntimeResponse]
+  def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: Ask[F, TraceId]): F[RuntimeStatus]
+  def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: Ask[F, TraceId]): F[Option[Operation]]
+  def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, TraceId]): F[Unit]
+  def stopRuntime(params: StopRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
+  def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, TraceId]): F[Unit]
+  def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, TraceId]): F[Unit]
+  def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, TraceId]): F[Unit]
 }
 
 // Parameters
@@ -65,10 +67,10 @@ object CreateRuntimeParams {
       message.runtimeConfig
     )
 }
-final case class CreateRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
-                                       initBucket: GcsBucketName,
-                                       serviceAccountKey: Option[ServiceAccountKey],
-                                       customImage: CustomImage)
+final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
+                                             initBucket: GcsBucketName,
+                                             serviceAccountKey: Option[ServiceAccountKey],
+                                             customImage: CustomImage)
 final case class GetRuntimeStatusParams(googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
                                         zoneName: Option[ZoneName]) // zoneName is only needed for GCE

@@ -186,7 +186,7 @@ final case class Nodepool(id: NodepoolLeoId,
 object KubernetesNameUtils {
   //UUID almost works for this use case, but kubernetes names must start with a-z
   def getUniqueName[A](apply: String => A): Either[Throwable, A] =
-    KubernetesName.withValidation('k' + UUID.randomUUID().toString.toLowerCase.substring(1), apply)
+    KubernetesName.withValidation(s"k${UUID.randomUUID().toString.toLowerCase.substring(1)}", apply)
 }
 
 case class DefaultNodepool(id: NodepoolLeoId,

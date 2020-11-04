@@ -10,9 +10,8 @@ import akka.http.scaladsl.server
 import akka.http.scaladsl.server.Directives._
 import cats.effect.IO
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import JsonCodec._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
@@ -151,14 +150,15 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
       }
     }
   }
+
   private[api] def createRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
                                         req: CreateRuntime2Request)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = runtimeService.createRuntime(userInfo, googleProject, runtimeName, req)
       _ <- metrics.incrementCounter("createRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
@@ -168,10 +168,10 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
   private[api] def getRuntimeHandler(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = runtimeService.getRuntime(userInfo, googleProject, runtimeName)
       _ <- metrics.incrementCounter("getRuntime")
       resp <- ctx.span.fold(apiCall)(span =>
@@ -183,10 +183,10 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   private[api] def listRuntimesHandler(userInfo: UserInfo,
                                        googleProject: Option[GoogleProject],
                                        params: Map[String, String])(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = runtimeService.listRuntimes(userInfo, googleProject, params)
       _ <- metrics.incrementCounter("listRuntime")
       resp <- ctx.span.fold(apiCall)(span =>
@@ -199,10 +199,10 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
                                         params: Map[String, String])(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       deleteDisk = params
         .get("deleteDisk")
         .map(s => if (s == "true") true else false)
@@ -217,10 +217,10 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
   private[api] def stopRuntimeHandler(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
       _ <- metrics.incrementCounter("stopRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
@@ -230,10 +230,10 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
   private[api] def startRuntimeHandler(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = runtimeService.startRuntime(userInfo, googleProject, runtimeName)
       _ <- metrics.incrementCounter("startRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
@@ -246,10 +246,10 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
                                         req: UpdateRuntimeRequest)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
       _ <- metrics.incrementCounter("updateRuntime")
       _ <- ctx.span.fold(apiCall)(span =>

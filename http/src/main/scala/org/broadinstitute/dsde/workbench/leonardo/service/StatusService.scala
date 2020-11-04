@@ -8,7 +8,7 @@ import akka.actor.ActorSystem
 import akka.util.Timeout
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import akka.pattern.ask
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
@@ -80,7 +80,7 @@ class StatusService(
   }
 
   private def checkSam: IO[SubsystemStatus] = {
-    implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+    implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
     logger.debug(s"Checking Sam status") >> samDAO.getStatus
       .map { statusCheckResponse =>

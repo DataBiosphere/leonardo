@@ -8,7 +8,7 @@ import akka.http.scaladsl.server
 import JsonCodec._
 import akka.http.scaladsl.server.Directives.pathEndOrSingleSlash
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -106,10 +106,10 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
   private[api] def batchNodepoolCreateHandler(userInfo: UserInfo,
                                               googleProject: GoogleProject,
                                               req: BatchNodepoolCreateRequest)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.batchNodepoolCreate(userInfo, googleProject, req)
       _ <- metrics.incrementCounter("batchNodepoolCreate")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "batchNodepoolCreate").use(_ => apiCall))
@@ -119,10 +119,10 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
                                     googleProject: GoogleProject,
                                     appName: AppName,
                                     req: CreateAppRequest)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.createApp(
         userInfo,
         googleProject,
@@ -134,10 +134,10 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
     } yield StatusCodes.Accepted
 
   private[api] def getAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.getApp(
         userInfo,
         googleProject,
@@ -150,10 +150,10 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
   private[api] def listAppHandler(userInfo: UserInfo,
                                   googleProject: Option[GoogleProject],
                                   params: Map[String, String])(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = kubernetesService.listApp(
         userInfo,
         googleProject,
@@ -167,10 +167,10 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
                                     googleProject: GoogleProject,
                                     appName: AppName,
                                     params: Map[String, String])(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
 
       deleteDisk = params
         .get("deleteDisk")

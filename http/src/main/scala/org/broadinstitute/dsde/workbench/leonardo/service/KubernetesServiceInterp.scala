@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
@@ -72,7 +72,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
     appName: AppName,
     req: CreateAppRequest
   )(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -180,7 +180,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
     googleProject: GoogleProject,
     appName: AppName
   )(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[GetAppResponse] =
     for {
       ctx <- as.ask
@@ -198,7 +198,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
     userInfo: UserInfo,
     googleProject: Option[GoogleProject],
     params: Map[String, String]
-  )(implicit as: ApplicativeAsk[F, AppContext]): F[Vector[ListAppResponse]] =
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]] =
     for {
       params <- F.fromEither(LeonardoService.processListParameters(params))
       allClusters <- KubernetesServiceDbQueries.listFullApps(googleProject, params._1, params._2).transaction
@@ -234,7 +234,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
     } yield res
 
   override def deleteApp(request: DeleteAppRequest)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -305,7 +305,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
     } yield ()
 
   override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask

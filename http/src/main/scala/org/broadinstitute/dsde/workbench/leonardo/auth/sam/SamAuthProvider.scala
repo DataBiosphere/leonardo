@@ -8,7 +8,7 @@ import cats.data.NonEmptyList
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Sync, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
@@ -44,7 +44,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     .build(
       new CacheLoader[AuthCacheKey, java.lang.Boolean] {
         override def load(key: AuthCacheKey): java.lang.Boolean = {
-          implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
+          implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
           checkPermission(key.samResourceType, key.samResource, key.action, key.authorization).toIO
             .unsafeRunSync()
         }
@@ -56,7 +56,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
 
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],
-    ev: ApplicativeAsk[F, TraceId]
+    ev: Ask[F, TraceId]
   ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     if (config.authCacheEnabled && sr.cacheableActions.contains(action)) {
@@ -78,7 +78,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
                               samResource: String,
                               action: String,
                               authHeader: Authorization)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Boolean] =
     for {
       traceId <- ev.ask
@@ -96,7 +96,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit sr: SamResourceAction[R, A], ev: ApplicativeAsk[F, TraceId]): F[Boolean] = {
+  )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       // First check permission at the resource level
@@ -112,7 +112,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
   override def getActions[R, A](
     samResource: R,
     userInfo: UserInfo
-  )(implicit sr: SamResourceAction[R, A], ev: ApplicativeAsk[F, TraceId]): F[List[sr.ActionCategory]] = {
+  )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[List[sr.ActionCategory]] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       listOfPermissions <- samDao
@@ -124,7 +124,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
 
   def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],
-    ev: ApplicativeAsk[F, TraceId]
+    ev: Ask[F, TraceId]
   ): F[(List[sr.ActionCategory], List[ProjectAction])] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
@@ -145,7 +145,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
   override def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
-    ev: ApplicativeAsk[F, TraceId]
+    ev: Ask[F, TraceId]
   ): F[List[R]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
@@ -161,7 +161,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
   )(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
-    ev: ApplicativeAsk[F, TraceId]
+    ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
@@ -182,7 +182,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
-  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
     if (sr.policyNames == Set(SamPolicyName.Creator))
       samDao.createResource(samResource, creatorEmail, googleProject)
     else
@@ -192,7 +192,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
-  )(implicit sr: SamResource[R], ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, creatorEmail, googleProject)
 
 }

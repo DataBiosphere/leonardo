@@ -10,7 +10,7 @@ import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
 import io.chrisdavenport.log4cats.StructuredLogger
@@ -34,9 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,
@@ -73,7 +71,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: CreateRuntime2Request
-  )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
@@ -203,7 +201,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield ()
 
   override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
       // throws 404 if not existent
@@ -219,7 +217,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield resp
 
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
@@ -251,7 +249,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield res
 
   override def deleteRuntime(req: DeleteRuntimeRequest)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -368,7 +366,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield ()
 
   def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -414,7 +412,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield ()
 
   def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -462,7 +460,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: UpdateRuntimeRequest
-  )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
       // throw 404 if not existent
@@ -517,7 +515,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     toolDockerImage: Option[ContainerImage],
     welderRegistry: Option[ContainerRegistry],
     welderDockerImage: Option[ContainerImage]
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Set[RuntimeImage]] =
+  )(implicit ev: Ask[F, TraceId]): F[Set[RuntimeImage]] =
     for {
       // Try to autodetect the image
       autodetectedImageOpt <- toolDockerImage.traverse(image =>
@@ -599,7 +597,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     allowStop: Boolean,
     runtime: ClusterRecord,
     runtimeConfig: RuntimeConfig
-  )(implicit ctx: ApplicativeAsk[F, AppContext]): F[Unit] =
+  )(implicit ctx: Ask[F, AppContext]): F[Unit] =
     for {
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
@@ -699,7 +697,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     allowStop: Boolean,
     runtime: ClusterRecord,
     dataprocConfig: RuntimeConfig.DataprocConfig
-  )(implicit ctx: ApplicativeAsk[F, AppContext]): F[Option[UpdateRuntimeMessage]] =
+  )(implicit ctx: Ask[F, AppContext]): F[Option[UpdateRuntimeMessage]] =
     for {
       context <- ctx.ask
       // should num workers be updated?
@@ -875,7 +873,7 @@ object RuntimeServiceInterp {
     willBeUsedBy: FormattedBy,
     authProvider: LeoAuthProvider[F],
     diskConfig: PersistentDiskConfig
-  )(implicit as: ApplicativeAsk[F, AppContext],
+  )(implicit as: Ask[F, AppContext],
     F: Async[F],
     dbReference: DbReference[F],
     ec: ExecutionContext,

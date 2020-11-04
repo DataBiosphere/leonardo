@@ -7,7 +7,7 @@ import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.Operation
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.container.v1
@@ -167,7 +167,7 @@ class LeoPubsubMessageSubscriberSpec
           .copy(asyncRuntimeFields = None, status = RuntimeStatus.Creating, serviceAccount = serviceAccount)
           .save()
       )
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
       _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
@@ -187,14 +187,14 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle DeleteRuntimeMessage and delete cluster" in isolatedDbTest {
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       monitor = new MockRuntimeMonitor {
         override def pollCheck(a: CloudService)(
           googleProject: GoogleProject,
           runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
           operation: com.google.cloud.compute.v1.Operation,
           action: RuntimeStatus
-        )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+        )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
           clusterQuery.completeDeletion(runtime.id, Instant.now()).transaction
       }
       queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
@@ -226,7 +226,7 @@ class LeoPubsubMessageSubscriberSpec
                                                     persistentDiskId = Some(disk.id))
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       _ <- leoSubscriber.messageResponder(
         DeleteRuntimeMessage(runtime.id, Some(disk.id), Some(tr))
       )
@@ -243,7 +243,7 @@ class LeoPubsubMessageSubscriberSpec
     val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
     val pollOperation = new MockComputePollOperation {
       override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Operation] = IO.pure(
         Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("PENDING").build()
       )
@@ -258,7 +258,7 @@ class LeoPubsubMessageSubscriberSpec
                                                     persistentDiskId = Some(disk.id))
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, Some(disk.id), Some(tr)))
       _ <- withInfiniteStream(
         asyncTaskProcessor.process,
@@ -279,7 +279,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       message = DeleteRuntimeMessage(runtime.id, None, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
     } yield {
@@ -294,7 +294,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopping).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       _ <- leoSubscriber.messageResponder(StopRuntimeMessage(runtime.id, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
@@ -311,7 +311,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       message = StopRuntimeMessage(runtime.id, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
     } yield {
@@ -327,7 +327,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       now <- IO(Instant.now)
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Starting).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       _ <- leoSubscriber.messageResponder(StartRuntimeMessage(runtime.id, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
@@ -344,7 +344,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       message = StartRuntimeMessage(runtime.id, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
     } yield {
@@ -361,11 +361,11 @@ class LeoPubsubMessageSubscriberSpec
         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
         operation: com.google.cloud.compute.v1.Operation,
         action: RuntimeStatus
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.never
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.never
 
       override def process(
         a: CloudService
-      )(runtimeId: Long, action: RuntimeStatus)(implicit ev: ApplicativeAsk[IO, TraceId]): Stream[IO, Unit] =
+      )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
         Stream.eval(clusterQuery.setToRunning(runtimeId, IP("0.0.0.0"), Instant.now).transaction.void)
     }
     val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
@@ -376,7 +376,7 @@ class LeoPubsubMessageSubscriberSpec
       runtime <- IO(
         makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(defaultDataprocRuntimeConfig)
       )
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       _ <- leoSubscriber.messageResponder(
         UpdateRuntimeMessage(runtime.id, None, false, None, Some(100), None, Some(tr))
       )
@@ -402,13 +402,13 @@ class LeoPubsubMessageSubscriberSpec
         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
         operation: com.google.cloud.compute.v1.Operation,
         action: RuntimeStatus
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.never
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.never
     }
     val leoSubscriber = makeLeoSubscriber(monitor)
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       _ <- leoSubscriber.messageResponder(
         UpdateRuntimeMessage(runtime.id, Some(MachineTypeName("n1-highmem-64")), true, None, None, None, Some(tr))
@@ -436,7 +436,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       _ <- leoSubscriber.messageResponder(
         UpdateRuntimeMessage(runtime.id, Some(MachineTypeName("n1-highmem-64")), true, None, None, None, Some(tr))
@@ -476,7 +476,7 @@ class LeoPubsubMessageSubscriberSpec
           .copy(status = RuntimeStatus.Running)
           .saveWithRuntimeConfig(gceWithPdRuntimeConfig.copy(persistentDiskId = Some(disk.id)))
       )
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       _ <- leoSubscriber.messageResponder(
         UpdateRuntimeMessage(runtime.id,
@@ -514,7 +514,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopped).saveWithRuntimeConfig(gceRuntimeConfig))
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       _ <- leoSubscriber.messageResponder(
         UpdateRuntimeMessage(runtime.id,
@@ -547,7 +547,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       now <- IO(Instant.now)
       _ <- leoSubscriber.messageResponder(CreateDiskMessage.fromDisk(disk, Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
@@ -564,7 +564,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       _ <- leoSubscriber.messageResponder(DeleteDiskMessage(disk.id, Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
@@ -581,7 +581,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       message = DeleteDiskMessage(disk.id, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
     } yield {
@@ -597,7 +597,7 @@ class LeoPubsubMessageSubscriberSpec
     val res = for {
       now <- IO(Instant.now)
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       _ <- leoSubscriber.messageResponder(UpdateDiskMessage(disk.id, DiskSize(550), Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
@@ -656,7 +656,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
         savedCluster1.googleProject,
@@ -738,7 +738,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg1 = CreateAppMessage(
         savedCluster1.googleProject,
@@ -793,7 +793,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = CreateAppMessage(
         project,
         Some(
@@ -839,7 +839,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = CreateAppMessage(
         savedCluster1.googleProject,
         Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, NodepoolLeoId(-1), NodepoolLeoId(-2))),
@@ -880,7 +880,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
         savedCluster1.googleProject,
@@ -918,7 +918,7 @@ class LeoPubsubMessageSubscriberSpec
       .save()
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = CreateAppMessage(
         savedCluster1.googleProject,
         Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
@@ -957,7 +957,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = CreateAppMessage(
         savedCluster1.googleProject,
         Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
@@ -994,7 +994,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
                              savedApp1.appName,
                              savedNodepool1.id,
@@ -1041,7 +1041,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
                              savedApp1.appName,
                              savedNodepool1.id,
@@ -1087,7 +1087,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
                              savedApp1.appName,
                              savedNodepool1.id,
@@ -1114,7 +1114,7 @@ class LeoPubsubMessageSubscriberSpec
       override def deleteNamespace(
         clusterId: GKEModels.KubernetesClusterId,
         namespace: KubernetesModels.KubernetesNamespace
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
     }
     val gkeInterp =
       new GKEInterpreter[IO](Config.gkeInterpConfig,
@@ -1140,7 +1140,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
                              savedApp1.appName,
                              savedNodepool1.id,
@@ -1167,7 +1167,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val mockGKEService = new MockGKEService {
       override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[v1.Operation]] = IO.raiseError(new Exception(exceptionMessage))
     }
     val gkeInterp =
@@ -1194,7 +1194,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
                              savedApp1.appName,
                              savedNodepool1.id,
@@ -1231,7 +1231,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
                              savedApp1.appName,
                              savedNodepool1.id,
@@ -1273,7 +1273,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = BatchNodepoolCreateMessage(savedCluster1.id,
                                        List(savedNodepool1.id, savedNodepool2.id),
                                        savedCluster1.googleProject,
@@ -1328,7 +1328,7 @@ class LeoPubsubMessageSubscriberSpec
       getDisk.status shouldBe DiskStatus.Ready
     }
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = CreateAppMessage(
         savedCluster1.googleProject,
         None,
@@ -1376,7 +1376,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = BatchNodepoolCreateMessage(savedCluster1.id,
                                        List(savedNodepool1.id, savedNodepool2.id, savedNodepool3.id),
                                        savedCluster1.googleProject,
@@ -1416,13 +1416,13 @@ class LeoPubsubMessageSubscriberSpec
         clusterId: GKEModels.KubernetesClusterId,
         serviceAccount: KubernetesModels.KubernetesServiceAccount,
         namespaceName: KubernetesModels.KubernetesNamespace
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
         IO.raiseError(new Exception("this is an intentional test exception"))
 
       override def deleteNamespace(
         clusterId: GKEModels.KubernetesClusterId,
         namespace: KubernetesModels.KubernetesNamespace
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
         IO {
           deleteCalled = true
         }
@@ -1463,7 +1463,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
         savedCluster1.googleProject,
@@ -1505,7 +1505,7 @@ class LeoPubsubMessageSubscriberSpec
         clusterId: GKEModels.KubernetesClusterId,
         serviceAccount: KubernetesModels.KubernetesServiceAccount,
         namespaceName: KubernetesModels.KubernetesNamespace
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
         IO.raiseError(new Exception("this is an intentional test exception"))
     }
 
@@ -1542,7 +1542,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
         savedCluster1.googleProject,
@@ -1582,7 +1582,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val mockGKEService = new MockGKEService {
       override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[com.google.api.services.container.model.Operation]] = IO.raiseError(new Exception("test exception"))
     }
 
@@ -1613,7 +1613,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
         savedCluster1.googleProject,
@@ -1657,7 +1657,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = DeleteKubernetesClusterMessage(
         savedCluster.id,
         savedCluster.googleProject,
@@ -1719,7 +1719,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
       msg = CreateAppMessage(
         savedCluster1.googleProject,
@@ -1758,7 +1758,7 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val res = for {
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id,
                              savedApp1.appName,
                              savedNodepool1.id,
@@ -1782,7 +1782,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
       now <- IO(Instant.now)
 
       message = CreateDiskMessage.fromDisk(disk, Some(tr))
@@ -1802,7 +1802,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
-      tr <- traceId.ask
+      tr <- traceId.ask[TraceId]
 
       message = DeleteDiskMessage(disk.id, Some(tr))
       // send 2 messages

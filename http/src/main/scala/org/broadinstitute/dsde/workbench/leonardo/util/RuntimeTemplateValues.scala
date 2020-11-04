@@ -56,7 +56,12 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           useGceStartupScript: String) {
 
   def toMap: Map[String, String] =
-    this.getClass.getDeclaredFields.map(_.getName).zip(this.productIterator.to).toMap.mapValues(_.toString)
+    this.productElementNames
+      .zip(this.productIterator)
+      .map {
+        case (k, v) => (k, v.toString)
+      }
+      .toMap
 
 }
 

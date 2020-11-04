@@ -11,7 +11,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream.Materializer
 import cats.effect.{ContextShift, IO, Timer}
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.typesafe.scalalogging.LazyLogging
 import LeoRoutesJsonCodec._
 import LeoRoutesSprayJsonCodec._
@@ -46,7 +46,7 @@ class LeoRoutes(
 
   val route: Route =
     userInfoDirectives.requireUserInfo { userInfo =>
-      implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+      implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
       CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
         pathPrefix("cluster") {
@@ -97,7 +97,7 @@ class LeoRoutes(
                       post {
                         complete {
                           for {
-                            implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+                            implicit0(ctx: Ask[IO, AppContext]) <- AppContext.lift[IO](Some(span))
                             res <- leonardoService
                               .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
                               .as(StatusCodes.Accepted)
@@ -112,7 +112,7 @@ class LeoRoutes(
                       post {
                         complete {
                           for {
-                            implicit0(ctx: ApplicativeAsk[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+                            implicit0(ctx: Ask[IO, AppContext]) <- AppContext.lift[IO](Some(span))
                             res <- leonardoService
                               .startCluster(userInfo, GoogleProject(googleProject), clusterName)
                               .as(StatusCodes.Accepted)

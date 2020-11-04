@@ -3,7 +3,7 @@ package util
 
 import cats.effect.IO
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.{Firewall, Network, Operation}
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.Future
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -112,17 +112,17 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val firewallMap = scala.collection.concurrent.TrieMap.empty[FirewallRuleName, Firewall]
 
     override def addFirewallRule(project: GoogleProject, firewall: Firewall)(
-      implicit ev: ApplicativeAsk[IO, TraceId]
+      implicit ev: Ask[IO, TraceId]
     ): IO[Operation] =
       IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall)) >> super
         .addFirewallRule(project, firewall)(ev)
 
     override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
-      implicit ev: ApplicativeAsk[IO, TraceId]
+      implicit ev: Ask[IO, TraceId]
     ): IO[Unit] = IO(firewallMap.remove(firewallRuleName)).void
 
     override def getNetwork(project: GoogleProject, networkName: NetworkName)(
-      implicit ev: ApplicativeAsk[IO, TraceId]
+      implicit ev: Ask[IO, TraceId]
     ): IO[Option[Network]] =
       if (networkName.value == "default")
         IO.pure(Some(Network.newBuilder().setName("default").build))

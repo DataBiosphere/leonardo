@@ -18,7 +18,6 @@ import org.scalatest.Suite
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.language.postfixOps
 import scala.util.Try
 
 trait NotebookTestUtils extends LeonardoTestUtils {

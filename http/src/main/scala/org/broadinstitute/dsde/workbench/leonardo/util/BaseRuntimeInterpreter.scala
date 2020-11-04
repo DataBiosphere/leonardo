@@ -6,7 +6,7 @@ import java.time.Instant
 
 import cats.effect.{Async, Blocker, ContextShift}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.Operation
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
@@ -29,20 +29,20 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     extends RuntimeAlgebra[F] {
 
   protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[Operation]]
 
   protected def startGoogleRuntime(params: StartGoogleRuntime)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit]
 
   protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Unit]
 
   final override def stopRuntime(
     params: StopRuntimeParams
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Option[Operation]] =
+  )(implicit ev: Ask[F, AppContext]): F[Option[Operation]] =
     for {
       ctx <- ev.ask
       // Flush the welder cache to disk
@@ -62,7 +62,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       r <- stopGoogleRuntime(params.runtime, params.dataprocConfig)
     } yield r
 
-  final override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] = {
+  final override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val welderAction = getWelderAction(params.runtime)
     for {
       ctx <- ev.ask
@@ -142,7 +142,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
                                 runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newRuntime
 
-  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       _ <- Logger[F].info(
         s"New machine config present. Changing machine type to ${params.machineType} for cluster ${params.runtime.projectNameString}..."
@@ -162,7 +162,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
                                  blocker: Blocker,
                                  runtimeResourceConstraints: RuntimeResourceConstraints,
                                  useGceStartupScript: Boolean)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 

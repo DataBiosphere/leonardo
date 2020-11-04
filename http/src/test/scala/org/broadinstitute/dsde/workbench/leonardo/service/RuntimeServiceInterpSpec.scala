@@ -9,11 +9,12 @@ import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
+  FakeGooglePublisher,
   FakeGoogleStorageInterpreter,
   MockComputePollOperation
 }
@@ -74,7 +75,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     Map.empty
   )
 
-  implicit val ctx: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const[IO, AppContext](
+  implicit val ctx: Ask[IO, AppContext] = Ask.const[IO, AppContext](
     AppContext(model.TraceId("traceId"), Instant.now())
   )
 
@@ -103,7 +104,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val runtimeName = RuntimeName("clusterName1")
 
     val res = for {
-      context <- ctx.ask
+      context <- ctx.ask[AppContext]
       r <- runtimeService
         .createRuntime(
           userInfo,
@@ -191,7 +192,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
 
     val res = for {
-      context <- ctx.ask
+      context <- ctx.ask[AppContext]
       _ <- runtimeService
         .createRuntime(
           userInfo,
@@ -249,7 +250,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
 
     val res = for {
-      context <- ctx.ask
+      context <- ctx.ask[AppContext]
       _ <- runtimeService
         .createRuntime(
           userInfo,
@@ -361,7 +362,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
 
     val res = for {
-      context <- ctx.ask
+      context <- ctx.ask[AppContext]
       r <- runtimeService
         .createRuntime(
           userInfo,
@@ -656,7 +657,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   "RuntimeServiceInterp.processUpdateRuntimeConfigRequest" should "fail to update the wrong cloud service type" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(100)), None, None)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       fail <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig).attempt
     } yield {
       fail shouldBe Left(
@@ -669,7 +670,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   "RuntimeServiceInterp.processUpdateGceConfigRequest" should "not update a GCE runtime when there are no changes" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(gceRuntimeConfig.machineType), Some(gceRuntimeConfig.diskSize))
     val res = for {
-      traceId <- traceId.ask
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
       messageOpt <- publisherQueue.tryDequeue1
     } yield {
@@ -683,7 +683,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-8")), Some(gceRuntimeConfig.diskSize))
     val runtime = testCluster.copy(status = RuntimeStatus.Running)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       savedRuntime <- IO(runtime.save())
       clusterRecordOpt <- clusterQuery
         .getActiveClusterRecordByName(runtime.googleProject, runtime.runtimeName)
@@ -712,7 +712,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "update a GCE machine type in Stopped state" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), None)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
                                                             false,
                                                             testClusterRecord.copy(status = RuntimeStatus.Stopped),
@@ -733,7 +733,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "update a GCE machine type in Running state" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), None)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
                                                             true,
                                                             testClusterRecord.copy(status = RuntimeStatus.Running),
@@ -767,7 +767,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "increase the disk on a GCE runtime" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
       message <- publisherQueue.dequeue1
     } yield {
@@ -786,7 +786,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val disk = makePersistentDisk(None).save().unsafeRunSync()
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       _ <- runtimeService.processUpdateRuntimeConfigRequest(
         req,
         true,
@@ -823,7 +823,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "fail to decrease the disk on a GCE runtime" in {
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(50)))
     val res = for {
-      traceId <- traceId.ask
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
     } yield ()
     res.attempt.unsafeRunSync() shouldBe Left(
@@ -839,7 +838,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       defaultDataprocRuntimeConfig.numberOfPreemptibleWorkers
     )
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
@@ -870,7 +869,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "disallow updating dataproc cluster number of workers if runtime is not Running" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), None)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       res <- runtimeService
         .processUpdateDataprocConfigRequest(req,
                                             false,
@@ -892,7 +891,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "update Dataproc workers and preemptibles" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, None, Some(50), Some(1000))
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       cluster = testCluster.copy(
         dataprocInstances = Set(
           DataprocInstance(
@@ -930,7 +929,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "update a Dataproc master machine type in Stopped state" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
@@ -967,7 +966,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "update a Dataproc machine type in Running state" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
@@ -1028,7 +1027,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "increase the disk on a Dataproc runtime" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(1024)), None, None)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       masterInstance = DataprocInstance(
         DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
         1,
@@ -1063,7 +1062,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "fail to decrease the disk on a Dataproc runtime" in isolatedDbTest {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(50)), None, None)
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
@@ -1090,7 +1089,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   "RuntimeServiceInterp.processDiskConfigRequest" should "process a create disk request" in isolatedDbTest {
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
     val res = for {
-      context <- ctx.ask
+      context <- ctx.ask[AppContext]
       diskResult <- RuntimeServiceInterp.processPersistentDiskRequest(req,
                                                                       project,
                                                                       userInfo,
@@ -1127,7 +1126,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "return existing disk if a disk with the same name already exists" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask
+      t <- ctx.ask[AppContext]
       disk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, Map("foo" -> "bar"))
       returnedDisk <- RuntimeServiceInterp
@@ -1167,7 +1166,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask
+      t <- ctx.ask[AppContext]
       savedDisk <- makePersistentDisk(None).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
@@ -1193,7 +1192,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "fail to process a disk reference when the disk is already formatted by another app" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask
+      t <- ctx.ask[AppContext]
       gceDisk <- makePersistentDisk(Some(DiskName("gceDisk")), Some(FormattedBy.GCE)).save()
       req = PersistentDiskRequest(gceDisk.name, Some(gceDisk.size), Some(gceDisk.diskType), gceDisk.labels)
       formatGceDiskError <- RuntimeServiceInterp
@@ -1252,7 +1251,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   private def withLeoPublisher(
     publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, FakeGooglePublisher)
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
     withInfiniteStream(leoPublisher.process, validations)
   }
 }

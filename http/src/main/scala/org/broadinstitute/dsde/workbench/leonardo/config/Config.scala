@@ -53,7 +53,7 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 
 object Config {
@@ -568,7 +568,6 @@ object Config {
     stringValueReader.map(s =>
       KubernetesName
         .withValidation(s, SecretName)
-        .right
         .getOrElse(throw new RuntimeException(s"Unable to parse the secret name $s into a valid kubernetes name"))
     )
 

@@ -24,7 +24,7 @@ class CorsSupport(contentSecurityPolicy: String) {
 
   // This directive adds access control headers to normal responses
   private def addAccessControlHeaders: Directive0 =
-    optionalHeaderValueByType[`Origin`](()) map {
+    optionalHeaderValueByType(Origin) map {
       case Some(origin) => `Access-Control-Allow-Origin`(origin.value)
       case None         => `Access-Control-Allow-Origin`.*
     } flatMap { allowOrigin =>

@@ -8,12 +8,10 @@ import java.time.Instant
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
@@ -21,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{contentSecurityPolicy, swaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -143,7 +142,7 @@ class HttpRoutesSpec
   it should "delete a runtime and disk if deleteDisk is true" in {
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
-        implicit as: ApplicativeAsk[IO, AppContext]
+        implicit as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteRuntime =
           DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), true)
@@ -160,7 +159,7 @@ class HttpRoutesSpec
   it should "keep disk when deleting runtime if deleteDisk is false" in {
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
-        implicit as: ApplicativeAsk[IO, AppContext]
+        implicit as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteRuntime =
           DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
@@ -177,7 +176,7 @@ class HttpRoutesSpec
   it should "not delete disk when deleting a runtime with PD enabled if deleteDisk is not set" in {
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
-        implicit as: ApplicativeAsk[IO, AppContext]
+        implicit as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteRuntime =
           DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
@@ -194,7 +193,7 @@ class HttpRoutesSpec
   it should "not delete disk when deleting a kubernetes app with PD enabled if deleteDisk is not set" in {
     val kubernetesService = new MockKubernetesServiceInterp {
       override def deleteApp(request: DeleteAppRequest)(
-        implicit as: ApplicativeAsk[IO, AppContext]
+        implicit as: Ask[IO, AppContext]
       ): IO[Unit] = IO {
         val expectedDeleteApp =
           DeleteAppRequest(timedUserInfo, GoogleProject("googleProject1"), AppName("app1"), false)

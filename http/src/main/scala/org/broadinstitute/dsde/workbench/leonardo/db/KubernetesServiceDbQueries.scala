@@ -363,7 +363,7 @@ object KubernetesServiceDbQueries {
           appQuery.unmarshalApp(
             appRec,
             services.map(serviceQuery.unmarshalService).toList.toSet.toList,
-            labelMap.mapValues(_.toList.toSet.head),
+            labelMap.view.mapValues(_.toList.toSet.head).toMap,
             //the database ensures we always have a single namespace here
             namespaceQuery.unmarshalNamespace(namespaces.headOption.get),
             unmarshalDiskMap(diskMap),
@@ -376,7 +376,7 @@ object KubernetesServiceDbQueries {
   private def unmarshalDiskMap(disks: Map[PersistentDiskRecord, Map[String, Chain[String]]]): Option[PersistentDisk] =
     disks.map {
       case (disk, labels) =>
-        persistentDiskQuery.unmarshalPersistentDisk(disk, labels.mapValues(_.toList.toSet.head))
+        persistentDiskQuery.unmarshalPersistentDisk(disk, labels.view.mapValues(_.toList.toSet.head).toMap)
     }.headOption
 }
 

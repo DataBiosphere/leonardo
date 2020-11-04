@@ -124,7 +124,7 @@ trait LeonardoTestUtils
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
 
     def linesWithoutIPs(file: File) = {
-      import scala.collection.JavaConverters._
+      import scala.jdk.CollectionConverters._
       Files.readAllLines(file.toPath).asScala map { _.replaceAll("(\\d+.){3}\\d+", "<IP>") }
     }
 

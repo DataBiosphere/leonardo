@@ -10,9 +10,8 @@ import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
-import scala.language.postfixOps
 import scala.util.{Failure, Success, Try}
 
 class LabNotebookPage(override val url: String)(implicit override val authToken: AuthToken,

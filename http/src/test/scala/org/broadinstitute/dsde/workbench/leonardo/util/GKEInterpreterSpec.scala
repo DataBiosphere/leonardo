@@ -32,7 +32,7 @@ import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite {

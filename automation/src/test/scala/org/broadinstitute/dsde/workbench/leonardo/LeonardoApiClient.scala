@@ -19,26 +19,25 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   UpdateRuntimeRequest
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.util.ExecutionContexts
+import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
+import org.http4s._
+import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.middleware.Logger
 import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
-import org.http4s.circe.CirceEntityEncoder._
-import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
-
-import scala.concurrent.duration._
-import ApiJsonDecoder._
-import org.http4s._
 
 import scala.concurrent.ExecutionContext.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-
+import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
+import ApiJsonDecoder._
 import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
+
   implicit def http4sBody[A](body: A)(implicit encoder: EntityEncoder[IO, A]): EntityBody[IO] =
     encoder.toEntity(body).body
   implicit val cs = IO.contextShift(global)
@@ -194,6 +193,7 @@ object LeonardoApiClient {
   //This line causes the body to be decoded as JSON, which will prevent error messagges from being seen
   //If you care about the error message, place the function before this line
   import org.http4s.circe.CirceEntityDecoder._
+
   def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
     implicit timer: Timer[IO],
     client: Client[IO],

@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect.{Async, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ImageConfig, R
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 import scala.collection.immutable.Set
 import scala.concurrent.duration._
@@ -25,13 +25,13 @@ import scala.concurrent.duration._
  * It doesn't trigger any of the action but only responsible for monitoring the progress and make necessary cleanup when the transition is done
  */
 trait RuntimeMonitor[F[_], A] {
-  def process(a: A)(runtimeId: Long, action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit]
+  def process(a: A)(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit]
 
   // Function used for transitions that we can get an Operation
   def pollCheck(a: A)(googleProject: GoogleProject,
                       runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                       operation: com.google.cloud.compute.v1.Operation,
-                      action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+                      action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit]
 }
 
 object RuntimeMonitor {

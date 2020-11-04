@@ -6,7 +6,7 @@ import java.util.{Date, UUID}
 
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
@@ -90,7 +90,7 @@ object CommonTestData {
   val googleId = GoogleId("google-id")
   val diskSamResource = PersistentDiskSamResourceId("disk-resource-id")
   val diskSize = DiskSize(250)
-  val diskType = DiskType.Standard
+  val diskType = leonardo.DiskType.Standard
   val blockSize = BlockSize(4096)
 
   val config = ConfigFactory.parseResources("reference.conf").withFallback(ConfigFactory.load()).resolve()
@@ -345,7 +345,7 @@ object CommonTestData {
                                                  Map("serverExt1" -> "pqr"),
                                                  Map("combinedExt1" -> "xyz"))
 
-  val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
+  val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   def clusterServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
     serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()

@@ -3,7 +3,7 @@ package monitor
 
 import cats.effect.{ConcurrentEffect, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
@@ -24,7 +24,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
   ec: ExecutionContext,
   metrics: OpenTelemetryMetrics[F]
 ) {
-  implicit private val traceId = ApplicativeAsk.const[F, TraceId](TraceId("BootMonitoring"))
+  implicit private val traceId = Ask.const[F, TraceId](TraceId("BootMonitoring"))
 
   val process: Stream[F, Unit] = processRuntimes ++ processApps
 
@@ -53,9 +53,9 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
       a <- Stream.emits(n.apps)
     } yield (a, n, c)
 
-  private def handleRuntime(runtimeToMonitor: RuntimeToMonitor)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
+  private def handleRuntime(runtimeToMonitor: RuntimeToMonitor)(implicit ev: Ask[F, TraceId]): F[Unit] = {
     val res = for {
-      traceId <- ev.ask
+      traceId <- ev.ask[TraceId]
       msg <- runtimeStatusToMessage(runtimeToMonitor, traceId)
       _ <- publisherQueue.enqueue1(msg)
     } yield ()
@@ -67,7 +67,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
 
   private def handleRuntimePatchInProgress(
     runtimeToMonitor: RuntimeToMonitor
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  )(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
       patchInProgress <- patchQuery.isInprogress(runtimeToMonitor.id).transaction
@@ -99,7 +99,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
     } yield ()
 
   private def handleApp(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Unit] = {
     val res = for {
       traceId <- ev.ask

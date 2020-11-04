@@ -19,16 +19,16 @@ class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implic
   private def recordMetrics(sizeF: () => F[Long], statsF: () => F[CacheStats]): F[Unit] =
     for {
       size <- sizeF()
-      _ <- metrics.gauge(s"cache/$name/size", size)
-      _ <- logger.info(s"CacheMetrics: $name size: $size")
+      _ <- metrics.gauge(s"cache/$name/size", size.toDouble)
+      _ <- logger.info(s"CacheMetrics: $name size: ${size.toDouble}")
       stats <- statsF()
       _ <- logger.info(s"CacheMetrics: $name stats: ${stats.toString}")
-      _ <- metrics.gauge(s"cache/$name/hitCount", stats.hitCount)
-      _ <- metrics.gauge(s"cache/$name/missCount", stats.missCount)
-      _ <- metrics.gauge(s"cache/$name/loadSuccessCount", stats.loadSuccessCount)
-      _ <- metrics.gauge(s"cache/$name/loadExceptionCount", stats.loadExceptionCount)
-      _ <- metrics.gauge(s"cache/$name/totalLoadTime", stats.totalLoadTime)
-      _ <- metrics.gauge(s"cache/$name/evictionCount", stats.evictionCount)
+      _ <- metrics.gauge(s"cache/$name/hitCount", stats.hitCount.toDouble)
+      _ <- metrics.gauge(s"cache/$name/missCount", stats.missCount.toDouble)
+      _ <- metrics.gauge(s"cache/$name/loadSuccessCount", stats.loadSuccessCount.toDouble)
+      _ <- metrics.gauge(s"cache/$name/loadExceptionCount", stats.loadExceptionCount.toDouble)
+      _ <- metrics.gauge(s"cache/$name/totalLoadTime", stats.totalLoadTime.toDouble)
+      _ <- metrics.gauge(s"cache/$name/evictionCount", stats.evictionCount.toDouble)
     } yield ()
 }
 object CacheMetrics {

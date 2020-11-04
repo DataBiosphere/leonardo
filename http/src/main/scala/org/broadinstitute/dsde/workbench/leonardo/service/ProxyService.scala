@@ -7,24 +7,24 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
+import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
-import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.Logger
+import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostPaused, HostReady}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
@@ -40,6 +40,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 
+import akka.http.scaladsl.unmarshalling.Unmarshal
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -76,6 +77,7 @@ final case object AccessTokenExpiredException
     extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
 
 class ProxyService(
+  sslContext: SSLContext,
   proxyConfig: ProxyConfig,
   jupyterDAO: JupyterDAO[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
@@ -92,6 +94,7 @@ class ProxyService(
   metrics: OpenTelemetryMetrics[IO],
   loggerIO: Logger[IO])
     extends LazyLogging {
+  val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
 
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
   logger.info(s"Leo proxy request timeout is $requestTimeout")
@@ -105,7 +108,7 @@ class ProxyService(
     .build(
       new CacheLoader[String, (UserInfo, Instant)] {
         def load(key: String): (UserInfo, Instant) = {
-          implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+          implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
           // UserInfo only stores a _relative_ expiration time to when the tokeninfo call was made
           // (e.g. tokenExpiresIn). So we also cache the _absolute_ expiration by doing
           // (now + tokenExpiresIn).
@@ -168,10 +171,10 @@ class ProxyService(
       .process(() => IO(samResourceCache.size), () => IO(samResourceCache.stats))
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[RuntimeSamResourceId] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
       resourceId = cacheResult.map(RuntimeSamResourceId)
       res <- resourceId match {
@@ -192,10 +195,10 @@ class ProxyService(
     } yield res
 
   def getCachedAppSamResource(key: AppCacheKey)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[AppSamResourceId] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
       resourceId = cacheResult.map(AppSamResourceId)
       res <- resourceId match {
@@ -219,10 +222,10 @@ class ProxyService(
     blocker.blockOn(IO(googleTokenCache.invalidate(token)))
 
   def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[HttpResponse] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(googleProject, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
@@ -247,7 +250,7 @@ class ProxyService(
                    googleProject: GoogleProject,
                    runtimeName: RuntimeName,
                    terminalName: TerminalName,
-                   request: HttpRequest)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[HttpResponse] =
+                   request: HttpRequest)(implicit ev: Ask[IO, AppContext]): IO[HttpResponse] =
     for {
       terminalExists <- jupyterDAO.terminalExists(googleProject, runtimeName, terminalName)
       _ <- if (terminalExists)
@@ -262,10 +265,10 @@ class ProxyService(
                       appName: AppName,
                       serviceName: ServiceName,
                       request: HttpRequest)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[HttpResponse] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       samResource <- getCachedAppSamResource(AppCacheKey(googleProject, appName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, AppAction.GetAppStatus, userInfo)
@@ -288,10 +291,10 @@ class ProxyService(
     Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
 
   private def proxyInternal(hostContext: HostContext, request: HttpRequest)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[HttpResponse] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       _ <- IO(
         logger.debug(
           s"${ctx.traceId} | Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
@@ -303,7 +306,7 @@ class ProxyService(
           // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
           // The presence of this header distinguishes WebSocket from http requests.
           val res = for {
-            response <- request.header[UpgradeToWebSocket] match {
+            response <- request.attribute(AttributeKeys.webSocketUpgrade) match {
               case Some(upgrade) =>
                 IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
               case None =>
@@ -342,7 +345,6 @@ class ProxyService(
 
   private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
-
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
     // in as a Source[HttpRequest] and responses are returned as a Sink[HttpResponse]. The transformation
@@ -351,7 +353,7 @@ class ProxyService(
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http().outgoingConnectionHttps(targetHost.address, proxyConfig.proxyPort)
+    val flow = Http().outgoingConnectionHttps(targetHost.address, proxyConfig.proxyPort, httpsConnectionContext)
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -364,7 +366,7 @@ class ProxyService(
     // 2. strip out Uri.Authority:
     val newUri = Uri(path = rewrittenPath, queryString = request.uri.rawQueryString)
     // 3. build a new HttpRequest
-    val newRequest = request.copy(headers = newHeaders, uri = newUri)
+    val newRequest = request.withHeaders(headers = newHeaders).withUri(uri = newUri)
 
     // Plug a Source and Sink into our Flow. This materializes the Flow and initializes the HTTP connection
     // to the notebook server.
@@ -400,7 +402,7 @@ class ProxyService(
             val newHeaders = httpResponse.headers.filter(header => header.isNot("content-disposition")) ++ Seq(
               newHeader
             )
-            httpResponse.copy(headers = newHeaders)
+            httpResponse.withHeaders(headers = newHeaders)
           }
           case None => httpResponse
         }
@@ -410,7 +412,7 @@ class ProxyService(
 
   private def handleWebSocketRequest(targetHost: Host,
                                      request: HttpRequest,
-                                     upgrade: UpgradeToWebSocket): Future[HttpResponse] = {
+                                     upgrade: WebSocketUpgrade): Future[HttpResponse] = {
     logger.info(s"Opening websocket connection to ${targetHost.address}")
 
     // This is a similar idea to handleHttpRequest(), we're just using WebSocket APIs instead of HTTP ones.
@@ -434,7 +436,8 @@ class ProxyService(
         extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption
       ),
-      flow
+      flow,
+      httpsConnectionContext
     )
 
     // If we got a valid WebSocketUpgradeResponse, call handleMessages with our publisher/subscriber, which are

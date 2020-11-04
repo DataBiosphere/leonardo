@@ -6,7 +6,7 @@ import java.sql.SQLDataException
 import cats.Parallel
 import cats.effect.{Async, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
@@ -59,7 +59,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
   override def pollCheck(googleProject: GoogleProject,
                          runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                          operation: com.google.cloud.compute.v1.Operation,
-                         action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                         action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- ev.ask
@@ -95,7 +95,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
     for {
       timeAfterPoll <- nowInstant
-      implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+      implicit0(ctx: Ask[F, AppContext]) = Ask.const[F, AppContext](
         AppContext(monitorContext.traceId, timeAfterPoll)
       )
       _ <- monitorContext.action match {
@@ -111,7 +111,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
   def handlePollCheckTimeout(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig) =
     for {
       timeAfterPoll <- nowInstant
-      implicit0(ctx: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+      implicit0(ctx: Ask[F, AppContext]) = Ask.const[F, AppContext](
         AppContext(monitorContext.traceId, timeAfterPoll)
       )
       _ <- failedRuntime(
@@ -153,7 +153,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
    * @return ClusterMonitorMessage
    */
   override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       instance <- googleComputeService.getInstance(
@@ -187,7 +187,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
     instance: Option[Instance],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = instance match {
+  )(implicit ev: Ask[F, AppContext]): F[CheckResult] = instance match {
     case None =>
       checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Can't retrieve instance yet"))
     case Some(i) =>
@@ -257,7 +257,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
     instance: Option[Instance],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = instance match {
+  )(implicit ev: Ask[F, AppContext]): F[CheckResult] = instance match {
     case None =>
       logger
         .error(
@@ -328,7 +328,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
     instance: Option[Instance],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = {
+  )(implicit ev: Ask[F, AppContext]): F[CheckResult] = {
     val gceStatus = instance.flatMap(i => GceInstanceStatus.withNameInsensitiveOption(i.getStatus))
     gceStatus match {
       case None =>
@@ -352,7 +352,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
   }
 
   private def deletedRuntime(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       ctx <- ev.ask

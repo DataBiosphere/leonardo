@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.model
 
 import java.nio.file.Path
 
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
@@ -24,7 +24,7 @@ abstract class ServiceAccountProvider[F[_]] {
    * @return service account email
    */
   def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
   /**
@@ -40,7 +40,7 @@ abstract class ServiceAccountProvider[F[_]] {
    * @return service account email
    */
   def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
   /**
@@ -49,7 +49,7 @@ abstract class ServiceAccountProvider[F[_]] {
    * @return list of groups that will have reader access to a staging bucket
    */
   def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[List[WorkbenchEmail]]
 
   /**
@@ -60,7 +60,7 @@ abstract class ServiceAccountProvider[F[_]] {
   def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): F[List[WorkbenchEmail]]
 
   def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[String]]
 }
 

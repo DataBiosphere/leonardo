@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{
   KubernetesNetwork,
   KubernetesOperationId,
@@ -12,35 +12,31 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 trait GKEAlgebra[F[_]] {
 
   /** Creates a GKE cluster but doesn't wait for its completion. */
-  def createCluster(params: CreateClusterParams)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Option[CreateClusterResult]]
+  def createCluster(params: CreateClusterParams)(implicit ev: Ask[F, AppContext]): F[Option[CreateClusterResult]]
 
   /**
    * Polls a creating GKE cluster for its completion and also does other cluster-wide set-up like
    * install nginx ingress controller.
    */
-  def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
+  def pollCluster(params: PollClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   /** Creates a GKE nodepool but doesn't wait for its completion. */
-  def createNodepool(params: CreateNodepoolParams)(
-    implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[Option[CreateNodepoolResult]]
+  def createNodepool(params: CreateNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Option[CreateNodepoolResult]]
 
   /** Polls a creating nodepool for its completion. */
-  def pollNodepool(params: PollNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
+  def pollNodepool(params: PollNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   /** Creates an app and polls it for completion. */
-  def createAndPollApp(params: CreateAppParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
+  def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   /** Deletes a cluster and polls for completion */
-  def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
+  def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   /** Deletes a nodepool and polls for completion */
-  def deleteAndPollNodepool(params: DeleteNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
+  def deleteAndPollNodepool(params: DeleteNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   /** Deletes an app and polls for completion */
-  def deleteAndPollApp(params: DeleteAppParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
+  def deleteAndPollApp(params: DeleteAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 }
 
 final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,

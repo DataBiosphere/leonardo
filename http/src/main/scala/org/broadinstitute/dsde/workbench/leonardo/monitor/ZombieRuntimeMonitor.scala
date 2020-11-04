@@ -7,7 +7,7 @@ import cats.Parallel
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.ZombieRuntimeMonitorConfig
@@ -44,7 +44,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     for {
       start <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       tid = TraceId(s"fromZombieCheck_${start}")
-      implicit0(traceId: ApplicativeAsk[F, TraceId]) = ApplicativeAsk.const[F, TraceId](tid)
+      implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](tid)
       semaphore <- Semaphore[F](config.concurrency)
       // Get all deleted runtimes that haven't been confirmed from the Leo DB
       unconfirmedDeletedRuntimes <- ZombieMonitorQueries.listInactiveZombieQuery.transaction
@@ -94,12 +94,12 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     cloudService: CloudService
-  )(implicit traceId: ApplicativeAsk[F, TraceId]): F[Boolean] =
+  )(implicit traceId: Ask[F, TraceId]): F[Boolean] =
     cloudService.interpreter
       .getRuntimeStatus(GetRuntimeStatusParams(googleProject, runtimeName, Some(config.gceZoneName)))
       .map(s => s != RuntimeStatus.Deleted)
 
-  private def handleInactiveZombieRuntime(zombie: ZombieCandidate)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  private def handleInactiveZombieRuntime(zombie: ZombieCandidate)(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
       _ <- logger.info(

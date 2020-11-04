@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, NetworkName, 
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 package object google {

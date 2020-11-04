@@ -21,7 +21,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
   ServiceName
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import org.broadinstitute.dsp.Release
 import slick.jdbc.MySQLProfile

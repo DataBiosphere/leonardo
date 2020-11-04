@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.http.CreateDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{UpdateDiskRequest}
@@ -12,11 +12,11 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 object MockDiskServiceInterp extends DiskService[IO] {
   override def createDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName, req: CreateDiskRequest)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
   def getDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[GetPersistentDiskResponse] =
     IO.pure(
       GetPersistentDiskResponse(
@@ -37,7 +37,7 @@ object MockDiskServiceInterp extends DiskService[IO] {
     )
 
   def listDisks(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Vector[ListPersistentDiskResponse]] =
     IO.pure(
       Vector(
@@ -56,10 +56,10 @@ object MockDiskServiceInterp extends DiskService[IO] {
     )
 
   def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
   def updateDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName, req: UpdateDiskRequest)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 }

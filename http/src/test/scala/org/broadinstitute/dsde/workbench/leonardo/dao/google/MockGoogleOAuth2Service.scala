@@ -2,13 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.google
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
 import scala.concurrent.duration._
 
 class MockGoogleOAuth2Service extends GoogleOAuth2Service[IO] {
-  override def getUserInfoFromToken(accessToken: String)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UserInfo] =
+  override def getUserInfoFromToken(accessToken: String)(implicit ev: Ask[IO, TraceId]): IO[UserInfo] =
     accessToken match {
       case "expired" =>
         IO(

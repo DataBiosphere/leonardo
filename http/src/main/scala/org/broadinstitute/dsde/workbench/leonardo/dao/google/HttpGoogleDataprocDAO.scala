@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.metrics.GoogleInstrumentedService.Googl
 import org.broadinstitute.dsde.workbench.model.WorkbenchException
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.{ExecutionContext, Future}
 

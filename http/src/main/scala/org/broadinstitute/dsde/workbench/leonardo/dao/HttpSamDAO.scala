@@ -16,7 +16,7 @@ import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Resource, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
@@ -37,7 +37,7 @@ import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
@@ -58,7 +58,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     .build(
       new CacheLoader[UserEmailAndProject, Option[String]] {
         def load(userEmailAndProject: UserEmailAndProject): Option[String] = {
-          implicit val traceId = ApplicativeAsk.const[F, TraceId](TraceId(UUID.randomUUID()))
+          implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
           getPetAccessToken(userEmailAndProject.userEmail, userEmailAndProject.googleProject).toIO
             .unsafeRunSync()
         }
@@ -69,7 +69,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     CacheMetrics("petTokenCache")
       .process(() => Effect[F].delay(petTokenCache.size), () => Effect[F].delay(petTokenCache.stats))
 
-  def getStatus(implicit ev: ApplicativeAsk[F, TraceId]): F[StatusCheckResponse] =
+  def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse] =
     metrics.incrementCounter("sam/status") >>
       httpClient.expectOr[StatusCheckResponse](
         Request[F](
@@ -82,7 +82,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
                                      resource: String,
                                      action: String,
                                      authHeader: Authorization)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Boolean] =
     for {
       _ <- metrics.incrementCounter(s"sam/hasResourcePermission/${resourceType.asString}/${action}")
@@ -100,7 +100,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
 
   def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(
     implicit sr: SamResourceAction[R, A],
-    ev: ApplicativeAsk[F, TraceId]
+    ev: Ask[F, TraceId]
   ): F[List[sr.ActionCategory]] = {
     implicit val d = sr.decoder
     metrics.incrementCounter(s"sam/getListOfResourcePermissions/${sr.resourceType.asString}") >>
@@ -116,7 +116,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
 
   def getResourcePolicies[R](
     authHeader: Authorization
-  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: ApplicativeAsk[F, TraceId]): F[List[(R, SamPolicyName)]] =
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[List[(R, SamPolicyName)]] =
     for {
       _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${sr.resourceType.asString}")
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
@@ -130,7 +130,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
 
   def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
-    ev: ApplicativeAsk[F, TraceId]
+    ev: Ask[F, TraceId]
   ): F[Unit] =
     for {
       traceId <- ev.ask
@@ -168,7 +168,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
   def createResourceWithManagerPolicy[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
-    ev: ApplicativeAsk[F, TraceId]
+    ev: Ask[F, TraceId]
   ): F[Unit] =
     for {
       traceId <- ev.ask
@@ -211,7 +211,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
 
   def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
-    ev: ApplicativeAsk[F, TraceId]
+    ev: Ask[F, TraceId]
   ): F[Unit] =
     for {
       traceId <- ev.ask
@@ -248,7 +248,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     } yield ()
 
   def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] =
     metrics.incrementCounter("sam/getPetServiceAccount") >>
       httpClient.expectOptionOr[WorkbenchEmail](
@@ -259,7 +259,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         )
       )(onError)
 
-  def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[WorkbenchEmail]] =
+  def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]] =
     getAccessTokenUsingLeoJson.use { leoToken =>
       val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
       metrics.incrementCounter("sam/getUserProxy") >>
@@ -274,7 +274,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     }
 
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[String]] =
     if (config.petCacheEnabled) {
       blocker.blockOn(Effect[F].delay(petTokenCache.get(UserEmailAndProject(userEmail, googleProject))))
@@ -292,7 +292,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     } yield scopedCredential.getAccessToken.getTokenValue
 
   private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[String]] =
     getAccessTokenUsingLeoJson.use { leoToken =>
       val leoAuth = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
@@ -317,7 +317,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       } yield token
     }
 
-  private def onError(response: Response[F])(implicit ev: ApplicativeAsk[F, TraceId]): F[Throwable] =
+  private def onError(response: Response[F])(implicit ev: Ask[F, TraceId]): F[Throwable] =
     for {
       traceId <- ev.ask
       body <- response.bodyText.compile.foldMonoid
@@ -326,7 +326,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     } yield AuthProviderException(traceId, body, response.status.code)
 
   private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[SamPolicyEmail] =
     for {
       _ <- metrics.incrementCounter("sam/getProjectOwnerPolicyEmail")

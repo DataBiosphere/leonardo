@@ -5,7 +5,7 @@ import java.util.UUID
 
 import cats.effect.IO
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
@@ -33,13 +33,13 @@ class MockSamDAO extends SamDAO[IO] {
   var appCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
 
   //we don't care much about traceId in unit tests, hence providing a constant UUID here
-  implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+  implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
   override def hasResourcePermissionUnchecked(resourceType: SamResourceType,
                                               resource: String,
                                               action: String,
                                               authHeader: Authorization)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Boolean] =
     resourceType match {
       case SamResourceType.Project =>
@@ -71,7 +71,7 @@ class MockSamDAO extends SamDAO[IO] {
   override def getResourcePolicies[R](authHeader: Authorization)(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[List[(R, SamPolicyName)]] =
     sr.resourceType match {
       case SamResourceType.Runtime =>
@@ -90,43 +90,43 @@ class MockSamDAO extends SamDAO[IO] {
 
   override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[Unit] = {
     val authHeader = userEmailToAuthorization(creatorEmail)
     resource match {
       case r: RuntimeSamResourceId =>
         IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
-          IO(
+          IO {
             runtimeCreators =
               runtimeCreators |+| Map(authHeader -> Set((r, SamPolicyName.Creator)))
-          ).void
+          }.void
       case r: PersistentDiskSamResourceId =>
         IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
-          IO(
+          IO {
             diskCreators = diskCreators |+| Map(
               authHeader -> Set(
                 (r, SamPolicyName.Creator)
               )
             )
-          ).void
+          }.void
       case r: ProjectSamResourceId =>
         IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >>
-          IO(
+          IO {
             projectOwners = projectOwners |+| Map(
               authHeader -> Set(
                 (r, SamPolicyName.Owner)
               )
             )
-          ).void
+          }.void
       case r: AppSamResourceId =>
         IO(apps += (r, authHeader) -> AppAction.allActions) >>
-          IO(
+          IO {
             appCreators = appCreators |+| Map(
               authHeader -> Set(
                 (r, SamPolicyName.Creator)
               )
             )
-          ).void
+          }.void
     }
   }
 
@@ -135,54 +135,54 @@ class MockSamDAO extends SamDAO[IO] {
                                                   googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[Unit] = {
     val authHeader = userEmailToAuthorization(creatorEmail)
     val ownerAuthHeader = userEmailToAuthorization(projectOwnerEmail)
     resource match {
       case r: RuntimeSamResourceId =>
         IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
-          IO(
+          IO {
             runtimeCreators = runtimeCreators |+| Map(
               authHeader -> Set(
                 (r, SamPolicyName.Creator)
               )
             )
-          ).void
+          }.void
       case r: PersistentDiskSamResourceId =>
         IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
-          IO(
+          IO {
             diskCreators = diskCreators |+| Map(
               authHeader -> Set(
                 (r, SamPolicyName.Creator)
               )
             )
-          ).void
+          }.void
       case r: ProjectSamResourceId =>
-        IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >> IO(
+        IO(billingProjects += (r, authHeader) -> ProjectAction.allActions) >> IO {
           projectOwners = projectOwners |+| Map(
             authHeader -> Set(
               (r, SamPolicyName.Owner)
             )
           )
-        ).void
+        }.void
       case r: AppSamResourceId =>
         IO(
           apps ++=
             Map((r, authHeader) -> AppAction.allActions, (r, ownerAuthHeader) -> appManagerActions)
         ) >>
-          IO(
+          IO {
             appCreators = appCreators |+| Map(
               authHeader -> Set((r, SamPolicyName.Creator)),
               ownerAuthHeader -> Set((r, SamPolicyName.Manager))
             )
-          ).void
+          }.void
     }
   }
 
   def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[Unit] =
     resource match {
       case r: RuntimeSamResourceId =>
@@ -197,25 +197,25 @@ class MockSamDAO extends SamDAO[IO] {
     }
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(petSA))
 
   override def getUserProxy(
     userEmail: WorkbenchEmail
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[WorkbenchEmail]] =
+  )(implicit ev: Ask[IO, TraceId]): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(WorkbenchEmail("PROXY_1234567890@dev.test.firecloud.org")))
 
   override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Option[String]] = IO.pure(Some("token"))
 
-  override def getStatus(implicit ev: ApplicativeAsk[IO, TraceId]): IO[StatusCheckResponse] =
+  override def getStatus(implicit ev: Ask[IO, TraceId]): IO[StatusCheckResponse] =
     IO.pure(StatusCheckResponse(true, Map.empty))
 
   override def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(
     implicit sr: SamResourceAction[R, A],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[List[sr.ActionCategory]] =
     sr.resourceType match {
       case SamResourceType.Project =>

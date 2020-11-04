@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package service
 
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, UpdateRuntimeRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
@@ -19,18 +19,18 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: CreateRuntime2Request
-  )(implicit as: ApplicativeAsk[IO, AppContext]): IO[Unit] =
+  )(implicit as: Ask[IO, AppContext]): IO[Unit] =
     IO.unit
 
   override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[GetRuntimeResponse] =
     IO.pure(
       GetRuntimeResponse.fromRuntime(CommonTestData.testCluster, CommonTestData.defaultDataprocRuntimeConfig, None)
     )
 
   override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Vector[ListRuntimeResponse2]] =
     IO.pure(
       Vector(
@@ -50,17 +50,17 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
     )
 
   override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit
 
   override def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit
 
   override def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit
 
@@ -69,7 +69,7 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: UpdateRuntimeRequest
-  )(implicit as: ApplicativeAsk[IO, AppContext]): IO[Unit] = IO.unit
+  )(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.unit
 }
 
 object MockRuntimeServiceInterp extends BaseMockRuntimeServiceInterp

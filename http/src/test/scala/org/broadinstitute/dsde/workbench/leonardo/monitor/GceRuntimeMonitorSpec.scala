@@ -5,7 +5,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
 import org.broadinstitute.dsde.workbench.google2.{
@@ -66,7 +66,7 @@ class GceRuntimeMonitorSpec
     val failureUserScript = GcsPath(GcsBucketName("failure"), GcsObjectName("object_output"))
     val nonExistentUserScript = GcsPath(GcsBucketName("nonExistent"), GcsObjectName("object_output"))
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       res1 <- monitor.validateUserScript(None, None)
       res2 <- monitor.validateUserScript(Some(sucessUserScript), None)
       res3 <- monitor.validateUserScript(
@@ -107,7 +107,7 @@ class GceRuntimeMonitorSpec
     val failureUserScript = GcsPath(GcsBucketName("failure"), GcsObjectName("object_output"))
     val nonExistentUserScript = GcsPath(GcsBucketName("nonExistent"), GcsObjectName("object_output"))
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       res1 <- monitor.validateUserStartupScript(None, None)
       res2 <- monitor.validateUserStartupScript(Some(sucessUserScript), None)
       res3 <- monitor.validateUserStartupScript(
@@ -171,7 +171,7 @@ class GceRuntimeMonitorSpec
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = IO.pure(Some(readyInstance))
     }
 
@@ -206,7 +206,7 @@ class GceRuntimeMonitorSpec
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val runningInstance = Instance
           .newBuilder()
@@ -255,7 +255,7 @@ class GceRuntimeMonitorSpec
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val beforeInstance = None
         val runningInstance = readyInstance
@@ -294,7 +294,7 @@ class GceRuntimeMonitorSpec
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val beforeInstance = Instance.newBuilder().setStatus("TERMINATED").build()
 
@@ -335,7 +335,7 @@ class GceRuntimeMonitorSpec
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val runningInstance = Instance
           .newBuilder()
@@ -430,7 +430,7 @@ class GceRuntimeMonitorSpec
 
     val computeService = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val instance = Instance.newBuilder().setStatus("Terminated").build()
         IO.pure(Some(instance))
@@ -510,7 +510,7 @@ class GceRuntimeMonitorSpec
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val runningInstance = Instance.newBuilder().setStatus("Running").build()
 
@@ -574,7 +574,7 @@ class GceRuntimeMonitorSpec
         // In the first operation call, we set runtime status to Deleting, this should cause the original `Stopping` process to cancel and we'll
         // enqueue a delete message instead
         override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
-          implicit ev: ApplicativeAsk[IO, TraceId]
+          implicit ev: Ask[IO, TraceId]
         ): IO[Operation] =
           clusterQuery
             .updateClusterStatus(runtime.id, RuntimeStatus.Deleting, Instant.now())
@@ -606,7 +606,7 @@ class GceRuntimeMonitorSpec
 
     def computePollOperation(start: Long): ComputePollOperation[IO] = new MockComputePollOperation {
       override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Operation] = {
         val pendingOp = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("PENDING").build()
         val afterOperation = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("DONE").build()
@@ -652,7 +652,7 @@ class GceRuntimeMonitorSpec
 
     val pollOperation: ComputePollOperation[IO] = new MockComputePollOperation {
       override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Operation] = IO.pure(op)
     }
 
@@ -702,7 +702,7 @@ class GceRuntimeMonitorSpec
                      beforeStatus: Option[GceInstanceStatus],
                      afterStatus: Option[GceInstanceStatus]): GoogleComputeService[IO] = new FakeGoogleComputeService {
     override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-      implicit ev: ApplicativeAsk[IO, TraceId]
+      implicit ev: Ask[IO, TraceId]
     ): IO[Option[Instance]] = {
       val beforeInstance = beforeStatus.map(s => Instance.newBuilder().setStatus(s.toString).build())
       val afterInstance = afterStatus.map(s => Instance.newBuilder().setStatus(s.toString).build())
@@ -719,31 +719,31 @@ class GceRuntimeMonitorSpec
 
 object GceInterp extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
-  ): IO[CreateRuntimeResponse] = ???
+    implicit ev: Ask[IO, AppContext]
+  ): IO[CreateGoogleRuntimeResponse] = ???
 
   override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[RuntimeStatus] = ???
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Option[Operation]] = IO.pure(None)
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
     IO.unit
 
   override def stopRuntime(
     params: StopRuntimeParams
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Option[Operation]] =
+  )(implicit ev: Ask[IO, AppContext]): IO[Option[Operation]] =
     IO.pure(None)
 
-  override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Unit] = ???
+  override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 
-  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
     ???
 
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 
-  override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 }

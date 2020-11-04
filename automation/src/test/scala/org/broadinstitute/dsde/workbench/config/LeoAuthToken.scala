@@ -7,7 +7,7 @@ import com.google.api.client.json.jackson2.JacksonFactory
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoConfig
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 case class LeoAuthToken(value: String)
 

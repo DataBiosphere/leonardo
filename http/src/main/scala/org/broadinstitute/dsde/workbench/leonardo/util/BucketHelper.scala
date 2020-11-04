@@ -8,7 +8,7 @@ import _root_.io.chrisdavenport.log4cats.Logger
 import cats.data.NonEmptyList
 import cats.effect.{Async, Blocker, Concurrent, ContextShift}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.Identity
 import fs2._
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
@@ -28,7 +28,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
    * Creates the dataproc init bucket and sets the necessary ACLs.
    */
   def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): Stream[F, Unit] =
     for {
       ctx <- Stream.eval(ev.ask)
@@ -43,7 +43,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       ownerAcl = Map(StorageRole.ObjectAdmin -> NonEmptyList.one(leoEntity))
 
       _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx))
-      _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl, traceId = Some(ctx))
+      _ <- google2StorageDAO.setIamPolicy(bucketName, (readerAcl ++ ownerAcl).toMap, traceId = Some(ctx))
     } yield ()
 
   /**
@@ -54,7 +54,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
     googleProject: GoogleProject,
     bucketName: GcsBucketName,
     serviceAccountInfo: WorkbenchEmail
-  )(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
+  )(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
     for {
       ctx <- Stream.eval(ev.ask)
       // The staging bucket is created in the cluster's project.
@@ -76,11 +76,11 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       ownerAcl = Map(StorageRole.ObjectAdmin -> NonEmptyList(leoEntity, bucketSAs))
 
       _ <- google2StorageDAO.insertBucket(googleProject, bucketName, traceId = Some(ctx))
-      _ <- google2StorageDAO.setIamPolicy(bucketName, readerAcl ++ ownerAcl, traceId = Some(ctx))
+      _ <- google2StorageDAO.setIamPolicy(bucketName, (readerAcl ++ ownerAcl).toMap, traceId = Some(ctx))
     } yield ()
 
   def deleteInitBucket(googleProject: GoogleProject,
-                       initBucketName: GcsBucketName)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                       initBucketName: GcsBucketName)(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       traceId <- ev.ask
       _ <- google2StorageDAO

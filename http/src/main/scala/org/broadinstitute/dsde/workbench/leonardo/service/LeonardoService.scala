@@ -12,13 +12,12 @@ import cats.Monoid
 import cats.data.{NonEmptyList, OptionT}
 import cats.effect.{ContextShift, IO, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Stopped
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
@@ -27,13 +26,9 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.UpdateTransition._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateRuntimeMessage,
-  DeleteRuntimeMessage,
-  StartRuntimeMessage,
-  StopRuntimeMessage
-}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -45,7 +40,7 @@ import scala.concurrent.duration._
 case class AuthorizationError(email: WorkbenchEmail)
     extends LeoException(
       s"${email.value} is unauthorized. " +
-        "If you have proper permissions to use the workspace, make sure you are also added to the billing account",
+        "If you have proper permissions to use the wLeonardoService.scalaorkspace, make sure you are also added to the billing account",
       StatusCodes.Forbidden
     )
 
@@ -181,7 +176,7 @@ class LeonardoService(
     with Retry {
 
   protected def checkProjectPermission(userInfo: UserInfo, action: ProjectAction, project: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Unit] =
     authProvider.hasPermission(ProjectSamResourceId(project), action, userInfo) flatMap {
       case false => IO.raiseError(AuthorizationError(userInfo.userEmail))
@@ -195,9 +190,9 @@ class LeonardoService(
                                        projectFallbackAction: Option[ProjectAction],
                                        runtimeSamResource: RuntimeSamResourceId,
                                        runtimeProjectAndName: RuntimeProjectAndName,
-                                       throw403: Boolean = false)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+                                       throw403: Boolean = false)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
     for {
-      traceId <- ev.ask
+      traceId <- ev.ask[TraceId]
       hasPermission <- projectFallbackAction match {
         case Some(projectAction) =>
           authProvider.hasPermissionWithProjectFallback(runtimeSamResource,
@@ -236,7 +231,7 @@ class LeonardoService(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     request: CreateRuntimeRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeResponse] =
+  )(implicit ev: Ask[IO, TraceId]): IO[CreateRuntimeResponse] =
     for {
       _ <- checkProjectPermission(userInfo, ProjectAction.CreateRuntime, googleProject)
       // Grab the service accounts from serviceAccountProvider for use later
@@ -260,11 +255,11 @@ class LeonardoService(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     request: CreateRuntimeRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[CreateRuntimeResponse] =
+  )(implicit ev: Ask[IO, TraceId]): IO[CreateRuntimeResponse] =
     // Validate that the Jupyter extension URIs and Jupyter user script URI are valid URIs and reference real GCS objects
     // and if so, save the cluster creation request parameters in DB
     for {
-      traceId <- ev.ask
+      traceId <- ev.ask[TraceId]
       internalId <- IO(RuntimeSamResourceId(UUID.randomUUID().toString))
       // Get a pet token from Sam. If we can't get a token, we won't do validation but won't fail cluster creation.
       petToken <- serviceAccountProvider.getAccessToken(userEmail, googleProject).recoverWith {
@@ -274,7 +269,7 @@ class LeonardoService(
               s"Skipping validation of bucket objects in the cluster request."
           ) as None
       }
-      clusterImages <- getRuntimeImages(petToken, userEmail, googleProject, request)
+      clusterImages <- getRuntimeImages(petToken, request)
       augmentedClusterRequest = augmentCreateRuntimeRequest(serviceAccountInfo,
                                                             googleProject,
                                                             runtimeName,
@@ -331,7 +326,7 @@ class LeonardoService(
 
   // throws 404 if nonexistent or no permissions
   def getActiveClusterDetails(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Runtime] =
     for {
       cluster <- internalGetActiveClusterDetails(googleProject, clusterName) //throws 404 if nonexistent
@@ -346,7 +341,7 @@ class LeonardoService(
 
   // throws 404 if nonexistent or no permissions
   def getClusterAPI(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[GetRuntimeResponse] =
     for {
       resp <- RuntimeServiceDbQueries
@@ -379,7 +374,7 @@ class LeonardoService(
                                    existingRuntimeConfig: RuntimeConfig,
                                    targetMachineType: Option[MachineTypeName],
                                    allowStop: Boolean,
-                                   now: Instant)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[UpdateResult] = {
+                                   now: Instant)(implicit ev: Ask[IO, TraceId]): IO[UpdateResult] = {
     val updatedMasterMachineTypeOpt =
       getUpdatedValueIfChanged(Some(existingRuntimeConfig.machineType), targetMachineType)
 
@@ -418,7 +413,7 @@ class LeonardoService(
   }
 
   def deleteCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Unit] =
     for {
       //throws 404 if no permissions
@@ -442,11 +437,11 @@ class LeonardoService(
     } yield ()
 
   //NOTE: This function MUST ALWAYS complete ALL steps. i.e. if deleting thing1 fails, it must still proceed to delete thing2
-  def internalDeleteCluster(cluster: Runtime)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  def internalDeleteCluster(cluster: Runtime)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
     if (cluster.status.isDeletable) {
       val hasDataprocInfo = cluster.asyncRuntimeFields.isDefined
       for {
-        ctx <- ev.ask
+        ctx <- ev.ask[TraceId]
         now <- nowInstant
         _ <- if (hasDataprocInfo)
           clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.PreDeleting, now).transaction >> publisherQueue
@@ -463,10 +458,10 @@ class LeonardoService(
     } else IO.unit
 
   def stopCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[Unit] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
       _ <- ctx.span.traverse(s => IO(s.addAnnotation("Done getActiveClusterDetails")))
@@ -501,10 +496,10 @@ class LeonardoService(
     } yield ()
 
   def startCluster(userInfo: UserInfo, googleProject: GoogleProject, clusterName: RuntimeName)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
+    implicit ev: Ask[IO, AppContext]
   ): IO[Unit] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       //throws 404 if no permissions
       cluster <- getActiveClusterDetails(userInfo, googleProject, clusterName)
       _ <- ctx.span.traverse(s => IO(s.addAnnotation("Done getActiveClusterDetails")))
@@ -537,7 +532,7 @@ class LeonardoService(
     } yield ()
 
   def listClusters(userInfo: UserInfo, params: LabelMap, googleProjectOpt: Option[GoogleProject] = None)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Vector[ListRuntimeResponse]] =
     for {
       paramMap <- IO.fromEither(processListParameters(params))
@@ -613,13 +608,10 @@ class LeonardoService(
 
   private[service] def getRuntimeImages(
     petToken: Option[String],
-    userEmail: WorkbenchEmail,
-    googleProject: GoogleProject,
     clusterRequest: CreateRuntimeRequest
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Set[RuntimeImage]] =
+  )(implicit ev: Ask[IO, TraceId]): IO[Set[RuntimeImage]] =
     for {
       now <- nowInstant
-      traceId <- ev.ask
       // Try to autodetect the image
       autodetectedImageOpt <- clusterRequest.toolDockerImage.traverse(image =>
         dockerDAO.detectTool(image, petToken).map(t => RuntimeImage(t, image.imageUrl, now))
@@ -766,7 +758,7 @@ object LeonardoService {
       serviceAccountInfo,
       request.jupyterUserScriptUri,
       request.jupyterStartUserScriptUri,
-      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
+      clusterImages.map(_.imageType).filterNot(_ == RuntimeImageType.Welder).headOption
     )
 
     val defaultLabelsMap = defaultLabels.toMap
