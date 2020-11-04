@@ -33,7 +33,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                   complete(
                     listDisksHandler(
                       userInfo,
-                      Some(googleProject),
+                      None,
                       params
                     )
                   )

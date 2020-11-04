@@ -3,31 +3,40 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.util.UUID
 import java.util.concurrent.TimeoutException
 
-import cats.effect.{IO, Resource, Timer}
 import cats.implicits._
+import cats.effect.{IO, Resource, Timer}
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
-import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
-import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateAppRequest,
+  CreateDiskRequest,
+  CreateRuntime2Request,
+  GetAppResponse,
+  GetPersistentDiskResponse,
+  ListAppResponse,
+  ListPersistentDiskResponse,
+  UpdateRuntimeRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.ExecutionContexts
-import org.http4s._
-import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.middleware.Logger
 import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
+import org.http4s.circe.CirceEntityEncoder._
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
+import scala.concurrent.duration._
+import ApiJsonDecoder._
+import org.http4s._
 
 import scala.concurrent.ExecutionContext.global
-import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+
 import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
-
   implicit def http4sBody[A](body: A)(implicit encoder: EntityEncoder[IO, A]): EntityBody[IO] =
     encoder.toEntity(body).body
   implicit val cs = IO.contextShift(global)
@@ -77,34 +86,27 @@ object LeonardoApiClient {
     Map.empty
   )
 
-  val defaultBatchNodepoolRequest = BatchNodepoolCreateRequest(
-    NumNodepools(10),
-    None,
-    None
-  )
-
   def createRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     createRuntime2Request: CreateRuntime2Request = defaultCreateRuntime2Request
   )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .status(
-        Request[IO](
-          method = Method.POST,
-          headers = Headers.of(authHeader, defaultMediaType, ),
-          uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
-          body = createRuntime2Request
-        )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(
-            RestError(s"Failed to create runtime ${googleProject.value}/${runtimeName.asString}", status, None)
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .expectOr[String](
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
+            body = createRuntime2Request
           )
-        else
-          IO.unit
-      }
+        )(resp =>
+          resp.bodyText.compile.string
+            .flatMap(body => IO.raiseError(RestError(resp.status, body)))
+        )
+        .void
+    } yield r
 
   def createRuntimeWithWait(googleProject: GoogleProject,
                             runtimeName: RuntimeName,
@@ -122,22 +124,21 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     runtimeName: RuntimeName
   )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .status(
-        Request[IO](
-          method = Method.POST,
-          headers = Headers.of(authHeader),
-          uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}/start")
-        )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(
-            RestError(s"Failed to start runtime ${googleProject.value}/${runtimeName.asString}", status, None)
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .expectOr[String](
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}/start")
           )
-        else
-          IO.unit
-      }
+        )(resp =>
+          resp.bodyText.compile.string
+            .flatMap(body => IO.raiseError(RestError(resp.status, body)))
+        )
+        .void
+    } yield r
 
   def startRuntimeWithWait(
     googleProject: GoogleProject,
@@ -153,49 +154,24 @@ object LeonardoApiClient {
     runtimeName: RuntimeName,
     req: UpdateRuntimeRequest
   )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .status(
-        Request[IO](
-          method = Method.PATCH,
-          headers = Headers.of(authHeader, defaultMediaType),
-          uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
-          body = req
-        )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(
-            RestError(s"Failed to update runtime ${googleProject.value}/${runtimeName.asString}", status, None)
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .expectOr[String](
+          Request[IO](
+            method = Method.PATCH,
+            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
+            body = req
           )
-        else
-          IO.unit
-      }
-
-  def createApp(
-    googleProject: GoogleProject,
-    appName: AppName,
-    createAppRequest: CreateAppRequest = defaultCreateAppRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .status(
-        Request[IO](
-          method = Method.POST,
-          headers = Headers.of(authHeader, defaultMediaType),
-          uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"),
-          body = createAppRequest
+        )(resp =>
+          resp.bodyText.compile.string
+            .flatMap(body => IO.raiseError(RestError(resp.status, body)))
         )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(RestError(s"Failed to create app ${googleProject.value}/${appName.value}", status, None))
-        else
-          IO.unit
-      }
+        .void
+    } yield r
 
-  //This line causes the body to be decoded as JSON, which will prevent error messagges from being seen
-  //If you care about the error message, place the function before this line
   import org.http4s.circe.CirceEntityDecoder._
-
   def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
     implicit timer: Timer[IO],
     client: Client[IO],
@@ -226,35 +202,41 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     runtimeName: RuntimeName
   )(implicit client: Client[IO], authHeader: Authorization): IO[GetRuntimeResponseCopy] =
-    client.expectOr[GetRuntimeResponseCopy](
-      Request[IO](
-        method = Method.GET,
-        headers = Headers.of(authHeader),
-        uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client.expect[GetRuntimeResponseCopy](
+        Request[IO](
+          method = Method.GET,
+          headers = Headers.of(authHeader, traceIdHeader),
+          uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+        )
       )
-    )(onError(s"Failed to get runtime ${googleProject.value}/${runtimeName.asString}"))
+    } yield r
 
   def deleteRuntime(googleProject: GoogleProject,
                     runtimeName: RuntimeName,
                     deleteDisk: Boolean = true)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .status(
-        Request[IO](
-          method = Method.DELETE,
-          headers = Headers.of(authHeader),
-          uri = rootUri
-            .withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
-            .withQueryParam("deleteDisk", deleteDisk)
-        )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(
-            RestError(s"Failed to delete runtime ${googleProject.value}/${runtimeName.asString}", status, None)
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .successful(
+          Request[IO](
+            method = Method.DELETE,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri
+              .withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+              .withQueryParam("deleteDisk", deleteDisk)
           )
-        else
-          IO.unit
-      }
+        )
+        .flatMap { success =>
+          if (success)
+            IO.unit
+          else
+            IO.raiseError(
+              new RuntimeException(s"Fail to delete runtime ${googleProject.value}/${runtimeName.asString}")
+            )
+        }
+    } yield r
 
   def deleteRuntimeWithWait(googleProject: GoogleProject, runtimeName: RuntimeName, deleteDisk: Boolean = true)(
     implicit timer: Timer[IO],
@@ -274,21 +256,23 @@ object LeonardoApiClient {
     diskName: DiskName,
     createDiskRequest: CreateDiskRequest = defaultCreateDiskRequest
   )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .status(
-        Request[IO](
-          method = Method.POST,
-          headers = Headers.of(authHeader, defaultMediaType),
-          uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"),
-          body = createDiskRequest
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .successful(
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"),
+            body = createDiskRequest
+          )
         )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(RestError(s"Failed to create disk ${googleProject.value}/${diskName.value}", status, None))
-        else
-          IO.unit
-      }
+        .flatMap { success =>
+          if (success)
+            IO.unit
+          else IO.raiseError(new Exception(s"Fail to create disk ${googleProject.value}/${diskName.value}"))
+        }
+    } yield r
 
   def createDiskWithWait(googleProject: GoogleProject, diskName: DiskName, createDiskRequest: CreateDiskRequest)(
     implicit timer: Timer[IO],
@@ -305,14 +289,17 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     diskName: DiskName
   )(implicit client: Client[IO], authHeader: Authorization): IO[GetPersistentDiskResponse] =
-    client.expectOr[GetPersistentDiskResponse](
-      Request[IO](
-        method = Method.GET,
-        headers = Headers.of(authHeader),
-        uri = rootUri
-          .withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
-      )
-    )(onError(s"Failed to get disk ${googleProject.value}/${diskName.value}"))
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client.expectOr[GetPersistentDiskResponse](
+        Request[IO](
+          method = Method.GET,
+          headers = Headers.of(authHeader, traceIdHeader),
+          uri = rootUri
+            .withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
+        )
+      )(onError)
+    } yield r
 
   def listDisk(
     googleProject: GoogleProject,
@@ -324,31 +311,38 @@ object LeonardoApiClient {
     val uri =
       if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
       else uriWithoutQueryParam
-    client.expectOr[List[ListPersistentDiskResponse]](
-      Request[IO](
-        method = Method.GET,
-        headers = Headers.of(authHeader),
-        uri = uri
-      )
-    )(onError(s"Failed to list disks in project ${googleProject.value}"))
+
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client.expectOr[List[ListPersistentDiskResponse]](
+        Request[IO](
+          method = Method.GET,
+          headers = Headers.of(authHeader, traceIdHeader),
+          uri = uri
+        )
+      )(onError)
+    } yield r
   }
 
   def deleteDisk(googleProject: GoogleProject, diskName: DiskName)(implicit client: Client[IO],
                                                                    authHeader: Authorization): IO[Unit] =
-    client
-      .status(
-        Request[IO](
-          method = Method.DELETE,
-          headers = Headers.of(authHeader),
-          uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .successful(
+          Request[IO](
+            method = Method.DELETE,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
+          )
         )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(RestError(s"Failed to delete disk ${googleProject.value}/${diskName.value}", status, None))
-        else
-          IO.unit
-      }
+        .flatMap { success =>
+          if (success)
+            IO.unit
+          else
+            IO.raiseError(new RuntimeException(s"Fail to delete runtime ${googleProject.value}/${diskName.value}"))
+        }
+    } yield r
 
   def deleteDiskWithWait(googleProject: GoogleProject, diskName: DiskName)(
     implicit timer: Timer[IO],
@@ -363,51 +357,67 @@ object LeonardoApiClient {
       else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName.value}"))
     } yield ()
 
-  private def onError(message: String)(response: Response[IO]): IO[Throwable] =
+  private def onError(response: Response[IO]): IO[Throwable] =
     for {
       body <- response.bodyText.compile.foldMonoid
-    } yield RestError(message, response.status, Some(body))
+    } yield RestError(response.status, body)
+
+  def createApp(
+    googleProject: GoogleProject,
+    appName: AppName,
+    createAppRequest: CreateAppRequest = defaultCreateAppRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .successful(
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"),
+            body = createAppRequest
+          )
+        )
+        .flatMap { success =>
+          if (success)
+            IO.unit
+          else IO.raiseError(new Exception(s"Fail to create app ${googleProject.value}/${appName.value}"))
+        }
+    } yield r
 
   def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                                 authHeader: Authorization): IO[Unit] =
-    client
-      .status(
-        Request[IO](
-          method = Method.DELETE,
-          headers = Headers.of(authHeader),
-          uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
-        )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(RestError(s"Failed to delete app ${googleProject.value}/${appName.value}", status, None))
-        else
-          IO.unit
-      }
-
-  def deleteAppWithWait(googleProject: GoogleProject, appName: AppName)(
-    implicit timer: Timer[IO],
-    client: Client[IO],
-    authHeader: Authorization
-  ): IO[Unit] =
     for {
-      _ <- deleteApp(googleProject, appName)
-      ioa = getApp(googleProject, appName).attempt
-      res <- timer.sleep(120 seconds) >> streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError
-      _ <- if (res.isDone) IO.unit
-      else IO.raiseError(new TimeoutException(s"delete app ${googleProject.value}/${appName.value}"))
-    } yield ()
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .successful(
+          Request[IO](
+            method = Method.DELETE,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
+          )
+        )
+        .flatMap { success =>
+          if (success)
+            IO.unit
+          else
+            IO.raiseError(new RuntimeException(s"Fail to delete app ${googleProject.value}/${appName.value}"))
+        }
+    } yield r
 
   def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                              authHeader: Authorization): IO[GetAppResponse] =
-    client.expectOr[GetAppResponse](
-      Request[IO](
-        method = Method.GET,
-        headers = Headers.of(authHeader),
-        uri = rootUri
-          .withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
-      )
-    )(onError(s"Failed to get app ${googleProject.value}/${appName.value}"))
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client.expectOr[GetAppResponse](
+        Request[IO](
+          method = Method.GET,
+          headers = Headers.of(authHeader, traceIdHeader),
+          uri = rootUri
+            .withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
+        )
+      )(onError)
+    } yield r
 
   def listApps(
     googleProject: GoogleProject,
@@ -419,39 +429,23 @@ object LeonardoApiClient {
     val uri =
       if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
       else uriWithoutQueryParam
-    client.expectOr[List[ListAppResponse]](
-      Request[IO](
-        method = Method.GET,
-        headers = Headers.of(authHeader),
-        uri = uri
-      )
-    )(onError(s"Failed to list apps in project ${googleProject.value}"))
-  }
 
-  def batchNodepoolCreate(
-    googleProject: GoogleProject,
-    req: BatchNodepoolCreateRequest = defaultBatchNodepoolRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    client
-      .status(
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client.expectOr[List[ListAppResponse]](
         Request[IO](
-          method = Method.POST,
-          headers = Headers.of(authHeader, defaultMediaType),
-          uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/batchNodepoolCreate"),
-          body = req
+          method = Method.GET,
+          headers = Headers.of(authHeader, traceIdHeader),
+          uri = uri
         )
-      )
-      .flatMap { status =>
-        if (!status.isSuccess)
-          IO.raiseError(RestError(s"Failed to batch create node pools in project ${googleProject.value}", status, None))
-        else
-          IO.unit
-      }
+      )(onError)
+    } yield r
+  }
 
   private def genTraceIdHeader(): IO[Header] =
     IO(UUID.randomUUID().toString).map(uuid => Header(traceIdHeaderString, uuid))
 }
 
-final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {
-  override def getMessage: String = s"message: ${message}, status: ${statusCode} body: ${body.getOrElse("")}"
+final case class RestError(statusCode: Status, message: String) extends NoStackTrace {
+  override def getMessage: String = s"stauts: ${statusCode}, ${message}"
 }
