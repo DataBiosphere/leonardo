@@ -81,4 +81,5 @@ object UpdateRuntimeConfigRequest {
 final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntimeConfigRequest],
                                       allowStop: Boolean,
                                       updateAutopauseEnabled: Option[Boolean],
-                                      updateAutopauseThreshold: Option[FiniteDuration])
+                                      updateAutopauseThreshold: Option[FiniteDuration],
+                                      updateLabels: Option[LabelMap])

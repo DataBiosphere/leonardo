@@ -504,11 +504,30 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold)
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
+      // Updating the labels for runtime
+      _ <- req.updateLabels.traverse { labels =>
+        for {
+          existingLabels <- labelQuery.getAllForResource(runtime.id, LabelResourceType.runtime).transaction
+          _ <- handleUpdateLabels(labels, existingLabels, runtime.id)
+        } yield ()
+      }
+
       // Updating the runtime config will potentially generate a PubSub message
       _ <- req.updatedRuntimeConfig.traverse_(update =>
         processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig)
       )
     } yield ()
+
+  private[service] def handleUpdateLabels(reqLabels: LabelMap, existingLabels: LabelMap, runtimeId: Long): F[Unit] = {
+    reqLabels.foreach(label =>
+      if (label._2 == null) {
+        labelQuery.deleteForResource(runtimeId, LabelResourceType.runtime, label._1, label._2)
+      } else {
+        labelQuery.save(runtimeId, LabelResourceType.runtime, label._1, label._2)
+      }
+    )
+    F.unit
+  }
 
   private[service] def getRuntimeImages(
     petToken: Option[String],
