@@ -29,12 +29,4 @@ object AppContext {
       context
     )
 
-  def withTraceId[F[_]: Sync: Timer](
-    span: Option[Span] = None
-  )(implicit traceId: TraceId): F[ApplicativeAsk[F, AppContext]] =
-    for {
-      now <- nowInstant[F]
-    } yield ApplicativeAsk.const[F, AppContext](
-      AppContext(traceId, now, span)
-    )
 }
