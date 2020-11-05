@@ -191,6 +191,8 @@ object LeonardoApiClient {
         }
     } yield r
 
+  //This line causes the body to be decoded as JSON, which will prevent error messagges from being seen
+  //If you care about the error message, place the function before this line
   import org.http4s.circe.CirceEntityDecoder._
   def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
     implicit timer: Timer[IO],
@@ -224,13 +226,13 @@ object LeonardoApiClient {
   )(implicit client: Client[IO], authHeader: Authorization): IO[GetRuntimeResponseCopy] =
     for {
       traceIdHeader <- genTraceIdHeader()
-      r <- client.expect[GetRuntimeResponseCopy](
+      r <- client.expectOr[GetRuntimeResponseCopy](
         Request[IO](
           method = Method.GET,
           headers = Headers.of(authHeader, traceIdHeader),
           uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
         )
-      )
+      )(onError(s"Failed to get runtime ${googleProject.value}/${runtimeName.asString}"))
     } yield r
 
   def deleteRuntime(googleProject: GoogleProject,
@@ -239,7 +241,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .successful(
+        .status(
           Request[IO](
             method = Method.DELETE,
             headers = Headers.of(authHeader, traceIdHeader),
@@ -248,13 +250,13 @@ object LeonardoApiClient {
               .withQueryParam("deleteDisk", deleteDisk)
           )
         )
-        .flatMap { success =>
-          if (success)
-            IO.unit
-          else
+        .flatMap { status =>
+          if (!status.isSuccess)
             IO.raiseError(
-              new RuntimeException(s"Fail to delete runtime ${googleProject.value}/${runtimeName.asString}")
+              RestError(s"Failed to delete runtime ${googleProject.value}/${runtimeName.asString}", status, None)
             )
+          else
+            IO.unit
         }
     } yield r
 
@@ -279,7 +281,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .successful(
+        .status(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
@@ -287,10 +289,11 @@ object LeonardoApiClient {
             body = createDiskRequest
           )
         )
-        .flatMap { success =>
-          if (success)
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(RestError(s"Failed to create disk ${googleProject.value}/${diskName.value}", status, None))
+          else
             IO.unit
-          else IO.raiseError(new Exception(s"Fail to create disk ${googleProject.value}/${diskName.value}"))
         }
     } yield r
 
@@ -349,18 +352,18 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .successful(
+        .status(
           Request[IO](
             method = Method.DELETE,
             headers = Headers.of(authHeader, traceIdHeader),
             uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
           )
         )
-        .flatMap { success =>
-          if (success)
-            IO.unit
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(RestError(s"Failed to delete disk ${googleProject.value}/${diskName.value}", status, None))
           else
-            IO.raiseError(new RuntimeException(s"Fail to delete runtime ${googleProject.value}/${diskName.value}"))
+            IO.unit
         }
     } yield r
 
@@ -390,7 +393,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .successful(
+        .status(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
@@ -398,10 +401,11 @@ object LeonardoApiClient {
             body = createAppRequest
           )
         )
-        .flatMap { success =>
-          if (success)
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(RestError(s"Failed to create app ${googleProject.value}/${appName.value}", status, None))
+          else
             IO.unit
-          else IO.raiseError(new Exception(s"Fail to create app ${googleProject.value}/${appName.value}"))
         }
     } yield r
 
@@ -410,20 +414,33 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .successful(
+        .status(
           Request[IO](
             method = Method.DELETE,
             headers = Headers.of(authHeader, traceIdHeader),
             uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
           )
         )
-        .flatMap { success =>
-          if (success)
-            IO.unit
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(RestError(s"Failed to delete app ${googleProject.value}/${appName.value}", status, None))
           else
-            IO.raiseError(new RuntimeException(s"Fail to delete app ${googleProject.value}/${appName.value}"))
+            IO.unit
         }
     } yield r
+
+  def deleteAppWithWait(googleProject: GoogleProject, appName: AppName)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[Unit] =
+    for {
+      _ <- deleteApp(googleProject, appName)
+      ioa = getApp(googleProject, appName).attempt
+      res <- timer.sleep(120 seconds) >> streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError
+      _ <- if (res.isDone) IO.unit
+      else IO.raiseError(new TimeoutException(s"delete app ${googleProject.value}/${appName.value}"))
+    } yield ()
 
   def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                              authHeader: Authorization): IO[GetAppResponse] =
