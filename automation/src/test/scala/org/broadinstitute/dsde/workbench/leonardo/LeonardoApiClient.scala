@@ -8,6 +8,7 @@ import cats.effect.{IO, Resource, Timer}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
+  BatchNodepoolCreateRequest,
   CreateAppRequest,
   CreateDiskRequest,
   CreateRuntime2Request,
@@ -26,6 +27,7 @@ import org.http4s.circe.CirceEntityEncoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
+
 import scala.concurrent.duration._
 import ApiJsonDecoder._
 import org.http4s._
@@ -86,6 +88,12 @@ object LeonardoApiClient {
     Map.empty
   )
 
+  val defaultBatchNodepoolRequest = BatchNodepoolCreateRequest(
+    NumNodepools(10),
+    None,
+    None
+  )
+
   def createRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
@@ -94,18 +102,22 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .expectOr[String](
+        .status(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
             body = createRuntime2Request
           )
-        )(resp =>
-          resp.bodyText.compile.string
-            .flatMap(body => IO.raiseError(RestError(resp.status, body)))
         )
-        .void
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(
+              RestError(s"Failed to create runtime ${googleProject.value}/${runtimeName.asString}", status, None)
+            )
+          else
+            IO.unit
+        }
     } yield r
 
   def createRuntimeWithWait(googleProject: GoogleProject,
@@ -127,17 +139,21 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .expectOr[String](
+        .status(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, traceIdHeader),
             uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}/start")
           )
-        )(resp =>
-          resp.bodyText.compile.string
-            .flatMap(body => IO.raiseError(RestError(resp.status, body)))
         )
-        .void
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(
+              RestError(s"Failed to start runtime ${googleProject.value}/${runtimeName.asString}", status, None)
+            )
+          else
+            IO.unit
+        }
     } yield r
 
   def startRuntimeWithWait(
@@ -157,18 +173,22 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .expectOr[String](
+        .status(
           Request[IO](
             method = Method.PATCH,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
             body = req
           )
-        )(resp =>
-          resp.bodyText.compile.string
-            .flatMap(body => IO.raiseError(RestError(resp.status, body)))
         )
-        .void
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(
+              RestError(s"Failed to update runtime ${googleProject.value}/${runtimeName.asString}", status, None)
+            )
+          else
+            IO.unit
+        }
     } yield r
 
   import org.http4s.circe.CirceEntityDecoder._
@@ -298,7 +318,7 @@ object LeonardoApiClient {
           uri = rootUri
             .withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
         )
-      )(onError)
+      )(onError(s"Failed to get disk ${googleProject.value}/${diskName.value}"))
     } yield r
 
   def listDisk(
@@ -320,7 +340,7 @@ object LeonardoApiClient {
           headers = Headers.of(authHeader, traceIdHeader),
           uri = uri
         )
-      )(onError)
+      )(onError(s"Failed to list disks in project ${googleProject.value}"))
     } yield r
   }
 
@@ -357,10 +377,10 @@ object LeonardoApiClient {
       else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName.value}"))
     } yield ()
 
-  private def onError(response: Response[IO]): IO[Throwable] =
+  private def onError(message: String)(response: Response[IO]): IO[Throwable] =
     for {
       body <- response.bodyText.compile.foldMonoid
-    } yield RestError(response.status, body)
+    } yield RestError(message, response.status, Some(body))
 
   def createApp(
     googleProject: GoogleProject,
@@ -416,7 +436,7 @@ object LeonardoApiClient {
           uri = rootUri
             .withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
         )
-      )(onError)
+      )(onError(s"Failed to get app ${googleProject.value}/${appName.value}"))
     } yield r
 
   def listApps(
@@ -438,14 +458,39 @@ object LeonardoApiClient {
           headers = Headers.of(authHeader, traceIdHeader),
           uri = uri
         )
-      )(onError)
+      )(onError(s"Failed to list apps in project ${googleProject.value}"))
     } yield r
   }
+
+  def batchNodepoolCreate(
+    googleProject: GoogleProject,
+    req: BatchNodepoolCreateRequest = defaultBatchNodepoolRequest
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .status(
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/batchNodepoolCreate"),
+            body = req
+          )
+        )
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(
+              RestError(s"Failed to batch create node pools in project ${googleProject.value}", status, None)
+            )
+          else
+            IO.unit
+        }
+    } yield r
 
   private def genTraceIdHeader(): IO[Header] =
     IO(UUID.randomUUID().toString).map(uuid => Header(traceIdHeaderString, uuid))
 }
 
-final case class RestError(statusCode: Status, message: String) extends NoStackTrace {
-  override def getMessage: String = s"stauts: ${statusCode}, ${message}"
+final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {
+  override def getMessage: String = s"message: ${message}, status: ${statusCode} body: ${body.getOrElse("")}"
 }
