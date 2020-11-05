@@ -505,10 +505,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
       // Updating the labels for runtime
-      _ <- req.updateLabels.traverse { labels =>
+      _ <- req.updateLabels.traverse { reqLabels =>
         for {
           existingLabels <- labelQuery.getAllForResource(runtime.id, LabelResourceType.runtime).transaction
-          _ <- handleUpdateLabels(labels, existingLabels, runtime.id)
+          _ <- handleUpdateLabels(reqLabels, existingLabels, runtime.id)
         } yield ()
       }
 
@@ -518,16 +518,15 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
     } yield ()
 
-  private[service] def handleUpdateLabels(reqLabels: LabelMap, existingLabels: LabelMap, runtimeId: Long): F[Unit] = {
-    reqLabels.foreach(label =>
-      if (label._2 == null) {
-        labelQuery.deleteForResource(runtimeId, LabelResourceType.runtime, label._1, label._2)
-      } else {
-        labelQuery.save(runtimeId, LabelResourceType.runtime, label._1, label._2)
-      }
-    )
-    F.unit
-  }
+  private[service] def handleUpdateLabels(reqLabels: LabelMap, existingLabels: LabelMap, runtimeId: Long): F[Unit] =
+    reqLabels.toList.traverse {
+      case (k, v) =>
+        if (v == "null") {
+          labelQuery.deleteForResource(runtimeId, LabelResourceType.runtime, k, v).transaction
+        } else {
+          labelQuery.save(runtimeId, LabelResourceType.runtime, k, v).transaction
+        }
+    }.void
 
   private[service] def getRuntimeImages(
     petToken: Option[String],

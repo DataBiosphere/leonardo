@@ -619,7 +619,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
-      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
+      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), None)
 
       _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
       dbRuntimeOpt <- clusterQuery
@@ -642,7 +642,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         val res = for {
           samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
           testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
-          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
+          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), None)
           fail <- runtimeService
             .updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
             .attempt
