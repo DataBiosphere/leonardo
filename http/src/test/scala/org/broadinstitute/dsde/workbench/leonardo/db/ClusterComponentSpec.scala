@@ -342,4 +342,18 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
 
     res.unsafeRunSync()
   }
+
+  it should "save and get deletedFrom" in isolatedDbTest {
+    val res = for {
+      savedRuntime <- IO(
+        makeCluster(1).save()
+      )
+      _ <- clusterQuery.updateDeletedFrom(savedRuntime.id, "zombieMonitor").transaction
+      deletedFrom <- clusterQuery.getDeletedFrom(savedRuntime.id).transaction
+    } yield {
+      deletedFrom shouldBe Some("zombieMonitor")
+    }
+
+    res.unsafeRunSync()
+  }
 }
