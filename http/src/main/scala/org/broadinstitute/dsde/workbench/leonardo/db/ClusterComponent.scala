@@ -45,7 +45,8 @@ final case class ClusterRecord(id: Long,
                                stopAfterCreation: Boolean,
                                welderEnabled: Boolean,
                                customClusterEnvironmentVariables: Map[String, String],
-                               runtimeConfigId: RuntimeConfigId) {
+                               runtimeConfigId: RuntimeConfigId,
+                               deletedFrom: Option[String]) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
 }
 
@@ -74,6 +75,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def welderEnabled = column[Boolean]("welderEnabled")
   def runtimeConfigId = column[RuntimeConfigId]("runtimeConfigId")
   def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
+  def deletedFrom = column[Option[String]]("deletedFrom")
 
   def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
 
@@ -103,7 +105,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       stopAfterCreation,
       welderEnabled,
       customClusterEnvironmentVariables,
-      runtimeConfigId
+      runtimeConfigId,
+      deletedFrom
     ).shaped <> ({
       case (id,
             internalId,
@@ -125,7 +128,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             stopAfterCreation,
             welderEnabled,
             customClusterEnvironmentVariables,
-            runtimeConfigId) =>
+            runtimeConfigId,
+            deletedFrom) =>
         ClusterRecord(
           id,
           internalId,
@@ -152,7 +156,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           stopAfterCreation,
           welderEnabled,
           customClusterEnvironmentVariables.getOrElse(Map.empty),
-          runtimeConfigId
+          runtimeConfigId,
+          deletedFrom
         )
     }, { c: ClusterRecord =>
       def ai(_ai: AuditInfo) = (
@@ -183,7 +188,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.stopAfterCreation,
           c.welderEnabled,
           if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables),
-          c.runtimeConfigId
+          c.runtimeConfigId,
+          c.deletedFrom
         )
       )
     })
@@ -278,8 +284,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         saveCluster.cluster
       ) // update runtimeConfigId
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
-                                                                                   saveCluster.initBucket.map(_.toUri),
-                                                                                   saveCluster.serviceAccountKeyId)
+                                                                                   saveCluster.initBucket.map(_.toUri))
       _ <- labelQuery.saveAllForResource(clusterId, LabelResourceType.Runtime, cluster.labels)
       _ <- instanceQuery.saveAllForCluster(clusterId, cluster.dataprocInstances.toSeq)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -470,6 +475,18 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       _ <- RuntimeConfigQueries.updatePersistentDiskId(rid, None, destroyedDate): DBIO[Int]
     } yield ()
 
+  def updateDeletedFrom(id: Long, deletedFrom: String): DBIO[Int] =
+    findByIdQuery(id)
+      .map(c => (c.deletedFrom))
+      .update(Some(deletedFrom))
+
+  def getDeletedFrom(id: Long)(implicit ec: ExecutionContext): DBIO[Option[String]] =
+    findByIdQuery(id)
+      .map(_.deletedFrom)
+      .result
+      .headOption
+      .map(_.flatten)
+
   def updateClusterStatusAndHostIp(id: Long,
                                    status: RuntimeStatus,
                                    hostIp: Option[IP],
@@ -561,9 +578,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
-  private def marshalCluster(runtime: Runtime,
-                             initBucket: Option[String],
-                             serviceAccountKeyId: Option[ServiceAccountKeyId]): ClusterRecord =
+  private def marshalCluster(runtime: Runtime, initBucket: Option[String]): ClusterRecord =
     ClusterRecord(
       id = 0, // DB AutoInc
       runtime.samResource.resourceId,
@@ -585,7 +600,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.stopAfterCreation,
       runtime.welderEnabled,
       runtime.customEnvironmentVariables,
-      runtime.runtimeConfigId
+      runtime.runtimeConfigId,
+      None
     )
 
   private def unmarshalMinimalCluster(

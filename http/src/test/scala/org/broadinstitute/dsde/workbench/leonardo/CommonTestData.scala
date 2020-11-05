@@ -292,7 +292,8 @@ object CommonTestData {
     stagingBucket = Some(stagingBucketName.value),
     welderEnabled = true,
     customClusterEnvironmentVariables = Map.empty,
-    runtimeConfigId = RuntimeConfigId(-1)
+    runtimeConfigId = RuntimeConfigId(-1),
+    deletedFrom = None
   )
 
   val readyInstance = Instance
