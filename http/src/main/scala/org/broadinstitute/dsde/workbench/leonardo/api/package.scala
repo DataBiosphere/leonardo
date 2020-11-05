@@ -6,11 +6,8 @@ import java.util.UUID
 
 import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.server.Directive1
-<<<<<<< HEAD
 import akka.http.scaladsl.server.Directives.provide
-=======
 import akka.http.scaladsl.server.Directives.optionalHeaderValueByName
->>>>>>> updating runtime routes
 import akka.http.scaladsl.server.directives.OnSuccessMagnet
 import akka.http.scaladsl.server.util.Tupler
 import cats.effect.IO
