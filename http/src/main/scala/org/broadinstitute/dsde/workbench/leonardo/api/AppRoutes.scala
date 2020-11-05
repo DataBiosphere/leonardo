@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
 import JsonCodec._
 import akka.http.scaladsl.server.Directives.pathEndOrSingleSlash
-import cats.effect.{IO, Timer}
+import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.UserInfo
