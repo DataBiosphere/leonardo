@@ -28,4 +28,5 @@ object AppContext {
     } yield ApplicativeAsk.const[F, AppContext](
       context
     )
+
 }

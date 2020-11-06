@@ -12,7 +12,8 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 package object leonardo {
   type LabelMap = Map[String, String]
   //this value is the default for autopause, if none is specified. An autopauseThreshold of 0 indicates no autopause
-  final val autoPauseOffValue = 0
+  val autoPauseOffValue = 0
+  val traceIdHeaderString = "X-Cloud-Trace-Context"
 
   // convenience to get now as a F[Instant] using a Timer
   def nowInstant[F[_]: Timer: Functor]: F[Instant] =

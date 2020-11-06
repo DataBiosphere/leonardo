@@ -7,7 +7,7 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
 import JsonCodec._
 import akka.http.scaladsl.server.Directives.pathEndOrSingleSlash
-import cats.effect.{IO, Timer}
+import cats.effect.IO
 import cats.mtl.ApplicativeAsk
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -18,154 +18,156 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
+import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 
-class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
-  implicit timer: Timer[IO]
-) {
+class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives) {
 
-  val routes: server.Route = userInfoDirectives.requireUserInfo { userInfo =>
-    CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
-      pathPrefix("google" / "v1" / "apps") {
-        pathEndOrSingleSlash {
-          parameterMap { params =>
-            get {
-              complete(
-                listAppHandler(userInfo, None, params)
-              )
-            }
-          }
-        } ~
-          pathPrefix(googleProjectSegment) { googleProject =>
+  val routes: server.Route = traceRequestForService(serviceData) { span =>
+    extractAppContext(Some(span)) { implicit ctx =>
+      userInfoDirectives.requireUserInfo { userInfo =>
+        CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+          pathPrefix("google" / "v1" / "apps") {
             pathEndOrSingleSlash {
               parameterMap { params =>
                 get {
                   complete(
-                    listAppHandler(
-                      userInfo,
-                      Some(googleProject),
-                      params
-                    )
+                    listAppHandler(userInfo, None, params)
                   )
                 }
               }
             } ~
-              path("batchNodepoolCreate") {
+              pathPrefix(googleProjectSegment) { googleProject =>
                 pathEndOrSingleSlash {
-                  post {
-                    entity(as[BatchNodepoolCreateRequest]) { req =>
+                  parameterMap { params =>
+                    get {
                       complete(
-                        batchNodepoolCreateHandler(userInfo, googleProject, req)
+                        listAppHandler(
+                          userInfo,
+                          Some(googleProject),
+                          params
+                        )
                       )
                     }
                   }
-                }
-              } ~
-              pathPrefix(Segment) { appNameString =>
-                RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
-                  pathEndOrSingleSlash {
-                    post {
-                      entity(as[CreateAppRequest]) { req =>
-                        complete(
-                          createAppHandler(userInfo, googleProject, appName, req)
-                        )
-                      }
-                    } ~
-                      get {
-                        complete(
-                          getAppHandler(
-                            userInfo,
-                            googleProject,
-                            appName
-                          )
-                        )
-                      } ~
-                      delete {
-                        parameterMap { params =>
+                } ~
+                  path("batchNodepoolCreate") {
+                    pathEndOrSingleSlash {
+                      post {
+                        entity(as[BatchNodepoolCreateRequest]) { req =>
                           complete(
-                            deleteAppHandler(
-                              userInfo,
-                              googleProject,
-                              appName,
-                              params
-                            )
+                            batchNodepoolCreateHandler(userInfo, googleProject, req)
                           )
                         }
                       }
+                    }
+                  } ~
+                  pathPrefix(Segment) { appNameString =>
+                    RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
+                      pathEndOrSingleSlash {
+                        post {
+                          entity(as[CreateAppRequest]) { req =>
+                            complete(
+                              createAppHandler(userInfo, googleProject, appName, req)
+                            )
+                          }
+                        } ~
+                          get {
+                            complete(
+                              getAppHandler(
+                                userInfo,
+                                googleProject,
+                                appName
+                              )
+                            )
+                          } ~
+                          delete {
+                            parameterMap { params =>
+                              complete(
+                                deleteAppHandler(
+                                  userInfo,
+                                  googleProject,
+                                  appName,
+                                  params
+                                )
+                              )
+                            }
+                          }
+                      }
+                    }
                   }
-                }
               }
           }
+        }
       }
     }
   }
-
   private[api] def batchNodepoolCreateHandler(userInfo: UserInfo,
                                               googleProject: GoogleProject,
-                                              req: BatchNodepoolCreateRequest): IO[ToResponseMarshallable] =
+                                              req: BatchNodepoolCreateRequest)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      _ <- kubernetesService.batchNodepoolCreate(userInfo, googleProject, req)
+      ctx <- ev.ask
+      apiCall = kubernetesService.batchNodepoolCreate(userInfo, googleProject, req)
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "batchNodepoolCreate").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
   private[api] def createAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     appName: AppName,
-                                    req: CreateAppRequest): IO[ToResponseMarshallable] =
+                                    req: CreateAppRequest)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      _ <- kubernetesService.createApp(
+      ctx <- ev.ask
+      apiCall = kubernetesService.createApp(
         userInfo,
         googleProject,
         appName,
         req
       )
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
+
     } yield StatusCodes.Accepted
 
-  private[api] def getAppHandler(userInfo: UserInfo,
-                                 googleProject: GoogleProject,
-                                 appName: AppName): IO[ToResponseMarshallable] =
+  private[api] def getAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      resp <- kubernetesService.getApp(
+      ctx <- ev.ask
+      apiCall = kubernetesService.getApp(
         userInfo,
         googleProject,
         appName
       )
+      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getApp").use(_ => apiCall))
+
     } yield StatusCodes.OK -> resp
 
   private[api] def listAppHandler(userInfo: UserInfo,
                                   googleProject: Option[GoogleProject],
-                                  params: Map[String, String]): IO[ToResponseMarshallable] =
+                                  params: Map[String, String])(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
-      resp <- kubernetesService.listApp(
+      ctx <- ev.ask
+      apiCall = kubernetesService.listApp(
         userInfo,
         googleProject,
         params
       )
+      resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listApp").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     appName: AppName,
-                                    params: Map[String, String]): IO[ToResponseMarshallable] =
+                                    params: Map[String, String])(
+    implicit ev: ApplicativeAsk[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
     for {
-      context <- AppContext.generate[IO]()
-      implicit0(ctx: ApplicativeAsk[IO, AppContext]) = ApplicativeAsk.const[IO, AppContext](
-        context
-      )
+      ctx <- ev.ask
+
       deleteDisk = params
         .get("deleteDisk")
         .map(s => s == "true")
@@ -176,9 +178,10 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
         appName,
         deleteDisk
       )
-      _ <- kubernetesService.deleteApp(
+      apiCall = kubernetesService.deleteApp(
         deleteParams
       )
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
 }
