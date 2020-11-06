@@ -19,9 +19,11 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives) {
-
+class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
+  implicit metrics: OpenTelemetryMetrics[IO]
+) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
@@ -109,6 +111,7 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
     for {
       ctx <- ev.ask
       apiCall = kubernetesService.batchNodepoolCreate(userInfo, googleProject, req)
+      _ <- metrics.incrementCounter("batchNodepoolCreate")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "batchNodepoolCreate").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -126,8 +129,8 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
         appName,
         req
       )
+      _ <- metrics.incrementCounter("createApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
-
     } yield StatusCodes.Accepted
 
   private[api] def getAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
@@ -140,8 +143,8 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
         googleProject,
         appName
       )
+      _ <- metrics.incrementCounter("getApp")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getApp").use(_ => apiCall))
-
     } yield StatusCodes.OK -> resp
 
   private[api] def listAppHandler(userInfo: UserInfo,
@@ -156,6 +159,7 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
         googleProject,
         params
       )
+      _ <- metrics.incrementCounter("listApp")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listApp").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
@@ -181,13 +185,12 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
       apiCall = kubernetesService.deleteApp(
         deleteParams
       )
+      _ <- metrics.incrementCounter("deleteApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
-
 }
 
 object AppRoutes {
-
   implicit val createAppDecoder: Decoder[CreateAppRequest] =
     Decoder.instance { x =>
       for {

@@ -19,8 +19,11 @@ import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives) {
+class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives)(
+  implicit metrics: OpenTelemetryMetrics[IO]
+) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
@@ -118,6 +121,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     for {
       ctx <- ev.ask
       apiCall = diskService.createDisk(userInfo, googleProject, diskName, req)
+      _ <- metrics.incrementCounter("createDisk")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -127,6 +131,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     for {
       ctx <- ev.ask
       apiCall = diskService.getDisk(userInfo, googleProject, diskName)
+      _ <- metrics.incrementCounter("getDisk")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getDisk").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
@@ -138,6 +143,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     for {
       ctx <- ev.ask
       apiCall = diskService.listDisks(userInfo, googleProject, params)
+      _ <- metrics.incrementCounter("listDisks")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listDisks").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
@@ -147,6 +153,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     for {
       ctx <- ev.ask
       apiCall = diskService.deleteDisk(userInfo, googleProject, diskName)
+      _ <- metrics.incrementCounter("deleteDisk")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
@@ -159,12 +166,12 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
     for {
       ctx <- ev.ask
       apiCall = diskService.updateDisk(userInfo, googleProject, diskName, req)
+      _ <- metrics.incrementCounter("updateDisk")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "updateDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 }
 
 object DiskRoutes {
-
   implicit val createDiskRequestDecoder: Decoder[CreateDiskRequest] = Decoder.instance { c =>
     for {
       l <- c.downField("labels").as[Option[LabelMap]]
