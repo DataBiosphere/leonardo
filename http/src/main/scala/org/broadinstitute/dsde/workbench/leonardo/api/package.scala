@@ -54,10 +54,8 @@ package object api {
   }
 
   def extractAppContext(span: Option[Span]): Directive1[ApplicativeAsk[IO, AppContext]] =
-    //val traceIdFromHeader = req.headers.get(CaseInsensitiveString("X-Cloud-Trace-Context")).map(x => TraceId(x.value))
-    //traceIdFromHeader.fold(IO(TraceId(UUID.randomUUID().toString)))(IO.pure)
     optionalHeaderValueByName(traceIdHeaderString).map {
-      case (uuidOpt) =>
+      case uuidOpt =>
         val traceId = uuidOpt.getOrElse(UUID.randomUUID().toString)
         val now = Instant.now()
         val appContext = AppContext(TraceId(traceId), now, span)

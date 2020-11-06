@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.ErrorReportJsonSupport._
 import org.broadinstitute.dsde.workbench.model.ErrorReport
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -39,7 +40,11 @@ class HttpRoutes(
   kubernetesService: KubernetesService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String
-)(implicit timer: Timer[IO], ec: ExecutionContext, ac: ActorSystem, cs: ContextShift[IO])
+)(implicit timer: Timer[IO],
+  ec: ExecutionContext,
+  ac: ActorSystem,
+  cs: ContextShift[IO],
+  metrics: OpenTelemetryMetrics[IO])
     extends LazyLogging {
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)

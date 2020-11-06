@@ -27,10 +27,13 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
 
-class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives) {
+class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
+  implicit metrics: OpenTelemetryMetrics[IO]
+) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
@@ -157,6 +160,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       ctx <- ev.ask
       apiCall = runtimeService.createRuntime(userInfo, googleProject, runtimeName, req)
+      _ <- metrics.incrementCounter("createRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createRuntime")
           .use(_ => apiCall)
@@ -169,6 +173,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       ctx <- ev.ask
       apiCall = runtimeService.getRuntime(userInfo, googleProject, runtimeName)
+      _ <- metrics.incrementCounter("getRuntime")
       resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "getRuntime")
           .use(_ => apiCall)
@@ -183,6 +188,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       ctx <- ev.ask
       apiCall = runtimeService.listRuntimes(userInfo, googleProject, params)
+      _ <- metrics.incrementCounter("listRuntime")
       resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "listRuntime")
           .use(_ => apiCall)
@@ -203,6 +209,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
         .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
       request = DeleteRuntimeRequest(userInfo, googleProject, runtimeName, deleteDisk)
       apiCall = runtimeService.deleteRuntime(request)
+      _ <- metrics.incrementCounter("deleteRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "deleteRuntime")
           .use(_ => apiCall)
@@ -215,6 +222,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       ctx <- ev.ask
       apiCall = runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
+      _ <- metrics.incrementCounter("stopRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "stopRuntime")
           .use(_ => apiCall)
@@ -227,6 +235,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       ctx <- ev.ask
       apiCall = runtimeService.startRuntime(userInfo, googleProject, runtimeName)
+      _ <- metrics.incrementCounter("startRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "startRuntime")
           .use(_ => apiCall)
@@ -242,12 +251,12 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     for {
       ctx <- ev.ask
       apiCall = runtimeService.updateRuntime(userInfo, googleProject, runtimeName, req)
+      _ <- metrics.incrementCounter("updateRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "updateRuntime")
           .use(_ => apiCall)
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
-
 }
 
 object RuntimeRoutes {

@@ -5,14 +5,15 @@ import java.sql.SQLDataException
 import java.util.Objects
 
 import akka.http.scaladsl.model.Uri.Host
-import io.opencensus.trace.{AttributeValue, Span}
-import io.opencensus.scala.http.ServiceData
 import cats.effect.{Blocker, ContextShift, Resource, Sync}
 import cats.implicits._
 import cats.mtl.ApplicativeAsk
+import io.opencensus.scala.http.ServiceData
+import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthy
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
+import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   InvalidMonitorRequest,
   RuntimeConfigInCreateRuntimeMessage,
@@ -21,9 +22,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 import org.broadinstitute.dsde.workbench.leonardo.util.CloudServiceOps
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
-import slick.dbio.DBIO
 import shapeless._
+import slick.dbio.DBIO
 
 package object http {
   implicit val errorReportSource = ErrorReportSource("leonardo")
