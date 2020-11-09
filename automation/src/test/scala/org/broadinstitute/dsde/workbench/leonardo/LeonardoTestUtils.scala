@@ -132,7 +132,7 @@ trait LeonardoTestUtils
   }
 
   def getExpectedToolLabel(imageUrl: String): String =
-    if (imageUrl == LeonardoConfig.Leonardo.rstudioBaseImage.imageUrl) "RStudio"
+    if (imageUrl == LeonardoConfig.Leonardo.rstudioBioconductorImage.imageUrl) "RStudio"
     else "Jupyter"
 
   def labelCheck(seen: LabelMap,

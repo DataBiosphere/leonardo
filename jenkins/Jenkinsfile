@@ -150,8 +150,7 @@ pipeline {
         string(name: "terra_jupyter_bioconductor", defaultValue: "1.0.5")
         string(name: "terra_jupyter_gatk", defaultValue: "1.0.5")
         string(name: "terra_jupyter_aou", defaultValue: "1.0.14")
-        string(name: "anvil_rstudio_base", defaultValue: "0.0.5")
-        string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.7")
+        string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.8")
         string(name: "welder_server", defaultValue: "59be71a",
             description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")
         string(name: "openidc_proxy", defaultValue: "2.3.1_2",
@@ -167,7 +166,7 @@ pipeline {
                     customDataprocImageBaseName = "${IMAGE_BASE_NAME}-dataproc"
                     customGceImageBaseName = "${IMAGE_BASE_NAME}-gce-debian9"
                     ArrayList<String> nonTerraDockerImages = [
-                        'welder-server', 'openidc-proxy', 'anvil-rstudio-base', 'anvil-rstudio-bioconductor'
+                        'welder-server', 'openidc-proxy', 'anvil-rstudio-bioconductor'
                     ]
 
                     String selectBuildableTerraDockerImagesQuery = "cat config/conf.json | jq -r '.image_data | .[] | select(.automated_flags.build == true)"
