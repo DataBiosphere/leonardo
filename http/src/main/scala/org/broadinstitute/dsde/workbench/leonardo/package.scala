@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.nio.file.{Files, Path}
 import java.sql.SQLDataException
-import java.util.Objects
 
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Blocker, ContextShift, Resource, Sync}
@@ -56,7 +55,7 @@ package object http {
 
   // This hostname is used by the ProxyService and also needs to be specified in the Galaxy ingress resource
   def kubernetesProxyHost(cluster: KubernetesCluster, proxyDomain: String): Host = {
-    val prefix = Math.abs(Objects.hashCode(cluster.getGkeClusterId)).toString
+    val prefix = Math.abs(cluster.getGkeClusterId.toString.hashCode).toString
     Host(prefix + proxyDomain)
   }
 
