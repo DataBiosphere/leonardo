@@ -504,12 +504,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold)
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
-      // Updating the labels for runtime
-      _ <- req.updateLabels.traverse { reqLabels =>
-        for {
-          existingLabels <- labelQuery.getAllForResource(runtime.id, LabelResourceType.runtime).transaction
-          _ <- handleUpdateLabels(reqLabels, existingLabels, runtime.id)
-        } yield ()
+
+      // Deleting labels
+      existingLabels <- labelQuery.getAllForResource(runtime.id, LabelResourceType.runtime).transaction
+
+      _ <- req.labelsToDelete.traverse { label =>
+        labelQuery.deleteForResource(runtime.id, LabelResourceType.runtime, label).transaction
+      }
+
+      _ <- req.labelsToUpsert.toList.traverse {
+        case (k, v) =>
+          labelQuery.save(runtime.id, LabelResourceType.runtime, k, v).transaction
       }
 
       // Updating the runtime config will potentially generate a PubSub message
@@ -517,16 +522,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig)
       )
     } yield ()
-
-  private[service] def handleUpdateLabels(reqLabels: LabelMap, existingLabels: LabelMap, runtimeId: Long): F[Unit] =
-    reqLabels.toList.traverse {
-      case (k, v) =>
-        if (v == "null") {
-          labelQuery.deleteForResource(runtimeId, LabelResourceType.runtime, k, v).transaction
-        } else {
-          labelQuery.save(runtimeId, LabelResourceType.runtime, k, v).transaction
-        }
-    }.void
 
   private[service] def getRuntimeImages(
     petToken: Option[String],
