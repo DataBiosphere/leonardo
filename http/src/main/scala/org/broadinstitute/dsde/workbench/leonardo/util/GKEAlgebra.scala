@@ -12,7 +12,9 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 trait GKEAlgebra[F[_]] {
 
   /** Creates a GKE cluster but doesn't wait for its completion. */
-  def createCluster(params: CreateClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateClusterResult]
+  def createCluster(params: CreateClusterParams)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Option[CreateClusterResult]]
 
   /**
    * Polls a creating GKE cluster for its completion and also does other cluster-wide set-up like
@@ -21,7 +23,9 @@ trait GKEAlgebra[F[_]] {
   def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]
 
   /** Creates a GKE nodepool but doesn't wait for its completion. */
-  def createNodepool(params: CreateNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateNodepoolResult]
+  def createNodepool(params: CreateNodepoolParams)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Option[CreateNodepoolResult]]
 
   /** Polls a creating nodepool for its completion. */
   def pollNodepool(params: PollNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit]

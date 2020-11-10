@@ -8,6 +8,7 @@ import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.implicits._
+import cats.effect._
 import cats.mtl.ApplicativeAsk
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.container.v1._
@@ -76,7 +77,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
   override def createCluster(params: CreateClusterParams)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CreateClusterResult] =
+  ): F[Option[CreateClusterResult]] =
     for {
       ctx <- ev.ask
 
@@ -148,11 +149,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Submit request to GKE
       req = KubernetesCreateClusterRequest(dbCluster.googleProject, dbCluster.location, legacyCreateClusterRec)
-      op <- gkeService.createCluster(req)
+      //the Operation will be none if we get a 409, indicating we have already created this cluster
+      operationOpt <- gkeService.createCluster(req)
 
-    } yield CreateClusterResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName),
-                                kubeNetwork,
-                                kubeSubNetwork)
+    } yield operationOpt.map(op =>
+      CreateClusterResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName),
+                          kubeNetwork,
+                          kubeSubNetwork)
+    )
 
   override def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
@@ -243,7 +247,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
   override def createNodepool(params: CreateNodepoolParams)(
     implicit ev: ApplicativeAsk[F, AppContext]
-  ): F[CreateNodepoolResult] =
+  ): F[Option[CreateNodepoolResult]] =
     for {
       ctx <- ev.ask
       dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
@@ -264,8 +268,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         dbCluster.getGkeClusterId,
         buildGoogleNodepool(dbNodepool)
       )
-      op <- gkeService.createNodepool(req)
-    } yield CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName))
+      operationOpt <- gkeService.createNodepool(req)
+    } yield operationOpt.map(op =>
+      CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName))
+    )
 
   override def pollNodepool(params: PollNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
     for {
@@ -403,25 +409,33 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         dbClusterOpt,
         KubernetesClusterNotFoundException(s"Cluster with id ${params.clusterId} not found in database")
       )
-      op <- gkeService.deleteCluster(dbCluster.getGkeClusterId)
-      lastOp <- gkeService
-        .pollOperation(
-          KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-          config.monitorConfig.clusterDelete.interval,
-          config.monitorConfig.clusterDelete.maxAttempts
+      //the operation will be None if the cluster is not found and we have already deleted it
+      operationOpt <- gkeService.deleteCluster(dbCluster.getGkeClusterId)
+      lastOp <- operationOpt
+        .traverse(op =>
+          gkeService
+            .pollOperation(
+              KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+              config.monitorConfig.clusterDelete.interval,
+              config.monitorConfig.clusterDelete.maxAttempts
+            )
         )
         .compile
         .lastOrError
-      _ <- if (lastOp.isDone)
-        logger.info(
-          s"Delete cluster operation has finished for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
-        )
-      else
-        logger.error(
-          s"Delete cluster operation has failed or timed out for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
-        ) >>
-          F.raiseError[Unit](ClusterDeletionException(params.clusterId))
-      _ <- kubernetesClusterQuery.markAsDeleted(params.clusterId, ctx.now).transaction
+      _ <- lastOp match {
+        case None => F.unit
+        case Some(op) =>
+          if (op.isDone)
+            logger.info(
+              s"Delete cluster operation has finished for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+            )
+          else
+            logger.error(
+              s"Delete cluster operation has failed or timed out for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+            ) >>
+              F.raiseError[Unit](ClusterDeletionException(params.clusterId))
+      }
+      _ <- operationOpt.traverse(_ => kubernetesClusterQuery.markAsDeleted(params.clusterId, ctx.now).transaction)
     } yield ()
 
   override def deleteAndPollNodepool(
@@ -441,28 +455,34 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Beginning nodepool deletion for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      op <- gkeService.deleteNodepool(
+      operationOpt <- gkeService.deleteNodepool(
         NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
       )
-      lastOp <- gkeService
-        .pollOperation(
-          KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-          config.monitorConfig.nodepoolDelete.interval,
-          config.monitorConfig.nodepoolDelete.maxAttempts
+      lastOp <- operationOpt
+        .traverse(op =>
+          gkeService
+            .pollOperation(
+              KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+              config.monitorConfig.nodepoolDelete.interval,
+              config.monitorConfig.nodepoolDelete.maxAttempts
+            )
         )
         .compile
         .lastOrError
-      _ <- if (lastOp.isDone)
-        logger.info(
-          s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-        )
-      else
-        logger.error(
-          s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-        ) >>
-          F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
-      _ <- nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction
-
+      _ <- lastOp match {
+        case None => F.unit
+        case Some(op) =>
+          if (op.isDone)
+            logger.info(
+              s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+            )
+          else
+            logger.error(
+              s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+            ) >>
+              F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
+      }
+      _ <- operationOpt.traverse(_ => nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction)
     } yield ()
 
   // This function DOES NOT update the app status to deleted after polling is complete
@@ -474,7 +494,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     for {
       ctx <- ev.ask
 
-      dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(params.googleProject, params.appName).transaction
+      dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(params.googleProject, params.appId).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(params.googleProject, params.appName, ctx.traceId))
 
       app = dbApp.app
@@ -488,15 +508,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
-      googleCluster <- F.fromOption(
-        googleClusterOpt,
-        ClusterCreationException(
-          s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}"
-        )
-      )
 
       // helm uninstall galaxy and wait
-      _ <- uninstallGalaxy(dbCluster, app.appName, app.release, namespaceName, googleCluster)
+      _ <- googleClusterOpt.traverse(googleCluster =>
+        uninstallGalaxy(dbCluster, app.appName, app.release, namespaceName, googleCluster)
+      )
 
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,

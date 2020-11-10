@@ -235,7 +235,7 @@ object Boot extends IOApp {
           implicit val cloudServiceRuntimeMonitor: RuntimeMonitor[IO, CloudService] =
             new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
 
-          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue)
+          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.errorReporting)
 
           val googleDiskService = googleDependencies.googleDiskService
 

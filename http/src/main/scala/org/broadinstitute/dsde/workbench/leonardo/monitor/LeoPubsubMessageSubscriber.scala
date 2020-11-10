@@ -481,7 +481,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   ): F[Unit] = {
     val create = for {
       ctx <- ev.ask
-      operation <- googleDiskService
+      operationOpt <- googleDiskService
         .createDisk(
           msg.googleProject,
           msg.zone,
@@ -494,22 +494,26 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             .setPhysicalBlockSizeBytes(msg.blockSize.bytes.toString)
             .build()
         )
-      _ <- persistentDiskQuery.updateGoogleId(msg.diskId, GoogleId(operation.getTargetId), ctx.now).transaction[F]
-      task = computePollOperation
-        .pollZoneOperation(
-          msg.googleProject,
-          msg.zone,
-          OperationName(operation.getName),
-          config.persistentDiskMonitorConfig.create.interval,
-          config.persistentDiskMonitorConfig.create.maxAttempts,
-          None
-        )(
-          persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void,
-          F.raiseError(
-            new TimeoutException(s"Fail to create disk ${msg.name.value} in a timely manner")
-          ), //Should save disk creation error if we have error column in DB
-          F.unit
-        )
+      _ <- operationOpt.traverse(operation =>
+        persistentDiskQuery.updateGoogleId(msg.diskId, GoogleId(operation.getTargetId), ctx.now).transaction[F]
+      )
+      task = operationOpt.traverse_(operation =>
+        computePollOperation
+          .pollZoneOperation(
+            msg.googleProject,
+            msg.zone,
+            OperationName(operation.getName),
+            config.persistentDiskMonitorConfig.create.interval,
+            config.persistentDiskMonitorConfig.create.maxAttempts,
+            None
+          )(
+            persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void,
+            F.raiseError(
+              new TimeoutException(s"Fail to create disk ${msg.name.value} in a timely manner")
+            ), //Should save disk creation error if we have error column in DB
+            F.unit
+          )
+      )
       _ <- if (sync) task
       else {
         asyncTasks.enqueue1(
@@ -544,27 +548,29 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     val create = for {
       ctx <- ev.ask
       _ <- logger.info(s"Beginning postgres disk creation for app ${appName.value} | trace id: ${ctx.traceId}")
-      operation <- googleDiskService.createDisk(project,
-                                                zone,
-                                                gkeInterp.createGalaxyPostgresDisk(project, zone, namespaceName))
+      operationOpt <- googleDiskService.createDisk(project,
+                                                   zone,
+                                                   gkeInterp.createGalaxyPostgresDisk(project, zone, namespaceName))
       whenDone = logger.info(
         s"Completed postgres disk creation for app ${appName.value} in project ${project.value} | trace id: ${ctx.traceId}"
       )
-      _ <- computePollOperation.pollZoneOperation(
-        project,
-        zone,
-        OperationName(operation.getName),
-        config.persistentDiskMonitorConfig.create.interval,
-        config.persistentDiskMonitorConfig.create.maxAttempts,
-        None
-      )(
-        whenDone,
-        F.raiseError(
-          new TimeoutException(
-            s"Failed to create Galaxy postgres disk in a timely manner. Project: ${project.value}, AppName: ${appName.value}"
-          )
-        ),
-        F.unit
+      _ <- operationOpt.traverse(operation =>
+        computePollOperation.pollZoneOperation(
+          project,
+          zone,
+          OperationName(operation.getName),
+          config.persistentDiskMonitorConfig.create.interval,
+          config.persistentDiskMonitorConfig.create.maxAttempts,
+          None
+        )(
+          whenDone,
+          F.raiseError(
+            new TimeoutException(
+              s"Failed to create Galaxy postgres disk in a timely manner. Project: ${project.value}, AppName: ${appName.value}"
+            )
+          ),
+          F.unit
+        )
       )
     } yield ()
 
@@ -723,7 +729,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       monitorClusterOrNodepool <- msg.clusterNodepoolAction match {
         case Some(ClusterNodepoolAction.CreateClusterAndNodepool(clusterId, defaultNodepoolId, nodepoolId)) =>
           for {
-            createClusterResult <- gkeInterp
+            createClusterResultOpt <- gkeInterp
               .createCluster(
                 CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId), false)
               )
@@ -756,11 +762,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                   )
                 }
               }
-            monitorOp = gkeInterp.pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
+            monitorOp = createClusterResultOpt.traverse_(createClusterResult =>
+              gkeInterp.pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
+            )
           } yield monitorOp
         case Some(ClusterNodepoolAction.CreateNodepool(nodepoolId)) =>
           for {
-            createNodepoolResult <- gkeInterp
+            createNodepoolResultOpt <- gkeInterp
               .createNodepool(CreateNodepoolParams(nodepoolId, msg.project))
               .adaptError {
                 case e =>
@@ -772,8 +780,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                     None
                   )
               }
-            monitorOp = gkeInterp.pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
-          } yield monitorOp
+            monitor = createNodepoolResultOpt.traverse_(createNodepoolResult =>
+              gkeInterp.pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
+            )
+          } yield monitor
         case None => F.pure(F.unit)
       }
 
@@ -864,7 +874,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // Unlike handleCreateAppMessage, here we assume that the cluster does not exist so we always create it.
 
       // Create the cluster synchronously
-      createResult <- gkeInterp
+      createResultOpt <- gkeInterp
         .createCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
         .adaptError {
           case e =>
@@ -878,20 +888,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         }
 
       // Poll the cluster asynchronously
-      task = gkeInterp.pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult)).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-            None,
-            false,
-            None,
-            Some(msg.clusterId)
-          )
-      }
-
-      _ <- asyncTasks.enqueue1(
-        Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
+      task = createResultOpt.traverse_(createResult =>
+        gkeInterp.pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult))
       )
+
+      _ <- asyncTasks.enqueue1(Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now))
     } yield ()
 
   private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(
@@ -940,13 +941,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
       }
 
-      dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
+      dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(msg.project, msg.appId).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
-      app = dbApp.app
       deletePostgresDisk = deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
                                                                 ZoneName("us-central1-a"),
                                                                 msg.appName,
-                                                                app.appResources.namespace.name)
+                                                                dbApp.app.appResources.namespace.name)
         .adaptError {
           case e =>
             PubsubKubernetesError(AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
@@ -963,9 +963,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         _ <- deleteApp
         _ <- deleteNodepool
         _ <- if (!errorAfterDelete)
-          appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >> authProvider
-            .notifyResourceDeleted(dbApp.app.samResourceId, dbApp.app.auditInfo.creator, msg.project)
-            .void
+          dbApp.app.status match {
+            // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
+            case AppStatus.Deleted => F.unit
+            case _ =>
+              appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >> authProvider
+                .notifyResourceDeleted(dbApp.app.samResourceId, dbApp.app.auditInfo.creator, msg.project)
+                .void
+          }
         else F.unit
         _ <- deleteDisksInParallel
       } yield ()

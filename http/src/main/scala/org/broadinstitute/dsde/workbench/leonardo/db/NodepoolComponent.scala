@@ -165,6 +165,15 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       nodepools <- findByNodepoolIdQuery(id).result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
 
+  def getDefaultNodepoolForCluster(
+    clusterId: KubernetesClusterLeoId
+  )(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+    nodepoolQuery
+      .filter(_.clusterId === clusterId)
+      .filter(_.isDefault === true)
+      .result
+      .map(ns => ns.map(n => unmarshalNodepool(n, List())).headOption)
+
   private[db] def pendingDeletionFromQuery(baseQuery: Query[NodepoolTable, NodepoolRecord, Seq]): DBIO[Int] =
     baseQuery
       .map(_.status)
