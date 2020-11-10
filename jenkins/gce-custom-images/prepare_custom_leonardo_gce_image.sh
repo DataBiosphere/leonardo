@@ -40,8 +40,6 @@ docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_python te
 # Variables for downloading the Ansible playbook files for hardening
 cis_hardening_dir="cis-harden-images/debian9"
 cis_hardening_playbook_requirements_file="${cis_hardening_dir}/requirements.yml"
-
-
 cis_hardening_playbook_config_file="${cis_hardening_dir}/deb9-cis-playbook.yml"
 image_hardening_script_file_name="harden-images.sh"
 image_hardening_script_file="${cis_hardening_dir}/${image_hardening_script_file_name}"
