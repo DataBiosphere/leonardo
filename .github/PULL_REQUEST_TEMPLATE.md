@@ -5,11 +5,6 @@ Have you read [CONTRIBUTING.md](https://github.com/DataBiosphere/leonardo/blob/d
 
 I, the developer opening this PR, do solemnly pinky swear that:
 
-- [ ] I've documented my API changes in Swagger
-
-In all cases:
-
+- [ ] I've documented my API changes in Swagger. Bump `version` field in [API doc](src/main/resources/swagger/api-docs.yaml).
 - [ ] Get a thumbsworth of review and PO signoff if necessary
-- [ ] Verify all tests go green
-- [ ] Squash and merge; Delete your branch after this
-- [ ] Test this change deployed correctly and works on dev environment after deployment
+- [ ] In most cases, keep your pull request branch up-to-date before merging; You may by-pass this with admin privilege if the change is trivial.
