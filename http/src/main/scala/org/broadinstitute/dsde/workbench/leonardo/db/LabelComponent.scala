@@ -41,13 +41,12 @@ object labelQuery extends TableQuery(new LabelTable(_)) {
   def deleteAllForResource(resourceId: Long, resourceType: LabelResourceType): DBIO[Int] =
     labelQuery.filter(_.resourceId === resourceId).filter(_.resourceType === resourceType).delete
 
-  def deleteForResource(resourceId: Long, resourceType: LabelResourceType, key: String, value: String)(
+  def deleteForResource(resourceId: Long, resourceType: LabelResourceType, key: String)(
     ): DBIO[Int] =
     labelQuery
       .filter(_.resourceId === resourceId)
       .filter(_.resourceType === resourceType)
       .filter(_.key === key)
-      .filter(_.value === value)
       .delete
 
 }
