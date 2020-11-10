@@ -26,7 +26,7 @@ terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.11"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:0.0.12"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.13"
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.14"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.16"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.17"
 
 # leonardo_jupyter will be discontinued soon
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:4d380f2"
@@ -40,6 +40,8 @@ docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_python te
 # Variables for downloading the Ansible playbook files for hardening
 cis_hardening_dir="cis-harden-images/debian9"
 cis_hardening_playbook_requirements_file="${cis_hardening_dir}/requirements.yml"
+
+
 cis_hardening_playbook_config_file="${cis_hardening_dir}/deb9-cis-playbook.yml"
 image_hardening_script_file_name="harden-images.sh"
 image_hardening_script_file="${cis_hardening_dir}/${image_hardening_script_file_name}"
