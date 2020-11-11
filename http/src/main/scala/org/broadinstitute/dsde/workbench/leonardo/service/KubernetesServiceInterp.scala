@@ -27,7 +27,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, Servic
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,
   CreateAppMessage,
-  DeleteAppMessage
+  DeleteAppMessage,
+  StartAppMessage,
+  StopAppMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
@@ -349,9 +351,13 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       // TODO note no hasOperationInProgress check, we plan to queue nodepool actions
 
       _ <- KubernetesServiceDbQueries.markPreStopping(appResult.nodepool.id, appResult.app.id).transaction
-
-      // TODO pubsub
-      //_ <- publisherQueue.enqueue1(???)
+      message = StopAppMessage(
+        appResult.app.id,
+        appResult.nodepool.id,
+        appResult.cluster.googleProject,
+        Some(ctx.traceId)
+      )
+      _ <- publisherQueue.enqueue1(message)
     } yield ()
 
   def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
@@ -383,9 +389,13 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       // TODO note no hasOperationInProgress check, we plan to queue nodepool actions
 
       _ <- KubernetesServiceDbQueries.markPreStarting(appResult.nodepool.id, appResult.app.id).transaction
-
-      // TODO pubsub
-      //_ <- publisherQueue.enqueue1(???)
+      message = StartAppMessage(
+        appResult.app.id,
+        appResult.nodepool.id,
+        appResult.cluster.googleProject,
+        Some(ctx.traceId)
+      )
+      _ <- publisherQueue.enqueue1(message)
     } yield ()
 
   private[service] def getSavableCluster(

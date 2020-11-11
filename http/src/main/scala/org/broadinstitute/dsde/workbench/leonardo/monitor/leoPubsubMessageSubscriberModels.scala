@@ -135,6 +135,12 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
     val asString = "batchNodepoolCreate"
   }
 
+  final case object StopApp extends LeoPubsubMessageType {
+    val asString = "stopApp"
+  }
+  final case object StartApp extends LeoPubsubMessageType {
+    val asString = "startApp"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -241,6 +247,22 @@ object LeoPubsubMessage {
                                               traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.BatchNodepoolCreate
+  }
+
+  final case class StopAppMessage(appId: AppId,
+                                  nodepoolId: NodepoolLeoId,
+                                  project: GoogleProject,
+                                  traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopApp
+  }
+
+  final case class StartAppMessage(appId: AppId,
+                                   nodepoolId: NodepoolLeoId,
+                                   project: GoogleProject,
+                                   traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StartApp
   }
 
   final case class DeleteRuntimeMessage(runtimeId: Long,
@@ -417,6 +439,12 @@ object LeoPubsubCodec {
   implicit val batchNodepoolCreateDecoder: Decoder[BatchNodepoolCreateMessage] =
     Decoder.forProduct4("clusterId", "nodepools", "project", "traceId")(BatchNodepoolCreateMessage.apply)
 
+  implicit val stopAppDecoder: Decoder[StopAppMessage] =
+    Decoder.forProduct4("appId", "nodepoolId", "project", "traceId")(StopAppMessage.apply)
+
+  implicit val startAppDecoder: Decoder[StartAppMessage] =
+    Decoder.forProduct4("appId", "nodepoolId", "project", "traceId")(StartAppMessage.apply)
+
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
@@ -425,17 +453,19 @@ object LeoPubsubCodec {
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
       value <- messageType match {
-        case LeoPubsubMessageType.CreateDisk          => message.as[CreateDiskMessage]
-        case LeoPubsubMessageType.UpdateDisk          => message.as[UpdateDiskMessage]
-        case LeoPubsubMessageType.DeleteDisk          => message.as[DeleteDiskMessage]
-        case LeoPubsubMessageType.CreateRuntime       => message.as[CreateRuntimeMessage]
-        case LeoPubsubMessageType.DeleteRuntime       => message.as[DeleteRuntimeMessage]
-        case LeoPubsubMessageType.StopRuntime         => message.as[StopRuntimeMessage]
-        case LeoPubsubMessageType.StartRuntime        => message.as[StartRuntimeMessage]
-        case LeoPubsubMessageType.UpdateRuntime       => message.as[UpdateRuntimeMessage]
-        case LeoPubsubMessageType.CreateApp           => message.as[CreateAppMessage]
-        case LeoPubsubMessageType.DeleteApp           => message.as[DeleteAppMessage]
-        case LeoPubsubMessageType.BatchNodepoolCreate => message.as[BatchNodepoolCreateMessage]
+        case LeoPubsubMessageType.CreateDisk              => message.as[CreateDiskMessage]
+        case LeoPubsubMessageType.UpdateDisk              => message.as[UpdateDiskMessage]
+        case LeoPubsubMessageType.DeleteDisk              => message.as[DeleteDiskMessage]
+        case LeoPubsubMessageType.CreateRuntime           => message.as[CreateRuntimeMessage]
+        case LeoPubsubMessageType.DeleteRuntime           => message.as[DeleteRuntimeMessage]
+        case LeoPubsubMessageType.StopRuntime             => message.as[StopRuntimeMessage]
+        case LeoPubsubMessageType.StartRuntime            => message.as[StartRuntimeMessage]
+        case LeoPubsubMessageType.UpdateRuntime           => message.as[UpdateRuntimeMessage]
+        case LeoPubsubMessageType.CreateApp               => message.as[CreateAppMessage]
+        case LeoPubsubMessageType.DeleteApp               => message.as[DeleteAppMessage]
+        case LeoPubsubMessageType.BatchNodepoolCreate     => message.as[BatchNodepoolCreateMessage]
+        case LeoPubsubMessageType.StopApp                 => message.as[StopAppMessage]
+        case LeoPubsubMessageType.StartApp                => message.as[StartAppMessage]
       }
     } yield value
   }
@@ -712,18 +742,30 @@ object LeoPubsubCodec {
       (x.messageType, x.appId, x.appName, x.nodepoolId, x.project, x.diskId, x.traceId)
     )
 
+  implicit val stopAppMessageEncoder: Encoder[StopAppMessage] =
+    Encoder.forProduct5("messageType", "appId", "nodepoolId", "project", "traceId")(x =>
+      (x.messageType, x.appId, x.nodepoolId, x.project, x.traceId)
+    )
+
+  implicit val startAppMessageEncoder: Encoder[StartAppMessage] =
+    Encoder.forProduct5("messageType", "appId", "nodepoolId", "project", "traceId")(x =>
+      (x.messageType, x.appId, x.nodepoolId, x.project, x.traceId)
+    )
+
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
-    case m: CreateDiskMessage          => m.asJson
-    case m: UpdateDiskMessage          => m.asJson
-    case m: DeleteDiskMessage          => m.asJson
-    case m: CreateRuntimeMessage       => m.asJson
-    case m: DeleteRuntimeMessage       => m.asJson
-    case m: StopRuntimeMessage         => m.asJson
-    case m: StartRuntimeMessage        => m.asJson
-    case m: UpdateRuntimeMessage       => m.asJson
-    case m: CreateAppMessage           => m.asJson
-    case m: DeleteAppMessage           => m.asJson
-    case m: BatchNodepoolCreateMessage => m.asJson
+    case m: CreateDiskMessage              => m.asJson
+    case m: UpdateDiskMessage              => m.asJson
+    case m: DeleteDiskMessage              => m.asJson
+    case m: CreateRuntimeMessage           => m.asJson
+    case m: DeleteRuntimeMessage           => m.asJson
+    case m: StopRuntimeMessage             => m.asJson
+    case m: StartRuntimeMessage            => m.asJson
+    case m: UpdateRuntimeMessage           => m.asJson
+    case m: CreateAppMessage               => m.asJson
+    case m: DeleteAppMessage               => m.asJson
+    case m: BatchNodepoolCreateMessage     => m.asJson
+    case m: StopAppMessage                 => m.asJson
+    case m: StartAppMessage                => m.asJson
   }
 }
 
