@@ -379,11 +379,37 @@ object AppStatus {
     override def toString: String = "PROVISIONING"
   }
 
+  final case object PreStopping extends AppStatus {
+    override def toString: String = "PRESTOPPING"
+  }
+
+  final case object Stopping extends AppStatus {
+    override def toString: String = "STOPPING"
+  }
+
+  final case object Stopped extends AppStatus {
+    override def toString: String = "STOPPED"
+  }
+
+  final case object PreStarting extends AppStatus {
+    override def toString: String = "PRESTARTING"
+  }
+
+  final case object Starting extends AppStatus {
+    override def toString: String = "STARTING"
+  }
+
   def values: Set[AppStatus] = sealerate.values[AppStatus]
   def stringToObject: Map[String, AppStatus] = values.map(v => v.toString -> v).toMap
 
   val deletableStatuses: Set[AppStatus] =
     Set(Unspecified, Running, Error)
+
+  val stoppableStatuses: Set[AppStatus] =
+    Set(Running, Starting)
+
+  val startableStatuses: Set[AppStatus] =
+    Set(Stopped, Stopping)
 
   val monitoredStatuses: Set[AppStatus] =
     Set(Deleting, Provisioning)

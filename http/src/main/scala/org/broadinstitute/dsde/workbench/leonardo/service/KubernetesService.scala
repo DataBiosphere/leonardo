@@ -39,4 +39,12 @@ trait KubernetesService[F[_]] {
   def deleteApp(request: DeleteAppRequest)(
     implicit as: Ask[F, AppContext]
   ): F[Unit]
+
+  def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit as: ApplicativeAsk[F, AppContext]
+  ): F[Unit]
+
+  def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit as: ApplicativeAsk[F, AppContext]
+  ): F[Unit]
 }

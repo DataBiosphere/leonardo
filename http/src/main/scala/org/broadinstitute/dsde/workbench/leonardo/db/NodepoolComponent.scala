@@ -174,6 +174,20 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       .result
       .map(ns => ns.map(n => unmarshalNodepool(n, List())).headOption)
 
+  // disables autoscaling and explicitly scales to N nodes
+  def scaleToN(id: NodepoolLeoId, n: NumNodes): DBIO[Int] =
+    // TODO is Provisioning the right status for this? What is the google status when the nodepool is scaling?
+    findByNodepoolIdQuery(id)
+      .map(np => (np.status, np.autoscalingEnabled, np.numNodes))
+      .update((NodepoolStatus.Provisioning, false, n))
+
+  // enables autoscalingg
+  def enableAutoscaling(id: NodepoolLeoId): DBIO[Int] =
+    // TODO is Provisioning the right status for this? What is the google status when autoscaling is enabled?
+    findByNodepoolIdQuery(id)
+      .map(np => (np.status, np.autoscalingEnabled))
+      .update((NodepoolStatus.Provisioning, true))
+
   private[db] def pendingDeletionFromQuery(baseQuery: Query[NodepoolTable, NodepoolRecord, Seq]): DBIO[Int] =
     baseQuery
       .map(_.status)
