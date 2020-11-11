@@ -216,6 +216,18 @@ object KubernetesServiceDbQueries {
       _ <- diskId.fold[DBIO[Int]](DBIO.successful(0))(diskId => persistentDiskQuery.markPendingDeletion(diskId, now))
     } yield ()
 
+  def markPreStopping(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
+    for {
+      _ <- nodepoolQuery.scaleToN(nodepoolId, NumNodes(0))
+      _ <- appQuery.updateStatus(appId, AppStatus.PreStopping)
+    } yield ()
+
+  def markPreStarting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
+    for {
+      _ <- nodepoolQuery.scaleToN(nodepoolId, NumNodes(1))
+      _ <- appQuery.updateStatus(appId, AppStatus.PreStarting)
+    } yield ()
+
   private[db] def listClustersByProject(
     googleProject: Option[GoogleProject],
     includeDeleted: Boolean = false
