@@ -9,44 +9,27 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
-import cats.mtl.Ask
+import cats.implicits._
+import cats.mtl.ApplicativeAsk
 import io.chrisdavenport.log4cats.StructuredLogger
+import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appQuery,
-  nodepoolQuery,
-  ClusterDoesNotExist,
-  ClusterExists,
-  DbReference,
-  KubernetesAppCreationException,
-  KubernetesServiceDbQueries,
-  SaveApp,
-  SaveKubernetesCluster
-}
-import cats.syntax.all._
-import org.apache.commons.lang3.RandomStringUtils
-import org.broadinstitute.dsde.workbench.leonardo.config.{
-  Config,
-  GalaxyAppConfig,
-  KubernetesClusterConfig,
-  KubernetesIngressConfig,
-  NodepoolConfig,
-  PersistentDiskConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.includeDeletedKey
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,
   CreateAppMessage,
   DeleteAppMessage
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -337,6 +320,74 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       _ <- publisherQueue.enqueue1(msg)
     } yield ()
 
+  def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
+      appResult <- F.fromOption(appOpt, AppNotFoundException(googleProject, appName, ctx.traceId))
+
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+
+      // throw 404 if no StopStartApp permission
+      hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopStartApp)
+      _ <- if (hasReadPermission) F.unit
+      else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
+
+      // throw 403 if no StopStartApp permission
+      hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopStartApp)
+      _ <- if (hasStopStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
+
+      canStop = AppStatus.stoppableStatuses.contains(appResult.app.status)
+      _ <- if (canStop) F.unit
+      else
+        F.raiseError[Unit](
+          AppCannotBeStoppedException(googleProject, appName, appResult.app.status, ctx.traceId)
+        )
+
+      // TODO note no hasOperationInProgress check, we plan to queue nodepool actions
+
+      _ <- KubernetesServiceDbQueries.markPreStopping(appResult.nodepool.id, appResult.app.id).transaction
+
+      // TODO pubsub
+      //_ <- publisherQueue.enqueue1(???)
+    } yield ()
+
+  def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit as: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- as.ask
+      appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
+      appResult <- F.fromOption(appOpt, AppNotFoundException(googleProject, appName, ctx.traceId))
+
+      listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
+
+      // throw 404 if no StopStartApp permission
+      hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopStartApp)
+      _ <- if (hasReadPermission) F.unit
+      else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
+
+      // throw 403 if no StopStartApp permission
+      hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopStartApp)
+      _ <- if (hasStopStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
+
+      canStop = AppStatus.startableStatuses.contains(appResult.app.status)
+      _ <- if (canStop) F.unit
+      else
+        F.raiseError[Unit](
+          AppCannotBeStartedException(googleProject, appName, appResult.app.status, ctx.traceId)
+        )
+
+      // TODO note no hasOperationInProgress check, we plan to queue nodepool actions
+
+      _ <- KubernetesServiceDbQueries.markPreStarting(appResult.nodepool.id, appResult.app.id).transaction
+
+      // TODO pubsub
+      //_ <- publisherQueue.enqueue1(???)
+    } yield ()
+
   private[service] def getSavableCluster(
     userInfo: UserInfo,
     googleProject: GoogleProject,
@@ -563,5 +614,23 @@ case class ClusterExistsException(googleProject: GoogleProject)
 case class ClusterConflictException(googleProject: GoogleProject, appName: AppName)
     extends LeoException(
       s"Cannot perform your create/delete request for app $appName in project $googleProject because the cluster is currently busy. Please try again later.",
+      StatusCodes.Conflict
+    )
+
+case class AppCannotBeStoppedException(googleProject: GoogleProject,
+                                       appName: AppName,
+                                       status: AppStatus,
+                                       traceId: TraceId)
+    extends LeoException(
+      s"App ${googleProject.value}/${appName.value} cannot be stopped in ${status} status. Trace ID: ${traceId.asString}",
+      StatusCodes.Conflict
+    )
+
+case class AppCannotBeStartedException(googleProject: GoogleProject,
+                                       appName: AppName,
+                                       status: AppStatus,
+                                       traceId: TraceId)
+    extends LeoException(
+      s"App ${googleProject.value}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
       StatusCodes.Conflict
     )

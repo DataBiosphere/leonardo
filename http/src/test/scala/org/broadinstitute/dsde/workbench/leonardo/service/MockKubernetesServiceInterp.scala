@@ -38,6 +38,14 @@ class MockKubernetesServiceInterp extends KubernetesService[IO] {
   override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
     implicit ev: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
+
+  override def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit as: ApplicativeAsk[IO, AppContext]
+  ): IO[Unit] = IO.unit
+
+  override def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit as: ApplicativeAsk[IO, AppContext]
+  ): IO[Unit] = IO.unit
 }
 
 object MockKubernetesServiceInterp extends MockKubernetesServiceInterp
