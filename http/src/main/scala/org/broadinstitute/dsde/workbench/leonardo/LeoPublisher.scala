@@ -9,7 +9,7 @@ import fs2.{Pipe, Stream}
 import io.chrisdavenport.log4cats.Logger
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
@@ -85,7 +85,10 @@ final class LeoPublisher[F[_]: Logger: Timer](
           }
         case m: LeoPubsubMessage.BatchNodepoolCreateMessage =>
           KubernetesServiceDbQueries.markPendingBatchCreating(m.clusterId, m.nodepools).transaction
-        // TODO stop and start app messages
+        case m: LeoPubsubMessage.StopAppMessage =>
+          appQuery.updateStatus(m.appId, AppStatus.Stopping).transaction
+        case m: LeoPubsubMessage.StartAppMessage =>
+          appQuery.updateStatus(m.appId, AppStatus.Starting).transaction
         case _ => F.unit
       }
     } yield ()
