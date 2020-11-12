@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, VM, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Stratum, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.auth.WhitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.MockPetClusterServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -175,6 +175,7 @@ object CommonTestData {
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
   val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, Instant.now)
   val customDataprocImage = RuntimeImage(VM, "custom_dataproc", Instant.now)
+  val stratumImage = RuntimeImage(Stratum, "stratum/stratum:0.0.1", Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
 
@@ -262,7 +263,7 @@ object CommonTestData {
     defaultClientId = Some("clientId"),
     stopAfterCreation = false,
     allowStop = false,
-    runtimeImages = Set(jupyterImage, welderImage, proxyImage),
+    runtimeImages = Set(jupyterImage, welderImage, proxyImage, stratumImage),
     scopes = defaultScopes,
     welderEnabled = true,
     customEnvironmentVariables = Map.empty,

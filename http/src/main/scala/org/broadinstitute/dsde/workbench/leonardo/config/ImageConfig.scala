@@ -9,10 +9,12 @@ final case class ImageConfig(
   jupyterImage: ContainerImage,
   legacyJupyterImage: ContainerImage,
   proxyImage: ContainerImage,
+  stratumImage: ContainerImage,
   jupyterContainerName: String,
   rstudioContainerName: String,
   welderContainerName: String,
   proxyContainerName: String,
+  stratumContainerName: String,
   jupyterImageRegex: String,
   rstudioImageRegex: String,
   broadDockerhubImageRegex: String
