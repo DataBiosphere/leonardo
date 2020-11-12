@@ -161,6 +161,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
     gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
     gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
+    gsutil cp ${STRATUM_DOCKER_COMPOSE} /etc
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache

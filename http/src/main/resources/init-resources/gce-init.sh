@@ -168,6 +168,7 @@ gsutil cp ${JUPYTER_DOCKER_COMPOSE_GCE} /etc
 gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
 gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
 gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
+gsutil cp ${STRATUM_DOCKER_COMPOSE} /etc
 
 echo "" > /etc/google_application_credentials.env
 
