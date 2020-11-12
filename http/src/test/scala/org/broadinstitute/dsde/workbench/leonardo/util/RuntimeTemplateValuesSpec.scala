@@ -75,7 +75,10 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.rstudioServerName shouldBe "rstudio-server"
       result.runtimeOperation shouldBe RuntimeOperation.Restarting.asString
       result.stagingBucketName shouldBe CommonTestData.stagingBucketName.value
-      result.updateWelder shouldBe "true"
+      result.stratumDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
+                                                   GcsObjectName("test-stratum-docker-compose.yaml")).toUri
+      result.stratumDockerImage shouldBe CommonTestData.stratumImage.imageUrl
+      result.stratumServerName shouldBe "stratum-detector"
       result.welderDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                   GcsObjectName("test-welder-docker-compose.yaml")).toUri
       result.welderDockerImage shouldBe CommonTestData.welderImage.imageUrl

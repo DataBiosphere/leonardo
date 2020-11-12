@@ -109,10 +109,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export RSTUDIO_SERVER_NAME=$(rstudioServerName)
     export PROXY_SERVER_NAME=$(proxyServerName)
     export WELDER_SERVER_NAME=$(welderServerName)
+    export STRATUM_SERVER_NAME=$(stratumServerName)
     export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
     export WELDER_DOCKER_IMAGE=$(welderDockerImage)
+    export STRATUM_DOCKER_IMAGE=$(stratumDockerImage)
     export WELDER_ENABLED=$(welderEnabled)
     export NOTEBOOKS_DIR=$(notebooksDir)
     export MEM_LIMIT=$(memLimit)
@@ -126,6 +128,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
     WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
+    STRATUM_DOCKER_COMPOSE=$(stratumDockerCompose)
     PROXY_SITE_CONF=$(proxySiteConf)
     JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
@@ -254,6 +257,11 @@ END
     if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
+    fi
+    # Note: stratum should be started after user containers
+    if [ ! -z "$STRATUM_DOCKER_IMAGE" ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${STRATUM_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${STRATUM_DOCKER_COMPOSE}`
     fi
 
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config

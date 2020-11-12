@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   PollError
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, Stratum, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -542,7 +542,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       // Get the proxy image
       proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, now)
-    } yield Set(toolImage, welderImage, proxyImage)
+      // Stratum image
+      stratumImage = RuntimeImage(Stratum, config.imageConfig.stratumImage.imageUrl, now)
+    } yield Set(toolImage, welderImage, proxyImage, stratumImage)
 
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
                                                userToken: String,
