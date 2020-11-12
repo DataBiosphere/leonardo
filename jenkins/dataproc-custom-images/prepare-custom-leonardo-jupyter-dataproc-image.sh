@@ -31,7 +31,7 @@ openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.8"
 
 # Not replaced by Jenkins. If you change this you must also change Leo reference.conf!
-stratum_detector="gcr.io/broad-dsp-gcr-public/stratum-detector:0.0.1"
+stratum_detector="us.gcr.io/broad-dsp-gcr-public/stratum-detector:0.0.1"
 
 # this array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
