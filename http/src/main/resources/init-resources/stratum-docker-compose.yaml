@@ -1,0 +1,7 @@
+version: '2'
+services:
+  stratum:
+    container_name: "${STRATUM_SERVER_NAME}"
+    image: "${STRATUM_DOCKER_IMAGE}"
+    network_mode: host
+    restart: always

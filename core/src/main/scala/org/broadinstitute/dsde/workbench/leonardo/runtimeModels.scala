@@ -281,6 +281,7 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object Welder extends RuntimeImageType
   case object VM extends RuntimeImageType
   case object Proxy extends RuntimeImageType
+  case object Stratum extends RuntimeImageType
 
   def stringToRuntimeImageType: Map[String, RuntimeImageType] = values.map(c => c.toString -> c).toMap
 }
