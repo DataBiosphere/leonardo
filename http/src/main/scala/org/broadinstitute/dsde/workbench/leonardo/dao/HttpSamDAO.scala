@@ -401,10 +401,11 @@ object HttpSamDAO {
   implicit def listResourceResponseDecoder[R: Decoder]: Decoder[ListResourceResponse[R]] = Decoder.instance { x =>
     for {
       resourceId <- x.downField("resourceId").as[R]
+      //these three places can have duplicated SamPolicyNames
       direct <- x.downField("direct").as[SamRoleAction]
       inherited <- x.downField("inherited").as[SamRoleAction]
       public <- x.downField("public").as[SamRoleAction]
-    } yield ListResourceResponse(resourceId, direct.roles ++ inherited.roles ++ public.roles)
+    } yield ListResourceResponse(resourceId, Set(direct.roles ++ inherited.roles ++ public.roles))
   }
 
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
@@ -425,7 +426,7 @@ object HttpSamDAO {
 
 final case class CreateSamResourceRequest[R](samResourceId: R, policies: Map[SamPolicyName, SamPolicyData])
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
-final case class ListResourceResponse[R](samResourceId: R, samPolicyName: List[SamPolicyName])
+final case class ListResourceResponse[R](samResourceId: R, samPolicyName: Set[SamPolicyName])
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
