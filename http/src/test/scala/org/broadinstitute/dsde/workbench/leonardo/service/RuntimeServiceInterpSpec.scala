@@ -619,7 +619,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
-      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, List.empty)
+      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map("" -> ""), List(""))
 
       _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
       dbRuntimeOpt <- clusterQuery
@@ -635,55 +635,34 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
-  ////
-  it should "upsert labels" in isolatedDbTest {
+  ////todo emily
+
+  List(Map("apples" -> "to_oranges", "grapes" -> "make_wine")).foreach { startingLabels =>
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
-    val res = for {
-      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-      testRuntime <- IO(
-        makeCluster(1)
-          .copy(samResource = samResource, status = RuntimeStatus.Running, labels = Map("apples" -> "aregreat"))
-          .save()
-      )
-      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, List.empty)
+    it should s"Process reqlabels correctly for $startingLabels" in isolatedDbTest {
+      val res = for {
+        samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+        testRuntime <- IO(
+          makeCluster(1)
+            .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startingLabels)
+            .save()
+        )
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map("" -> ""), List(""))
 
-      _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
-      dbRuntimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
-        .transaction
-      dbRuntime = dbRuntimeOpt.get
-      messageOpt <- publisherQueue.tryDequeue1
-    } yield {
-      dbRuntime.labels shouldBe Map.empty
+        _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
+        dbRuntimeOpt <- clusterQuery
+          .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+          .transaction
+        dbRuntime = dbRuntimeOpt.get
+        messageOpt <- publisherQueue.tryDequeue1
+      } yield {
+        dbRuntime.labels shouldBe Map("apples" -> "to_oranges", "grapes" -> "make_wine")
+      }
+      res.unsafeRunSync()
     }
-
-    res.unsafeRunSync()
   }
 
-//  it should "delete labels" in isolatedDbTest {
-//    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-//
-//    val res = for {
-//      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
-//      testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
-//      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, List("apples"))
-//
-//      _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
-//      dbRuntimeOpt <- clusterQuery
-//        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
-//        .transaction
-//      dbRuntime = dbRuntimeOpt.get
-//      messageOpt <- publisherQueue.tryDequeue1
-//    } yield {
-//      dbRuntime.labels shouldBe ""
-//      messageOpt shouldBe None
-//    }
-//
-//    res.unsafeRunSync()
-//  }
-
-  /////
   List(RuntimeStatus.Creating, RuntimeStatus.Stopping, RuntimeStatus.Deleting, RuntimeStatus.Starting).foreach {
     status =>
       val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
@@ -691,7 +670,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         val res = for {
           samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
           testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
-          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, List.empty)
+          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map("" -> ""), List(""))
           fail <- runtimeService
             .updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
             .attempt
