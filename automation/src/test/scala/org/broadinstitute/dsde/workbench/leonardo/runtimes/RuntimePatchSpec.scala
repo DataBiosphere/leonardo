@@ -48,7 +48,9 @@ class RuntimePatchSpec extends FixtureAnyFreeSpec with LeonardoTestUtils with Le
                                                     ),
                                                     true,
                                                     None,
-                                                    None)
+                                                    None,
+                                                    Map("" -> ""),
+                                                    List(""))
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
         RuntimeConfigRequest.GceConfig(
@@ -125,7 +127,9 @@ class RuntimePatchSpec extends FixtureAnyFreeSpec with LeonardoTestUtils with Le
                                                     ),
                                                     true,
                                                     None,
-                                                    None)
+                                                    None,
+                                                    Map("" -> ""),
+                                                    List(""))
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
         RuntimeConfigRequest.GceWithPdConfig(
@@ -195,7 +199,9 @@ class RuntimePatchSpec extends FixtureAnyFreeSpec with LeonardoTestUtils with Le
                                                     ),
                                                     true,
                                                     None,
-                                                    None)
+                                                    None,
+                                                    Map("" -> ""),
+                                                    List(""))
     val runtimeName = randomClusterName
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
