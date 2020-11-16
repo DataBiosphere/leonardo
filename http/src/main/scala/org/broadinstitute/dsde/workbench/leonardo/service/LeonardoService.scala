@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Monoid
 import cats.data.{NonEmptyList, OptionT}
 import cats.effect.{ContextShift, IO, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.api.client.http.HttpResponseException
 import com.typesafe.scalalogging.LazyLogging

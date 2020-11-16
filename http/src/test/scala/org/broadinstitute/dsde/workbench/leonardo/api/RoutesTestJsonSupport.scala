@@ -5,7 +5,7 @@ package api
 import java.net.URL
 import java.time.Instant
 
-import cats.implicits._
+import cats.syntax.all._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._

@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 
-import cats.implicits._
+import cats.syntax.all._
 import cats.Monad
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO

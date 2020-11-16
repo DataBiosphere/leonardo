@@ -4,7 +4,7 @@ package dao
 import java.util.UUID
 
 import cats.effect.IO
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._

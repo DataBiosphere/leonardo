@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, ContextShift, IO, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO

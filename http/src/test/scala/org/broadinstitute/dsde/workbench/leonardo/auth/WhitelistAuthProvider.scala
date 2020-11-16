@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 
 import cats.data.NonEmptyList
 import cats.effect.IO
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.typesafe.config.Config
 import io.circe.{Decoder, Encoder}

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import cats.implicits._
+import cats.syntax.all._
 import cats.{Applicative, Functor}
 import cats.effect.Timer
 import cats.mtl.Ask

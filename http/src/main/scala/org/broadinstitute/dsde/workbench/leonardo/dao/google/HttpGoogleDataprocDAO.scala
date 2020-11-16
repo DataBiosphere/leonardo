@@ -7,7 +7,7 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.OptionT
-import cats.implicits._
+import cats.syntax.all._
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.google.api.services.compute.ComputeScopes

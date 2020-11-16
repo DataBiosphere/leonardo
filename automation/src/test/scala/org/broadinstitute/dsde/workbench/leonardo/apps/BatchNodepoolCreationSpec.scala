@@ -4,7 +4,7 @@ package apps
 import java.nio.file.Paths
 
 import cats.effect.IO
-import cats.implicits._
+import cats.syntax.all._
 import com.google.container.v1.{Cluster, NodePool}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
@@ -39,7 +39,7 @@ class BatchNodepoolCreationSpec
 
   "batch nodepool creation should work" in { _ =>
     withNewProject { googleProject =>
-      val test = LeonardoApiClient.client.use { implicit c =>
+      LeonardoApiClient.client.use { implicit c =>
         for {
           clusterName <- IO.fromEither(KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply))
           _ <- LeonardoApiClient.batchNodepoolCreate(googleProject,
@@ -59,14 +59,12 @@ class BatchNodepoolCreationSpec
           )
         } yield ()
       }
-
-      test.unsafeRunSync()
     }
   }
 
   "app creation with batch nodepool creation should work" in { _ =>
     withNewProject { googleProject =>
-      val test = LeonardoApiClient.client.use { implicit c =>
+      LeonardoApiClient.client.use { implicit c =>
         val appName1 = randomAppName
         val appName2 = randomAppName
 
@@ -174,7 +172,6 @@ class BatchNodepoolCreationSpec
 
         } yield ()
       }
-      test.unsafeRunSync()
     }
   }
 

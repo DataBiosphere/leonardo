@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import cats.implicits._
+import cats.syntax.all._
 import cats.effect.concurrent.{Deferred, Semaphore}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import io.chrisdavenport.log4cats.StructuredLogger

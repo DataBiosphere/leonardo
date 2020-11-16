@@ -15,7 +15,7 @@ import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Resource, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.StorageScopes
