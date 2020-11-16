@@ -426,6 +426,7 @@ object Boot extends IOApp {
                                                       applicationConfig.applicationName,
                                                       ProjectName.of(applicationConfig.leoGoogleProject.value))
       googleOauth2DAO <- GoogleOAuth2Service.resource(blocker, semaphore)
+      // TODO add to config
       nodepoolLock <- Resource.liftF(KeyLock[F, KubernetesClusterId](1 hour, 1000, blocker))
 
       googleDependencies = GoogleDependencies(

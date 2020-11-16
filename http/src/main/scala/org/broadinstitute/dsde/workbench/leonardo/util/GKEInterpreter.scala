@@ -261,9 +261,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // acquire lock
       _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
 
-      operationOpt <- gkeService.createNodepool(req)
-
-      // release lock
+      operationOpt <- gkeService.createNodepool(req).onError {
+        case _ =>
+          nodepoolLock.release(dbCluster.getGkeClusterId)
+      }
     } yield operationOpt.map(op =>
       CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName),
                            dbCluster.getGkeClusterId)
@@ -283,6 +284,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
         .compile
         .lastOrError
+        .onError {
+          case _ =>
+            nodepoolLock.release(params.createResult.clusterId)
+        }
+
+      // release lock
+      _ <- nodepoolLock.release(params.createResult.clusterId)
+
       _ <- if (lastOp.isDone)
         logger.info(
           s"Nodepool creation operation has finished for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
@@ -293,9 +302,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         ) >>
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
-
-      // release lock
-      _ <- nodepoolLock.release(params.createResult.clusterId)
 
       _ <- nodepoolQuery.updateStatus(params.nodepoolId, NodepoolStatus.Running).transaction
     } yield ()

@@ -222,10 +222,11 @@ object KubernetesServiceDbQueries {
       _ <- appQuery.updateStatus(appId, AppStatus.PreStopping)
     } yield ()
 
-  // TODO set to numNodes not 1
-  def markPreStarting(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
+  def markPreStarting(nodepoolId: NodepoolLeoId, appId: AppId, numNodes: NumNodes)(
+    implicit ec: ExecutionContext
+  ): DBIO[Unit] =
     for {
-      _ <- nodepoolQuery.scaleToN(nodepoolId, NumNodes(1))
+      _ <- nodepoolQuery.scaleToN(nodepoolId, numNodes)
       _ <- appQuery.updateStatus(appId, AppStatus.PreStarting)
     } yield ()
 
