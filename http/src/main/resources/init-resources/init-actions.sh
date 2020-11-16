@@ -109,7 +109,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export RSTUDIO_SERVER_NAME=$(rstudioServerName)
     export PROXY_SERVER_NAME=$(proxyServerName)
     export WELDER_SERVER_NAME=$(welderServerName)
-    export STRATUM_SERVER_NAME=$(stratumServerName)
+    export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
     export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
     export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
     export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
