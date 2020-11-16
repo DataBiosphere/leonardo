@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{
+  KubernetesClusterId,
   KubernetesNetwork,
   KubernetesOperationId,
   KubernetesSubNetwork
@@ -59,7 +60,7 @@ final case class PollClusterParams(clusterId: KubernetesClusterLeoId,
 
 final case class CreateNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
 
-final case class CreateNodepoolResult(op: KubernetesOperationId)
+final case class CreateNodepoolResult(op: KubernetesOperationId, clusterId: KubernetesClusterId)
 
 final case class PollNodepoolParams(nodepoolId: NodepoolLeoId, createResult: CreateNodepoolResult)
 

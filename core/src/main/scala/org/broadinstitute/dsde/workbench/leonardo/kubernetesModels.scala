@@ -254,6 +254,14 @@ object ErrorAction {
     override def toString: String = "deleteGalaxyApp"
   }
 
+  case object StopGalaxyApp extends ErrorAction {
+    override def toString: String = "stopGalaxyApp"
+  }
+
+  case object StartGalaxyApp extends ErrorAction {
+    override def toString: String = "startGalaxyApp"
+  }
+
   def values: Set[ErrorAction] = sealerate.values[ErrorAction]
   def stringToObject: Map[String, ErrorAction] = values.map(v => v.toString -> v).toMap
 }
