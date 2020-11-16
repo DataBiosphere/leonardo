@@ -1,12 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import java.time.{Instant, ZoneId}
 import java.time.format.{DateTimeFormatter, FormatStyle}
+import java.time.{Instant, ZoneId}
 
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, Proxy, RStudio, Stratum, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
-import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
 
 case class RuntimeTemplateValues private (googleProject: String,
@@ -16,7 +16,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           rstudioDockerImage: String,
                                           proxyDockerImage: String,
                                           welderDockerImage: String,
-                                          stratumDockerImage: String,
+                                          cryptoDetectorDockerImage: String,
                                           proxyServerCrt: String,
                                           proxyServerKey: String,
                                           rootCaPem: String,
@@ -25,13 +25,13 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           rstudioDockerCompose: String,
                                           proxyDockerCompose: String,
                                           welderDockerCompose: String,
-                                          stratumDockerCompose: String,
+                                          cryptoDetectorDockerCompose: String,
                                           proxySiteConf: String,
                                           jupyterServerName: String,
                                           rstudioServerName: String,
                                           welderServerName: String,
                                           proxyServerName: String,
-                                          stratumServerName: String,
+                                          cryptoDetectorServerName: String,
                                           jupyterUserScriptUri: String,
                                           jupyterUserScriptOutputUri: String,
                                           jupyterStartUserScriptUri: String,
@@ -172,7 +172,7 @@ object RuntimeTemplateValues {
       config.runtimeImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == Proxy).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == Welder).map(_.imageUrl).getOrElse(""),
-      config.runtimeImages.find(_.imageType == Stratum).map(_.imageUrl).getOrElse(""),
+      config.runtimeImages.find(_.imageType == CryptoDetector).map(_.imageUrl).getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.proxyServerCrt.getFileName.toString)).toUri)
         .getOrElse(""),
@@ -198,7 +198,7 @@ object RuntimeTemplateValues {
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.welderDockerCompose.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
-        .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.stratumDockerCompose.asString)).toUri)
+        .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.cryptoDetectorDockerCompose.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.proxySiteConf.asString)).toUri)
@@ -207,7 +207,7 @@ object RuntimeTemplateValues {
       config.imageConfig.rstudioContainerName,
       config.imageConfig.welderContainerName,
       config.imageConfig.proxyContainerName,
-      config.imageConfig.stratumContainerName,
+      config.imageConfig.cryptoDetectorContainerName,
       config.jupyterUserScriptUri.map(_.asString).getOrElse(""),
       config.stagingBucketName.map(n => jupyterUserScriptOutputUriPath(n).toUri).getOrElse(""),
       config.jupyterStartUserScriptUri.map(_.asString).getOrElse(""),
