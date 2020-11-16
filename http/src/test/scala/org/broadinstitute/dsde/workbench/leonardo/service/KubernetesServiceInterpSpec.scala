@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AppCannotBeDeletedException,
   AppNotFoundException,
   AppRequiresDiskException,
-  ClusterConflictException,
   ClusterExistsException,
   DiskAlreadyAttachedException,
   LeoKubernetesServiceInterp
@@ -632,30 +631,6 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val createAppMessage2 = message2.asInstanceOf[CreateAppMessage]
     createAppMessage2.appId shouldBe appResult2.app.id
     createAppMessage2.clusterNodepoolAction shouldBe None
-  }
-
-  it should "reject create/delete app requests when a nodepool is processing" in isolatedDbTest {
-    val savedCluster1 =
-      makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running, googleProject = project).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Provisioning).save()
-    val savedNodepool2 = makeNodepool(2, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
-    val app2 = makeApp(1, savedNodepool2.id).copy(status = AppStatus.Running).save()
-
-    val appName = AppName("app7")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
-
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-
-    the[ClusterConflictException] thrownBy {
-      kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
-    }
-
-    the[ClusterConflictException] thrownBy {
-      kubeServiceInterp.deleteApp(DeleteAppRequest(userInfo, project, app2.appName, false)).unsafeRunSync()
-    }
   }
 
   it should "be able to create a nodepool after a pool is completely claimed" in isolatedDbTest {

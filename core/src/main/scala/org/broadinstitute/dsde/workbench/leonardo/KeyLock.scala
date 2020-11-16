@@ -32,7 +32,7 @@ object Lock {
 abstract class KeyLock[F[_], K] {
   def acquire(key: K): F[Unit]
   def release(key: K): F[Unit]
-  def withKeyLock[A](key: K, fa: F[A]): F[A]
+  def withKeyLock[A](key: K)(fa: F[A]): F[A]
 }
 object KeyLock {
   def apply[F[_]: ConcurrentEffect: ContextShift, K <: AnyRef](expiryTime: FiniteDuration,
@@ -70,7 +70,7 @@ object KeyLock {
         _ <- lock.release
       } yield ()
 
-    override def withKeyLock[A](key: K, fa: F[A]): F[A] =
+    override def withKeyLock[A](key: K)(fa: F[A]): F[A] =
       for {
         lock <- blocker.blockOn(Concurrent[F].delay(cache.get(key)))
         res <- lock.withLock(fa)

@@ -257,9 +257,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         dbCluster.getGkeClusterId,
         buildGoogleNodepool(dbNodepool)
       )
+
+      // acquire lock
+      _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
+
       operationOpt <- gkeService.createNodepool(req)
+
+      // release lock
     } yield operationOpt.map(op =>
-      CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName))
+      CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName),
+                           dbCluster.getGkeClusterId)
     )
 
   override def pollNodepool(params: PollNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -286,6 +293,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         ) >>
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
+
+      // release lock
+      _ <- nodepoolLock.release(params.createResult.clusterId)
+
       _ <- nodepoolQuery.updateStatus(params.nodepoolId, NodepoolStatus.Running).transaction
     } yield ()
 
@@ -444,33 +455,38 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Beginning nodepool deletion for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      operationOpt <- gkeService.deleteNodepool(
-        NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
-      )
-      lastOp <- operationOpt
-        .traverse(op =>
-          gkeService
-            .pollOperation(
-              KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-              config.monitorConfig.nodepoolDelete.interval,
-              config.monitorConfig.nodepoolDelete.maxAttempts
+      operationOpt <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+        for {
+          operationOpt <- gkeService.deleteNodepool(
+            NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
+          )
+          lastOp <- operationOpt
+            .traverse(op =>
+              gkeService
+                .pollOperation(
+                  KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+                  config.monitorConfig.nodepoolDelete.interval,
+                  config.monitorConfig.nodepoolDelete.maxAttempts
+                )
             )
-        )
-        .compile
-        .lastOrError
-      _ <- lastOp match {
-        case None => F.unit
-        case Some(op) =>
-          if (op.isDone)
-            logger.info(
-              s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-            )
-          else
-            logger.error(
-              s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-            ) >>
-              F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
+            .compile
+            .lastOrError
+          _ <- lastOp match {
+            case None => F.unit
+            case Some(op) =>
+              if (op.isDone)
+                logger.info(
+                  s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+                )
+              else
+                logger.error(
+                  s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+                ) >>
+                  F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
+          }
+        } yield operationOpt
       }
+
       _ <- operationOpt.traverse(_ => nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction)
     } yield ()
 
@@ -533,52 +549,51 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Stopping nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      // acquire lock
-      _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
+      // TODO is this idempotent?
+      _ <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+        for {
+          op1 <- gkeService.setNodepoolAutoscaling(
+            nodepoolId,
+            NodePoolAutoscaling.newBuilder().setEnabled(false).build()
+          )
+          lastOp <- gkeService
+            .pollOperation(
+              KubernetesOperationId(params.googleProject, dbCluster.location, op1.getName),
+              config.monitorConfig.nodepoolCreate.interval,
+              config.monitorConfig.nodepoolCreate.maxAttempts
+            )
+            .compile
+            .lastOrError
+          _ <- if (lastOp.isDone)
+            logger.info(
+              s"setNodepoolAutoscaling operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+            )
+          else
+            logger.error(
+              s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+            ) >>
+              F.raiseError[Unit](NodepoolStopException(params.nodepoolId))
 
-      op1 <- gkeService.setNodepoolAutoscaling(
-        nodepoolId,
-        NodePoolAutoscaling.newBuilder().setEnabled(false).build()
-      )
-      lastOp <- gkeService
-        .pollOperation(
-          KubernetesOperationId(params.googleProject, dbCluster.location, op1.getName),
-          config.monitorConfig.nodepoolCreate.interval,
-          config.monitorConfig.nodepoolCreate.maxAttempts
-        )
-        .compile
-        .lastOrError
-      _ <- if (lastOp.isDone)
-        logger.info(
-          s"setNodepoolAutoscaling operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-        )
-      else
-        logger.error(
-          s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-        ) >>
-          F.raiseError[Unit](NodepoolStopException(params.nodepoolId))
-
-      op2 <- gkeService.setNodepoolSize(nodepoolId, 0)
-      lastOp2 <- gkeService
-        .pollOperation(
-          KubernetesOperationId(params.googleProject, dbCluster.location, op2.getName),
-          config.monitorConfig.nodepoolCreate.interval,
-          config.monitorConfig.nodepoolCreate.maxAttempts
-        )
-        .compile
-        .lastOrError
-      _ <- if (lastOp2.isDone)
-        logger.info(
-          s"setNodepoolSize operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-        )
-      else
-        logger.error(
-          s"setNodepoolSize operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-        ) >>
-          F.raiseError[Unit](NodepoolStopException(params.nodepoolId))
-
-      // release lock
-      _ <- nodepoolLock.release(dbCluster.getGkeClusterId)
+          op2 <- gkeService.setNodepoolSize(nodepoolId, 0)
+          lastOp2 <- gkeService
+            .pollOperation(
+              KubernetesOperationId(params.googleProject, dbCluster.location, op2.getName),
+              config.monitorConfig.nodepoolCreate.interval,
+              config.monitorConfig.nodepoolCreate.maxAttempts
+            )
+            .compile
+            .lastOrError
+          _ <- if (lastOp2.isDone)
+            logger.info(
+              s"setNodepoolSize operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+            )
+          else
+            logger.error(
+              s"setNodepoolSize operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+            ) >>
+              F.raiseError[Unit](NodepoolStopException(params.nodepoolId))
+        } yield ()
+      }
 
       _ <- dbRef.inTransaction {
         nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running) >>
@@ -604,79 +619,76 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Startingg nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      // acquire lock
-      _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
-
-      op1 <- gkeService.setNodepoolSize(
-        nodepoolId,
-        dbNodepool.numNodes.amount
-      )
-      lastOp <- gkeService
-        .pollOperation(
-          KubernetesOperationId(params.googleProject, dbCluster.location, op1.getName),
-          config.monitorConfig.nodepoolCreate.interval,
-          config.monitorConfig.nodepoolCreate.maxAttempts
-        )
-        .compile
-        .lastOrError
-      _ <- if (lastOp.isDone)
-        logger.info(
-          s"setNodepoolSize operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-        )
-      else
-        logger.error(
-          s"setNodepoolSize operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-        ) >>
-          F.raiseError[Unit](NodepoolStartException(params.nodepoolId))
-
-      // release lock
-      _ <- nodepoolLock.release(dbCluster.getGkeClusterId)
-
-      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
-
-      // acquire lock
-      _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
-
-      op2Opt <- dbNodepool.autoscalingConfig.traverse { config =>
-        gkeService.setNodepoolAutoscaling(
-          nodepoolId,
-          NodePoolAutoscaling
-            .newBuilder()
-            .setEnabled(true)
-            .setEnabled(true)
-            .setMinNodeCount(config.autoscalingMin.amount)
-            .setMaxNodeCount(config.autoscalingMax.amount)
-            .build
-        )
-      }
-
-      lastOp2Opt <- op2Opt
-        .traverse(op2 =>
-          gkeService
+      // TODO idempotency
+      _ <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+        for {
+          op1 <- gkeService.setNodepoolSize(
+            nodepoolId,
+            dbNodepool.numNodes.amount
+          )
+          lastOp <- gkeService
             .pollOperation(
-              KubernetesOperationId(params.googleProject, dbCluster.location, op2.getName),
-              config.monitorConfig.nodepoolDelete.interval,
-              config.monitorConfig.nodepoolDelete.maxAttempts
+              KubernetesOperationId(params.googleProject, dbCluster.location, op1.getName),
+              config.monitorConfig.nodepoolCreate.interval,
+              config.monitorConfig.nodepoolCreate.maxAttempts
             )
-        )
-        .compile
-        .lastOrError
-      _ <- lastOp2Opt match {
-        case None => F.unit
-        case Some(op2) =>
-          if (op2.isDone)
+            .compile
+            .lastOrError
+          _ <- if (lastOp.isDone)
             logger.info(
-              s"setNodepoolAutoscaling operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+              s"setNodepoolSize operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
             )
           else
             logger.error(
-              s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+              s"setNodepoolSize operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
             ) >>
               F.raiseError[Unit](NodepoolStartException(params.nodepoolId))
+        } yield ()
       }
 
-      // release lock
-      _ <- nodepoolLock.release(dbCluster.getGkeClusterId)
+      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+
+      _ <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+        for {
+          op2Opt <- dbNodepool.autoscalingConfig.traverse { config =>
+            gkeService.setNodepoolAutoscaling(
+              nodepoolId,
+              NodePoolAutoscaling
+                .newBuilder()
+                .setEnabled(true)
+                .setEnabled(true)
+                .setMinNodeCount(config.autoscalingMin.amount)
+                .setMaxNodeCount(config.autoscalingMax.amount)
+                .build
+            )
+          }
+
+          lastOp2Opt <- op2Opt
+            .traverse(op2 =>
+              gkeService
+                .pollOperation(
+                  KubernetesOperationId(params.googleProject, dbCluster.location, op2.getName),
+                  config.monitorConfig.nodepoolDelete.interval,
+                  config.monitorConfig.nodepoolDelete.maxAttempts
+                )
+            )
+            .compile
+            .lastOrError
+          _ <- lastOp2Opt match {
+            case None => F.unit
+            case Some(op2) =>
+              if (op2.isDone)
+                logger.info(
+                  s"setNodepoolAutoscaling operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+                )
+              else
+                logger.error(
+                  s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+                ) >>
+                  F.raiseError[Unit](NodepoolStartException(params.nodepoolId))
+          }
+        } yield ()
+      }
 
       _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running).transaction
     } yield ()
