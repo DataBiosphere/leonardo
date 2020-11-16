@@ -30,11 +30,11 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.clusterName shouldBe CommonTestData.testCluster.runtimeName.asString
       result.customEnvVarsConfigUri shouldBe GcsPath(CommonTestData.initBucketName,
                                                      GcsObjectName("custom_env_vars.env")).toUri
-      result.cryptoDetectorDockerImage shouldBe CommonTestData.cryptoDetectorImage.imageUrl
       result.cryptoDetectorDockerCompose shouldBe GcsPath(
         CommonTestData.initBucketName,
         GcsObjectName("test-crypto-detector-docker-compose.yaml")
       ).toUri
+      result.cryptoDetectorDockerImage shouldBe CommonTestData.cryptoDetectorImage.imageUrl
       result.cryptoDetectorServerName shouldBe "cryptomining-detector"
       result.disableDelocalization shouldBe "false"
       result.googleClientId shouldBe "clientId"
@@ -60,6 +60,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.jupyterStartUserScriptOutputUri shouldBe RuntimeTemplateValues
         .jupyterUserStartScriptOutputUriPath(CommonTestData.stagingBucketName, now)
         .toUri
+      result.updateWelder shouldBe "true"
       result.jupyterStartUserScriptUri shouldBe GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")).toUri
       result.jupyterUserScriptOutputUri shouldBe GcsPath(CommonTestData.stagingBucketName,
                                                          GcsObjectName("userscript_output.txt")).toUri
