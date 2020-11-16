@@ -545,8 +545,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Get the proxy image
       proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, now)
       // Crypto detector image
-      stratumImage = RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, now)
-    } yield Set(toolImage, welderImage, proxyImage, stratumImage)
+      cryptoDetectorImage = RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, now)
+    } yield Set(toolImage, welderImage, proxyImage, cryptoDetectorImage)
 
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
                                                userToken: String,
