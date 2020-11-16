@@ -37,6 +37,11 @@ import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
+import org.broadinstitute.dsde.workbench.leonardo.monitor.DiskUpdate
+import org.broadinstitute.dsde.workbench.leonardo.LabelMap
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -691,27 +696,82 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   ////todo emily
 
-  List(Map("apples" -> "to_oranges", "grapes" -> "make_wine")).foreach { startingLabels =>
+  val reqMaps: List[LabelMap] = List(
+    Map.empty,
+    Map("apples" -> "are_great", "grapes" -> "are_cool"),
+    Map("new_entry" -> "i_am_new"),
+    Map("" -> "") // should not change existing label but is currently
+  )
+
+  val startLabelMap: LabelMap = Map("apples" -> "to_oranges", "grapes" -> "make_wine")
+
+  val finalMaps: List[LabelMap] = List(
+    Map("apples" -> "to_oranges", "grapes" -> "make_wine"),
+    Map("apples" -> "are_great", "grapes" -> "are_cool"),
+    Map("apples" -> "to_oranges", "grapes" -> "make_wine", "new_entry" -> "i_am_new")
+  )
+
+  reqMaps.foreach { upsertLabels =>
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
-    it should s"Process reqlabels correctly for $startingLabels" in isolatedDbTest {
+    it should s"Process upsert labels correctly for $upsertLabels" in isolatedDbTest {
       val res = for {
         samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
         testRuntime <- IO(
           makeCluster(1)
-            .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startingLabels)
+            .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
             .save()
         )
-        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map("" -> ""), List(""))
+        _ = println("!!!")
+        _ = println("start labels: " + testRuntime.labels.toString())
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), upsertLabels, List.empty)
+        _ = println("reqlabels: " + upsertLabels)
 
         _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
-        dbRuntimeOpt <- clusterQuery
-          .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
-          .transaction
-        dbRuntime = dbRuntimeOpt.get
-        messageOpt <- publisherQueue.tryDequeue1
+        dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
+        _ <- publisherQueue.tryDequeue1
+        _ = println("final: " + dbLabelMap.toString())
+
       } yield {
-        dbRuntime.labels shouldBe Map("apples" -> "to_oranges", "grapes" -> "make_wine")
+        finalMaps.contains(dbLabelMap)
+        // check witha string interp like: it should s"Process reqlabels correctly for $upsertLabels" in isolatedDbTest
+      }
+      res.unsafeRunSync()
+    }
+  }
+
+  val deleteLists: List[List[String]] = List(
+    List(""),
+    List("apples"),
+    List("apples", "oranges"),
+    List("apples", "apples"),
+    List("apples", "grapes")
+  )
+
+  deleteLists.foreach { deleteLabelList =>
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    it should s"Process reqlabels correctly for $deleteLabelList" in isolatedDbTest {
+      val res = for {
+        samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+        testRuntime <- IO(
+          makeCluster(1)
+            .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
+            .save()
+        )
+        _ = println("!!!")
+        _ = println("start labels: " + testRuntime.labels.toString())
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, deleteLabelList)
+        _ = println("reqlabels: " + deleteLabelList.toString())
+
+        _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
+        dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
+        _ <- publisherQueue.tryDequeue1
+        _ = println("final: " + dbLabelMap.toString())
+
+      } yield {
+        finalMaps.contains(dbLabelMap)
+        // check witha string interp like: it should s"Process reqlabels correctly for $upsertLabels" in isolatedDbTest
       }
       res.unsafeRunSync()
     }
