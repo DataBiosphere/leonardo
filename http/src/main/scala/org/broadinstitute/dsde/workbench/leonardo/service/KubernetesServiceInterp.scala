@@ -376,7 +376,9 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           AppCannotBeStartedException(googleProject, appName, appResult.app.status, ctx.traceId)
         )
 
-      _ <- KubernetesServiceDbQueries.markPreStarting(appResult.nodepool.id, appResult.app.id).transaction
+      _ <- KubernetesServiceDbQueries
+        .markPreStarting(appResult.nodepool.id, appResult.app.id, appResult.nodepool.numNodes)
+        .transaction
       message = StartAppMessage(
         appResult.app.id,
         appResult.nodepool.id,
