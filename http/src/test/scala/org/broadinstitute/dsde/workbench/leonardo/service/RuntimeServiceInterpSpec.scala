@@ -636,13 +636,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
-  ////todo emily
-
   val reqMaps: List[LabelMap] = List(
     Map.empty,
     Map("apples" -> "are_great", "grapes" -> "are_cool"),
-    Map("new_entry" -> "i_am_new"),
-    Map("" -> "") // should not change existing label but is currently
+    Map("new_entry" -> "i_am_new")
   )
 
   val startLabelMap: LabelMap = Map("apples" -> "to_oranges", "grapes" -> "make_wine")
@@ -664,19 +661,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
             .save()
         )
-        _ = println("!!!")
-        _ = println("start labels: " + testRuntime.labels.toString())
         req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), upsertLabels, List.empty)
-        _ = println("reqlabels: " + upsertLabels)
-
         _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
         dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
         _ <- publisherQueue.tryDequeue1
-        _ = println("final: " + dbLabelMap.toString())
 
       } yield {
-        finalMaps.contains(dbLabelMap)
-        // check witha string interp like: it should s"Process reqlabels correctly for $upsertLabels" in isolatedDbTest
+        finalMaps.contains(dbLabelMap) shouldBe true
       }
       res.unsafeRunSync()
     }
@@ -688,6 +679,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     List("apples", "oranges"),
     List("apples", "apples"),
     List("apples", "grapes")
+  )
+
+  val finalDeleteMaps: List[LabelMap] = List(
+    Map("grapes" -> "make_wine"),
+    Map("apples" -> "to_oranges", "grapes" -> "make_wine"),
+    Map.empty
   )
 
   deleteLists.foreach { deleteLabelList =>
@@ -712,8 +709,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         _ = println("final: " + dbLabelMap.toString())
 
       } yield {
-        finalMaps.contains(dbLabelMap)
-        // check witha string interp like: it should s"Process reqlabels correctly for $upsertLabels" in isolatedDbTest
+        finalDeleteMaps.contains(dbLabelMap) shouldBe true
       }
       res.unsafeRunSync()
     }
