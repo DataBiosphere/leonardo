@@ -40,6 +40,7 @@ import org.broadinstitute.dsde.workbench.google.{
   HttpGoogleProjectDAO,
   HttpGoogleStorageDAO
 }
+import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -253,8 +254,8 @@ object Boot extends IOApp {
                                                  appDependencies.galaxyDAO,
                                                  googleDependencies.credentials,
                                                  googleDependencies.googleIamDAO,
-                                                 appDependencies.authProvider,
-                                                 appDependencies.blocker)
+                                                 appDependencies.blocker,
+                                                 appDependencies.nodepoolLock)
 
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
@@ -313,7 +314,7 @@ object Boot extends IOApp {
     }
   }
 
-  private def createDependencies[F[_]: StructuredLogger: Parallel: ContextShift: Timer](
+  private def createDependencies[F[_]: StructuredLogger: Parallel: Concurrent: ContextShift: Timer](
     pathToCredentialJson: String
   )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {
@@ -413,6 +414,7 @@ object Boot extends IOApp {
                                                       applicationConfig.applicationName,
                                                       ProjectName.of(applicationConfig.leoGoogleProject.value))
       googleOauth2DAO <- GoogleOAuth2Service.resource(blocker, semaphore)
+      nodepoolLock <- Resource.liftF(KeyLock[F, KubernetesClusterId](1 hour, 1000, blocker))
 
       googleDependencies = GoogleDependencies(
         petGoogleStorageDAO,
@@ -453,7 +455,8 @@ object Boot extends IOApp {
       subscriber,
       asyncTasksQueue,
       helmClient,
-      galaxyDAO
+      galaxyDAO,
+      nodepoolLock
     )
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
@@ -499,5 +502,6 @@ final case class AppDependencies[F[_]](
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   asyncTasksQueue: InspectableQueue[F, Task[F]],
   helmClient: HelmAlgebra[F],
-  galaxyDAO: GalaxyDAO[F]
+  galaxyDAO: GalaxyDAO[F],
+  nodepoolLock: KeyLock[F, KubernetesClusterId]
 )
