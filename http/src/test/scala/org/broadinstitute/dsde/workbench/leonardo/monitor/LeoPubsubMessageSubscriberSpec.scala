@@ -121,8 +121,8 @@ class LeoPubsubMessageSubscriberSpec
                            MockGalaxyDAO,
                            credentials,
                            iamDAOKubernetes,
-                           whitelistAuthProvider,
-                           blocker)
+                           blocker,
+                           nodepoolLock)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -1125,8 +1125,8 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
-                             whitelistAuthProvider,
-                             blocker)
+                             blocker,
+                             nodepoolLock)
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
@@ -1179,8 +1179,8 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
-                             whitelistAuthProvider,
-                             blocker)
+                             blocker,
+                             nodepoolLock)
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
@@ -1437,8 +1437,8 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
-                             whitelistAuthProvider,
-                             blocker)
+                             blocker,
+                             nodepoolLock)
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
@@ -1518,8 +1518,8 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAOKubernetes,
-                             whitelistAuthProvider,
-                             blocker)
+                             blocker,
+                             nodepoolLock)
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
@@ -1595,8 +1595,8 @@ class LeoPubsubMessageSubscriberSpec
                              MockGalaxyDAO,
                              credentials,
                              iamDAO,
-                             whitelistAuthProvider,
-                             blocker)
+                             blocker,
+                             nodepoolLock)
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction

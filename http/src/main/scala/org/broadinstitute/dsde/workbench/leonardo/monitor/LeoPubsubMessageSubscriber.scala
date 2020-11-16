@@ -552,7 +552,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- logger.info(s"Beginning postgres disk creation for app ${appName.value} | trace id: ${ctx.traceId}")
       operationOpt <- googleDiskService.createDisk(project,
                                                    zone,
-                                                   gkeInterp.createGalaxyPostgresDisk(project, zone, namespaceName))
+                                                   gkeInterp.buildGalaxyPostgresDisk(zone, namespaceName))
       whenDone = logger.info(
         s"Completed postgres disk creation for app ${appName.value} in project ${project.value} | trace id: ${ctx.traceId}"
       )

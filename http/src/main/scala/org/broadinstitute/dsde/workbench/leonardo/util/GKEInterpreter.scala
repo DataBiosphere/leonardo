@@ -9,15 +9,16 @@ import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.mtl.Ask
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.container.v1._
 import com.google.cloud.compute.v1.Disk
-import org.broadinstitute.dsde.workbench.DoneCheckable
+import com.google.container.v1._
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
-import org.broadinstitute.dsde.workbench.leonardo.ctxConversion
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels._
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
   tracedRetryGoogleF,
@@ -26,24 +27,13 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesModels,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{
-  KubernetesNamespace,
-  KubernetesPodStatus,
-  KubernetesSecret,
-  KubernetesSecretType,
-  PodStatus
-}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
-import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.GalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, HelmAlgebra, Release}
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 
 import cats.syntax.all._
 import scala.jdk.CollectionConverters._
@@ -65,8 +55,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   galaxyDAO: GalaxyDAO[F],
   credentials: GoogleCredentials,
   googleIamDAO: GoogleIamDAO,
-  authProvider: LeoAuthProvider[F],
-  blocker: Blocker
+  blocker: Blocker,
+  nodepoolLock: KeyLock[F, KubernetesClusterId]
 )(implicit val executionContext: ExecutionContext,
   contextShift: ContextShift[IO],
   logger: StructuredLogger[F],
@@ -527,7 +517,171 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       }
     } yield ()
 
-  def createGalaxyPostgresDisk(project: GoogleProject, zone: ZoneName, namespaceName: NamespaceName): Disk =
+  override def stopAndPollNodepool(params: StopNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
+      dbNodepool <- F.fromOption(dbNodepoolOpt, NodepoolNotFoundException(params.nodepoolId))
+      dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(dbNodepool.clusterId).transaction
+      dbCluster <- F.fromOption(
+        dbClusterOpt,
+        KubernetesClusterNotFoundException(s"Cluster with id ${dbNodepool.clusterId.id} not found in database")
+      )
+      nodepoolId = NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
+
+      _ <- logger.info(
+        s"Stopping nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
+      // acquire lock
+      _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
+
+      op1 <- gkeService.setNodepoolAutoscaling(
+        nodepoolId,
+        NodePoolAutoscaling.newBuilder().setEnabled(false).build()
+      )
+      lastOp <- gkeService
+        .pollOperation(
+          KubernetesOperationId(params.googleProject, dbCluster.location, op1.getName),
+          config.monitorConfig.nodepoolCreate.interval,
+          config.monitorConfig.nodepoolCreate.maxAttempts
+        )
+        .compile
+        .lastOrError
+      _ <- if (lastOp.isDone)
+        logger.info(
+          s"setNodepoolAutoscaling operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        )
+      else
+        logger.error(
+          s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        ) >>
+          F.raiseError[Unit](NodepoolStopException(params.nodepoolId))
+
+      op2 <- gkeService.setNodepoolSize(nodepoolId, 0)
+      lastOp2 <- gkeService
+        .pollOperation(
+          KubernetesOperationId(params.googleProject, dbCluster.location, op2.getName),
+          config.monitorConfig.nodepoolCreate.interval,
+          config.monitorConfig.nodepoolCreate.maxAttempts
+        )
+        .compile
+        .lastOrError
+      _ <- if (lastOp2.isDone)
+        logger.info(
+          s"setNodepoolSize operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        )
+      else
+        logger.error(
+          s"setNodepoolSize operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        ) >>
+          F.raiseError[Unit](NodepoolStopException(params.nodepoolId))
+
+      // release lock
+      _ <- nodepoolLock.release(dbCluster.getGkeClusterId)
+
+      _ <- dbRef.inTransaction {
+        nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running) >>
+          appQuery.updateStatus(params.appId, AppStatus.Stopped)
+      }
+    } yield F.unit
+
+  override def startAndPollNodepool(params: StartNodepoolParams)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
+      dbNodepool <- F.fromOption(dbNodepoolOpt, NodepoolNotFoundException(params.nodepoolId))
+      dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(dbNodepool.clusterId).transaction
+      dbCluster <- F.fromOption(
+        dbClusterOpt,
+        KubernetesClusterNotFoundException(s"Cluster with id ${dbNodepool.clusterId.id} not found in database")
+      )
+      nodepoolId = NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
+
+      _ <- logger.info(
+        s"Startingg nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
+      // acquire lock
+      _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
+
+      op1 <- gkeService.setNodepoolSize(
+        nodepoolId,
+        dbNodepool.numNodes.amount
+      )
+      lastOp <- gkeService
+        .pollOperation(
+          KubernetesOperationId(params.googleProject, dbCluster.location, op1.getName),
+          config.monitorConfig.nodepoolCreate.interval,
+          config.monitorConfig.nodepoolCreate.maxAttempts
+        )
+        .compile
+        .lastOrError
+      _ <- if (lastOp.isDone)
+        logger.info(
+          s"setNodepoolSize operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        )
+      else
+        logger.error(
+          s"setNodepoolSize operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+        ) >>
+          F.raiseError[Unit](NodepoolStartException(params.nodepoolId))
+
+      // release lock
+      _ <- nodepoolLock.release(dbCluster.getGkeClusterId)
+
+      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+
+      // acquire lock
+      _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
+
+      op2Opt <- dbNodepool.autoscalingConfig.traverse { config =>
+        gkeService.setNodepoolAutoscaling(
+          nodepoolId,
+          NodePoolAutoscaling
+            .newBuilder()
+            .setEnabled(true)
+            .setEnabled(true)
+            .setMinNodeCount(config.autoscalingMin.amount)
+            .setMaxNodeCount(config.autoscalingMax.amount)
+            .build
+        )
+      }
+
+      lastOp2Opt <- op2Opt
+        .traverse(op2 =>
+          gkeService
+            .pollOperation(
+              KubernetesOperationId(params.googleProject, dbCluster.location, op2.getName),
+              config.monitorConfig.nodepoolDelete.interval,
+              config.monitorConfig.nodepoolDelete.maxAttempts
+            )
+        )
+        .compile
+        .lastOrError
+      _ <- lastOp2Opt match {
+        case None => F.unit
+        case Some(op2) =>
+          if (op2.isDone)
+            logger.info(
+              s"setNodepoolAutoscaling operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+            )
+          else
+            logger.error(
+              s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+            ) >>
+              F.raiseError[Unit](NodepoolStartException(params.nodepoolId))
+      }
+
+      // release lock
+      _ <- nodepoolLock.release(dbCluster.getGkeClusterId)
+
+      _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running).transaction
+    } yield ()
+
+  private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName, namespaceName: NamespaceName): Disk =
     Disk
       .newBuilder()
       .setName(getGalaxyPostgresDiskName(namespaceName).value)
@@ -536,7 +690,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       .setPhysicalBlockSizeBytes(config.galaxyDiskConfig.postgresDiskBlockSize.bytes.toString)
       .build()
 
-  def getGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
+  private[leonardo] def getGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
     DiskName(s"${namespaceName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
 
   private[util] def installNginx(dbCluster: KubernetesCluster,
@@ -903,6 +1057,14 @@ final case class NodepoolCreationException(nodepoolId: NodepoolLeoId) extends Ap
 
 final case class NodepoolDeletionException(nodepoolId: NodepoolLeoId) extends AppProcessingException {
   override def getMessage: String = s"Failed to poll nodepool deletion operation to completion for nodepool $nodepoolId"
+}
+
+final case class NodepoolStopException(nodepoolId: NodepoolLeoId) extends AppProcessingException {
+  override def getMessage: String = s"Failed to poll nodepool stop operation to completion for nodepool $nodepoolId"
+}
+
+final case class NodepoolStartException(nodepoolId: NodepoolLeoId) extends AppProcessingException {
+  override def getMessage: String = s"Failed to poll nodepool start operation to completion for nodepool $nodepoolId"
 }
 
 final case class AppCreationException(message: String) extends AppProcessingException {
