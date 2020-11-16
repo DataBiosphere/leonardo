@@ -8,6 +8,7 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import org.broadinstitute.dsde.workbench.openTelemetry.FakeOpenTelemetryMetricsInterpreter
 import org.scalatest.{Assertion, Assertions}
 import fs2.Stream
+import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.scalatest.prop.Configuration
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 
@@ -24,6 +25,7 @@ trait LeonardoTestSuite extends Matchers {
 
   val blocker = Blocker.liftExecutionContext(global)
   val semaphore = Semaphore[IO](10).unsafeRunSync()
+  val nodepoolLock = KeyLock[IO, KubernetesClusterId](1 minute, 10, blocker).unsafeRunSync()
 
   def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 30): IO[Assertion] = {
     val process = Stream.eval(Deferred[IO, Assertion]).flatMap { signalToStop =>
