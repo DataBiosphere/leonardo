@@ -118,7 +118,6 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     authHeader: Authorization
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[List[(R, SamPolicyName)]] =
     for {
-      _ <- logger.info("@@@@@@@@@In the method being tested")
       _ <- metrics.incrementCounter(s"sam/getResourcePolicies/${sr.resourceType.asString}")
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
         Request[F](
