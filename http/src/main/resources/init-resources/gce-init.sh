@@ -99,8 +99,8 @@ export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
 export PROXY_SERVER_NAME=$(proxyServerName)
 export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
-export STRATUM_SERVER_NAME=$(stratumServerName)
-export STRATUM_DOCKER_IMAGE=$(stratumDockerImage)
+export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
+export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
 export MEM_LIMIT=$(memLimit)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
@@ -168,7 +168,7 @@ gsutil cp ${JUPYTER_DOCKER_COMPOSE_GCE} /etc
 gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
 gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
 gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
-gsutil cp ${STRATUM_DOCKER_COMPOSE} /etc
+gsutil cp ${CRYPTO_DETECTOR_DOCKER_COMPOSE} /etc
 
 echo "" > /etc/google_application_credentials.env
 
@@ -268,10 +268,10 @@ if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
   COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
   cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
 fi
-# Note: stratum should be started after user containers
-if [ ! -z "$STRATUM_DOCKER_IMAGE" ] ; then
-  COMPOSE_FILES+=(-f /etc/`basename ${STRATUM_DOCKER_COMPOSE}`)
-  cat /etc/`basename ${STRATUM_DOCKER_COMPOSE}`
+# Note: crypto-detector should be started after user containers
+if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
+  COMPOSE_FILES+=(-f /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
+  cat /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`
 fi
 
 docker-compose "${COMPOSE_FILES[@]}" config

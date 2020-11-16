@@ -142,7 +142,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
           config.clusterResourcesConfig.proxyDockerCompose,
           config.clusterResourcesConfig.proxySiteConf,
           config.clusterResourcesConfig.welderDockerCompose,
-          config.clusterResourcesConfig.stratumDockerCompose,
+          config.clusterResourcesConfig.cryptoDetectorDockerCompose,
           // Note: jupyter_notebook_config.py is non-templated and gets copied inside the Jupyter container.
           // So technically we could just put it in the Jupyter base image itself. However we would still need
           // it here to support legacy images where it is not present in the container.

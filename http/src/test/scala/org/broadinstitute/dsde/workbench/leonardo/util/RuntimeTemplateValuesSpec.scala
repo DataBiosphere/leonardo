@@ -30,6 +30,12 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.clusterName shouldBe CommonTestData.testCluster.runtimeName.asString
       result.customEnvVarsConfigUri shouldBe GcsPath(CommonTestData.initBucketName,
                                                      GcsObjectName("custom_env_vars.env")).toUri
+      result.cryptoDetectorDockerImage shouldBe CommonTestData.cryptoDetectorImage.imageUrl
+      result.cryptoDetectorDockerCompose shouldBe GcsPath(
+        CommonTestData.initBucketName,
+        GcsObjectName("test-crypto-detector-docker-compose.yaml")
+      ).toUri
+      result.cryptoDetectorServerName shouldBe "cryptomining-detector"
       result.disableDelocalization shouldBe "false"
       result.googleClientId shouldBe "clientId"
       result.googleProject shouldBe CommonTestData.testCluster.googleProject.value
@@ -75,10 +81,6 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.rstudioServerName shouldBe "rstudio-server"
       result.runtimeOperation shouldBe RuntimeOperation.Restarting.asString
       result.stagingBucketName shouldBe CommonTestData.stagingBucketName.value
-      result.stratumDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
-                                                   GcsObjectName("test-stratum-docker-compose.yaml")).toUri
-      result.stratumDockerImage shouldBe CommonTestData.stratumImage.imageUrl
-      result.stratumServerName shouldBe "stratum-detector"
       result.welderDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                   GcsObjectName("test-welder-docker-compose.yaml")).toUri
       result.welderDockerImage shouldBe CommonTestData.welderImage.imageUrl

@@ -131,7 +131,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Stratum, Config.imageConfig.stratumImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes
         )
@@ -223,7 +223,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Stratum, Config.imageConfig.stratumImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -275,7 +275,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Stratum, Config.imageConfig.stratumImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -401,7 +401,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Stratum, Config.imageConfig.stratumImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
