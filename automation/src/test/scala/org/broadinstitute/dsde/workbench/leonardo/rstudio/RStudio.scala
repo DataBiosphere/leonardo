@@ -18,10 +18,10 @@ object RStudio extends RestClient with LazyLogging {
     s"proxy/${googleProject.value}/${clusterName.asString}/rstudio/"
 
   def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken,
-                                                                  webDriver: WebDriver): RStudioMainPage = {
+                                                                  webDriver: WebDriver): RStudioPage = {
     val path = rstudioPath(googleProject, clusterName)
     logger.info(s"Get rstudio: GET /$path")
-    new RStudioMainPage(url + path)
+    new RStudioPage(url + path)
   }
 
   def getApi(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {

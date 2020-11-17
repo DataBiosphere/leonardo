@@ -13,8 +13,8 @@ trait RStudioTestUtils extends LeonardoTestUtils {
 
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
 
-  def withRStudioMainPage[T](cluster: ClusterCopy)(testCode: RStudioMainPage => T)(implicit webDriver: WebDriver,
-                                                                                   token: AuthToken): T = {
+  def withRStudioPage[T](cluster: ClusterCopy)(testCode: RStudioPage => T)(implicit webDriver: WebDriver,
+                                                                           token: AuthToken): T = {
     val rstudioMainPage = RStudio.get(cluster.googleProject, cluster.clusterName)
     logger.info(s"rstudio ${rstudioMainPage.url}")
     testCode(rstudioMainPage.open)
@@ -23,7 +23,7 @@ trait RStudioTestUtils extends LeonardoTestUtils {
   def withNewRStudio[T](cluster: ClusterCopy, timeout: FiniteDuration = 5.minutes)(
     testCode: RStudioPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
-    withRStudioMainPage(cluster) { rstudioMainPage =>
+    withRStudioPage(cluster) { rstudioMainPage =>
       logger.info(
         s"Creating new rstudio on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
       )
