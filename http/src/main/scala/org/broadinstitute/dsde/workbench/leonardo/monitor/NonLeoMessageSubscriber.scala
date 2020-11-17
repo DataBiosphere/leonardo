@@ -5,6 +5,7 @@ import cats.effect.{Concurrent, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
+import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{
@@ -15,14 +16,21 @@ import org.broadinstitute.dsde.workbench.google2.{
   InstanceName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, kubernetesClusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{CryptoMining, DeleteKubernetesClusterMessage}
-import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, GKEAlgebra}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
+  CryptoMining,
+  DeleteKubernetesClusterMessage,
+  DeleteNodepoolMessage
+}
+import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, DeleteNodepoolParams, GKEAlgebra}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
+import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import NonLeoMessageSubscriber.cryptominingUserMessageEncoder
 import com.google.protobuf.ByteString
@@ -39,7 +47,8 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
                                            computeService: GoogleComputeService[F],
                                            samDao: SamDAO[F],
                                            subscriber: GoogleSubscriber[F, NonLeoMessage],
-                                           publisher: GooglePublisher[F])(
+                                           publisher: GooglePublisher[F],
+                                           asyncTasks: InspectableQueue[F, Task[F]])(
   implicit logger: StructuredLogger[F],
   F: Concurrent[F],
   metrics: OpenTelemetryMetrics[F],
@@ -68,6 +77,7 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
   )(implicit traceId: Ask[F, AppContext]): F[Unit] = message match {
     case m: DeleteKubernetesClusterMessage => handleDeleteKubernetesClusterMessage(m)
     case m: NonLeoMessage.CryptoMining     => handleCryptoMiningMessage(m)
+    case m: DeleteNodepoolMessage          => handleDeleteNodepoolMessage(m)
   }
 
   private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
@@ -140,6 +150,24 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
           }
         } yield ()
     } yield ()
+
+  private[monitor] def handleDeleteNodepoolMessage(
+    msg: DeleteNodepoolMessage
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      task = gkeAlg.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.googleProject))
+      _ <- asyncTasks.enqueue1(
+        Task(ctx.traceId,
+             task,
+             Some(logError(s"${msg.nodepoolId}/${msg.googleProject}", DeleteNodepool.toString)),
+             ctx.now)
+      )
+    } yield ()
+
+  private def logError(resourceAndProject: String, action: String): Throwable => F[Unit] =
+    t => logger.error(t)(s"Error in async task for resourceId/googleProject: ${resourceAndProject} | action: ${action}")
+
 }
 
 object NonLeoMessageSubscriber {
@@ -164,9 +192,12 @@ object NonLeoMessageSubscriber {
         .leftMap(t => DecodingFailure(s"can't parse google project from logName due to ${t}", List.empty))
     } yield CryptoMining(textpayload, resource, googleProject)
   }
+  implicit val deleteNodepoolDecoder: Decoder[DeleteNodepoolMessage] =
+    Decoder.forProduct3("nodepoolId", "googleProject", "traceId")(DeleteNodepoolMessage.apply)
 
   implicit val nonLeoMessageDecoder: Decoder[NonLeoMessage] = Decoder.instance { x =>
-    deleteKubernetesClusterDecoder.tryDecode(x) orElse (cryptoMiningDecoder.tryDecode(x))
+    deleteKubernetesClusterDecoder.tryDecode(x) orElse (cryptoMiningDecoder.tryDecode(x)) orElse (deleteNodepoolDecoder
+      .tryDecode(x))
   }
 
   implicit val userSubjectIdEncoder: Encoder[UserSubjectId] = Encoder.encodeString.contramap(_.asString)
@@ -185,6 +216,12 @@ object NonLeoMessage {
   final case class CryptoMining(textPayload: String, resource: GoogleResource, googleProject: GoogleProject)
       extends NonLeoMessage {
     val messageType: String = "crypto-minining"
+  }
+  final case class DeleteNodepoolMessage(nodepoolId: NodepoolLeoId,
+                                         googleProject: GoogleProject,
+                                         traceId: Option[TraceId])
+      extends NonLeoMessage {
+    val messageType: String = "deleteNodepool"
   }
 }
 final case class GoogleResource(labels: GoogleLabels)

@@ -4,15 +4,20 @@ package monitor
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
+import fs2.concurrent.InspectableQueue
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher}
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, InstanceName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makeCluster
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.makeKubeCluster
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, traceId}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, kubernetesClusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.DeleteKubernetesClusterMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
+  DeleteKubernetesClusterMessage,
+  DeleteNodepoolMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -63,6 +68,22 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       GoogleProject("project1")
     )
     decode[NonLeoMessage](jsonStringDeleteKubernetesCluster) shouldBe Right(expectedResult2)
+
+    val jsonStringDeleteNodepool =
+      """
+        |{
+        | "messageType": "deleteNodepool",
+        | "nodepoolId": 1,
+        | "googleProject": "project1",
+        | "traceId": "test"
+        |}
+        |""".stripMargin
+    val expectedResultDeleteNodepool = NonLeoMessage.DeleteNodepoolMessage(
+      NodepoolLeoId(1),
+      GoogleProject("project1"),
+      Some(TraceId("test"))
+    )
+    decode[NonLeoMessage](jsonStringDeleteNodepool) shouldBe Right(expectedResultDeleteNodepool)
   }
 
   it should "handle cryptomining message" in {
@@ -107,13 +128,31 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     res.unsafeRunSync()
   }
 
+  it should "handle DeleteNodepoolMessage" in isolatedDbTest {
+    val subscriber = makeSubscribler()
+
+    val res = for {
+      traceId <- traceId.ask[TraceId]
+      savedCluster = makeKubeCluster(1).save()
+      savedNodepool = makeNodepool(1, savedCluster.id).save()
+      msg = DeleteNodepoolMessage(savedNodepool.id, savedCluster.googleProject, Some(traceId))
+
+      attempt <- subscriber.messageResponder(msg).attempt
+    } yield {
+      attempt shouldBe Right(())
+    }
+
+    res.unsafeRunSync()
+  }
+
   def makeSubscribler(
     gkeInterp: GKEAlgebra[IO] = new MockGKEService,
     samDao: SamDAO[IO] = new MockSamDAO,
     computeService: GoogleComputeService[IO] = FakeGoogleComputeService,
-    publisher: GooglePublisher[IO] = new FakeGooglePublisher
+    publisher: GooglePublisher[IO] = new FakeGooglePublisher,
+    asyncTaskQueue: InspectableQueue[IO, Task[IO]] = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync
   ): NonLeoMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[NonLeoMessage]
-    new NonLeoMessageSubscriber(gkeInterp, computeService, samDao, googleSubscriber, publisher)
+    new NonLeoMessageSubscriber(gkeInterp, computeService, samDao, googleSubscriber, publisher, asyncTaskQueue)
   }
 }
