@@ -126,7 +126,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           headers = Headers.of(authHeader)
         )
       )(onError)
-    } yield resp.flatMap(r => r.samPolicyName.map(pn => (r.samResourceId, pn)))
+    } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
 
   def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
@@ -394,8 +394,6 @@ object HttpSamDAO {
     } yield SyncStatusResponse(lastSyncDate, email)
   }
 
-  final case class SamRoleAction(roles: List[SamPolicyName])
-
   implicit val samRoleActionDecoder: Decoder[SamRoleAction] = Decoder.forProduct1("roles")(SamRoleAction.apply)
 
   implicit def listResourceResponseDecoder[R: Decoder]: Decoder[ListResourceResponse[R]] = Decoder.instance { x =>
@@ -426,7 +424,7 @@ object HttpSamDAO {
 
 final case class CreateSamResourceRequest[R](samResourceId: R, policies: Map[SamPolicyName, SamPolicyData])
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
-final case class ListResourceResponse[R](samResourceId: R, samPolicyName: Set[SamPolicyName])
+final case class ListResourceResponse[R](samResourceId: R, samPolicyNames: Set[SamPolicyName])
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
@@ -434,6 +432,7 @@ final case class HttpSamDaoConfig(samUri: Uri,
                                   serviceAccountProviderConfig: ServiceAccountProviderConfig)
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
+final case class SamRoleAction(roles: List[SamPolicyName])
 
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
