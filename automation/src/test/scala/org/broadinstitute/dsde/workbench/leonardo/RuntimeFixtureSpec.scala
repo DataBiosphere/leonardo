@@ -21,8 +21,7 @@ abstract class RuntimeFixtureSpec
     extends FixtureAnyFreeSpec
     with BeforeAndAfterAll
     with LeonardoTestUtils
-    with Retries
-    with GPAllocBeforeAndAfterAll {
+    with Retries {
 
   implicit val ronToken: AuthToken = ronAuthToken
 
