@@ -733,24 +733,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               .createCluster(
                 CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId), false)
               )
-              .onError {
-                case _ =>
-                  for {
-                    _ <- logger.info(
-                      s"Beginning clean up for cluster $clusterId due to an error during cluster creation"
-                    )
-                    _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
-                    _ <- gkeInterp.deleteAndPollCluster(DeleteClusterParams(clusterId, msg.project)).handleErrorWith {
-                      e =>
-                        // we do not want to bubble up errors with cluster clean-up
-                        logger.error(e)(
-                          s"An error occurred during resource clean up for cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
-                        )
-                    }
-                  } yield ()
-              }
+              .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
               .adaptError {
-                case e => {
+                case e =>
                   PubsubKubernetesError(
                     AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
                     Some(msg.appId),
@@ -760,10 +745,22 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                     None,
                     None
                   )
-                }
               }
             monitorOp = createClusterResultOpt.traverse_(createClusterResult =>
-              gkeInterp.pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
+              gkeInterp
+                .pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
+                .adaptError {
+                  case e =>
+                    PubsubKubernetesError(
+                      AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+                      Some(msg.appId),
+                      false,
+                      // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
+                      // The app will have the error so the user can see it, delete their app, and try again
+                      None,
+                      None
+                    )
+                }
             )
           } yield monitorOp
         case Some(ClusterNodepoolAction.CreateNodepool(nodepoolId)) =>
@@ -781,7 +778,18 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                   )
               }
             monitor = createNodepoolResultOpt.traverse_(createNodepoolResult =>
-              gkeInterp.pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
+              gkeInterp
+                .pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
+                .adaptError {
+                  case e =>
+                    PubsubKubernetesError(
+                      AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
+                      Some(msg.appId),
+                      false,
+                      Some(nodepoolId),
+                      None
+                    )
+                }
             )
           } yield monitor
         case None => F.pure(F.unit)
@@ -814,7 +822,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                                   None,
                                   None)
         }
-      } else { F.unit }
+      } else F.unit
 
       // parallelize disk creation and cluster/nodepool monitoring
       parPreAppCreationSetup = List(createDisk, createSecondDisk, monitorClusterOrNodepool).parSequence_
@@ -825,29 +833,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         // create and monitor app
         _ <- gkeInterp
           .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName))
-          .onError {
-            case _ =>
-              // clean-up resources in the event of an app creation error
-              for {
-                _ <- logger.info(
-                  s"Attempting to clean up resources due to app creation error for app ${msg.appName} in project ${msg.project}. | trace id: ${ctx.traceId}"
-                )
-                // we need to look up the app because we always want to clean up the nodepool associated with an errored app, even if it was pre-created
-                appOpt <- KubernetesServiceDbQueries.getFullAppByName(msg.project, msg.appId).transaction
-                // note that this will only clean up the disk if it was created as part of this app creation.
-                // it should not clean up the disk if it already existed
-                _ <- appOpt.traverse { app =>
-                  val deleteMsg =
-                    DeleteAppMessage(msg.appId, msg.appName, app.nodepool.id, msg.project, msg.createDisk, msg.traceId)
-                  // This is a good-faith attempt at clean-up. We do not want to take any action if clean-up fails for some reason.
-                  deleteApp(deleteMsg, true, true).handleErrorWith { e =>
-                    logger.error(e)(
-                      s"An error occurred during resource clean up for app ${msg.appName} in project ${msg.project}. | trace id: ${ctx.traceId}"
-                    )
-                  }
-                }
-              } yield ()
-          }
+          .onError { case _ => cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk) }
           .adaptError {
             case e =>
               PubsubKubernetesError(
@@ -889,7 +875,18 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       // Poll the cluster asynchronously
       task = createResultOpt.traverse_(createResult =>
-        gkeInterp.pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult))
+        gkeInterp
+          .pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult))
+          .adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+                None,
+                false,
+                None,
+                Some(msg.clusterId)
+              )
+          }
       )
 
       _ <- asyncTasks.enqueue1(Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now))
@@ -1008,6 +1005,61 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               // TODO: Need mark the nodepool(s) as Error'ed too?
             } yield ()
         }
+        .adaptError {
+          case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Cluster, None),
+              None,
+              false,
+              None,
+              Some(msg.clusterId)
+            )
+        }
+    } yield ()
+
+  private def cleanUpAfterCreateClusterError(clusterId: KubernetesClusterLeoId, project: GoogleProject)(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Beginning clean up for cluster $clusterId in project $project due to an error during cluster creation"
+      )
+      _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
+      _ <- gkeInterp.deleteAndPollCluster(DeleteClusterParams(clusterId, project)).handleErrorWith { e =>
+        // we do not want to bubble up errors with cluster clean-up
+        logger.error(e)(
+          s"An error occurred during resource clean up for cluster ${clusterId} in project ${project}. | trace id: ${ctx.traceId}"
+        )
+      }
+    } yield ()
+
+  // clean-up resources in the event of an app creation error
+  private def cleanUpAfterCreateAppError(appId: AppId,
+                                         appName: AppName,
+                                         project: GoogleProject,
+                                         diskId: Option[DiskId])(
+    implicit ev: ApplicativeAsk[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(
+        s"Attempting to clean up resources due to app creation error for app ${appName} in project ${project}. | trace id: ${ctx.traceId}"
+      )
+      // we need to look up the app because we always want to clean up the nodepool associated with an errored app, even if it was pre-created
+      appOpt <- KubernetesServiceDbQueries.getFullAppByName(project, appId).transaction
+      // note that this will only clean up the disk if it was created as part of this app creation.
+      // it should not clean up the disk if it already existed
+      _ <- appOpt.traverse { app =>
+        val deleteMsg =
+          DeleteAppMessage(appId, appName, app.nodepool.id, project, diskId, Some(ctx.traceId))
+        // This is a good-faith attempt at clean-up. We do not want to take any action if clean-up fails for some reason.
+        deleteApp(deleteMsg, true, true).handleErrorWith { e =>
+          logger.error(e)(
+            s"An error occurred during resource clean up for app ${appName} in project ${project}. | trace id: ${ctx.traceId}"
+          )
+        }
+      }
     } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
