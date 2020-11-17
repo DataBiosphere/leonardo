@@ -536,11 +536,11 @@ pipeline {
             }
     }
 
-    stage('Notify Slack') {
-        when { expression { !shouldAbortBuild } }
-            steps {
-                slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
-            }
-    }
+//     stage('Notify Slack') {
+//         when { expression { !shouldAbortBuild } }
+//             steps {
+//                 slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
+//             }
+//     }
   }
 }
