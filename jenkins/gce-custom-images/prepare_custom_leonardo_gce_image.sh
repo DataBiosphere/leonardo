@@ -28,16 +28,14 @@ terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.13"
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.14"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.17"
 
+# leonardo_jupyter will be discontinued soon
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:4d380f2"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.8"
 
-# Not replaced by Jenkins. If you change this you must also change Leo reference.conf!
-cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.1"
-
 # This array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
+docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor"
 
 # Variables for downloading the Ansible playbook files for hardening
 cis_hardening_dir="cis-harden-images/debian9"
