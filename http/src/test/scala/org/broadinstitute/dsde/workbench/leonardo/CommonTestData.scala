@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
 
+import org.broadinstitute.dsde.workbench.leonardo
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.mtl.Ask
