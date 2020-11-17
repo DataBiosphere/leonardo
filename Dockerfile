@@ -31,7 +31,7 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
     rm get_helm.sh
 
 # Add the repos containing nginx and galaxy charts
-RUN helm repo add stable https://kubernetes-charts.storage.googleapis.com/ && \
+RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
     helm repo update
 
