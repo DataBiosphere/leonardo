@@ -7,13 +7,7 @@ import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
-  NamespaceName,
-  SecretKey,
-  SecretName,
-  ServiceAccountName,
-  ServiceName
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
   FirewallRuleName,
@@ -21,7 +15,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesName,
   Location,
   MachineTypeName,
-  MaxRetries,
   NetworkName,
   PublisherConfig,
   RegionName,
@@ -663,8 +656,9 @@ object Config {
 
   val subscriberConfig: SubscriberConfig = SubscriberConfig(applicationConfig.leoServiceAccountJsonFile.toString,
                                                             topic,
+                                                            None,
                                                             config.as[FiniteDuration]("pubsub.ackDeadLine"),
-                                                            MaxRetries(10),
+                                                            None,
                                                             None)
 
   private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
