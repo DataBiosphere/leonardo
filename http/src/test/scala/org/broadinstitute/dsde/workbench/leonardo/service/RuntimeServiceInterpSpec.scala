@@ -702,7 +702,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   val startLabelMap: LabelMap = Map("apples" -> "to_oranges", "grapes" -> "make_wine")
 
-  val finalMaps: List[LabelMap] = List(
+  val finalUpsertMaps: List[LabelMap] = List(
     Map("apples" -> "to_oranges", "grapes" -> "make_wine"),
     Map("apples" -> "are_great", "grapes" -> "are_cool"),
     Map("apples" -> "to_oranges", "grapes" -> "make_wine", "new_entry" -> "i_am_new")
@@ -725,7 +725,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         _ <- publisherQueue.tryDequeue1
 
       } yield {
-        finalMaps.contains(dbLabelMap) shouldBe true
+        finalUpsertMaps.contains(dbLabelMap) shouldBe true
       }
       res.unsafeRunSync()
     }
@@ -756,16 +756,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
             .save()
         )
-        _ = println("!!!")
-        _ = println("start labels: " + testRuntime.labels.toString())
         req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, deleteLabelList)
-        _ = println("reqlabels: " + deleteLabelList.toString())
-
         _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
         dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
         _ <- publisherQueue.tryDequeue1
-        _ = println("final: " + dbLabelMap.toString())
-
       } yield {
         finalDeleteMaps.contains(dbLabelMap) shouldBe true
       }

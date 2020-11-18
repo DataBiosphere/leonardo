@@ -2013,6 +2013,8 @@ components:
               cloudService: gce
               machineType: n1-highmem-16
               diskSize: 500
+              labelsToUpsert: {new_label : value, old_label : new_value}
+              labelsToDelete: [existing_label]
     CreateDiskRequest:
       content:
         application/json:
