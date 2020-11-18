@@ -7,20 +7,13 @@ import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicNam
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
-  NamespaceName,
-  SecretKey,
-  SecretName,
-  ServiceAccountName,
-  ServiceName
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
   FirewallRuleName,
   KubernetesName,
   Location,
   MachineTypeName,
-  MaxRetries,
   NetworkName,
   PublisherConfig,
   RegionName,
