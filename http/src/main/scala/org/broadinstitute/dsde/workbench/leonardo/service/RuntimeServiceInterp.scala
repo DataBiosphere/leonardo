@@ -542,9 +542,12 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       // Get the proxy image
       proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, now)
-      // Crypto detector image
-      cryptoDetectorImage = RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, now)
-    } yield Set(toolImage, welderImage, proxyImage, cryptoDetectorImage)
+      // Crypto detector image - note it's not currently supported on Dockerhub
+      cryptoDetectorImageOpt = welderRegistry match {
+        case Some(ContainerRegistry.DockerHub) => None
+        case _                                 => Some(RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, now))
+      }
+    } yield Set(Some(toolImage), Some(welderImage), Some(proxyImage), cryptoDetectorImageOpt).flatten
 
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
                                                userToken: String,
