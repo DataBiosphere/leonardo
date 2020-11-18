@@ -258,7 +258,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         buildGoogleNodepool(dbNodepool)
       )
 
-      // acquire lock
+      // Acquire lock for nodepool creation
+      // Note: the lock is released in pollNodepool(), or if an error occurs
       _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
 
       operationOpt <- gkeService.createNodepool(req).onError {
@@ -289,7 +290,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             nodepoolLock.release(params.createResult.clusterId)
         }
 
-      // release lock
+      // Release lock acquired by createNodepool
       _ <- nodepoolLock.release(params.createResult.clusterId)
 
       _ <- if (lastOp.isDone)

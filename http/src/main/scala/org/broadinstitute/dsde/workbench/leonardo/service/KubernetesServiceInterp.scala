@@ -338,8 +338,6 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           AppCannotBeStoppedException(googleProject, appName, appResult.app.status, ctx.traceId)
         )
 
-      // TODO note no hasOperationInProgress check, we plan to queue nodepool actions
-
       _ <- KubernetesServiceDbQueries.markPreStopping(appResult.nodepool.id, appResult.app.id).transaction
       message = StopAppMessage(
         appResult.app.id,
