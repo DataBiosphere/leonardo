@@ -193,7 +193,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
       deleteDisk = params.get("deleteDisk").exists(_ == "true")
       request = DeleteRuntimeRequest(userInfo, googleProject, runtimeName, deleteDisk)

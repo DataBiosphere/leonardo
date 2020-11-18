@@ -41,10 +41,10 @@ trait KubernetesService[F[_]] {
   ): F[Unit]
 
   def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Unit]
 
   def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Unit]
 }

@@ -1105,7 +1105,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- asyncTasks.enqueue1(Task(ctx.traceId, startNodepool, Some(handleKubernetesError), ctx.now))
     } yield ()
 
-
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
     e match {
       case e: PubsubKubernetesError =>

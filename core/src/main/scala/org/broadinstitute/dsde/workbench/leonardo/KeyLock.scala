@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.util.concurrent.TimeUnit
 
-import cats.effect.concurrent.MVar
+import cats.effect.concurrent.{MVar, MVar2}
 import cats.effect.implicits._
 import cats.effect.{Blocker, Concurrent, ConcurrentEffect, ContextShift, Effect}
 import cats.implicits._
@@ -21,7 +21,7 @@ object Lock {
 
   // A Lock implementation backed by an MVar
   // Inspired from https://typelevel.org/cats-effect/concurrency/mvar.html#use-case-asynchronous-lock-binary-semaphore-mutex
-  final private class LockImpl[F[_]: Concurrent](lock: MVar[F, Unit]) extends Lock[F] {
+  final private class LockImpl[F[_]: Concurrent](lock: MVar2[F, Unit]) extends Lock[F] {
     def acquire: F[Unit] = lock.take
     def release: F[Unit] = lock.put(())
     def withLock[A](fa: F[A]): F[A] =
