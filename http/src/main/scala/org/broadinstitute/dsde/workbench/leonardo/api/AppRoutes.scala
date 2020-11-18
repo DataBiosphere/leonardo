@@ -92,22 +92,22 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
                                 )
                               )
                             }
-                          } ~
-                          path("stop") {
-                            post {
-                              complete {
-                                stopAppHandler(userInfo, googleProject, appName)
-                              }
-                            }
-                          } ~
-                          path("start") {
-                            post {
-                              complete {
-                                startAppHandler(userInfo, googleProject, appName)
-                              }
+                          }
+                      } ~
+                        path("stop") {
+                          post {
+                            complete {
+                              stopAppHandler(userInfo, googleProject, appName)
                             }
                           }
-                      }
+                        } ~
+                        path("start") {
+                          post {
+                            complete {
+                              startAppHandler(userInfo, googleProject, appName)
+                            }
+                          }
+                        }
                     }
                   }
               }

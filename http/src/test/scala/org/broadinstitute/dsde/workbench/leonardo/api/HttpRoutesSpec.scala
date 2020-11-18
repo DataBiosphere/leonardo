@@ -428,6 +428,20 @@ class HttpRoutesSpec
     }
   }
 
+  it should "stop an app" in {
+    Post("/api/google/v1/apps/googleProject1/app1/stop") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "start an app" in {
+    Post("/api/google/v1/apps/googleProject1/app1/start") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
   def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes =
     new HttpRoutes(
       swaggerConfig,
