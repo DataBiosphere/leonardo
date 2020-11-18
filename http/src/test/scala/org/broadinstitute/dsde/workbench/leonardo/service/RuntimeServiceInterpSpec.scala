@@ -393,7 +393,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtime1.runtimeImages.map(_.imageType) shouldBe Set(Jupyter, Welder, Proxy)
 
       r2 shouldBe Right(())
-      runtime2.runtimeName shouldBe runtimeName1
+      runtime2.runtimeName shouldBe runtimeName2
       runtime2.runtimeImages.map(_.imageType) shouldBe Set(Jupyter, Welder, Proxy, CryptoDetector)
     }
     res.unsafeRunSync()
