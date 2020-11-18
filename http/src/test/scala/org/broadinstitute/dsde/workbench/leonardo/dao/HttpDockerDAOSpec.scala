@@ -15,10 +15,9 @@ import org.scalatest.matchers.should.Matchers
 
 class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
   val jupyterImages = List(
-    // dockerhub no tag
-    ContainerImage("broadinstitute/leonardo-notebooks", DockerHub),
+    // TODO this will break if AoU moves off Dockerhub and we delete these images
     // dockerhub with tag
-    ContainerImage("broadinstitute/leonardo-notebooks:dev", DockerHub),
+    ContainerImage("broadinstitute/terra-jupyter-aou:1.0.17", DockerHub),
     // dockerhub with sha
     // TODO: shas are currently not working
 //    DockerHub(
