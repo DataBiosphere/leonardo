@@ -40,11 +40,11 @@ class MockKubernetesServiceInterp extends KubernetesService[IO] {
   ): IO[Unit] = IO.unit
 
   override def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
   override def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit as: ApplicativeAsk[IO, AppContext]
+    implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 }
 

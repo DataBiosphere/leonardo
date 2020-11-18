@@ -10,7 +10,7 @@ import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
@@ -24,13 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServ
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService.includeDeletedKey
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  BatchNodepoolCreateMessage,
-  CreateAppMessage,
-  DeleteAppMessage,
-  StartAppMessage,
-  StopAppMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
