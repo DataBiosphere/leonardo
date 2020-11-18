@@ -17,6 +17,7 @@ import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
 import org.broadinstitute.dsde.workbench.google2.{
@@ -54,12 +55,12 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.util.ExecutionContexts
+import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -133,7 +134,8 @@ object Boot extends IOApp {
                                                 appDependencies.publisherQueue)
       val dateAccessedUpdater =
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
-      val proxyService = new ProxyService(proxyConfig,
+      val proxyService = new ProxyService(appDependencies.sslContext,
+                                          proxyConfig,
                                           appDependencies.jupyterDAO,
                                           appDependencies.runtimeDnsCache,
                                           googleDependencies.kubernetesDnsCache,
@@ -196,7 +198,8 @@ object Boot extends IOApp {
         _ <- IO.fromFuture {
           IO {
             Http()
-              .bindAndHandle(httpRoutes.route, "0.0.0.0", 8080)
+              .newServerAt("0.0.0.0", 8080)
+              .bindFlow(httpRoutes.route)
               .onError {
                 case t: Throwable =>
                   logger.error(t)("FATAL - failure starting http server").unsafeToFuture()
@@ -430,6 +433,7 @@ object Boot extends IOApp {
         googleOauth2DAO
       )
     } yield AppDependencies(
+      sslContext,
       storage,
       dbRef,
       runtimeDnsCache,
@@ -475,6 +479,7 @@ final case class GoogleDependencies[F[_]](
 )
 
 final case class AppDependencies[F[_]](
+  sslContext: SSLContext,
   google2StorageDao: GoogleStorageService[F],
   dbReference: DbReference[F],
   runtimeDnsCache: RuntimeDnsCache[F],

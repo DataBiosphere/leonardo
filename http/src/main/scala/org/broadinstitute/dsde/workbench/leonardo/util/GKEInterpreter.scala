@@ -8,8 +8,7 @@ import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.implicits._
-import cats.effect._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.container.v1._
 import com.google.cloud.compute.v1.Disk
@@ -47,7 +46,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, HelmAlgebra, Release}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 
 final case class GKEInterpreterConfig(securityFiles: SecurityFilesConfig,
@@ -76,7 +75,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     extends GKEAlgebra[F] {
 
   override def createCluster(params: CreateClusterParams)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Option[CreateClusterResult]] =
     for {
       ctx <- ev.ask
@@ -158,7 +157,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                           kubeSubNetwork)
     )
 
-  override def pollCluster(params: PollClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+  override def pollCluster(params: PollClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
 
@@ -246,7 +245,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     } yield ()
 
   override def createNodepool(params: CreateNodepoolParams)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Option[CreateNodepoolResult]] =
     for {
       ctx <- ev.ask
@@ -273,7 +272,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName))
     )
 
-  override def pollNodepool(params: PollNodepoolParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+  override def pollNodepool(params: PollNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       _ <- logger.info(
@@ -301,7 +300,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     } yield ()
 
   override def createAndPollApp(params: CreateAppParams)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -401,7 +400,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
-  override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+  override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(params.clusterId).transaction
@@ -440,7 +439,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
   override def deleteAndPollNodepool(
     params: DeleteNodepoolParams
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
@@ -489,7 +488,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   // It decouples the AppStatus from the kubernetes entity, and makes it more representative of the app from the user's perspective
   // Currently, the only caller of this function updates the status after the nodepool is also deleted
   override def deleteAndPollApp(params: DeleteAppParams)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -541,7 +540,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     DiskName(s"${namespaceName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
 
   private[util] def installNginx(dbCluster: KubernetesCluster,
-                                 googleCluster: Cluster)(implicit ev: ApplicativeAsk[F, AppContext]): F[IP] =
+                                 googleCluster: Cluster)(implicit ev: Ask[F, AppContext]): F[IP] =
     for {
       ctx <- ev.ask
 
@@ -598,7 +597,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                   customEnvironmentVariables: Map[String, String],
                                   kubernetesServiceAccount: ServiceAccountName,
                                   nfsDisk: PersistentDisk)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -653,7 +652,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                     release: Release,
                                     namespaceName: NamespaceName,
                                     googleCluster: Cluster)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -691,7 +690,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     googleCluster: Cluster,
     dbCluster: KubernetesCluster,
     namespaceName: NamespaceName
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[AuthContext] =
+  )(implicit ev: Ask[F, AppContext]): F[AuthContext] =
     for {
       ctx <- ev.ask
 

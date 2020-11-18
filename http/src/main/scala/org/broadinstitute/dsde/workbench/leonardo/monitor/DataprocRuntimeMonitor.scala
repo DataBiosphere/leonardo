@@ -4,7 +4,7 @@ package monitor
 import cats.Parallel
 import cats.effect.{Async, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import com.google.cloud.dataproc.v1.Cluster
 import io.chrisdavenport.log4cats.Logger
@@ -55,7 +55,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   def pollCheck(googleProject: GoogleProject,
                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                 operation: com.google.cloud.compute.v1.Operation,
-                action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
     F.pure(new NotImplementedError("pollCheck is not supported for monitoring dataproc clusters"))
 
   /**
@@ -63,7 +63,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
    * @return ClusterMonitorMessage
    */
   override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       cluster <- googleDataprocService.getCluster(
@@ -91,7 +91,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     cluster: Option[Cluster],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = cluster match {
+  )(implicit ev: Ask[F, AppContext]): F[CheckResult] = cluster match {
     case None =>
       checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Can't retrieve cluster yet"))
     case Some(c) =>
@@ -199,7 +199,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     cluster: Option[Cluster],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = cluster match {
+  )(implicit ev: Ask[F, AppContext]): F[CheckResult] = cluster match {
     case None =>
       logger
         .error(
@@ -274,7 +274,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     cluster: Option[Cluster],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = cluster match {
+  )(implicit ev: Ask[F, AppContext]): F[CheckResult] = cluster match {
     case None =>
       val e = InvalidMonitorRequest(
         s"${monitorContext} | Can't stop an instance that hasn't been initialized yet or doesn't exist"
@@ -307,7 +307,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     cluster: Option[Cluster],
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CheckResult] = cluster match {
+  )(implicit ev: Ask[F, AppContext]): F[CheckResult] = cluster match {
     case None =>
       val e = InvalidMonitorRequest(
         s"${monitorContext} | Can't update an instance that hasn't been initialized yet or doesn't exist"
@@ -366,7 +366,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   private[monitor] def deletedRuntime(cluster: Option[Cluster],
                                       monitorContext: MonitorContext,
                                       runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     cluster match {
       case Some(c) =>
@@ -421,7 +421,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   private def getDataprocInstances(
     cluster: Cluster,
     googleProject: GoogleProject
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Set[(DataprocInstance, Instance)]] =
+  )(implicit ev: Ask[F, AppContext]): F[Set[(DataprocInstance, Instance)]] =
     for {
       ctx <- ev.ask
       instances = GoogleDataprocInterpreter.getAllInstanceNames(cluster)

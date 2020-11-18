@@ -70,7 +70,7 @@ object LeonardoServiceDbQueries {
 
       clusterLabelMap.map {
         case ((clusterRec, runTimeConfigRecOpt, patchRecOpt), labelMap) =>
-          val lmp = labelMap.mapValues(_.toList.toSet.headOption.getOrElse(""))
+          val lmp = labelMap.view.mapValues(_.toList.toSet.headOption.getOrElse("")).toMap
           val dataprocInfo = (clusterRec.googleId, clusterRec.operationName, clusterRec.stagingBucket).mapN {
             (googleId, operationName, stagingBucket) =>
               AsyncRuntimeFields(googleId,

@@ -5,7 +5,7 @@ import java.time.Instant
 
 import cats.Parallel
 import cats.effect.{Async, IO, Timer}
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
@@ -47,7 +47,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     val res = for {
       start <- nowInstant
-      tid <- traceId.ask
+      tid <- traceId.ask[TraceId]
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
@@ -72,7 +72,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     val res = for {
       start <- nowInstant
-      tid <- traceId.ask
+      tid <- traceId.ask[TraceId]
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
@@ -95,7 +95,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     val res = for {
       start <- nowInstant
-      tid <- traceId.ask
+      tid <- traceId.ask[TraceId]
       implicit0(ec: ExecutionContext) = global
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
@@ -165,10 +165,10 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       override def pollCheck(googleProject: GoogleProject,
                              runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                              operation: Operation,
-                             action: RuntimeStatus)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+                             action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 
       override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-        implicit ev: ApplicativeAsk[IO, AppContext]
+        implicit ev: Ask[IO, AppContext]
       ): IO[(Unit, Option[MonitorState])] = IO.pure(((), Some(MonitorState.Check(runtimeAndRuntimeConfig))))
     }
 }

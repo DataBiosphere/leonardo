@@ -109,7 +109,7 @@ object RuntimeServiceDbQueries {
 
       runtimeLabelMap.map {
         case ((runtimeRec, runtimeConfig, patchRecOpt), labelMap) =>
-          val lmp = labelMap.mapValues(_.toList.toSet.headOption.getOrElse(""))
+          val lmp = labelMap.view.mapValues(_.toList.toSet.headOption.getOrElse("")).toMap
 
           val patchInProgress = patchRecOpt match {
             case Some(patchRec) => patchRec.inProgress

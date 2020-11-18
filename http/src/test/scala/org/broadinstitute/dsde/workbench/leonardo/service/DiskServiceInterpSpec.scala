@@ -7,7 +7,7 @@ import java.util.UUID
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -37,7 +37,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     None
   )
 
-  implicit val ctx: ApplicativeAsk[IO, AppContext] = ApplicativeAsk.const[IO, AppContext](
+  implicit val ctx: Ask[IO, AppContext] = Ask.const[IO, AppContext](
     AppContext(model.TraceId("traceId"), Instant.now())
   )
 
@@ -66,7 +66,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val diskName = DiskName("diskName1")
 
     val res = for {
-      context <- ctx.ask
+      context <- ctx.ask[AppContext]
       d <- diskService
         .createDisk(
           userInfo,
@@ -175,7 +175,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      context <- ctx.ask
+      context <- ctx.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
 
@@ -198,7 +198,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      t <- ctx.ask
+      t <- ctx.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       _ <- IO(
@@ -219,7 +219,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val res = for {
-          t <- ctx.ask
+          t <- ctx.ask[AppContext]
           diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
           disk <- makePersistentDisk(None).copy(samResource = diskSamResource, status = status).save()
           req = UpdateDiskRequest(Map.empty, DiskSize(600))
@@ -237,7 +237,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      context <- ctx.ask
+      context <- ctx.ask[AppContext]
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       req = UpdateDiskRequest(Map.empty, DiskSize(600))

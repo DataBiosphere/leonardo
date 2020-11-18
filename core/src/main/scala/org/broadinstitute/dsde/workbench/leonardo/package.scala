@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit
 import cats.implicits._
 import cats.{Applicative, Functor}
 import cats.effect.Timer
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.model.TraceId
 
 package object leonardo {
@@ -19,15 +19,14 @@ package object leonardo {
   def nowInstant[F[_]: Timer: Functor]: F[Instant] =
     Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
 
-  // converts an ApplicativeAsk[F, RuntimeServiceContext] to an  ApplicativeAsk[F, TraceId]
-  // (you'd think ApplicativeAsk would have a `map` function)
+  // converts an Ask[F, RuntimeServiceContext] to an  Ask[F, TraceId]
+  // (you'd think Ask would have a `map` function)
   implicit def ctxConversion[F[_]: Applicative](
-    implicit as: ApplicativeAsk[F, AppContext]
-  ): ApplicativeAsk[F, TraceId] =
-    new ApplicativeAsk[F, TraceId] {
-      override val applicative: Applicative[F] = Applicative[F]
-      override def ask: F[TraceId] = as.ask.map(_.traceId)
-      override def reader[A](f: TraceId => A): F[A] = ask.map(f)
+    implicit as: Ask[F, AppContext]
+  ): Ask[F, TraceId] =
+    new Ask[F, TraceId] {
+      override def applicative: Applicative[F] = as.applicative
+      override def ask[E2 >: TraceId]: F[E2] = as.ask.map(_.traceId)
     }
 
   private val leoNameReg = "([a-z|0-9|-])*".r

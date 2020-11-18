@@ -9,7 +9,7 @@ import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
@@ -59,7 +59,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
   private[monitor] def messageResponder(
     message: LeoPubsubMessage
-  )(implicit traceId: ApplicativeAsk[F, AppContext]): F[Unit] =
+  )(implicit traceId: Ask[F, AppContext]): F[Unit] =
     message match {
       case msg: CreateRuntimeMessage =>
         handleCreateRuntimeMessage(msg)
@@ -90,7 +90,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
     val now = Instant.ofEpochMilli(com.google.protobuf.util.Timestamps.toMillis(event.publishedTime))
-    implicit val appContext = ApplicativeAsk.const[F, AppContext](AppContext(traceId, now))
+    implicit val appContext = Ask.const[F, AppContext](AppContext(traceId, now))
     val res = for {
       res <- messageResponder(event.msg)
         .timeout(config.timeout)
@@ -136,7 +136,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     )
 
   private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     val createCluster = for {
       ctx <- ev.ask
@@ -189,7 +189,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   }
 
   private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -263,7 +263,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -302,7 +302,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -333,7 +333,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -390,7 +390,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- if (msg.stopToUpdateMachineType) {
         for {
           timeToStop <- nowInstant
-          ctxStopping = ApplicativeAsk.const[F, AppContext](
+          ctxStopping = Ask.const[F, AppContext](
             AppContext(ctx.traceId, timeToStop)
           )
           _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
@@ -409,7 +409,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
             }
             now <- nowInstant
-            ctxStarting = ApplicativeAsk.const[F, AppContext](
+            ctxStarting = Ask.const[F, AppContext](
               AppContext(ctx.traceId, now)
             )
             _ <- startAndUpdateRuntime(runtime, msg.newMachineType)(ctxStarting)
@@ -447,7 +447,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private def startAndUpdateRuntime(
     runtime: Runtime,
     targetMachineType: Option[MachineTypeName]
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
@@ -471,13 +471,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     createDisk(msg, false)
 
   //this returns an F[F[Unit]. It kicks off the google operation, and then return an F containing the async polling task
   private[monitor] def createDisk(msg: CreateDiskMessage, sync: Boolean)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     val create = for {
       ctx <- ev.ask
@@ -541,7 +541,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                                                             zone: ZoneName,
                                                             appName: AppName,
                                                             namespaceName: NamespaceName)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only creating the postgress disk in Google since we are not supporting persistence
     // see: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/859406337/2020-10-02+Galaxy+disk+attachment+pre+post+alpha+release
@@ -585,12 +585,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   }
 
   private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     deleteDisk(msg.diskId, false)
 
   private[monitor] def deleteDisk(diskId: DiskId, sync: Boolean)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -638,7 +638,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                                                             zone: ZoneName,
                                                             appName: AppName,
                                                             namespaceName: NamespaceName)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only deleting the postgress disk in Google since we are not supporting persistence
     // see: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/859406337/2020-10-02+Galaxy+disk+attachment+pre+post+alpha+release
@@ -672,7 +672,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -708,7 +708,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleCreateAppMessage(msg: CreateAppMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -852,7 +852,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleBatchNodepoolCreateMessage(msg: BatchNodepoolCreateMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -893,12 +893,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     deleteApp(msg, false, false)
 
   private[monitor] def deleteApp(msg: DeleteAppMessage, sync: Boolean, errorAfterDelete: Boolean)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -980,7 +980,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       // TODO: ${ctx.traceId} ends up being None with manually published messages. Make sure that's not the case with cron-job-created messages
@@ -1018,7 +1018,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     } yield ()
 
   private def cleanUpAfterCreateClusterError(clusterId: KubernetesClusterLeoId, project: GoogleProject)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1039,7 +1039,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                                          appName: AppName,
                                          project: GoogleProject,
                                          diskId: Option[DiskId])(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1062,7 +1062,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       }
     } yield ()
 
-  private def handleKubernetesError(e: Throwable)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+  private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
     e match {
       case e: PubsubKubernetesError =>
         for {
@@ -1084,12 +1084,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     }
 
   private def deleteDiskForApp(diskId: DiskId)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     deleteDisk(diskId, true)
 
   private def createDiskForApp(msg: CreateAppMessage)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     msg.createDisk match {
       case Some(diskId) =>

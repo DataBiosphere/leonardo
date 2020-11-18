@@ -1,41 +1,38 @@
 import sbt._
 
 object Dependencies {
-  val scalaV = "2.12"
+  val scalaV = "2.13"
 
-  val akkaV = "2.6.5"
-  val akkaHttpV = "10.1.12"
-  val jacksonV = "2.9.9"
-  val jacksonDatabindV = "2.9.9.2" // jackson-databind has a security patch on the 2.9.9 branch
+  val akkaV = "2.6.8"
+  val akkaHttpV = "10.2.1"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
-  val scalaLoggingV = "3.9.0"
+  val scalaLoggingV = "3.9.2"
   val scalaTestV = "3.2.0"
-  val slickV = "3.3.2"
-  val http4sVersion = "0.21.0" //remove http4s related dependencies once workbench-libs are upgraded
+  val slickV = "3.3.3"
+  val http4sVersion = "0.21.8"
   val guavaV = "28.2-jre"
-  val monocleV = "2.0.0"
+  val monocleV = "2.1.0"
   val opencensusV = "0.26.0"
-  val serviceTestV = "0.18-61887ce"
 
-  val workbenchUtilV = "0.5-4c7acd5"
-  val workbenchModelV = "0.14-2e155f0"
-  val workbenchGoogleV = "0.21-64a7b29"
-  val workbenchGoogle2V = "0.14-aa84412"
-  val workbenchMetricsV = "0.3-c5b80d2"
-  val workbenchOpenTelemetryV = "0.1-e66171c"
-  val workbenchErrorReportingV = "0.1-92fcd96"
+  val serviceTestV = "0.18-c5713ac"
+  val workbenchUtilV = "0.6-c5713ac"
+  val workbenchModelV = "0.14-c5713ac"
+  val workbenchGoogleV = "0.21-c5713ac"
+  val workbenchGoogle2V = "0.15-c5713ac"
+  val workbenchOpenTelemetryV = "0.1-c5713ac"
+  val workbenchErrorReportingV = "0.1-c5713ac"
 
   val helmScalaSdkV = "0.0.1-RC4"
 
-  val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http_2.12")
-  val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = "akka-stream_2.12")
-  val excludeAkkaHttpSprayJson = ExclusionRule(organization = "com.typesafe.akka", name = "akka-http-spray-json_2.12")
+  val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
+  val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")
+  val excludeAkkaHttpSprayJson = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http-spray-json_${scalaV}")
   val excludeGuavaJDK5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeGuava = ExclusionRule(organization = "com.google.guava", name = "guava")
-  val excludeWorkbenchUtil = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-util_2.12")
-  val excludeWorkbenchModel = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-model_2.12")
-  val excludeWorkbenchMetrics = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-metrics_2.12")
+  val excludeWorkbenchUtil = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-util_${scalaV}")
+  val excludeWorkbenchModel = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-model_${scalaV}")
+  val excludeWorkbenchMetrics = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-metrics_${scalaV}")
   val excludeIoGrpc = ExclusionRule(organization = "io.grpc", name = "grpc-core")
   val excludeFindbugsJsr = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
   val excludeGson = ExclusionRule(organization = "com.google.code.gson", name = "gson")
@@ -60,16 +57,11 @@ object Dependencies {
   val excludeBouncyCastleExt = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-ext-jdk15on")
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
 
-  val jacksonAnnotations: ModuleID =  "com.fasterxml.jackson.core" % "jackson-annotations"  % jacksonV
-  val jacksonDatabind: ModuleID =     "com.fasterxml.jackson.core" % "jackson-databind"     % jacksonDatabindV excludeAll (excludeJacksonAnnotation)
-  val jacksonCore: ModuleID =         "com.fasterxml.jackson.core" % "jackson-core"         % jacksonV
-
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.32.1"
-  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.4.7"
-  val httpClient: ModuleID =      "org.apache.httpcomponents"   % "httpclient"      % "4.5.5" // upgrading a transitive dependency to avoid security warnings
-  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.5.13"
+  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
+  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.6.1"
 
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV
@@ -84,7 +76,7 @@ object Dependencies {
   val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 
-  val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % "test"
+  val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-14" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-3-3" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-selenium
   val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-selenium
@@ -117,19 +109,19 @@ object Dependencies {
   val workbenchErrorReportingTest: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV % Test classifier "tests" excludeAll(excludeGoogleErrorReporting)
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
-  val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % "test" classifier "tests"
+  val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.18"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "3.8.8"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.107.0-alpha" % "test" // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.107.0-alpha" % Test // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
-  val fs2Io: ModuleID =   "co.fs2"            %% "fs2-io"               % "2.0.1"
+  val fs2Io: ModuleID =   "co.fs2"            %% "fs2-io"               % "2.4.4"
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
   val coreDependencies = List(
@@ -156,11 +148,6 @@ object Dependencies {
   )
 
   val httpDependencies = Seq(
-    // proactively pull in latest versions of Jackson libs, instead of relying on the versions
-    // specified as transitive dependencies, due to OWASP DependencyCheck warnings for earlier versions.
-    jacksonAnnotations,
-    jacksonDatabind,
-    jacksonCore,
     fs2Io,
     logbackClassic,
     scalaLogging,
@@ -173,7 +160,7 @@ object Dependencies {
     akkaTestKit,
     akkaHttpTestKit,
     akkaStream,
-    "de.heikoseeberger" %% "akka-http-circe" % "1.32.0" excludeAll(excludeAkkaHttp, excludeAkkaStream),
+    "de.heikoseeberger" %% "akka-http-circe" % "1.35.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleDataproc,
     googleRpc,
     googleOAuth2,
@@ -185,13 +172,10 @@ object Dependencies {
     workbenchGoogleTest,
     workbenchErrorReporting,
     workbenchErrorReportingTest,
-    "org.typelevel" %% "cats-mtl-core"  % "0.7.0",
-    "org.typelevel" %% "cats-effect"    % "2.0.0", //forcing cats 2.0.0
-    "com.rms.miu" %% "slick-cats" % "0.10.1",
+    "com.rms.miu" %% "slick-cats" % "0.10.2",
     googleCloudNio,
     mysql,
     liquibase,
-    "de.heikoseeberger" %% "akka-http-circe" % "1.31.0",
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
 
     // Dependent on the trace exporters you want to use add one or more of the following
@@ -201,23 +185,12 @@ object Dependencies {
     scalaTestMockito
   )
 
-  val excludeGuavaJdk5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
-  val excludeApacheHttpClient = ExclusionRule(organization = "org.apache.httpcomponents", name = "httpclient")
-  val excludeGoogleJsr305 = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
   val excludeWorkbenchGoogle = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = "workbench-google_" + scalaV)
-
-  val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeWorkbenchGoogle, excludeGuava, excludeAkkaHttpSprayJson)
+  val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeWorkbenchGoogle, excludeGuava)
 
   val automationDependencies = List(
-    // proactively pull in latest versions of Jackson libs, instead of relying on the versions
-    // specified as transitive dependencies, due to OWASP DependencyCheck warnings for earlier versions.
-    "com.fasterxml.jackson.core" % "jackson-annotations"  % jacksonV,
-    "com.fasterxml.jackson.core" % "jackson-databind"     % jacksonV excludeAll (excludeJacksonAnnotation),
-    "com.fasterxml.jackson.core" % "jackson-core"         % jacksonV,
-    "com.fasterxml.jackson.module" % ("jackson-module-scala_" + scalaV) % jacksonV,
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.11.3" % "test",
     "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
-    "com.google.apis" % "google-api-services-oauth2" % "v1-rev142-1.23.0" excludeAll (excludeGuavaJdk5, excludeGuava, excludeApacheHttpClient, excludeGoogleJsr305, excludeJacksonCore),
-    "com.google.api-client" % "google-api-client" % automationGoogleV excludeAll (excludeGuavaJdk5, excludeGuava, excludeApacheHttpClient, excludeGoogleJsr305, excludeJacksonCore),
     "com.google.auto.value" % "auto-value" % "1.6.6",
     "com.google.auto.value" % "auto-value-annotations" % "1.6.6",
 
@@ -227,7 +200,7 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-testkit" % akkaV % "test",
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     scalaTest,
-    "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
+    "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingV,
     "org.apache.commons" % "commons-text" % "1.2",
     googleRpc,
     workbenchUtil,
@@ -238,8 +211,6 @@ object Dependencies {
     googleCloudNio,
     akkaHttpSprayJson,
     scalaTestSelenium,
-    scalaTestMockito,
-    // required by workbenchGoogle
-    "com.typesafe.akka" %% "akka-http-spray-json" % "10.0.6" % "provided"
+    scalaTestMockito
   )
 }

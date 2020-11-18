@@ -10,7 +10,7 @@ import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -50,7 +50,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     googleProject: GoogleProject,
     diskName: DiskName,
     req: CreateDiskRequest
-  )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
 
@@ -91,7 +91,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     } yield ()
 
   override def getDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[GetPersistentDiskResponse] =
     for {
       ctx <- as.ask
@@ -107,7 +107,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     } yield resp
 
   override def listDisks(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Vector[ListPersistentDiskResponse]] =
     for {
       paramMap <- F.fromEither(processListParameters(params))
@@ -142,7 +142,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     } yield res
 
   override def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit as: ApplicativeAsk[F, AppContext]
+    implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
@@ -184,7 +184,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     googleProject: GoogleProject,
     diskName: DiskName,
     req: UpdateDiskRequest
-  )(implicit as: ApplicativeAsk[F, AppContext]): F[Unit] =
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
       // throw 404 if not existent

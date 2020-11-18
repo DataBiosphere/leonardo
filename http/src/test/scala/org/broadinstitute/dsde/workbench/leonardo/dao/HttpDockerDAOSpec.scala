@@ -78,7 +78,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
   it should s"detect ImageParseException" in withDockerDAO { dockerDAO =>
     val image = ContainerImage("us.gcr.io/anvil-gcr-public/anvil-rstudio-base", GCR) // non existent tag
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       response <- dockerDAO.detectTool(image).attempt
     } yield {
       response shouldBe Left(ImageParseException(ctx.traceId, image))
@@ -90,7 +90,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     dockerDAO =>
       val image = ContainerImage("us.gcr.io/broad-dsp-gcr-public/welder-server:latest", GCR) // not a supported tool
       val res = for {
-        ctx <- appContext.ask
+        ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image).attempt
       } yield {
         response shouldBe Left(InvalidImage(ctx.traceId, image))
@@ -102,7 +102,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     dockerDAO =>
       val image = ContainerImage("library/nginx:latest", DockerHub) // not a supported tool
       val res = for {
-        ctx <- appContext.ask
+        ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image).attempt
       } yield {
         response shouldBe Left(InvalidImage(ctx.traceId, image))

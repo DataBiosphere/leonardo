@@ -4,7 +4,7 @@ package monitor
 import java.time.Instant
 
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.{AccessConfig, Instance, NetworkInterface, Operation}
 import com.google.cloud.dataproc.v1._
 import org.broadinstitute.dsde.workbench.google2
@@ -33,7 +33,7 @@ import com.google.cloud.dataproc.v1.ClusterStatus.State
 import org.scalatest.EitherValues
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import org.scalatest.flatspec.AnyFlatSpec
 
 class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with LeonardoTestSuite with EitherValues {
@@ -69,7 +69,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster2 = getCluster(State.UNKNOWN)
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(successToolDao)
@@ -94,7 +94,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning))(successToolDao)
@@ -117,7 +117,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, None)
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
@@ -142,7 +142,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.ERROR)
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
@@ -167,7 +167,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.UPDATING)
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
@@ -192,7 +192,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.ERROR)
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
@@ -220,11 +220,11 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val dataproc = new BaseFakeGoogleDataprocService {
       override def getClusterError(
         operationName: google2.OperationName
-      )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Option[ClusterError]] =
+      )(implicit ev: Ask[IO, TraceId]): IO[Option[ClusterError]] =
         IO.pure(Some(ClusterError(4, "time out")))
     }
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))),
@@ -251,7 +251,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning, Some(IP("fakeIp"))))(
@@ -276,7 +276,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning, None))(
@@ -301,7 +301,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.ERROR)
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
@@ -327,7 +327,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
@@ -350,7 +350,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Terminated, Some(IP("fakeIp"))))(failureToolDao)
@@ -373,7 +373,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     )
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
@@ -398,7 +398,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     )
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(successToolDao)
@@ -427,7 +427,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.UPDATING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Updating)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(successToolDao)
@@ -450,7 +450,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning, Some(IP("fakeIp"))))(
@@ -475,7 +475,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Updating)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, None))(
@@ -500,7 +500,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
 
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Updating)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(
@@ -525,7 +525,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     )
     val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Deleting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(
@@ -547,7 +547,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       status = RuntimeStatus.Deleting
     )
     val res = for {
-      ctx <- appContext.ask
+      ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Deleting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(
@@ -603,7 +603,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   def computeService(status: GceInstanceStatus, ip: Option[IP] = None): GoogleComputeService[IO] =
     new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val instanceBuilder = Instance
           .newBuilder()
@@ -627,33 +627,33 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 
 class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(
-    implicit ev: ApplicativeAsk[IO, AppContext]
-  ): IO[CreateRuntimeResponse] = ???
+    implicit ev: Ask[IO, AppContext]
+  ): IO[CreateGoogleRuntimeResponse] = ???
 
   override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[RuntimeStatus] = ???
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Option[Operation]] = IO.pure(None)
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
     IO.unit
 
   override def stopRuntime(
     params: StopRuntimeParams
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Option[Operation]] =
+  )(implicit ev: Ask[IO, AppContext]): IO[Option[Operation]] =
     IO.pure(None)
 
-  override def startRuntime(params: StartRuntimeParams)(implicit ev: ApplicativeAsk[IO, AppContext]): IO[Unit] = ???
+  override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 
-  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] =
+  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
     ???
 
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 
-  override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = ???
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 }
 
 object FakeDataproInterp extends BaseFakeDataproInterp

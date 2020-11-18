@@ -41,6 +41,6 @@ object TemplateHelper {
   }
 
   private def template(replacementMap: Map[String, String])(str: String): String =
-    replacementMap.foldLeft(str)((a, b) => a.replaceAllLiterally("$(" + b._1 + ")", "\"" + b._2 + "\""))
+    replacementMap.foldLeft(str)((a, b) => a.replace("$(" + b._1 + ")", "\"" + b._2 + "\""))
 
 }

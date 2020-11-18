@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.typesafe.config.Config
 import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
@@ -21,7 +21,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[Boolean] = checkWhitelist(userInfo)
 
   def hasPermissionWithProjectFallback[R, A](
@@ -30,11 +30,11 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit sr: SamResourceAction[R, A], ev: ApplicativeAsk[IO, TraceId]): IO[Boolean] = checkWhitelist(userInfo)
+  )(implicit sr: SamResourceAction[R, A], ev: Ask[IO, TraceId]): IO[Boolean] = checkWhitelist(userInfo)
 
   def getActions[R, A](samResource: R, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[List[sr.ActionCategory]] =
     checkWhitelist(userInfo).map {
       case true  => sr.allActions
@@ -43,7 +43,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[(List[sr.ActionCategory], List[ProjectAction])] =
     checkWhitelist(userInfo).map {
       case true  => (sr.allActions, ProjectAction.allActions.toList)
@@ -53,7 +53,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[List[R]] =
     resources.toList.traverseFilter { a =>
       checkWhitelist(userInfo).map {
@@ -68,7 +68,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   )(
     implicit sr: SamResource[R],
     decoder: Decoder[R],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[List[(GoogleProject, R)]] =
     resources.toList.traverseFilter { a =>
       checkWhitelist(userInfo).map {
@@ -81,7 +81,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
-    ev: ApplicativeAsk[IO, TraceId]
+    ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
 
   // Deletes a resource in Sam
@@ -89,7 +89,7 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     samResource: R,
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
-  )(implicit sr: SamResource[R], ev: ApplicativeAsk[IO, TraceId]): IO[Unit] = IO.unit
+  )(implicit sr: SamResource[R], ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 }

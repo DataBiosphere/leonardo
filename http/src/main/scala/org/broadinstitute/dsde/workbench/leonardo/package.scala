@@ -6,7 +6,7 @@ import java.sql.SQLDataException
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Blocker, ContextShift, Resource, Sync}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
@@ -96,13 +96,13 @@ package object http {
 final case class CloudServiceMonitorOps[F[_], A](a: A)(
   implicit monitor: RuntimeMonitor[F, A]
 ) {
-  def process(runtimeId: Long, action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
+  def process(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
     monitor.process(a)(runtimeId, action)
 
   // Function used for transitions that we can get an Operation
   def pollCheck(googleProject: GoogleProject,
                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                 operation: com.google.cloud.compute.v1.Operation,
-                action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+                action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
     monitor.pollCheck(a)(googleProject, runtimeAndRuntimeConfig, operation, action)
 }

@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 
 class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter {

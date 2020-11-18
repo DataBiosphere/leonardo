@@ -7,7 +7,7 @@ import cats.Parallel
 import cats.data.OptionT
 import cats.effect.{Async, _}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.services.admin.directory.model.Group
 import com.typesafe.scalalogging.LazyLogging
@@ -78,7 +78,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
   override def createRuntime(
     params: CreateRuntimeParams
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateRuntimeResponse] = {
+  )(implicit ev: Ask[F, AppContext]): F[CreateGoogleRuntimeResponse] = {
     val initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
     val stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
 
@@ -152,7 +152,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       res <- params.runtimeConfig match {
         case _: RuntimeConfigInCreateRuntimeMessage.GceConfig |
             _: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
-          Async[F].raiseError[CreateRuntimeResponse](new NotImplementedException)
+          Async[F].raiseError[CreateGoogleRuntimeResponse](new NotImplementedException)
         case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
           val createClusterConfig = CreateClusterConfig(
             params.runtimeProjectAndName,
@@ -189,7 +189,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
             }
 
             asyncRuntimeFields = AsyncRuntimeFields(operation.id, operation.name, stagingBucketName, None)
-          } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, None, dataprocImage)
+          } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, dataprocImage)
       }
     } yield res
 
@@ -203,7 +203,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
   override def getRuntimeStatus(
     params: GetRuntimeStatusParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus] =
+  )(implicit ev: Ask[F, TraceId]): F[RuntimeStatus] =
     Async[F].liftIO(IO.fromFuture(IO(gdDAO.getClusterStatus(params.googleProject, params.runtimeName)))).map {
       clusterStatusOpt =>
         clusterStatusOpt.fold[RuntimeStatus](RuntimeStatus.Deleted)(RuntimeStatus.fromDataprocClusterStatus)
@@ -211,7 +211,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
+  )(implicit ev: Ask[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
     if (params.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
       for {
         metadata <- getShutdownScript(params.runtime, blocker)
@@ -224,14 +224,14 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       } yield None
     } else Async[F].pure(None)
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
       _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
     } yield ()
 
   override protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       metadata <- getShutdownScript(runtime, blocker)
@@ -264,7 +264,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
     } yield None
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -312,7 +312,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
     } yield ()
 
-  override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
     (for {
       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
       _ <- createClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
@@ -345,7 +345,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
   //updates machine type in gdDAO
   override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Unit] =
     runtime.dataprocInstances
       .find(_.dataprocRole == Master)
@@ -359,7 +359,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   // Note: we don't support changing the machine type for worker instances. While this is possible
   // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
   // and rebuilding the cluster if new worker machine/disk sizes are needed.
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
     UpdateDiskSizeParams.dataprocPrism
       .getOption(params)
       .traverse_ { p =>
@@ -420,7 +420,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
     clusterName: RuntimeName,
     initBucketName: GcsBucketName,
     serviceAccountInfo: WorkbenchEmail
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] = {
+  )(implicit ev: Ask[F, TraceId]): F[Unit] = {
     // Clean up resources in Google
     val deleteBucket = bucketHelper.deleteInitBucket(googleProject, initBucketName).attempt.flatMap {
       case Left(e) =>
@@ -452,7 +452,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
   private[leonardo] def getClusterResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
                                                      machineType: MachineTypeName)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[RuntimeResourceConstraints] = {
     val totalMemory = for {
       // Find a zone in which to query the machine type: either the configured zone or

@@ -8,13 +8,11 @@ import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.server.Directive1
 import akka.http.scaladsl.server.Directives.provide
 import akka.http.scaladsl.server.Directives.optionalHeaderValueByName
-import akka.http.scaladsl.server.directives.OnSuccessMagnet
-import akka.http.scaladsl.server.util.Tupler
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import spray.json._
 import akka.http.scaladsl.server.PathMatchers.Segment
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
@@ -34,7 +32,7 @@ package object api {
   implicit def listRootJsonReader[T: RootJsonReader]: RootJsonReader[List[T]] =
     (value: JsValue) =>
       value match {
-        case JsArray(elements) => elements.map(_.convertTo[T])(collection.breakOut)
+        case JsArray(elements) => elements.map(_.convertTo[T]).view.to(List)
         case x                 => deserializationError("Expected List as JsArray, but got " + x)
       }
 
@@ -53,19 +51,17 @@ package object api {
       }
   }
 
-  def extractAppContext(span: Option[Span]): Directive1[ApplicativeAsk[IO, AppContext]] =
+  def extractAppContext(span: Option[Span]): Directive1[Ask[IO, AppContext]] =
     optionalHeaderValueByName(traceIdHeaderString).map {
       case uuidOpt =>
         val traceId = uuidOpt.getOrElse(UUID.randomUUID().toString)
         val now = Instant.now()
         val appContext = AppContext(TraceId(traceId), now, span)
-        ApplicativeAsk.const[IO, AppContext](appContext)
+        Ask.const[IO, AppContext](appContext)
     }
 }
 
 object ImplicitConversions {
-  import scala.language.implicitConversions
-
-  implicit def ioOnSuccessMagnet[A](ioa: IO[A])(implicit tupler: Tupler[A]): OnSuccessMagnet { type Out = tupler.Out } =
-    OnSuccessMagnet.apply(ioa.unsafeToFuture())
+  implicit def ioToFuture[A](ioa: IO[A]): Future[A] =
+    ioa.unsafeToFuture()
 }

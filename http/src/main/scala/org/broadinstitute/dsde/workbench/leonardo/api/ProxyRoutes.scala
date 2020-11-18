@@ -13,7 +13,7 @@ import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.stream.Materializer
 import cats.effect.{ContextShift, IO}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.typesafe.scalalogging.LazyLogging
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
@@ -125,7 +125,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
    * Extracts the user bearer token from an Authorization header.
    */
   private def extractTokenFromHeader: Directive1[Option[String]] =
-    optionalHeaderValueByType[`Authorization`](()).map(headerOpt => headerOpt.map(h => h.credentials.token))
+    optionalHeaderValueByType(Authorization).map(headerOpt => headerOpt.map(h => h.credentials.token))
 
   /**
    * Extracts the user bearer token from a LeoToken cookie.
@@ -192,9 +192,9 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
     appName: AppName,
     serviceName: ServiceName,
     request: HttpRequest
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = proxyService
         .proxyAppRequest(userInfo, googleProject, appName, serviceName, request)
         .onError {
@@ -217,9 +217,9 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
     runtimeName: RuntimeName,
     terminalName: TerminalName,
     request: HttpRequest
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
       _ <- metrics.incrementCounter("openTerminal")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
@@ -230,9 +230,9 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     request: HttpRequest
-  )(implicit ev: ApplicativeAsk[IO, AppContext]): IO[ToResponseMarshallable] =
+  )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
-      ctx <- ev.ask
+      ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
       _ <- metrics.incrementCounter("proxyRuntime")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))

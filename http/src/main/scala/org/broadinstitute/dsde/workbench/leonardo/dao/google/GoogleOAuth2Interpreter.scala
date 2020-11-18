@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Async, Blocker, ContextShift, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.api.services.oauth2.Oauth2
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.withLogging
@@ -17,7 +17,7 @@ class GoogleOAuth2Interpreter[F[_]: Async: Timer: StructuredLogger: ContextShift
                                                                                   blocker: Blocker,
                                                                                   blockerBound: Semaphore[F])
     extends GoogleOAuth2Service[F] {
-  override def getUserInfoFromToken(accessToken: String)(implicit ev: ApplicativeAsk[F, TraceId]): F[UserInfo] =
+  override def getUserInfoFromToken(accessToken: String)(implicit ev: Ask[F, TraceId]): F[UserInfo] =
     for {
       tokenInfo <- blockAndLogF(
         Async[F].delay(client.tokeninfo().setAccessToken(accessToken).execute()).adaptError {
@@ -34,7 +34,7 @@ class GoogleOAuth2Interpreter[F[_]: Async: Timer: StructuredLogger: ContextShift
                           tokenInfo.getExpiresIn.toInt)
     } yield userInfo
 
-  private def blockAndLogF[A](fa: F[A], action: String)(implicit ev: ApplicativeAsk[F, TraceId]): F[A] =
+  private def blockAndLogF[A](fa: F[A], action: String)(implicit ev: Ask[F, TraceId]): F[A] =
     for {
       traceId <- ev.ask
       res <- withLogging(blockerBound.withPermit(blocker.blockOn(fa)), Some(traceId), action)

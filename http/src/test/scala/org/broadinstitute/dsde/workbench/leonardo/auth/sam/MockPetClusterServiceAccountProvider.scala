@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.auth.sam
 import java.util.UUID
 
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -17,7 +17,7 @@ import org.http4s.{AuthScheme, Credentials}
 class MockPetClusterServiceAccountProvider extends ServiceAccountProvider[IO] {
   val samDao = new MockSamDAO
   override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Option[WorkbenchEmail]] = {
     val auth = Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${userInfo.userEmail}"))
 
@@ -26,22 +26,22 @@ class MockPetClusterServiceAccountProvider extends ServiceAccountProvider[IO] {
   }
 
   override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(None)
 
   def listGroupsStagingBucketReaders(
     userEmail: WorkbenchEmail
-  )(implicit ev: ApplicativeAsk[IO, TraceId]): IO[List[WorkbenchEmail]] =
+  )(implicit ev: Ask[IO, TraceId]): IO[List[WorkbenchEmail]] =
     IO.pure(List.empty[WorkbenchEmail])
 
   def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): IO[List[WorkbenchEmail]] = {
-    implicit val traceId = ApplicativeAsk.const[IO, TraceId](TraceId(UUID.randomUUID()))
+    implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
     samDao.getUserProxy(userEmail).map(_.toList)
   }
 
   override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: ApplicativeAsk[IO, TraceId]
+    implicit ev: Ask[IO, TraceId]
   ): IO[Option[String]] =
     samDao.getCachedPetAccessToken(userEmail, googleProject)
 }

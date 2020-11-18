@@ -11,12 +11,16 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.typesafe.scalalogging.LazyLogging
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGooglePublisher,
+  MockComputePollOperation
+}
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.GCR
@@ -595,7 +599,7 @@ class LeonardoServiceSpec
       RuntimeSamResourceId(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project)
-    )(any[SamResource[RuntimeSamResourceId]], any[ApplicativeAsk[IO, TraceId]])
+    )(any[SamResource[RuntimeSamResourceId]], any[Ask[IO, TraceId]])
   }
 
   it should "delete a cluster that has status Error" in isolatedDbTest {
@@ -661,7 +665,7 @@ class LeonardoServiceSpec
       RuntimeSamResourceId(mockitoEq(cluster.samResource.resourceId)),
       mockitoEq(userInfo.userEmail),
       mockitoEq(project)
-    )(any[SamResource[RuntimeSamResourceId]], any[ApplicativeAsk[IO, TraceId]])
+    )(any[SamResource[RuntimeSamResourceId]], any[Ask[IO, TraceId]])
   }
 
   it should "delete a cluster's instances" in isolatedDbTest {
@@ -1142,7 +1146,7 @@ class LeonardoServiceSpec
   private def withLeoPublisher(
     publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, FakeGooglePublisher)
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
     withInfiniteStream(leoPublisher.process, validations)
   }
 

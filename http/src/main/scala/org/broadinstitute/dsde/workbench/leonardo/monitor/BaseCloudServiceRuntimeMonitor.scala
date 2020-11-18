@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import cats.Parallel
 import cats.effect.{Async, Sync, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
@@ -45,7 +45,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   def monitorConfig: MonitorConfig
 
-  def process(runtimeId: Long, runtimeStatus: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): Stream[F, Unit] =
+  def process(runtimeId: Long, runtimeStatus: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
     for {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- Stream.eval(ev.ask)
@@ -59,12 +59,12 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def pollCheck(googleProject: GoogleProject,
                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                 operation: com.google.cloud.compute.v1.Operation,
-                action: RuntimeStatus)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit]
+                action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit]
 
   private[monitor] def handler(monitorContext: MonitorContext, monitorState: MonitorState): F[CheckResult] =
     for {
       now <- nowInstant
-      implicit0(ct: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+      implicit0(ct: Ask[F, AppContext]) = Ask.const[F, AppContext](
         AppContext(monitorContext.traceId, now)
       )
       currentStatus <- clusterQuery.getClusterStatus(monitorContext.runtimeId).transaction
@@ -92,7 +92,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                     errorDetails: RuntimeErrorDetails,
                     instances: Set[DataprocInstance])(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
@@ -211,7 +211,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   ): F[CheckResult] =
     for {
       now <- nowInstant[F]
-      implicit0(traceId: ApplicativeAsk[F, AppContext]) = ApplicativeAsk.const[F, AppContext](
+      implicit0(traceId: Ask[F, AppContext]) = Ask.const[F, AppContext](
         AppContext(monitorContext.traceId, now)
       )
       timeElapsed = (now.toEpochMilli - monitorContext.start.toEpochMilli).millis
@@ -259,12 +259,12 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     } yield res
 
   def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[CheckResult]
 
   protected def handleInitial(
     monitorContext: MonitorContext
-  )(implicit ct: ApplicativeAsk[F, AppContext]): F[CheckResult] =
+  )(implicit ct: Ask[F, AppContext]): F[CheckResult] =
     for {
       runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig(monitorContext.runtimeId)
       next <- runtimeAndRuntimeConfig.runtime.status match {
@@ -278,7 +278,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     } yield next
 
   protected def setStagingBucketLifecycle(runtime: Runtime, stagingBucketExpiration: FiniteDuration)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     // Get the staging bucket path for this cluster, then set the age for it to be deleted the specified number of days after the deletion of the cluster.
     clusterQuery.getStagingBucket(runtime.googleProject, runtime.runtimeName).transaction.flatMap {
@@ -309,7 +309,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   protected def stopRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                             dataprocInstances: Set[DataprocInstance],
                             monitorContext: MonitorContext)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
@@ -338,7 +338,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     userStartupScriptOutputFile: Option[GcsPath],
     jupyterUserScriptUriInDB: Option[UserScriptPath],
     jupyterStartUserScriptUriInDB: Option[UserScriptPath]
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+  )(implicit ev: Ask[F, AppContext]): F[UserScriptsValidationResult] =
     for {
       userScriptRes <- validateUserScript(userScriptOutputFile, jupyterUserScriptUriInDB)
       res <- userScriptRes match {
@@ -354,7 +354,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def validateUserScript(
     userScriptOutputPathFromDB: Option[GcsPath],
     jupyterUserScriptUriInDB: Option[UserScriptPath]
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+  )(implicit ev: Ask[F, AppContext]): F[UserScriptsValidationResult] =
     (userScriptOutputPathFromDB, jupyterUserScriptUriInDB) match {
       case (Some(output), Some(_)) =>
         checkUserScriptsOutputFile(output).map { o =>
@@ -382,7 +382,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def validateUserStartupScript(
     userStartupScriptOutputFile: Option[GcsPath],
     jupyterStartUserScriptUriInDB: Option[UserScriptPath]
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[UserScriptsValidationResult] =
+  )(implicit ev: Ask[F, AppContext]): F[UserScriptsValidationResult] =
     (userStartupScriptOutputFile, jupyterStartUserScriptUriInDB) match {
       case (Some(output), Some(_)) =>
         checkUserScriptsOutputFile(output).map { o =>
@@ -407,7 +407,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   private[monitor] def checkUserScriptsOutputFile(
     gcsPath: GcsPath
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Boolean]] =
+  )(implicit ev: Ask[F, TraceId]): F[Option[Boolean]] =
     for {
       traceId <- ev.ask
       blobOpt <- googleStorage
@@ -433,7 +433,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                                         ip: IP,
                                         dataprocInstances: Set[DataprocInstance]) // only applies to dataproc
   (
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[CheckResult] = {
     // Update the Host IP in the database so DNS cache can be properly populated with the first cache miss
     // Otherwise, when a cluster is resumed and transitions from Starting to Running, we get stuck
@@ -481,7 +481,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   }
 
   protected def saveRuntimeError(runtimeId: Long, errorDetails: RuntimeErrorDetails)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     val result = for {
       ctx <- ev.ask
@@ -505,7 +505,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   }
 
   protected def deleteInitBucket(googleProject: GoogleProject,
-                                 runtimeName: RuntimeName)(implicit ev: ApplicativeAsk[F, AppContext]): F[Unit] =
+                                 runtimeName: RuntimeName)(implicit ev: Ask[F, AppContext]): F[Unit] =
     clusterQuery.getInitBucket(googleProject, runtimeName).transaction.flatMap {
       case None =>
         logger.warn(

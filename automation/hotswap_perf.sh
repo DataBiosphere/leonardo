@@ -4,7 +4,7 @@
 #Run using "./automation/hotswap_perf.sh" from inside the leo directory
 
 
-# Example: /Users/qi/workspace/leonardo/http/target/scala-2.12/http-assembly-0.1-437ee4a9-SNAPSHOT.jar
+# Example: /Users/qi/workspace/leonardo/http/target/scala-2.13/http-assembly-0.1-437ee4a9-SNAPSHOT.jar
 FULL_LEO_JAR=$(sbt -Dsbt.log.noformat=true "project http" assembly | tail -3 | head -2 | grep -o '/Users[^ ]*')
 SHORT_LEO_JAR=$(basename $FULL_LEO_JAR)
 NEW_JAR_NAME=$(echo ${SHORT_LEO_JAR}|sed 's/http\-/leonardo\-/g' ) # rename the jar to leonardo-assembly-0.1-437ee4a9-SNAPSHOT.jar so that fiab start script will pick up the right jar file

@@ -1,10 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import akka.actor.ActorSystem
+import cats.effect.IO
+import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeResponse
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.scalactic.Equality
 import org.scalatest.Assertion
 import org.scalatest.matchers.should.Matchers
+import org.broadinstitute.dsde.workbench.leonardo.http.SslContextReader
 
 object TestUtils extends Matchers {
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
@@ -228,4 +232,6 @@ object TestUtils extends Matchers {
     c.welderEnabled shouldBe createCluster.welderEnabled
     c.customEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables
   }
+
+  def sslContext(implicit as: ActorSystem): SSLContext = SslContextReader.getSSLContext[IO]().unsafeRunSync()
 }

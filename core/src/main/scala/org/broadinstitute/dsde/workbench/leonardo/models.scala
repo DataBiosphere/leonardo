@@ -5,7 +5,7 @@ import java.util.UUID
 
 import cats.effect.{Sync, Timer}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.model.TraceId
 
@@ -22,10 +22,10 @@ object AppContext {
       now <- nowInstant[F]
     } yield AppContext(TraceId(traceId), now, span)
 
-  def lift[F[_]: Sync: Timer](span: Option[Span] = None): F[ApplicativeAsk[F, AppContext]] =
+  def lift[F[_]: Sync: Timer](span: Option[Span] = None): F[Ask[F, AppContext]] =
     for {
       context <- AppContext.generate[F](span)
-    } yield ApplicativeAsk.const[F, AppContext](
+    } yield Ask.const[F, AppContext](
       context
     )
 

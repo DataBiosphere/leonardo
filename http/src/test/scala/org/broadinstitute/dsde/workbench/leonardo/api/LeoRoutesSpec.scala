@@ -13,6 +13,7 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import fs2.concurrent.InspectableQueue
 import io.circe.parser.decode
 import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.google2.mock.FakeGooglePublisher
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RoutesTestJsonSupport._
@@ -386,7 +387,7 @@ class LeoRoutesSpec
   private def withLeoPublisher(
     publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
   )(validations: IO[Assertion]): IO[Assertion] = {
-    val leoPublisher = new LeoPublisher[IO](publisherQueue, FakeGooglePublisher)
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
     withInfiniteStream(leoPublisher.process, validations)
   }
 }

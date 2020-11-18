@@ -4,7 +4,7 @@ package google
 
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Async, Blocker, ContextShift, Resource, Sync, Timer}
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.oauth2.Oauth2
@@ -12,7 +12,7 @@ import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 trait GoogleOAuth2Service[F[_]] {
-  def getUserInfoFromToken(accessToken: String)(implicit ev: ApplicativeAsk[F, TraceId]): F[UserInfo]
+  def getUserInfoFromToken(accessToken: String)(implicit ev: Ask[F, TraceId]): F[UserInfo]
 }
 object GoogleOAuth2Service {
   def resource[F[_]: Async: ContextShift: Timer: StructuredLogger](

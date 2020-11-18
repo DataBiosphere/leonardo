@@ -8,8 +8,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.DiskConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 
-import scala.language.implicitConversions
-
 sealed trait StringValueClass extends Any
 case class GoogleServiceAccount(string: String) extends AnyVal with StringValueClass
 

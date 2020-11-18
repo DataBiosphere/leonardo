@@ -3,7 +3,7 @@ package dao
 
 import cats.effect.Concurrent
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import io.chrisdavenport.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
@@ -41,7 +41,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     with Http4sClientDsl[F] {
 
   override def detectTool(image: ContainerImage, petTokenOpt: Option[String])(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[RuntimeImageType] =
     for {
       traceId <- ev.ask
@@ -66,7 +66,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
 
   //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[ContainerConfig] =
     FollowRedirect(3)(httpClient).expectOr[ContainerConfig](
       Request[F](
@@ -78,7 +78,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
 
   //curl --header "Accept: application/vnd.docker.distribution.manifest.v2+json" --header "Authorization: Bearer $TOKEN" --header "Accept: application/json" "https://registry-1.docker.io/v2/library/nginx/manifests/latest"
   private[dao] def getManifestConfig(parsedImage: ParsedImage, tokenOpt: Option[Token])(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[ManifestConfig] =
     httpClient.expectOr[ManifestConfig](
       Request[F](
@@ -90,7 +90,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
 
   //curl --silent "https://auth.docker.io/token?scope=repository%3Alibrary/nginx%3Apull&service=registry.docker.io" | jq '.token'
   private[dao] def getToken(parsedImage: ParsedImage,
-                            petTokenOpt: Option[String])(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Token]] =
+                            petTokenOpt: Option[String])(implicit ev: Ask[F, TraceId]): F[Option[Token]] =
     parsedImage.registry match {
       // If it's a GCR repo, use the pet token
       case ContainerRegistry.GCR => Concurrent[F].pure(petTokenOpt.map(Token))
@@ -108,7 +108,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
         )(onError)
     }
 
-  private def onError(response: Response[F])(implicit ev: ApplicativeAsk[F, TraceId]): F[Throwable] =
+  private def onError(response: Response[F])(implicit ev: Ask[F, TraceId]): F[Throwable] =
     for {
       traceId <- ev.ask
       body <- response.bodyText.compile.foldMonoid
@@ -119,7 +119,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     Headers.of(acceptHeader) ++
       tokenOpt.fold(Headers.empty)(t => Headers.of(Authorization(Credentials.Token(AuthScheme.Bearer, t.token))))
 
-  private[dao] def parseImage(image: ContainerImage)(implicit ev: ApplicativeAsk[F, TraceId]): F[ParsedImage] =
+  private[dao] def parseImage(image: ContainerImage)(implicit ev: Ask[F, TraceId]): F[ParsedImage] =
     image.imageUrl match {
       case GCR.regex(registry, imageName, tagOpt, shaOpt) =>
         val version = Option(tagOpt)

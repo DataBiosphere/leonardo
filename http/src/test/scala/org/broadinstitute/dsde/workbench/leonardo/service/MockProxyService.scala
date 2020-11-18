@@ -35,7 +35,8 @@ class MockProxyService(
   dbRef: DbReference[IO],
   metrics: OpenTelemetryMetrics[IO],
   logger: Logger[IO])
-    extends ProxyService(proxyConfig,
+    extends ProxyService(TestUtils.sslContext(system),
+                         proxyConfig,
                          jupyterDAO,
                          runtimeDnsCache,
                          kubernetesDnsCache,

@@ -3,7 +3,7 @@ package monitor
 
 import cats.effect.IO
 import cats.effect.concurrent.Deferred
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.{Instance, Operation}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
@@ -77,7 +77,7 @@ class ZombieRuntimeMonitorSpec
     // stub GoogleComputeService to flag instance2 as still running on google
     val gce = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] =
         if (instanceName.value === deletedRuntime2.runtimeName.asString) {
           IO.pure(Some(readyInstance))
@@ -85,7 +85,7 @@ class ZombieRuntimeMonitorSpec
           IO.pure(None)
         }
       override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: ApplicativeAsk[IO, TraceId]
+        implicit ev: Ask[IO, TraceId]
       ): IO[Option[Operation]] = {
         instanceName.value shouldBe (deletedRuntime2.runtimeName.asString)
         project shouldBe (deletedRuntime2.googleProject)

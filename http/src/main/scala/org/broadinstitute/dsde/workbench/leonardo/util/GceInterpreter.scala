@@ -4,7 +4,7 @@ package util
 import cats.Parallel
 import cats.effect.{Async, Blocker, ContextShift}
 import cats.implicits._
-import cats.mtl.ApplicativeAsk
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.{Operation, _}
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.google2.{
@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 
 final case class InstanceResourceConstaintsException(project: GoogleProject, machineType: MachineTypeName)
@@ -57,7 +57,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     with RuntimeAlgebra[F] {
   override def createRuntime(
     params: CreateRuntimeParams
-  )(implicit ev: ApplicativeAsk[F, AppContext]): F[CreateRuntimeResponse] =
+  )(implicit ev: Ask[F, AppContext]): F[CreateGoogleRuntimeResponse] =
     // TODO clean up on error
     for {
       ctx <- ev.ask
@@ -255,11 +255,11 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                                               OperationName(operation.getName),
                                               stagingBucketName,
                                               None)
-    } yield CreateRuntimeResponse(asyncRuntimeFields, initBucketName, None, config.gceConfig.customGceImage)
+    } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, config.gceConfig.customGceImage)
 
   override def getRuntimeStatus(
     params: GetRuntimeStatusParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeStatus] =
+  )(implicit ev: Ask[F, TraceId]): F[RuntimeStatus] =
     for {
       zoneName <- Async[F].fromEither(
         params.zoneName.toRight(new Exception("Missing zone name for getting GCE runtime status"))
@@ -270,7 +270,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     } yield status
 
   override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: Option[RuntimeConfig.DataprocConfig])(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       metadata <- getShutdownScript(runtime, blocker)
@@ -284,7 +284,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     } yield Some(r)
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
-    implicit ev: ApplicativeAsk[F, AppContext]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -311,7 +311,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     } yield ()
 
   override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
-    implicit ev: ApplicativeAsk[F, TraceId]
+    implicit ev: Ask[F, TraceId]
   ): F[Unit] =
     googleComputeService.setMachineType(runtime.googleProject,
                                         config.gceConfig.zoneName,
@@ -320,7 +320,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[Option[Operation]] =
+  )(implicit ev: Ask[F, TraceId]): F[Option[Operation]] =
     if (params.runtime.asyncRuntimeFields.isDefined) {
       for {
         metadata <- getShutdownScript(params.runtime, blocker)
@@ -335,10 +335,10 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       } yield op
     } else F.pure(None)
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
     Async[F].unit
 
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
     UpdateDiskSizeParams.gcePrism
       .getOption(params)
       .traverse_(p =>
@@ -346,14 +346,14 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           .resizeDisk(p.googleProject, config.gceConfig.zoneName, p.diskName, p.diskSize.gb)
       )
 
-  override def resizeCluster(params: ResizeClusterParams)(implicit ev: ApplicativeAsk[F, TraceId]): F[Unit] =
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
     Async[F].unit
 
   private[leonardo] def getResourceConstraints(
     googleProject: GoogleProject,
     zoneName: ZoneName,
     machineTypeName: MachineTypeName
-  )(implicit ev: ApplicativeAsk[F, TraceId]): F[RuntimeResourceConstraints] =
+  )(implicit ev: Ask[F, TraceId]): F[RuntimeResourceConstraints] =
     for {
       // Resolve the machine type in Google to get the total available memory
       machineType <- googleComputeService.getMachineType(googleProject, zoneName, machineTypeName)
