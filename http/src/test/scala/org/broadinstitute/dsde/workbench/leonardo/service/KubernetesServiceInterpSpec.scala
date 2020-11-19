@@ -5,38 +5,20 @@ import java.time.Instant
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AppAlreadyExistsException,
-  AppCannotBeDeletedException,
-  AppNotFoundException,
-  AppRequiresDiskException,
-  ClusterExistsException,
-  DiskAlreadyAttachedException,
-  LeoKubernetesServiceInterp
-}
+import org.broadinstitute.dsde.workbench.google2.mock.FakeGooglePublisher
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.http.DeleteAppRequest
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppName,
-  AppStatus,
-  AppType,
-  KubernetesClusterStatus,
-  LabelMap,
-  LeoLenses,
-  LeonardoTestSuite,
-  NodepoolStatus
-}
 import org.broadinstitute.dsde.workbench.leonardo.db.{
+  KubernetesAppCreationException,
+  KubernetesServiceDbQueries,
+  TestComponent,
   appQuery,
   kubernetesClusterQuery,
   persistentDiskQuery,
-  KubernetesAppCreationException,
-  KubernetesServiceDbQueries,
-  TestComponent
+  _
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
+import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppRequest, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.CreateNodepool
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,
@@ -49,8 +31,21 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageType
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppName,
+  AppStatus,
+  AppType,
+  KubernetesClusterStatus,
+  LabelMap,
+  LeoLenses,
+  LeoPublisher,
+  LeonardoTestSuite,
+  NodepoolStatus,
+  NumNodes
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -702,5 +697,76 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val createAppMessage2 = message2.asInstanceOf[CreateAppMessage]
     createAppMessage2.appId shouldBe appResult2.app.id
     createAppMessage2.clusterNodepoolAction shouldBe Some(CreateNodepool(appResult2.nodepool.id))
+  }
+
+  it should "stop an app" in isolatedDbTest {
+    val res = for {
+      publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      kubeServiceInterp = makeInterp(publisherQueue)
+
+      savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Running).save())
+
+      _ <- kubeServiceInterp.stopApp(userInfo, savedCluster.googleProject, savedApp.appName)
+      _ <- withLeoPublisher(publisherQueue) {
+        for {
+          dbAppOpt <- KubernetesServiceDbQueries
+            .getActiveFullAppByName(savedCluster.googleProject, savedApp.appName)
+            .transaction
+          msg <- publisherQueue.tryDequeue1
+        } yield {
+          dbAppOpt.isDefined shouldBe true
+          dbAppOpt.get.app.status shouldBe AppStatus.Stopping
+          dbAppOpt.get.nodepool.status shouldBe NodepoolStatus.Provisioning
+          dbAppOpt.get.nodepool.numNodes shouldBe NumNodes(0)
+          dbAppOpt.get.nodepool.autoscalingEnabled shouldBe false
+          dbAppOpt.get.cluster.status shouldBe KubernetesClusterStatus.Running
+
+          msg shouldBe None
+        }
+      }
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "start an app" in isolatedDbTest {
+    val res = for {
+      publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      kubeServiceInterp = makeInterp(publisherQueue)
+
+      savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Stopped).save())
+
+      _ <- kubeServiceInterp.startApp(userInfo, savedCluster.googleProject, savedApp.appName)
+      _ <- withLeoPublisher(publisherQueue) {
+        for {
+          dbAppOpt <- KubernetesServiceDbQueries
+            .getActiveFullAppByName(savedCluster.googleProject, savedApp.appName)
+            .transaction
+          msg <- publisherQueue.tryDequeue1
+        } yield {
+          dbAppOpt.isDefined shouldBe true
+          dbAppOpt.get.app.status shouldBe AppStatus.Starting
+          dbAppOpt.get.nodepool.status shouldBe NodepoolStatus.Provisioning
+          dbAppOpt.get.nodepool.numNodes shouldBe NumNodes(2)
+          dbAppOpt.get.nodepool.autoscalingEnabled shouldBe false
+          dbAppOpt.get.cluster.status shouldBe KubernetesClusterStatus.Running
+
+          msg shouldBe None
+        }
+      }
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  private def withLeoPublisher(
+    publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
+  )(validations: IO[Assertion]): IO[Assertion] = {
+    val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
+    withInfiniteStream(leoPublisher.process, validations)
   }
 }
