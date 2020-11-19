@@ -1418,6 +1418,93 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
+  "/api/google/v1/apps/{googleProject}/{appName}/stop":
+    post:
+      summary: Stops an app with the given project and name
+      description: >
+        Stops the running compute, but retains any data persisted on disk. The app may be restarted with the /start endpoint.
+      operationId: stopApp
+      tags:
+        - apps
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: App stop request accepted
+        "403":
+          description: User does not have permission to perform action on app
+        "404":
+          description: App not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
+          description: App cannot be stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/api/google/v1/apps/{googleProject}/{appName}/start":
+    post:
+      summary: Starts an app with the given project and name
+      description: Starts the stopped app
+      operationId: startApp
+      tags:
+        - apps
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: appName
+          description: appName
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: App start request accepted
+        "403":
+          description: User does not have permission to perform action on app
+        "404":
+          description: App not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "409":
+          description: App cannot be started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
 
   ## Deprecated Notebook API ##
 
