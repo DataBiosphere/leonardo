@@ -57,7 +57,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            credentials,
                            googleIamDao,
                            blocker,
-                           nodepoolLock)
+                           nodepoolLock.unsafeRunSync())
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()

@@ -25,7 +25,7 @@ trait LeonardoTestSuite extends Matchers {
 
   val blocker = Blocker.liftExecutionContext(global)
   val semaphore = Semaphore[IO](10).unsafeRunSync()
-  val nodepoolLock = KeyLock[IO, KubernetesClusterId](1 minute, 10, blocker).unsafeRunSync()
+  val nodepoolLock = KeyLock[IO, KubernetesClusterId](1 minute, 10, blocker)
 
   def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 30): IO[Assertion] = {
     val process = Stream.eval(Deferred[IO, Assertion]).flatMap { signalToStop =>
