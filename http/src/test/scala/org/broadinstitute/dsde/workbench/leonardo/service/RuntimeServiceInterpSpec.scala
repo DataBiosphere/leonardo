@@ -11,33 +11,37 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGooglePublisher,
   FakeGoogleStorageInterpreter,
   MockComputePollOperation
 }
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.PersistentDiskRequestResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{LeoPubsubMessage, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  DiskUpdate,
+  LeoPubsubMessage,
+  RuntimeConfigInCreateRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
-import org.broadinstitute.dsde.workbench.leonardo.monitor.DiskUpdate
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatestplus.mockito.MockitoSugar
 
 class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
@@ -130,7 +134,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes
         )
@@ -221,7 +226,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -272,7 +278,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -347,6 +354,51 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
+  it should "create a runtime with the crypto-detector image" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val googleProject = GoogleProject("googleProject")
+    val runtimeName1 = RuntimeName("runtimeName1")
+    val runtimeName2 = RuntimeName("runtimeName2")
+
+    val res = for {
+      r1 <- runtimeService
+        .createRuntime(
+          userInfo,
+          googleProject,
+          runtimeName1,
+          emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.DockerHub))
+        )
+        .attempt
+
+      r2 <- runtimeService
+        .createRuntime(
+          userInfo,
+          googleProject,
+          runtimeName2,
+          emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.GCR))
+        )
+        .attempt
+
+      runtimeOpt1 <- clusterQuery.getActiveClusterByName(googleProject, runtimeName1).transaction
+      runtime1 = runtimeOpt1.get
+      _ <- publisherQueue.dequeue1
+
+      runtimeOpt2 <- clusterQuery.getActiveClusterByName(googleProject, runtimeName2).transaction
+      runtime2 = runtimeOpt2.get
+      _ <- publisherQueue.dequeue1
+    } yield {
+      // Crypto detector not supported on DockerHub
+      r1 shouldBe Right(())
+      runtime1.runtimeName shouldBe runtimeName1
+      runtime1.runtimeImages.map(_.imageType) shouldBe Set(Jupyter, Welder, Proxy)
+
+      r2 shouldBe Right(())
+      runtime2.runtimeName shouldBe runtimeName2
+      runtime2.runtimeImages.map(_.imageType) shouldBe Set(Jupyter, Welder, Proxy, CryptoDetector)
+    }
+    res.unsafeRunSync()
+  }
+
   it should "create a runtime with a disk config" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
     val persistentDisk = PersistentDiskRequest(
@@ -397,7 +449,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
+            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
           ),
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,

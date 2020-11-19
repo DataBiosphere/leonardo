@@ -30,6 +30,12 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.clusterName shouldBe CommonTestData.testCluster.runtimeName.asString
       result.customEnvVarsConfigUri shouldBe GcsPath(CommonTestData.initBucketName,
                                                      GcsObjectName("custom_env_vars.env")).toUri
+      result.cryptoDetectorDockerCompose shouldBe GcsPath(
+        CommonTestData.initBucketName,
+        GcsObjectName("test-crypto-detector-docker-compose.yaml")
+      ).toUri
+      result.cryptoDetectorDockerImage shouldBe CommonTestData.cryptoDetectorImage.imageUrl
+      result.cryptoDetectorServerName shouldBe "cryptomining-detector"
       result.disableDelocalization shouldBe "false"
       result.googleClientId shouldBe "clientId"
       result.googleProject shouldBe CommonTestData.testCluster.googleProject.value
@@ -54,6 +60,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.jupyterStartUserScriptOutputUri shouldBe RuntimeTemplateValues
         .jupyterUserStartScriptOutputUriPath(CommonTestData.stagingBucketName, now)
         .toUri
+      result.updateWelder shouldBe "true"
       result.jupyterStartUserScriptUri shouldBe GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")).toUri
       result.jupyterUserScriptOutputUri shouldBe GcsPath(CommonTestData.stagingBucketName,
                                                          GcsObjectName("userscript_output.txt")).toUri
@@ -75,7 +82,6 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.rstudioServerName shouldBe "rstudio-server"
       result.runtimeOperation shouldBe RuntimeOperation.Restarting.asString
       result.stagingBucketName shouldBe CommonTestData.stagingBucketName.value
-      result.updateWelder shouldBe "true"
       result.welderDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                   GcsObjectName("test-welder-docker-compose.yaml")).toUri
       result.welderDockerImage shouldBe CommonTestData.welderImage.imageUrl
