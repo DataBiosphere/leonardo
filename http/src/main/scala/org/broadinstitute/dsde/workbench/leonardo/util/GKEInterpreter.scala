@@ -654,6 +654,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       }
 
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
+      _ <- nodepoolQuery.enableAutoscaling(dbNodepool.id).transaction
 
       _ <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
         for {

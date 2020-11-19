@@ -93,9 +93,9 @@ object KubernetesTestData {
       NodepoolStatus.Unspecified,
       auditInfo,
       MachineTypeName("n1-standard-4"),
-      NumNodes(2),
-      false,
-      None,
+      NumNodes(if (isDefault) 1 else 2),
+      !isDefault,
+      if (isDefault) None else Some(AutoscalingConfig(AutoscalingMin(0), AutoscalingMax(2))),
       List(),
       isDefault
     )
