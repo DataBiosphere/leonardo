@@ -136,7 +136,6 @@ object AppAction {
   final case object DeleteApp extends AppAction {
     val asString = "delete"
   }
-  // TODO: add to Sam!
   final case object StopStartApp extends AppAction {
     val asString = "stop_start"
   }
