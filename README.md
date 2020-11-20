@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/DataBiosphere/leonardo.svg?branch=develop)](https://travis-ci.org/DataBiosphere/leonardo) [![Coverage Status](https://coveralls.io/repos/github/DataBiosphere/leonardo/badge.svg?branch=develop)](https://coveralls.io/github/DataBiosphere/leonardo?branch=develop)
+[![Build Status](https://travis-ci.org/DataBiosphere/leonardo.svg?branch=develop)](https://travis-ci.org/DataBiosphere/leonardo) [![codecov](https://codecov.io/gh/DataBiosphere/leonardo/branch/develop/graph/badge.svg)](https://codecov.io/gh/DataBiosphere/leonardo)
 
 # Leonardo
 
