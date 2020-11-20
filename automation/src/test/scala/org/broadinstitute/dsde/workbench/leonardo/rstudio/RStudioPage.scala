@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.openqa.selenium.WebDriver
+import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{JupyterPage, NotebooksListPage}
 
 import scala.concurrent.duration.FiniteDuration
@@ -18,6 +18,8 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
     super.open.asInstanceOf[RStudioPage]
 
   override val renderedApp: Query = cssSelector("[id='rstudio_rstudio_logo']")
+
+  val rstudioContainer: Query = cssSelector("[id='rstudio_container']")
 
   override def awaitLoaded(): JupyterPage = {
     await enabled renderedApp

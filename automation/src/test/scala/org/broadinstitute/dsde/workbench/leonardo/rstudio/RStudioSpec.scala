@@ -15,11 +15,11 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
         withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
 //          // See this ticket for adding more comprehensive selenium tests for RStudio:
 //          // https://broadworkbench.atlassian.net/browse/IA-697
-          Thread.sleep(10000)
           rstudioPage.pressKeys("varA <- 1000")
           rstudioPage.pressKeys(Keys.ENTER.toString)
-          Thread.sleep(10000)
+          await visible cssSelector("[title~='varA']")
           rstudioPage.variableExists("varA") shouldBe true
+          rstudioPage.variableExists("1000") shouldBe true
         }
       }
     }
