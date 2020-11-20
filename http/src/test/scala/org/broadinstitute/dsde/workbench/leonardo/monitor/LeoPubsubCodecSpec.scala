@@ -3,7 +3,14 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import java.time.Instant
 import java.util.UUID
 
+import _root_.io.circe.parser.decode
+import _root_.io.circe.syntax._
+import io.circe.Printer
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppId,
   AppName,
@@ -15,16 +22,10 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   RuntimeName,
   RuntimeProjectAndName
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateRuntimeMessage}
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.scalatest.matchers.should.Matchers
-import _root_.io.circe.syntax._
-import _root_.io.circe.parser.decode
-import LeoPubsubCodec._
-import io.circe.Printer
-import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatest.matchers.should.Matchers
 
 class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   it should "encode/decode CreateRuntimeMessage.GceConfig properly" in {
@@ -109,6 +110,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       Some(DiskId(1)),
       Map.empty,
       Galaxy,
+      NamespaceName("ns"),
       Some(traceId)
     )
 
