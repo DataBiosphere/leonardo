@@ -332,10 +332,10 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           AppCannotBeStoppedException(googleProject, appName, appResult.app.status, ctx.traceId)
         )
 
-      _ <- KubernetesServiceDbQueries.markPreStopping(appResult.nodepool.id, appResult.app.id).transaction
+      _ <- appQuery.updateStatus(appResult.app.id, AppStatus.PreStopping).transaction
       message = StopAppMessage(
         appResult.app.id,
-        appResult.nodepool.id,
+        appResult.app.appName,
         appResult.cluster.googleProject,
         Some(ctx.traceId)
       )
@@ -368,12 +368,10 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           AppCannotBeStartedException(googleProject, appName, appResult.app.status, ctx.traceId)
         )
 
-      _ <- KubernetesServiceDbQueries
-        .markPreStarting(appResult.nodepool.id, appResult.app.id, appResult.nodepool.numNodes)
-        .transaction
+      _ <- appQuery.updateStatus(appResult.app.id, AppStatus.PreStarting).transaction
       message = StartAppMessage(
         appResult.app.id,
-        appResult.nodepool.id,
+        appResult.app.appName,
         appResult.cluster.googleProject,
         Some(ctx.traceId)
       )

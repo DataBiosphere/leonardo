@@ -1068,20 +1068,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private[monitor] def handleStopAppMessage(msg: StopAppMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      stopNodepool = gkeInterp
-        .stopAndPollNodepool(StopNodepoolParams(msg.appId, msg.nodepoolId, msg.project))
+      stopApp = gkeInterp
+        .stopAndPollApp(StopAppParams(msg.appId, msg.appName, msg.project))
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.StopGalaxyApp, ErrorSource.Nodepool, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.StopGalaxyApp, ErrorSource.App, None),
               Some(msg.appId),
               false,
-              Some(msg.nodepoolId),
+              None,
               None
             )
         }
 
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, stopNodepool, Some(handleKubernetesError), ctx.now))
+      _ <- asyncTasks.enqueue1(Task(ctx.traceId, stopApp, Some(handleKubernetesError), ctx.now))
     } yield ()
 
   private[monitor] def handleStartAppMessage(
@@ -1089,20 +1089,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      startNodepool = gkeInterp
-        .startAndPollNodepool(StartNodepoolParams(msg.appId, msg.nodepoolId, msg.project))
+      startApp = gkeInterp
+        .startAndPollApp(StartAppParams(msg.appId, msg.appName, msg.project))
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.StartGalaxyApp, ErrorSource.Nodepool, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.StartGalaxyApp, ErrorSource.App, None),
               Some(msg.appId),
               false,
-              Some(msg.nodepoolId),
+              None,
               None
             )
         }
 
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, startNodepool, Some(handleKubernetesError), ctx.now))
+      _ <- asyncTasks.enqueue1(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now))
     } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =

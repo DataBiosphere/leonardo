@@ -39,9 +39,9 @@ trait GKEAlgebra[F[_]] {
   /** Deletes an app and polls for completion */
   def deleteAndPollApp(params: DeleteAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  def stopAndPollNodepool(params: StopNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def stopAndPollApp(params: StopAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  def startAndPollNodepool(params: StartNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def startAndPollApp(params: StartAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 }
 
 final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,
@@ -75,6 +75,6 @@ final case class DeleteAppParams(appId: AppId,
                                  appName: AppName,
                                  errorAfterDelete: Boolean)
 
-final case class StopNodepoolParams(appId: AppId, nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
+final case class StopAppParams(appId: AppId, appName: AppName, googleProject: GoogleProject)
 
-final case class StartNodepoolParams(appId: AppId, nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
+final case class StartAppParams(appId: AppId, appName: AppName, googleProject: GoogleProject)

@@ -703,7 +703,10 @@ object Config {
       config.as[PollMonitorConfig]("deleteCluster"),
       config.as[PollMonitorConfig]("createIngress"),
       config.as[PollMonitorConfig]("createApp"),
-      config.as[PollMonitorConfig]("deleteApp")
+      config.as[PollMonitorConfig]("deleteApp"),
+      config.as[PollMonitorConfig]("scaleNodepool"),
+      config.as[PollMonitorConfig]("setNodepoolAutoscaling"),
+      config.as[PollMonitorConfig]("startApp")
     )
   }
 

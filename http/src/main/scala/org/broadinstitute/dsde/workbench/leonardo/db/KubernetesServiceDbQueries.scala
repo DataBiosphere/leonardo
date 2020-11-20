@@ -1,11 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import akka.http.scaladsl.model.StatusCodes
 import java.time.Instant
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.Chain
 import cats.implicits._
+import com.rms.miu.slickcats.DBIOInstances._
+import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -14,8 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNode
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import com.rms.miu.slickcats.DBIOInstances._
-import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
 
 import scala.concurrent.ExecutionContext
 
@@ -214,20 +214,6 @@ object KubernetesServiceDbQueries {
       _ <- nodepoolQuery.markPendingDeletion(nodepoolId)
       _ <- appQuery.markPendingDeletion(appId)
       _ <- diskId.fold[DBIO[Int]](DBIO.successful(0))(diskId => persistentDiskQuery.markPendingDeletion(diskId, now))
-    } yield ()
-
-  def markPreStopping(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
-    for {
-      _ <- nodepoolQuery.scaleToN(nodepoolId, NumNodes(0))
-      _ <- appQuery.updateStatus(appId, AppStatus.PreStopping)
-    } yield ()
-
-  def markPreStarting(nodepoolId: NodepoolLeoId, appId: AppId, numNodes: NumNodes)(
-    implicit ec: ExecutionContext
-  ): DBIO[Unit] =
-    for {
-      _ <- nodepoolQuery.scaleToN(nodepoolId, numNodes)
-      _ <- appQuery.updateStatus(appId, AppStatus.PreStarting)
     } yield ()
 
   private[db] def listClustersByProject(

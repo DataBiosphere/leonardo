@@ -705,7 +705,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
       kubeServiceInterp = makeInterp(publisherQueue)
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
-      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
       savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Running).save())
 
       _ <- kubeServiceInterp.stopApp(userInfo, savedCluster.googleProject, savedApp.appName)
@@ -718,9 +718,9 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
         } yield {
           dbAppOpt.isDefined shouldBe true
           dbAppOpt.get.app.status shouldBe AppStatus.Stopping
-          dbAppOpt.get.nodepool.status shouldBe NodepoolStatus.Provisioning
-          dbAppOpt.get.nodepool.numNodes shouldBe NumNodes(0)
-          dbAppOpt.get.nodepool.autoscalingEnabled shouldBe false
+          dbAppOpt.get.nodepool.status shouldBe NodepoolStatus.Running
+          dbAppOpt.get.nodepool.numNodes shouldBe NumNodes(2)
+          dbAppOpt.get.nodepool.autoscalingEnabled shouldBe true
           dbAppOpt.get.cluster.status shouldBe KubernetesClusterStatus.Running
 
           msg shouldBe None
@@ -737,7 +737,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
       kubeServiceInterp = makeInterp(publisherQueue)
 
       savedCluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
-      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).copy(status = NodepoolStatus.Running).save())
       savedApp <- IO(makeApp(1, savedNodepool.id).copy(status = AppStatus.Stopped).save())
 
       _ <- kubeServiceInterp.startApp(userInfo, savedCluster.googleProject, savedApp.appName)
@@ -750,9 +750,9 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
         } yield {
           dbAppOpt.isDefined shouldBe true
           dbAppOpt.get.app.status shouldBe AppStatus.Starting
-          dbAppOpt.get.nodepool.status shouldBe NodepoolStatus.Provisioning
+          dbAppOpt.get.nodepool.status shouldBe NodepoolStatus.Running
           dbAppOpt.get.nodepool.numNodes shouldBe NumNodes(2)
-          dbAppOpt.get.nodepool.autoscalingEnabled shouldBe false
+          dbAppOpt.get.nodepool.autoscalingEnabled shouldBe true
           dbAppOpt.get.cluster.status shouldBe KubernetesClusterStatus.Running
 
           msg shouldBe None
