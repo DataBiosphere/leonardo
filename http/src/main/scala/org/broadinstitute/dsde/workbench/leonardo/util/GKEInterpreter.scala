@@ -234,9 +234,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
     } yield ()
 
-  override def createNodepool(params: CreateNodepoolParams)(
+  override def createAndPollNodepool(params: CreateNodepoolParams)(
     implicit ev: Ask[F, AppContext]
-  ): F[Option[CreateNodepoolResult]] =
+  ): F[Unit] =
     for {
       ctx <- ev.ask
       dbNodepoolOpt <- nodepoolQuery.getMinimalById(params.nodepoolId).transaction
@@ -258,53 +258,37 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         buildGoogleNodepool(dbNodepool)
       )
 
-      // Acquire lock for nodepool creation
-      // Note: the lock is released in pollNodepool(), or if an error occurs
-      _ <- nodepoolLock.acquire(dbCluster.getGkeClusterId)
-
-      operationOpt <- gkeService.createNodepool(req).onError {
-        case _ =>
-          nodepoolLock.release(dbCluster.getGkeClusterId)
+      operationOpt <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+        for {
+          opOpt <- gkeService.createNodepool(req)
+          lastOpOpt <- opOpt.traverse { op =>
+            gkeService
+              .pollOperation(
+                KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+                config.monitorConfig.nodepoolCreate.interval,
+                config.monitorConfig.nodepoolCreate.maxAttempts
+              )
+              .compile
+              .lastOrError
+          }
+          _ <- lastOpOpt match {
+            case None => F.unit
+            case Some(lastOp) =>
+              if (lastOp.isDone)
+                logger.info(
+                  s"Nodepool creation operation has finished for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
+                )
+              else
+                logger.error(
+                  s"Create nodepool operation has failed or timed out for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
+                ) >>
+                  // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
+                  F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
+          }
+        } yield opOpt
       }
-    } yield operationOpt.map(op =>
-      CreateNodepoolResult(KubernetesOperationId(dbCluster.googleProject, dbCluster.location, op.getName),
-                           dbCluster.getGkeClusterId)
-    )
 
-  override def pollNodepool(params: PollNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
-    for {
-      ctx <- ev.ask
-      _ <- logger.info(
-        s"Polling nodepool creation for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
-      )
-      lastOp <- gkeService
-        .pollOperation(
-          params.createResult.op,
-          config.monitorConfig.nodepoolCreate.interval,
-          config.monitorConfig.nodepoolCreate.maxAttempts
-        )
-        .compile
-        .lastOrError
-        .onError {
-          case _ =>
-            nodepoolLock.release(params.createResult.clusterId)
-        }
-
-      // Release lock acquired by createNodepool
-      _ <- nodepoolLock.release(params.createResult.clusterId)
-
-      _ <- if (lastOp.isDone)
-        logger.info(
-          s"Nodepool creation operation has finished for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
-        )
-      else
-        logger.error(
-          s"Create nodepool operation has failed or timed out for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
-        ) >>
-          // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
-          F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
-
-      _ <- nodepoolQuery.updateStatus(params.nodepoolId, NodepoolStatus.Running).transaction
+      _ <- operationOpt.traverse(_ => nodepoolQuery.updateStatus(params.nodepoolId, NodepoolStatus.Running).transaction)
     } yield ()
 
   override def createAndPollApp(params: CreateAppParams)(

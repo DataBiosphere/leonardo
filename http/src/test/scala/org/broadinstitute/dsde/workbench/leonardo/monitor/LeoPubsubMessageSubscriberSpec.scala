@@ -60,7 +60,6 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -654,6 +653,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(disk.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -736,6 +736,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(disk1.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       msg2 = CreateAppMessage(
@@ -746,6 +747,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(disk2.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp2.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -794,6 +796,7 @@ class LeoPubsubMessageSubscriberSpec
         None,
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -836,6 +839,7 @@ class LeoPubsubMessageSubscriberSpec
         None,
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -878,6 +882,7 @@ class LeoPubsubMessageSubscriberSpec
         None,
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -904,6 +909,19 @@ class LeoPubsubMessageSubscriberSpec
         )
       )
       .save()
+    val mockAckConsumer = mock[AckReplyConsumer]
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.source) should contain(ErrorSource.App)
+      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+    }
 
     val res = for {
       tr <- traceId.ask[TraceId]
@@ -915,16 +933,18 @@ class LeoPubsubMessageSubscriberSpec
         Some(disk1.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      _ <- leoSubscriber.handleCreateAppMessage(msg)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
     } yield ()
 
-    the[AppNotFoundException] thrownBy {
-      res.unsafeRunSync()
-    }
+    res.unsafeRunSync()
+    verify(mockAckConsumer, times(1)).ack()
   }
 
   it should "handle error in createApp if createDisk is specified with no disk" in isolatedDbTest {
@@ -954,6 +974,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(DiskId(-1)),
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1327,6 +1348,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(disk.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1464,6 +1486,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(disk.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1544,6 +1567,7 @@ class LeoPubsubMessageSubscriberSpec
         None,
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1616,6 +1640,7 @@ class LeoPubsubMessageSubscriberSpec
         None,
         Map.empty,
         AppType.Galaxy,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1741,6 +1766,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(disk.id),
         Map.empty,
         savedApp1.appType,
+        savedApp1.appResources.namespace.name,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)

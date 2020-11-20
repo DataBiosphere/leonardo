@@ -7,6 +7,7 @@ import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.{
@@ -226,6 +227,7 @@ object LeoPubsubMessage {
                                     createDisk: Option[DiskId],
                                     customEnvironmentVariables: Map[String, String],
                                     appType: AppType,
+                                    namespaceName: NamespaceName,
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
@@ -418,13 +420,14 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct8("project",
+    Decoder.forProduct9("project",
                         "clusterNodepoolAction",
                         "appId",
                         "appName",
                         "createDisk",
                         "customEnvironmentVariables",
                         "appType",
+                        "namespaceName",
                         "traceId")(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
@@ -704,7 +707,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct9(
+    Encoder.forProduct10(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -713,6 +716,7 @@ object LeoPubsubCodec {
       "createDisk",
       "customEnvironmentVariables",
       "appType",
+      "namespaceName",
       "traceId"
     )(x =>
       (x.messageType,
@@ -723,6 +727,7 @@ object LeoPubsubCodec {
        x.createDisk,
        x.customEnvironmentVariables,
        x.appType,
+       x.namespaceName,
        x.traceId)
     )
 

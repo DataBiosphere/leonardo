@@ -715,22 +715,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     for {
       ctx <- ev.ask
 
-      // The "create app" flow does a number of things:
-      //  1. create, poll, and setup cluster if it doesn't exist
-      //  2. create and poll nodepool if it doesn't exist
-      //  3. create and poll disk if it doesn't exist
-      //  4. create and poll app
+      // The "create app" flow potentially does a number of things:
+      //  1. creates a Kubernetes cluster
+      //  2. creates a nodepool within the cluster
+      //  3. creates a disk
+      //  4. creates an app
       //
-      // Numbers 1-3 are all Google calls; (4) is a helm call. If either of (1) or (2) are
-      // necessary then we will do the _initial_ GKE call synchronous to the pubsub processing so
-      // we can nack the message on errors. Monitoring all creations will be asynchronous,
-      // and (3) and (4) will always be asynchronous.
+      // Numbers 1-3 are all Google calls; (4) is a helm call. If (1) is needed, we will do the
+      // _initial_ GKE call synchronous to the pubsub processing so we can nack the message on
+      // errors and retry. All other operations plus monitoring will be asynchronous to the message
+      // handler.
 
-      // Create the cluster or nodepool synchronously if necessary.
-      // The monitor operation is returned so it can be run asynchronously.
-      monitorClusterOrNodepool <- msg.clusterNodepoolAction match {
+      createClusterOrNodepoolOp <- msg.clusterNodepoolAction match {
         case Some(ClusterNodepoolAction.CreateClusterAndNodepool(clusterId, defaultNodepoolId, nodepoolId)) =>
           for {
+            // initial the createCluster call synchronously
             createClusterResultOpt <- gkeInterp
               .createCluster(
                 CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId), false)
@@ -748,6 +747,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                     None
                   )
               }
+            // monitor cluster creation asynchronously
             monitorOp = createClusterResultOpt.traverse_(createClusterResult =>
               gkeInterp
                 .pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
@@ -765,10 +765,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 }
             )
           } yield monitorOp
+
         case Some(ClusterNodepoolAction.CreateNodepool(nodepoolId)) =>
-          for {
-            createNodepoolResultOpt <- gkeInterp
-              .createNodepool(CreateNodepoolParams(nodepoolId, msg.project))
+          // create nodepool asynchronously
+          F.pure(
+            gkeInterp
+              .createAndPollNodepool(CreateNodepoolParams(nodepoolId, msg.project))
               .adaptError {
                 case e =>
                   PubsubKubernetesError(
@@ -779,26 +781,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                     None
                   )
               }
-            monitor = createNodepoolResultOpt.traverse_(createNodepoolResult =>
-              gkeInterp
-                .pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
-                .adaptError {
-                  case e =>
-                    PubsubKubernetesError(
-                      AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
-                      Some(msg.appId),
-                      false,
-                      Some(nodepoolId),
-                      None
-                    )
-                }
-            )
-          } yield monitor
+          )
         case None => F.pure(F.unit)
       }
 
       // create disk asynchronously
-      createDisk = createDiskForApp(msg).adaptError {
+      createDiskOp = createDiskForApp(msg).adaptError {
         case e =>
           PubsubKubernetesError(
             AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
@@ -809,24 +797,23 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
       }
 
-      dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
-      dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
-      createSecondDisk = if (msg.appType == Galaxy) {
-        createGalaxyPostgresDiskOnlyInGoogle(msg.project,
-                                             ZoneName("us-central1-a"),
-                                             msg.appName,
-                                             dbApp.app.appResources.namespace.name).adaptError {
-          case e =>
-            PubsubKubernetesError(AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
-                                  Some(msg.appId),
-                                  false,
-                                  None,
-                                  None)
-        }
+      // create second Galaxy disk asynchronously
+      createSecondDiskOp = if (msg.appType == Galaxy) {
+        createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, msg.namespaceName)
+          .adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
+                Some(msg.appId),
+                false,
+                None,
+                None
+              )
+          }
       } else F.unit
 
       // parallelize disk creation and cluster/nodepool monitoring
-      parPreAppCreationSetup = List(createDisk, createSecondDisk, monitorClusterOrNodepool).parSequence_
+      parPreAppCreationSetup = List(createDiskOp, createSecondDiskOp, createClusterOrNodepoolOp).parSequence_
 
       // build asynchronous task
       task = for {
