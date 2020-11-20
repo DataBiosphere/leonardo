@@ -1,18 +1,30 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package api
 
+import java.net.URL
+import java.time.Instant
+import java.util.UUID
+
 import cats.implicits._
 import io.circe.CursorOp.DownField
 import io.circe.DecodingFailure
 import io.circe.parser.decode
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import io.circe.syntax._
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{auditInfo, _}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   negativeNumberDecodingFailure,
   oneWorkerSpecifiedDecodingFailure
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
+import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.LeoRoutesJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
+import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes.{
+  getRuntimeResponseEncoder,
+  listRuntimeResponseEncoder
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{CreateRuntimeRequest, GetRuntimeResponse}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -237,5 +249,158 @@ class LeoRoutesJsonCodecSpec extends AnyFlatSpec with Matchers {
     )
     res shouldBe (Right(expected))
 
+  }
+
+  it should "encode ListRuntimeResponse2" in {
+    val date = Instant.parse("2020-11-20T17:23:24.650Z")
+    val input = ListRuntimeResponse2(
+      -1,
+      runtimeSamResource,
+      name1,
+      project,
+      auditInfo.copy(createdDate = date, dateAccessed = date),
+      defaultGceRuntimeConfig,
+      new URL("https://leo.org/proxy"),
+      RuntimeStatus.Running,
+      Map("foo" -> "bar"),
+      true
+    )
+
+    val res = input.asJson.spaces2
+    res shouldBe
+      """{
+        |  "id" : -1,
+        |  "runtimeName" : "clustername1",
+        |  "googleProject" : "dsp-leo-test",
+        |  "auditInfo" : {
+        |    "creator" : "user1@example.com",
+        |    "createdDate" : "2020-11-20T17:23:24.650Z",
+        |    "destroyedDate" : null,
+        |    "dateAccessed" : "2020-11-20T17:23:24.650Z"
+        |  },
+        |  "runtimeConfig" : {
+        |    "machineType" : "n1-standard-4",
+        |    "diskSize" : 500,
+        |    "cloudService" : "GCE",
+        |    "bootDiskSize" : 50
+        |  },
+        |  "proxyUrl" : "https://leo.org/proxy",
+        |  "status" : "Running",
+        |  "labels" : {
+        |    "foo" : "bar"
+        |  },
+        |  "patchInProgress" : true
+        |}""".stripMargin
+  }
+
+  it should "encode GetRuntimeResponse" in {
+    val date = Instant.parse("2020-11-20T17:23:24.650Z")
+    val uuid = UUID.fromString("65bc3f6d-a413-4cbe-88f8-b15ed9694543")
+    val input = GetRuntimeResponse(
+      -1,
+      runtimeSamResource,
+      name1,
+      project,
+      serviceAccountEmail,
+      Some(makeAsyncRuntimeFields(1).copy(googleId = GoogleId(uuid.toString))),
+      auditInfo.copy(createdDate = date, dateAccessed = date),
+      Some(date),
+      defaultGceRuntimeConfig,
+      new URL("https://leo.org/proxy"),
+      RuntimeStatus.Running,
+      Map("foo" -> "bar"),
+      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
+      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
+      List.empty,
+      Set.empty,
+      None,
+      30,
+      Some("clientId"),
+      false,
+      Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
+      defaultScopes,
+      true,
+      true,
+      Map("ev1" -> "a", "ev2" -> "b"),
+      Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
+    )
+
+    val res = input.asJson.spaces2
+    res shouldBe
+      """{
+        |  "id" : -1,
+        |  "runtimeName" : "clustername1",
+        |  "googleProject" : "dsp-leo-test",
+        |  "serviceAccount" : "pet-1234567890@test-project.iam.gserviceaccount.com",
+        |  "asyncRuntimeFields" : {
+        |    "googleId" : "65bc3f6d-a413-4cbe-88f8-b15ed9694543",
+        |    "operationName" : "operationName1",
+        |    "stagingBucket" : "stagingbucketname1",
+        |    "hostIp" : "numbers.and.dots"
+        |  },
+        |  "auditInfo" : {
+        |    "creator" : "user1@example.com",
+        |    "createdDate" : "2020-11-20T17:23:24.650Z",
+        |    "destroyedDate" : null,
+        |    "dateAccessed" : "2020-11-20T17:23:24.650Z"
+        |  },
+        |  "runtimeConfig" : {
+        |    "machineType" : "n1-standard-4",
+        |    "diskSize" : 500,
+        |    "cloudService" : "GCE",
+        |    "bootDiskSize" : 50
+        |  },
+        |  "proxyUrl" : "https://leo.org/proxy",
+        |  "status" : "Running",
+        |  "labels" : {
+        |    "foo" : "bar"
+        |  },
+        |  "jupyterUserScriptUri" : "gs://bucket-name/userScript",
+        |  "jupyterStartUserScriptUri" : "gs://bucket-name/startScript",
+        |  "errors" : [
+        |  ],
+        |  "userJupyterExtensionConfig" : null,
+        |  "autopauseThreshold" : 30,
+        |  "defaultClientId" : "clientId",
+        |  "runtimeImages" : [
+        |    {
+        |      "imageType" : "Jupyter",
+        |      "imageUrl" : "init-resources/jupyter-base:latest",
+        |      "timestamp" : "2020-11-20T17:23:24.650Z"
+        |    },
+        |    {
+        |      "imageType" : "Welder",
+        |      "imageUrl" : "welder/welder:latest",
+        |      "timestamp" : "2020-11-20T17:23:24.650Z"
+        |    },
+        |    {
+        |      "imageType" : "Proxy",
+        |      "imageUrl" : "testproxyrepo/test",
+        |      "timestamp" : "2020-11-20T17:23:24.650Z"
+        |    },
+        |    {
+        |      "imageType" : "CryptoDetector",
+        |      "imageUrl" : "crypto/crypto:0.0.1",
+        |      "timestamp" : "2020-11-20T17:23:24.650Z"
+        |    }
+        |  ],
+        |  "scopes" : [
+        |    "https://www.googleapis.com/auth/userinfo.email",
+        |    "https://www.googleapis.com/auth/userinfo.profile",
+        |    "https://www.googleapis.com/auth/bigquery",
+        |    "https://www.googleapis.com/auth/source.read_only"
+        |  ],
+        |  "customEnvironmentVariables" : {
+        |    "ev1" : "a",
+        |    "ev2" : "b"
+        |  },
+        |  "diskConfig" : {
+        |    "name" : "disk",
+        |    "size" : 100,
+        |    "diskType" : "pd-standard",
+        |    "blockSize" : 1024
+        |  },
+        |  "patchInProgress" : true
+        |}""".stripMargin
   }
 }

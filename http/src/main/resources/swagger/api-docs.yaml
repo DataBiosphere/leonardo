@@ -2349,6 +2349,9 @@ components:
           description: Optional environment variables to be set on the runtime.
         diskConfig:
           $ref: "#/components/schemas/DiskConfig"
+        patchInProgress:
+          type: boolean
+          description: Whether there is a patch in progress on the runtime. Is used to indicate updates that require status transitions.
     ListClusterResponse:
       description: ""
       required:
