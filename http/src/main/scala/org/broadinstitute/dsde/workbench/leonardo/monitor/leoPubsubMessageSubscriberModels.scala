@@ -249,18 +249,12 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.BatchNodepoolCreate
   }
 
-  final case class StopAppMessage(appId: AppId,
-                                  nodepoolId: NodepoolLeoId,
-                                  project: GoogleProject,
-                                  traceId: Option[TraceId])
+  final case class StopAppMessage(appId: AppId, appName: AppName, project: GoogleProject, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopApp
   }
 
-  final case class StartAppMessage(appId: AppId,
-                                   nodepoolId: NodepoolLeoId,
-                                   project: GoogleProject,
-                                   traceId: Option[TraceId])
+  final case class StartAppMessage(appId: AppId, appName: AppName, project: GoogleProject, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StartApp
   }
@@ -440,10 +434,10 @@ object LeoPubsubCodec {
     Decoder.forProduct4("clusterId", "nodepools", "project", "traceId")(BatchNodepoolCreateMessage.apply)
 
   implicit val stopAppDecoder: Decoder[StopAppMessage] =
-    Decoder.forProduct4("appId", "nodepoolId", "project", "traceId")(StopAppMessage.apply)
+    Decoder.forProduct4("appId", "appName", "project", "traceId")(StopAppMessage.apply)
 
   implicit val startAppDecoder: Decoder[StartAppMessage] =
-    Decoder.forProduct4("appId", "nodepoolId", "project", "traceId")(StartAppMessage.apply)
+    Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
@@ -743,13 +737,13 @@ object LeoPubsubCodec {
     )
 
   implicit val stopAppMessageEncoder: Encoder[StopAppMessage] =
-    Encoder.forProduct5("messageType", "appId", "nodepoolId", "project", "traceId")(x =>
-      (x.messageType, x.appId, x.nodepoolId, x.project, x.traceId)
+    Encoder.forProduct5("messageType", "appId", "appName", "project", "traceId")(x =>
+      (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
 
   implicit val startAppMessageEncoder: Encoder[StartAppMessage] =
-    Encoder.forProduct5("messageType", "appId", "nodepoolId", "project", "traceId")(x =>
-      (x.messageType, x.appId, x.nodepoolId, x.project, x.traceId)
+    Encoder.forProduct5("messageType", "appId", "appName", "project", "traceId")(x =>
+      (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {

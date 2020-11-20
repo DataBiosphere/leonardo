@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import akka.http.scaladsl.model.StatusCodes
 import java.time.Instant
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -214,20 +214,6 @@ object KubernetesServiceDbQueries {
       _ <- nodepoolQuery.markPendingDeletion(nodepoolId)
       _ <- appQuery.markPendingDeletion(appId)
       _ <- diskId.fold[DBIO[Int]](DBIO.successful(0))(diskId => persistentDiskQuery.markPendingDeletion(diskId, now))
-    } yield ()
-
-  def markPreStopping(nodepoolId: NodepoolLeoId, appId: AppId)(implicit ec: ExecutionContext): DBIO[Unit] =
-    for {
-      _ <- nodepoolQuery.scaleToN(nodepoolId, NumNodes(0))
-      _ <- appQuery.updateStatus(appId, AppStatus.PreStopping)
-    } yield ()
-
-  def markPreStarting(nodepoolId: NodepoolLeoId, appId: AppId, numNodes: NumNodes)(
-    implicit ec: ExecutionContext
-  ): DBIO[Unit] =
-    for {
-      _ <- nodepoolQuery.scaleToN(nodepoolId, numNodes)
-      _ <- appQuery.updateStatus(appId, AppStatus.PreStarting)
     } yield ()
 
   private[db] def listClustersByProject(

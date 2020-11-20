@@ -1629,9 +1629,7 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "handle StopAppMessage" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id)
-      .copy(status = NodepoolStatus.Provisioning, autoscalingEnabled = false, numNodes = NumNodes(0))
-      .save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Stopping).save()
 
     val assertions = for {
@@ -1641,13 +1639,13 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.size shouldBe 0
       getApp.app.status shouldBe AppStatus.Stopped
       getApp.nodepool.status shouldBe NodepoolStatus.Running
-      getApp.nodepool.autoscalingEnabled shouldBe false
-      getApp.nodepool.numNodes shouldBe NumNodes(0)
+      getApp.nodepool.autoscalingEnabled shouldBe true
+      getApp.nodepool.numNodes shouldBe NumNodes(2)
     }
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = StopAppMessage(savedApp1.id, savedNodepool1.id, savedCluster1.googleProject, Some(tr))
+      msg = StopAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1660,9 +1658,7 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "handle StartAppMessage" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id)
-      .copy(status = NodepoolStatus.Provisioning, autoscalingEnabled = false, numNodes = NumNodes(2))
-      .save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Starting).save()
 
     val assertions = for {
@@ -1678,7 +1674,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = StartAppMessage(savedApp1.id, savedNodepool1.id, savedCluster1.googleProject, Some(tr))
+      msg = StartAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
