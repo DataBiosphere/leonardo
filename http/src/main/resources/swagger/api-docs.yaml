@@ -2333,6 +2333,14 @@ components:
           description: The number of minutes of idle time to elapse before the runtime is
             autopaused. A value of 0 is equivalent to autopause being turned
             off.
+        labelsToUpsert:
+          type: object
+          description: A map of label strings to update or add. You cannot alter default labels or add a label with a null value.
+          labelsToDelete:
+            type: array
+            description: A list of strings corresponding the label keys to remove from the runtime labels. You cannot delete a default label.
+            items:
+              $ref: "#/components/schemas/StackTraceElement" //todo emily make this real
         defaultClientId:
           type: string
           description: The default Google Client ID.
