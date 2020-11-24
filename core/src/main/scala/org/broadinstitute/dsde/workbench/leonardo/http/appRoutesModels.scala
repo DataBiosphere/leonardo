@@ -2,16 +2,18 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import java.net.URL
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
+  AppConfig,
   AppError,
   AppName,
   AppStatus,
   AppType,
   AuditInfo,
+  DiskId,
   KubernetesCluster,
   KubernetesClusterStatus,
   KubernetesRuntimeConfig,
@@ -29,6 +31,24 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   labels: LabelMap = Map.empty,
                                   customEnvironmentVariables: Map[String, String])
 
+final case class CreateAppRequest2(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
+                                   appConfig: AppConfigRequest,
+                                   labels: LabelMap = Map.empty,
+                                   customEnvironmentVariables: Map[String, String])
+
+sealed trait AppConfigRequest extends Product with Serializable {
+  def appType: AppType
+  def diskId: DiskId
+}
+object AppConfigRequest {
+  final case class GalaxyConfig(diskId: DiskId, postgresDiskId: DiskId) extends AppConfigRequest {
+    val appType = AppType.Galaxy
+  }
+  final case class Custom(descriptorPath: String, diskId: DiskId) extends AppConfigRequest {
+    val appType = AppType.Custom
+  }
+}
+
 final case class DeleteAppRequest(userInfo: UserInfo,
                                   googleProject: GoogleProject,
                                   appName: AppName,
@@ -42,6 +62,14 @@ final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig
                                 customEnvironmentVariables: Map[String, String],
                                 auditInfo: AuditInfo)
 
+final case class GetAppResponse2(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+                                 errors: List[AppError],
+                                 status: AppStatus, //TODO: do we need some sort of aggregate status?
+                                 proxyUrls: Map[ServiceName, URL],
+                                 appConfig: AppConfig,
+                                 customEnvironmentVariables: Map[String, String],
+                                 auditInfo: AuditInfo)
+
 final case class ListAppResponse(googleProject: GoogleProject,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                  errors: List[AppError],
@@ -50,13 +78,6 @@ final case class ListAppResponse(googleProject: GoogleProject,
                                  appName: AppName,
                                  diskName: Option[DiskName],
                                  auditInfo: AuditInfo)
-
-final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
-                                            kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
-                                            clusterName: Option[KubernetesClusterName])
-
-final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
-
 object ListAppResponse {
   def fromCluster(c: KubernetesCluster, proxyUrlBase: String): List[ListAppResponse] =
     c.nodepools.flatMap(n =>
@@ -76,13 +97,55 @@ object ListAppResponse {
           if (hasError) AppStatus.Error else a.status,
           a.getProxyUrls(c.googleProject, proxyUrlBase),
           a.appName,
-          a.appResources.disk.map(_.name),
+          Some(DiskName("todo")),
           a.auditInfo
         )
       }
     )
 
 }
+
+final case class ListAppResponse2(googleProject: GoogleProject,
+                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
+                                  errors: List[AppError],
+                                  status: AppStatus, //TODO: do we need some sort of aggregate status?
+                                  proxyUrls: Map[ServiceName, URL],
+                                  appName: AppName,
+                                  appConfig: AppConfig,
+                                  auditInfo: AuditInfo)
+object ListAppResponse2 {
+  def fromCluster(c: KubernetesCluster, proxyUrlBase: String): List[ListAppResponse2] =
+    c.nodepools.flatMap(n =>
+      n.apps.map { a =>
+        val hasError = c.status == KubernetesClusterStatus.Error ||
+          n.status == NodepoolStatus.Error ||
+          a.status == AppStatus.Error ||
+          a.errors.length > 0
+        ListAppResponse2(
+          c.googleProject,
+          KubernetesRuntimeConfig(
+            n.numNodes,
+            n.machineType,
+            n.autoscalingEnabled
+          ),
+          a.errors,
+          if (hasError) AppStatus.Error else a.status,
+          a.getProxyUrls(c.googleProject, proxyUrlBase),
+          a.appName,
+          AppConfig
+          a.auditInfo
+        )
+      }
+    )
+}
+
+final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
+                                            kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
+                                            clusterName: Option[KubernetesClusterName])
+
+final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
+
+
 
 object GetAppResponse {
   def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse = {

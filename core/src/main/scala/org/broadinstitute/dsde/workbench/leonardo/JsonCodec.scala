@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.AppType.Custom
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{

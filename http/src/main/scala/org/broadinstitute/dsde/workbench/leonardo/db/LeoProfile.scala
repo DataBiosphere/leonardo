@@ -95,6 +95,17 @@ private[leonardo] object LeoProfile extends MySQLProfile {
             res.fold(e => throw e, identity)
           }
         )
+    implicit val mapListColumnType: BaseColumnType[List[String]] =
+      MappedColumnType.base[List[String], String](
+        _.asJson.printWith(Printer.noSpaces),
+        s => {
+          val res = for {
+            s <- _root_.io.circe.parser.parse(s)
+            list <- s.as[List[String]]
+          } yield list
+          res.fold(e => throw e, identity)
+        }
+      )
     implicit def customImageTypeMapper = MappedColumnType.base[RuntimeImageType, String](
       _.toString,
       s => RuntimeImageType.withName(s)
@@ -222,6 +233,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[ServiceName, String](_.value, ServiceName.apply)
     implicit val serviceKindColumnType: BaseColumnType[KubernetesServiceKindName] =
       MappedColumnType.base[KubernetesServiceKindName, String](_.value, KubernetesServiceKindName.apply)
+    implicit val appConfigIdMappedColumnType: BaseColumnType[AppConfigId] =
+      MappedColumnType.base[AppConfigId, Long](_.id, AppConfigId.apply)
   }
 
   case class ColumnDecodingException(message: String) extends Exception

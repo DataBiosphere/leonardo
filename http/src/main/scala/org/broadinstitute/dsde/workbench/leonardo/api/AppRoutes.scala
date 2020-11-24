@@ -229,7 +229,8 @@ object AppRoutes {
         d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
         l <- x.downField("labels").as[Option[LabelMap]]
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
-      } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty))
+        ca <- x.downField("customAppConfig").as[Option[CustomAppConfigRequest]]
+      } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty), ca)
     }
 
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
@@ -242,6 +243,9 @@ object AppRoutes {
 
   implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] =
     Decoder.forProduct3("numNodepools", "kubernetesRuntimeConfig", "clusterName")(BatchNodepoolCreateRequest.apply)
+
+  implicit val customAppConfigRequestDecoder: Decoder[CustomAppConfigRequest] =
+    Decoder.decodeString.map(CustomAppConfigRequest.apply)
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =

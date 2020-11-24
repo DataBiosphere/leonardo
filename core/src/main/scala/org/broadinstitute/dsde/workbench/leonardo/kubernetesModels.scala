@@ -301,6 +301,10 @@ object AppType {
     override def toString: String = "GALAXY"
   }
 
+  case object Custom extends AppType {
+    override def toString: String = "CUSTOM"
+  }
+
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 }
@@ -309,7 +313,6 @@ final case class AppId(id: Long) extends AnyVal
 final case class AppName(value: String) extends AnyVal
 //These are async from the perspective of Front Leo saving the app record, but both must exist before the helm command is executed
 final case class AppResources(namespace: Namespace,
-                              disk: Option[PersistentDisk],
                               services: List[KubernetesService],
                               kubernetesServiceAccountName: Option[ServiceAccountName])
 
@@ -331,12 +334,27 @@ object Chart {
   }
 }
 
+final case class CustomAppDescriptor(name: String, path: String, version: String, extraArgs: List[String])
+
+final case class AppConfigId(id: Long) extends AnyVal
+sealed trait AppConfig extends Product with Serializable {
+  def appType: AppType
+  def chart: Chart
+  def diskId: DiskId
+}
+object AppConfig {
+  final case class GalaxyConfig(chart: Chart, diskId: DiskId, postgresDiskId: DiskId) extends AppConfig {
+    val appType = AppType.Galaxy
+  }
+  final case class Custom(descriptor: CustomAppDescriptor, chart: Chart, diskId: DiskId) extends AppConfig {
+    val appType = AppType.Custom
+  }
+}
+
 final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
-                     appType: AppType,
                      appName: AppName,
                      status: AppStatus,
-                     chart: Chart,
                      release: Release,
                      samResourceId: AppSamResourceId,
                      googleServiceAccount: WorkbenchEmail,
@@ -345,7 +363,8 @@ final case class App(id: AppId,
                      //this is populated async to app creation
                      appResources: AppResources,
                      errors: List[AppError],
-                     customEnvironmentVariables: Map[String, String]) {
+                     customEnvironmentVariables: Map[String, String],
+                     appConfigId: AppConfigId) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       (service.config.name,
