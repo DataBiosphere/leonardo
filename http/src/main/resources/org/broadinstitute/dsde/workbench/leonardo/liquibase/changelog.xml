@@ -67,4 +67,5 @@
     <include file="changesets/20200921_drop_on_update_pd_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20201026_drop_not_null_constraint_on_error_code_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20201104_add_deletedFrom.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20201124_add_custom_apps.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
