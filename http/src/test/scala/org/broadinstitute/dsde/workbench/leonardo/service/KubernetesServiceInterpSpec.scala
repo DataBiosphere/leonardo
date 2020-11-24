@@ -512,7 +512,9 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id)
+      .copy(status = NodepoolStatus.Unclaimed, auditInfo = auditInfo.copy(creator = WorkbenchEmail("unset")))
+      .save()
 
     val preAppCluster = dbFutureValue {
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
@@ -555,8 +557,12 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
-    val savedNodepool2 = makeNodepool(2, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id)
+      .copy(status = NodepoolStatus.Unclaimed, auditInfo = auditInfo.copy(creator = WorkbenchEmail("unset")))
+      .save()
+    val savedNodepool2 = makeNodepool(2, savedCluster1.id)
+      .copy(status = NodepoolStatus.Unclaimed, auditInfo = auditInfo.copy(creator = WorkbenchEmail("unset")))
+      .save()
 
     val preAppCluster = dbFutureValue {
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
@@ -632,7 +638,9 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id)
+      .copy(status = NodepoolStatus.Unclaimed, auditInfo = auditInfo.copy(creator = WorkbenchEmail("unset")))
+      .save()
 
     val preAppCluster = dbFutureValue {
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
