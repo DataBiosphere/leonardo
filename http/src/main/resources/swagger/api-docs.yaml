@@ -3251,7 +3251,7 @@ components:
           $ref: '#/components/schemas/PersistentDiskRequest'
         appType:
           type: string
-          description: currently only "GALAXY" is supported
+          description: currently only "GALAXY" or "CUSTOM" is supported
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         labels:
@@ -3260,6 +3260,12 @@ components:
         customEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the app
+        descriptorPath:
+          type: string
+          description: URL path to an app descriptor file. Only used if appType is CUSTOM.
+        extraArgs:
+          type: array
+          description: Extra arguments to pass to the application. Only used if appType is CUSTOM.
 
     BatchNodepoolCreateRequest:
       description: The configuration for a pool of nodepools, used to create a cluster with pre-created nodepools
