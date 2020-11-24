@@ -229,7 +229,15 @@ object AppRoutes {
         d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
         l <- x.downField("labels").as[Option[LabelMap]]
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
-      } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty))
+        dp <- x.downField("descriptorPath").as[Option[String]]
+        ea <- x.downField("extraArgs").as[Option[List[String]]]
+      } yield CreateAppRequest(c,
+                               a.getOrElse(AppType.Galaxy),
+                               d,
+                               l.getOrElse(Map.empty),
+                               cv.getOrElse(Map.empty),
+                               dp,
+                               ea.getOrElse(List.empty))
     }
 
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>

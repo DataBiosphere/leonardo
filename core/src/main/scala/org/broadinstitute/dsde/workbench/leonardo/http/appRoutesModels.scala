@@ -27,7 +27,9 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   appType: AppType,
                                   diskConfig: Option[PersistentDiskRequest],
                                   labels: LabelMap = Map.empty,
-                                  customEnvironmentVariables: Map[String, String])
+                                  customEnvironmentVariables: Map[String, String],
+                                  descriptorPath: Option[String],
+                                  extraArgs: List[String])
 
 final case class DeleteAppRequest(userInfo: UserInfo,
                                   googleProject: GoogleProject,

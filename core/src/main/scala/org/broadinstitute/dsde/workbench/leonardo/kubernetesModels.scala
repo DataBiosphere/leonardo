@@ -301,6 +301,10 @@ object AppType {
     override def toString: String = "GALAXY"
   }
 
+  case object Custom extends AppType {
+    override def toString: String = "CUSTOM"
+  }
+
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
 }
@@ -331,6 +335,8 @@ object Chart {
   }
 }
 
+final case class AppDescriptor(name: String, path: String, version: String)
+
 final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
                      appType: AppType,
@@ -345,7 +351,9 @@ final case class App(id: AppId,
                      //this is populated async to app creation
                      appResources: AppResources,
                      errors: List[AppError],
-                     customEnvironmentVariables: Map[String, String]) {
+                     customEnvironmentVariables: Map[String, String],
+                     descriptor: Option[AppDescriptor],
+                     extraArgs: List[String]) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       (service.config.name,
