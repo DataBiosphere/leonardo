@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeService
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
@@ -381,20 +381,7 @@ object RuntimeRoutes {
       ul <- x.downField("labelsToUpsert").as[Option[LabelMap]]
       dl <- x.downField("labelsToDelete").as[Option[List[String]]]
     } yield {
-      val defaultLabels =
-        DefaultRuntimeLabels(RuntimeName(""),
-                             GoogleProject(""),
-                             WorkbenchEmail(""),
-                             WorkbenchEmail(""),
-                             None,
-                             None,
-                             None).toMap
-      val ke = defaultLabels.keySet
-
-      //.filter(_.resourceType === LabelResourceType.runtime)
-      //      .filter(_.key === Config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey)
-      //      .filter(_.value === "false")
-      val labelsToUpdate = ul.getOrElse(Map.empty).filter(x => x._2.nonEmpty || ke.contains(x._1))
+      val labelsToUpdate = ul.getOrElse(Map.empty).filter { case (_, v) => v.nonEmpty }
       UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), labelsToUpdate, dl.getOrElse(List.empty))
     }
   }
