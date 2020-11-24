@@ -174,6 +174,15 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       .result
       .map(ns => ns.map(n => unmarshalNodepool(n, List())).headOption)
 
+  def getForUser(clusterId: KubernetesClusterLeoId,
+                 user: WorkbenchEmail)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+    nodepoolQuery
+      .filter(_.clusterId === clusterId)
+      .filter(_.isDefault === false)
+      .filter(_.creator === user)
+      .result
+      .map(ns => ns.map(n => unmarshalNodepool(n, List())).headOption)
+
   private[db] def pendingDeletionFromQuery(baseQuery: Query[NodepoolTable, NodepoolRecord, Seq]): DBIO[Int] =
     baseQuery
       .map(_.status)

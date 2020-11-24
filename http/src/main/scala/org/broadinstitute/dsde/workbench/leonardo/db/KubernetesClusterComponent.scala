@@ -163,7 +163,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
         unmarshalKubernetesCluster(
           clusterRec,
           nodepools.toSet.map(rec => unmarshalNodepool(rec, List.empty)).toList,
-          clusterNamespaces.toSet[NamespaceRecord].map(rec => Namespace(rec.id, rec.namespaceName)).toList
+          clusterNamespaces.toSet[NamespaceRecord].map(rec => Namespace(rec.id, rec.namespaceName, rec.creator)).toList
         )
     }.toSeq
   }

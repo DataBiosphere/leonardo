@@ -123,7 +123,7 @@ object KubernetesTestData {
 
   def makeNamespace(index: Int, prefix: String = ""): Namespace = {
     val name = NamespaceName(prefix + "namespace" + index)
-    Namespace(NamespaceId(-1), name)
+    Namespace(NamespaceId(-1), name, userEmail)
   }
 
   def makeApp(index: Int, nodepoolId: NodepoolLeoId): App = {

@@ -654,6 +654,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -737,6 +738,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       msg2 = CreateAppMessage(
@@ -748,6 +750,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp2.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -797,6 +800,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -840,6 +844,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -883,6 +888,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -934,6 +940,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -975,6 +982,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1351,6 +1359,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1490,6 +1499,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1572,6 +1582,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1646,6 +1657,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         AppType.Galaxy,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
@@ -1813,6 +1825,7 @@ class LeoPubsubMessageSubscriberSpec
         Map.empty,
         savedApp1.appType,
         savedApp1.appResources.namespace.name,
+        true,
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)

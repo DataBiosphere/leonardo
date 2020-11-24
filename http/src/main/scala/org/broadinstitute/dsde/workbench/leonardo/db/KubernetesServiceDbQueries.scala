@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unma
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
 import org.broadinstitute.dsde.workbench.leonardo.http.GetAppResult
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
@@ -75,6 +76,16 @@ object KubernetesServiceDbQueries {
             .map(c => ClusterDoesNotExist(c, DefaultNodepool.fromNodepool(c.nodepools.head)))
       }
     } yield eitherClusterOrError
+
+  def getNodepoolForUser(clusterId: KubernetesClusterLeoId,
+                         email: WorkbenchEmail)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+    for {
+      userNodepoolOpt <- nodepoolQuery.getForUser(clusterId, email)
+      res <- userNodepoolOpt match {
+        case Some(userNp) => DBIO.successful(Some(userNp))
+        case None         => nodepoolQuery.claimNodepool(clusterId)
+      }
+    } yield res
 
   def getActiveFullAppByName(googleProject: GoogleProject, appName: AppName, labelFilter: LabelMap = Map())(
     implicit ec: ExecutionContext
@@ -328,7 +339,7 @@ object KubernetesServiceDbQueries {
         unmarshalKubernetesCluster(
           clusterRec,
           unmarshalNodepoolMap(nodepoolMap),
-          clusterNamespaces.toSet[NamespaceRecord].map(rec => Namespace(rec.id, rec.namespaceName)).toList
+          clusterNamespaces.toSet[NamespaceRecord].map(rec => Namespace(rec.id, rec.namespaceName, rec.creator)).toList
         )
     }.toSeq
   }

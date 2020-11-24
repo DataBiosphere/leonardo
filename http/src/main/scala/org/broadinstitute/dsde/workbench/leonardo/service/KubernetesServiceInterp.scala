@@ -87,18 +87,17 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      claimedNodepoolOpt <- nodepoolQuery.claimNodepool(clusterId).transaction
-      nodepool <- claimedNodepoolOpt match {
+      nodepoolOpt <- KubernetesServiceDbQueries.getNodepoolForUser(clusterId, userInfo.userEmail).transaction
+      nodepool <- nodepoolOpt match {
+        case Some(np) => F.pure(np)
         case None =>
           for {
             saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
-            savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
-          } yield savedNodepool
-        case Some(n) =>
-          log.info(s"claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject}") >> F.pure(
-            n
-          )
+            res <- nodepoolQuery.saveForCluster(saveNodepool).transaction
+          } yield res
       }
+
+      namespaceOpt <- namespaceQuery.getForUser(clusterId, userInfo.userEmail).transaction
 
       runtimeServiceAccountOpt <- serviceAccountProvider
         .getClusterServiceAccount(userInfo, googleProject)
@@ -127,6 +126,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           samResourceId,
           req,
           diskResultOpt.map(_.disk),
+          namespaceOpt,
           petSA,
           nodepool.id,
           ctx
@@ -137,7 +137,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       clusterNodepoolAction = saveClusterResult match {
         case ClusterExists(_) =>
           // If we're claiming a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
-          if (claimedNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
+          if (nodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
         case ClusterDoesNotExist(c, n) => Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
       }
       createAppMessage = CreateAppMessage(
@@ -149,6 +149,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         req.customEnvironmentVariables,
         req.appType,
         app.appResources.namespace.name,
+        namespaceOpt.isEmpty,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.enqueue1(createAppMessage)
@@ -467,6 +468,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
                                      samResourceId: AppSamResourceId,
                                      req: CreateAppRequest,
                                      diskOpt: Option[PersistentDisk],
+                                     namespaceOpt: Option[Namespace],
                                      googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
                                      ctx: AppContext): Either[Throwable, SaveApp] = {
@@ -485,10 +487,10 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         Left(IllegalLabelKeyException(includeDeletedKey))
       else
         Right(allLabels)
-      //galaxy apps need a disk
-      disk <- if (req.appType == AppType.Galaxy && diskOpt.isEmpty)
-        Left(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
-      else Right(diskOpt)
+
+      // all apps need a disk
+      // TODO make this non optional in the request
+      disk <- diskOpt.toRight(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
 
       // Generate namespace and app release names using a random 6-character string prefix.
       //
@@ -504,10 +506,13 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       //
       // There are DB constraints to handle potential name collisions.
       uid = s"${RandomStringUtils.randomAlphabetic(1)}${RandomStringUtils.randomAlphanumeric(5)}".toLowerCase
-      namespaceName <- KubernetesName.withValidation(
-        s"${uid}-${galaxyConfig.namespaceNameSuffix}",
-        NamespaceName.apply
-      )
+      namespace <- namespaceOpt match {
+        case Some(ns) => Right(ns)
+        case None =>
+          KubernetesName.withValidation(s"${uid}-${galaxyConfig.namespaceNameSuffix}", NamespaceName.apply).map {
+            name => Namespace(NamespaceId(-1), name, userInfo.userEmail)
+          }
+      }
       release <- KubernetesName.withValidation(
         s"${uid}-${galaxyConfig.releaseNameSuffix}",
         Release.apply
@@ -526,11 +531,8 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         auditInfo,
         labels,
         AppResources(
-          Namespace(
-            NamespaceId(-1),
-            namespaceName
-          ),
-          disk,
+          namespace,
+          Some(disk),
           req.appType match {
             case Galaxy =>
               galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))

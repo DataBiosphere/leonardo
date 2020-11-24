@@ -58,7 +58,7 @@ final case class PollClusterParams(clusterId: KubernetesClusterLeoId,
 
 final case class CreateNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
 
-final case class CreateAppParams(appId: AppId, googleProject: GoogleProject, appName: AppName)
+final case class CreateAppParams(appId: AppId, googleProject: GoogleProject, appName: AppName, createNamespace: Boolean)
 
 final case class DeleteClusterParams(clusterId: KubernetesClusterLeoId, googleProject: GoogleProject)
 

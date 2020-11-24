@@ -11,5 +11,12 @@
                 <constraints nullable="true"/>
             </column>
         </addColumn>
+        <addColumn tableName="NAMESPACE">
+            <column name="creator" type="varchar(254)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <sql>UPDATE NAMESPACE SET creator = 'unset' WHERE creator IS NULL</sql>
+        <addNotNullConstraint columnName="creator" columnDataType="VARCHAR(254)" tableName="NAMESPACE"/>
     </changeSet>
 </databaseChangeLog>

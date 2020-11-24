@@ -822,7 +822,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         _ <- parPreAppCreationSetup
         // create and monitor app
         _ <- gkeInterp
-          .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName))
+          .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName, msg.createNamespace))
           .onError { case _ => cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk) }
           .adaptError {
             case e =>

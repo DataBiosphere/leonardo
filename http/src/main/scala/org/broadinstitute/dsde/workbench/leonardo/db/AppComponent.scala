@@ -152,8 +152,14 @@ object appQuery extends TableQuery(new AppTable(_)) {
         DBIO.failed(AppExistsForProjectException(appResult.app.appName, cluster.googleProject))
       )
 
-      namespaceId <- namespaceQuery.save(nodepool.clusterId, namespaceName)
-      namespace = saveApp.app.appResources.namespace.copy(id = namespaceId)
+      nsOpt <- namespaceQuery.getByName(nodepool.clusterId, namespaceName)
+      namespace <- nsOpt match {
+        case Some(ns) => DBIO.successful(ns)
+        case None =>
+          namespaceQuery.save(nodepool.clusterId, namespaceName, saveApp.app.auditInfo.creator).map { id =>
+            saveApp.app.appResources.namespace.copy(id = id)
+          }
+      }
 
       diskOpt = saveApp.app.appResources.disk
 
@@ -174,7 +180,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.auditInfo.createdDate,
         saveApp.app.auditInfo.destroyedDate.getOrElse(dummyDate),
         saveApp.app.auditInfo.dateAccessed,
-        namespaceId,
+        namespace.id,
         diskOpt.map(_.id),
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
         saveApp.app.descriptorPath,

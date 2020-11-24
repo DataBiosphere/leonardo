@@ -170,7 +170,7 @@ object NodepoolStatus {
 
 final case class KubernetesClusterLeoId(id: Long) extends AnyVal
 final case class NamespaceId(id: Long) extends AnyVal
-final case class Namespace(id: NamespaceId, name: NamespaceName)
+final case class Namespace(id: NamespaceId, name: NamespaceName, creator: WorkbenchEmail)
 
 final case class Nodepool(id: NodepoolLeoId,
                           clusterId: KubernetesClusterLeoId,

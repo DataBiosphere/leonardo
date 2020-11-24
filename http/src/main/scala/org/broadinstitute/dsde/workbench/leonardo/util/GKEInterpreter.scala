@@ -317,52 +317,56 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Beginning app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      // Create namespace and secrets
-      _ <- logger.info(
-        s"Creating namespace ${namespaceName.value} and secrets for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
-      )
-
-      _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
-      secrets <- getSecrets(namespaceName)
-      _ <- secrets.parTraverse(secret =>
-        kubeService.createSecret(gkeClusterId, KubernetesNamespace(namespaceName), secret)
-      )
-
-      // Create KSA
-      ksaName = config.galaxyAppConfig.serviceAccount
-      gsa = dbApp.app.googleServiceAccount
-      annotations = Map("iam.gke.io/gcp-service-account" -> gsa.value)
-      ksa = KubernetesModels.KubernetesServiceAccount(ksaName, annotations)
-
-      _ <- logger.info(
-        s"Creating Kubernetes service account ${ksaName.value} for app  ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
-      )
-      _ <- kubeService.createServiceAccount(gkeClusterId, ksa, KubernetesNamespace(namespaceName))
-
-      // update KSA in DB
-      _ <- appQuery.updateKubernetesServiceAccount(app.id, ksaName).transaction
-
-      // Associate GSA to newly created KSA
-      // This string is constructed based on Google requirements to associate a GSA to a KSA
-      // (https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#creating_a_relationship_between_ksas_and_gsas)
-      ksaToGsa = s"${googleProject.value}.svc.id.goog[${namespaceName.value}/${ksaName.value}]"
-      call = Async[F].liftIO(
-        IO.fromFuture(
-          IO(
-            googleIamDAO.addIamPolicyBindingOnServiceAccount(googleProject,
-                                                             gsa,
-                                                             WorkbenchEmail(ksaToGsa),
-                                                             Set("roles/iam.workloadIdentityUser"))
+      _ <- if (params.createNamespace) {
+        for {
+          // Create namespace and secrets
+          _ <- logger.info(
+            s"Creating namespace ${namespaceName.value} and secrets for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
           )
-        )
-      )
-      retryConfig = RetryPredicates.retryConfigWithPredicates(
-        when409
-      )
-      _ <- tracedRetryGoogleF(retryConfig)(
-        call,
-        s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
-      ).compile.lastOrError
+
+          _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
+          secrets <- getSecrets(namespaceName)
+          _ <- secrets.parTraverse(secret =>
+            kubeService.createSecret(gkeClusterId, KubernetesNamespace(namespaceName), secret)
+          )
+
+          // Create KSA
+          ksaName = config.galaxyAppConfig.serviceAccount
+          gsa = dbApp.app.googleServiceAccount
+          annotations = Map("iam.gke.io/gcp-service-account" -> gsa.value)
+          ksa = KubernetesModels.KubernetesServiceAccount(ksaName, annotations)
+
+          _ <- logger.info(
+            s"Creating Kubernetes service account ${ksaName.value} for app  ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+          )
+          _ <- kubeService.createServiceAccount(gkeClusterId, ksa, KubernetesNamespace(namespaceName))
+
+          // update KSA in DB
+          _ <- appQuery.updateKubernetesServiceAccount(app.id, ksaName).transaction
+
+          // Associate GSA to newly created KSA
+          // This string is constructed based on Google requirements to associate a GSA to a KSA
+          // (https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#creating_a_relationship_between_ksas_and_gsas)
+          ksaToGsa = s"${googleProject.value}.svc.id.goog[${namespaceName.value}/${ksaName.value}]"
+          call = Async[F].liftIO(
+            IO.fromFuture(
+              IO(
+                googleIamDAO.addIamPolicyBindingOnServiceAccount(googleProject,
+                                                                 gsa,
+                                                                 WorkbenchEmail(ksaToGsa),
+                                                                 Set("roles/iam.workloadIdentityUser"))
+              )
+            )
+          )
+          retryConfig = RetryPredicates.retryConfigWithPredicates(
+            when409
+          )
+          _ <- tracedRetryGoogleF(retryConfig)(
+            call,
+            s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
+          ).compile.lastOrError
+        } yield ()
+      } else F.unit
 
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
@@ -390,11 +394,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             namespaceName,
             app.auditInfo.creator,
             app.customEnvironmentVariables,
-            ksaName,
+            config.galaxyAppConfig.serviceAccount,
             nfsDisk
           )
         case AppType.Custom =>
-          installCustomApp(app.appName,
+          installCustomApp(app.id,
+                           app.appName,
                            app.release,
                            dbCluster,
                            googleCluster,
@@ -783,7 +788,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
     } yield loadBalancerIp
 
-  private[util] def installCustomApp(appName: AppName,
+  private[util] def installCustomApp(appId: AppId,
+                                     appName: AppName,
                                      release: Release,
                                      dbCluster: KubernetesCluster,
                                      googleCluster: Cluster,
@@ -804,6 +810,18 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       descriptor <- appDescriptorDAO.getDescriptor(descriptorPath)
       // TODO we're only handling 1 service for now
       (serviceName, serviceConfig) = descriptor.services.head
+
+      // Save the service in the DB
+      _ <- serviceQuery
+        .saveForApp(
+          appId,
+          KubernetesService(
+            ServiceId(-1),
+            ServiceConfig(ServiceName(serviceName),
+                          org.broadinstitute.dsde.workbench.leonardo.KubernetesServiceKindName("ClusterIP"))
+          )
+        )
+        .transaction
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 

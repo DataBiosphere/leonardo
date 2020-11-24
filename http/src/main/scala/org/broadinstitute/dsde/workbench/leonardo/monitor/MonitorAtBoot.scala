@@ -153,6 +153,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
             app.customEnvironmentVariables,
             app.appType,
             app.appResources.namespace.name,
+            true, // TODO
             Some(traceId)
           )
         } yield msg

@@ -111,6 +111,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       Map.empty,
       Galaxy,
       NamespaceName("ns"),
+      true,
       Some(traceId)
     )
 
