@@ -18,7 +18,11 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels._
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  ServiceAccountName,
+  ServiceName
+}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
@@ -29,7 +33,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.GalaxyDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDescriptorDAO, CustomAppService, GalaxyDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -42,6 +46,7 @@ import scala.jdk.CollectionConverters._
 final case class GKEInterpreterConfig(securityFiles: SecurityFilesConfig,
                                       ingressConfig: KubernetesIngressConfig,
                                       galaxyAppConfig: GalaxyAppConfig,
+                                      customAppConfig: CustomAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
                                       proxyConfig: ProxyConfig,
@@ -55,6 +60,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   galaxyDAO: GalaxyDAO[F],
   credentials: GoogleCredentials,
   googleIamDAO: GoogleIamDAO,
+  appDescriptorDAO: AppDescriptorDAO[F],
   blocker: Blocker,
   nodepoolLock: KeyLock[F, KubernetesClusterId]
 )(implicit val executionContext: ExecutionContext,
@@ -373,18 +379,31 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // helm install galaxy and wait
-      _ <- installGalaxy(
-        app.appName,
-        app.release,
-        dbCluster,
-        googleCluster,
-        dbApp.nodepool.nodepoolName,
-        namespaceName,
-        app.auditInfo.creator,
-        app.customEnvironmentVariables,
-        ksaName,
-        nfsDisk
-      )
+      _ <- app.appType match {
+        case AppType.Galaxy =>
+          installGalaxy(
+            app.appName,
+            app.release,
+            dbCluster,
+            googleCluster,
+            dbApp.nodepool.nodepoolName,
+            namespaceName,
+            app.auditInfo.creator,
+            app.customEnvironmentVariables,
+            ksaName,
+            nfsDisk
+          )
+        case AppType.Custom =>
+          installCustomApp(app.appName,
+                           app.release,
+                           dbCluster,
+                           googleCluster,
+                           dbApp.nodepool.nodepoolName,
+                           namespaceName,
+                           nfsDisk,
+                           app.descriptorPath.get, // TODO
+                           app.extraArgs)
+      }
 
       _ <- logger.info(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
@@ -764,6 +783,71 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
     } yield loadBalancerIp
 
+  private[util] def installCustomApp(appName: AppName,
+                                     release: Release,
+                                     dbCluster: KubernetesCluster,
+                                     googleCluster: Cluster,
+                                     nodepoolName: NodepoolName,
+                                     namespaceName: NamespaceName,
+                                     disk: PersistentDisk,
+                                     descriptorPath: String,
+                                     extraArgs: List[String])(
+    implicit ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      _ <- logger.info(
+        s"Installing helm chart ${config.customAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      )
+
+      descriptor <- appDescriptorDAO.getDescriptor(descriptorPath)
+      // TODO we're only handling 1 service for now
+      (serviceName, serviceConfig) = descriptor.services.head
+
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+
+      chartValues = buildCustomChartOverrideValuesString(appName,
+                                                         nodepoolName,
+                                                         serviceName,
+                                                         dbCluster,
+                                                         namespaceName,
+                                                         serviceConfig,
+                                                         extraArgs,
+                                                         disk)
+
+      _ <- logger.info(
+        s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
+      )
+
+      // Invoke helm
+      _ <- helmClient
+        .installChart(
+          release,
+          config.customAppConfig.chartName,
+          config.customAppConfig.chartVersion,
+          org.broadinstitute.dsp.Values(chartValues)
+        )
+        .run(helmAuthContext)
+
+      // Poll galaxy until it starts up
+      last <- streamFUntilDone(
+        descriptor.services.keys.toList.traverse(s =>
+          galaxyDAO.isProxyAvailable(dbCluster.googleProject, appName, ServiceName(s))
+        ),
+        config.monitorConfig.createApp.maxAttempts,
+        config.monitorConfig.createApp.interval
+      ).compile.lastOrError
+
+      _ <- if (!last.isDone) {
+        val msg =
+          s"App installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        logger.error(msg) >>
+          F.raiseError[Unit](AppCreationException(msg))
+      } else F.unit
+
+    } yield ()
+
   private[util] def installGalaxy(appName: AppName,
                                   release: Release,
                                   dbCluster: KubernetesCluster,
@@ -970,6 +1054,49 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     )
   }
 
+  private[util] def buildCustomChartOverrideValuesString(appName: AppName,
+                                                         nodepoolName: NodepoolName,
+                                                         serviceName: String,
+                                                         cluster: KubernetesCluster,
+                                                         namespaceName: NamespaceName,
+                                                         service: CustomAppService,
+                                                         extraArgs: List[String],
+                                                         disk: PersistentDisk): String = {
+    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
+    val leoProxyhost = config.proxyConfig.getProxyServerHostName
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/${serviceName}"
+
+    val command = service.command.zipWithIndex.map {
+      case (c, i) =>
+        raw"""image.command[$i]=$c"""
+    }
+    val args = service.args.zipWithIndex.map {
+      case (a, i) =>
+        raw"""image.args[$i]=$a"""
+    } ++ extraArgs.zipWithIndex.map {
+      case (a, i) =>
+        raw"""image.args[${i + service.args.length}]=$a"""
+    }
+
+    (List(
+      raw"""nameOverride=${serviceName}""",
+      // Image
+      raw"""image.image=${service.image.imageUrl}""",
+      raw"""image.port=${service.port}""",
+      // Ingress
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
+      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
+      raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}""",
+      // Node selector
+      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      // Persistence
+      raw"""persistence.size=${disk.size.gb.toString}G""",
+      raw"""persistence.gcePersistentDisk=${disk.name.value}"""
+    ) ++ command ++ args).mkString(",")
+  }
+
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
                                                          release: Release,
                                                          cluster: KubernetesCluster,
@@ -1058,8 +1185,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   // DoneCheckable instances
   implicit private def optionDoneCheckable[A]: DoneCheckable[Option[A]] = (a: Option[A]) => a.isDefined
   implicit private def booleanDoneCheckable: DoneCheckable[Boolean] = identity[Boolean]
-  implicit private def podDoneCheckable: DoneCheckable[List[KubernetesPodStatus]] =
-    (ps: List[KubernetesPodStatus]) => ps.forall(isPodDone)
+  implicit private def podDoneCheckable: DoneCheckable[List[KubernetesPodStatus]] = { (ps: List[KubernetesPodStatus]) =>
+    ps.forall(isPodDone)
+  }
+  implicit private def listDoneCheckable[A: DoneCheckable]: DoneCheckable[List[A]] = as => as.forall(_.isDone)
 }
 
 sealed trait AppProcessingException extends Exception {

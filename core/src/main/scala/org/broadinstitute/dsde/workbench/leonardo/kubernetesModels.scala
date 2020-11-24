@@ -335,8 +335,6 @@ object Chart {
   }
 }
 
-final case class AppDescriptor(name: String, path: String, version: String)
-
 final case class App(id: AppId,
                      nodepoolId: NodepoolLeoId,
                      appType: AppType,
@@ -352,7 +350,7 @@ final case class App(id: AppId,
                      appResources: AppResources,
                      errors: List[AppError],
                      customEnvironmentVariables: Map[String, String],
-                     descriptor: Option[AppDescriptor],
+                     descriptorPath: Option[String],
                      extraArgs: List[String]) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>

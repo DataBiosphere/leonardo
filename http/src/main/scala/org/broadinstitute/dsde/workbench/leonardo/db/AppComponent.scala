@@ -3,17 +3,17 @@ package db
 
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
-import cats.implicits._
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import slick.lifted.Tag
-import LeoProfile.api._
-import LeoProfile.mappedColumnImplicits._
+
 import akka.http.scaladsl.model.StatusCodes
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.Release
+import slick.lifted.Tag
 
 import scala.concurrent.ExecutionContext
 
@@ -34,9 +34,7 @@ final case class AppRecord(id: AppId,
                            namespaceId: NamespaceId,
                            diskId: Option[DiskId],
                            customEnvironmentVariables: Option[Map[String, String]],
-                           descriptorName: Option[String],
                            descriptorPath: Option[String],
-                           descriptorVersion: Option[String],
                            extraArgs: List[String])
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
@@ -58,9 +56,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def namespaceId = column[NamespaceId]("namespaceId", O.Length(254))
   def diskId = column[Option[DiskId]]("diskId", O.Length(254))
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
-  def descriptorName = column[Option[String]]("descriptorName", O.Length(254))
   def descriptorPath = column[Option[String]]("descriptorPath", O.Length(1024))
-  def descriptorVersion = column[Option[String]]("descriptorVersion", O.Length(254))
   def extraArgs = column[List[String]]("extraArgs")
 
   def * =
@@ -82,9 +78,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       namespaceId,
       diskId,
       customEnvironmentVariables,
-      descriptorName,
       descriptorPath,
-      descriptorVersion,
       extraArgs
     ) <> (AppRecord.tupled, AppRecord.unapply)
 }
@@ -121,7 +115,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       ),
       errors,
       app.customEnvironmentVariables.getOrElse(Map.empty),
-      (app.descriptorName, app.descriptorPath, app.descriptorVersion).mapN(AppDescriptor),
+      app.descriptorPath,
       app.extraArgs
     )
 
@@ -183,9 +177,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         namespaceId,
         diskOpt.map(_.id),
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
-        saveApp.app.descriptor.map(_.name),
-        saveApp.app.descriptor.map(_.path),
-        saveApp.app.descriptor.map(_.version),
+        saveApp.app.descriptorPath,
         saveApp.app.extraArgs
       )
       appId <- appQuery returning appQuery.map(_.id) += record

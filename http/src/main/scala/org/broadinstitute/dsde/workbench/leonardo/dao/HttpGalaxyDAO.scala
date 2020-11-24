@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.AppName
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.KubernetesDnsCache
@@ -13,7 +14,7 @@ class HttpGalaxyDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCach
                                                            client: Client[F])
     extends GalaxyDAO[F] {
 
-  def isProxyAvailable(googleProject: GoogleProject, appName: AppName): F[Boolean] =
+  def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean] =
     Proxy.getAppTargetHost[F](kubernetesDnsCache, googleProject, appName) flatMap {
       case HostReady(targetHost) =>
         client
@@ -21,7 +22,7 @@ class HttpGalaxyDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCach
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/galaxy/"
+                s"https://${targetHost.toString}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
               )
             )
           )
@@ -30,6 +31,10 @@ class HttpGalaxyDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCach
     }
 }
 
+// TODO maybe rename this so it's not Galaxy-specific
 trait GalaxyDAO[F[_]] {
-  def isProxyAvailable(googleProject: GoogleProject, appName: AppName): F[Boolean]
+  def isProxyAvailable(googleProject: GoogleProject, appName: AppName): F[Boolean] =
+    isProxyAvailable(googleProject, appName, ServiceName("galaxy"))
+
+  def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean]
 }

@@ -15,7 +15,7 @@ import io.chrisdavenport.log4cats.StructuredLogger
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.AppType.{Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -119,8 +119,6 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         )
       )
 
-      descriptorAndServices <- req.descriptorPath.traverse(processDescriptorPath)
-
       saveApp <- F.fromEither(
         getSavableApp(
           googleProject,
@@ -131,8 +129,6 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           diskResultOpt.map(_.disk),
           petSA,
           nodepool.id,
-          descriptorAndServices.map(_._1),
-          descriptorAndServices.map(_._2).getOrElse(List.empty),
           ctx
         )
       )
@@ -465,9 +461,6 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
     )
   }
 
-  private[service] def processDescriptorPath(path: String): F[(AppDescriptor, List[ServiceName])] =
-    F.pure((AppDescriptor("todo", "todo", "todo"), List(ServiceName("todo"))))
-
   private[service] def getSavableApp(googleProject: GoogleProject,
                                      appName: AppName,
                                      userInfo: UserInfo,
@@ -476,8 +469,6 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
                                      diskOpt: Option[PersistentDisk],
                                      googleServiceAccount: WorkbenchEmail,
                                      nodepoolId: NodepoolLeoId,
-                                     appDescriptor: Option[AppDescriptor],
-                                     services: List[ServiceName],
                                      ctx: AppContext): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
@@ -544,15 +535,14 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
             case Galaxy =>
               galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))
             case Custom =>
-              services.map(s =>
-                KubernetesService(ServiceId(-1), ServiceConfig(s, KubernetesServiceKindName("ClusterIP")))
-              )
+              // Back Leo will populate services when it parses the descriptor
+              List.empty
           },
           Option.empty
         ),
         List.empty,
         req.customEnvironmentVariables,
-        appDescriptor,
+        req.descriptorPath,
         req.extraArgs
       )
     )

@@ -119,6 +119,7 @@ object Dependencies {
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.107.0-alpha" % Test // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
+  val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.12.0"
   val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val fs2Io: ModuleID =   "co.fs2"            %% "fs2-io"               % "2.4.4"
@@ -142,6 +143,7 @@ object Dependencies {
     sealerate,
     enumeratum,
     http4sCirce,
+    circeYaml,
     http4sBlazeClient,
     http4sDsl,
     scalaTestScalaCheck
