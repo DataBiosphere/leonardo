@@ -19,9 +19,9 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{
-  MockGKEService,
   FakeGoogleComputeService,
   MockComputePollOperation,
+  MockGKEService,
   MockKubernetesService => WbLibsMockKubernetesService
 }
 import org.broadinstitute.dsde.workbench.google2.{
@@ -44,7 +44,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGalaxyDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDescriptorDAO, MockGalaxyDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
@@ -1135,6 +1135,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   MockAppDescriptorDAO,
                                    blocker,
                                    lock)
 
@@ -1190,6 +1191,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   MockAppDescriptorDAO,
                                    blocker,
                                    lock)
 
@@ -1450,6 +1452,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   MockAppDescriptorDAO,
                                    blocker,
                                    lock)
 
@@ -1533,6 +1536,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   MockAppDescriptorDAO,
                                    blocker,
                                    lock)
 
@@ -1612,6 +1616,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAO,
+                                   MockAppDescriptorDAO,
                                    blocker,
                                    lock)
 
@@ -1665,6 +1670,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   MockAppDescriptorDAO,
                                    blocker,
                                    lock)
 
@@ -1906,6 +1912,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   MockAppDescriptorDAO,
                                    blocker,
                                    lock)
 

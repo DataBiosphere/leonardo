@@ -60,7 +60,9 @@ object KubernetesTestData {
     AppType.Galaxy,
     None,
     Map.empty,
-    Map.empty
+    Map.empty,
+    None,
+    List.empty
   )
 
   val batchNodepoolCreateRequest = BatchNodepoolCreateRequest(NumNodepools(100), Some(kubernetesRuntimeConfig), None)
@@ -146,7 +148,9 @@ object KubernetesTestData {
         Option.empty
       ),
       List.empty,
-      Map.empty
+      Map.empty,
+      None,
+      List.empty
     )
   }
 
