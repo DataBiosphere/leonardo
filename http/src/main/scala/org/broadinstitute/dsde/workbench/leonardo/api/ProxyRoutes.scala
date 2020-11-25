@@ -138,7 +138,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
    * Returns None if a token cannot be retrieved.
    */
   private def extractUserInfoOpt: Directive1[Option[UserInfo]] =
-    (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
+    (extractTokenFromCookie orElse extractTokenFromHeader).flatMap {
       case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()).map(_.some)
       case None        => provide(None)
     }
@@ -147,7 +147,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
    * Like extractUserInfoOpt, but fails with AuthenticationError if a token cannot be retrieved.
    */
   private def extractUserInfo: Directive1[UserInfo] =
-    (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
+    (extractTokenFromCookie orElse extractTokenFromHeader).flatMap {
       case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture())
       case None        => failWith(AuthenticationError())
     }
