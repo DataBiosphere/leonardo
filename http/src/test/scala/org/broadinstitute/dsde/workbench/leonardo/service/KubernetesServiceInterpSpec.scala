@@ -163,28 +163,28 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     }
   }
 
-  it should "error on creation if a disk is attached to another app" in isolatedDbTest {
-    val disk = makePersistentDisk(None).copy(googleProject = project).save().unsafeRunSync()
-    val appName1 = AppName("app1")
-    val appName2 = AppName("app2")
-
-    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
-
-    kubeServiceInterp.createApp(userInfo, project, appName1, appReq).unsafeRunSync()
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName1)
-    }
-    appResult.flatMap(_.app.appResources.disk.map(_.name)) shouldEqual Some(disk.name)
-    appResult.map(_.app.appName) shouldEqual Some(appName1)
-
-    //we need to update status from creating because we don't allow creation of apps while cluster is creating
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-
-    the[DiskAlreadyAttachedException] thrownBy {
-      kubeServiceInterp.createApp(userInfo, project, appName2, appReq).unsafeRunSync()
-    }
-  }
+//  it should "error on creation if a disk is attached to another app" in isolatedDbTest {
+//    val disk = makePersistentDisk(None).copy(googleProject = project).save().unsafeRunSync()
+//    val appName1 = AppName("app1")
+//    val appName2 = AppName("app2")
+//
+//    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+//    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+//
+//    kubeServiceInterp.createApp(userInfo, project, appName1, appReq).unsafeRunSync()
+//    val appResult = dbFutureValue {
+//      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName1)
+//    }
+//    appResult.flatMap(_.app.appResources.disk.map(_.name)) shouldEqual Some(disk.name)
+//    appResult.map(_.app.appName) shouldEqual Some(appName1)
+//
+//    //we need to update status from creating because we don't allow creation of apps while cluster is creating
+//    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+//
+//    the[DiskAlreadyAttachedException] thrownBy {
+//      kubeServiceInterp.createApp(userInfo, project, appName2, appReq).unsafeRunSync()
+//    }
+//  }
 
   it should "error on creation if an app with that name exists" in isolatedDbTest {
     val appName = AppName("app1")

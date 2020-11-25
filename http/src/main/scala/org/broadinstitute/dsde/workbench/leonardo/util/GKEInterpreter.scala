@@ -1111,7 +1111,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}"""
+      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
+      raw"""persistence.mountPath=${service.pdMountPath}""",
+      raw"""persistence.accessMode=${service.pdAccessMode}"""
     ) ++ command ++ args).mkString(",")
   }
 

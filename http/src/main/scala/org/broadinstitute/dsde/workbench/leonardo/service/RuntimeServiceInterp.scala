@@ -889,32 +889,33 @@ object RuntimeServiceInterp {
       disk <- diskOpt match {
         case Some(pd) =>
           for {
-            isAttached <- pd.formattedBy match {
-              case None =>
-                for {
-                  isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(pd.id).transaction
-                  isAttached <- if (isAttachedToRuntime) F.pure(true)
-                  else appQuery.isDiskAttached(pd.id).transaction
-                } yield isAttached
-              case Some(FormattedBy.Galaxy) =>
-                if (willBeUsedBy == FormattedBy.Galaxy) //TODO: If we support more apps, we need to update this check
-                  appQuery.isDiskAttached(pd.id).transaction
-                else
-                  F.raiseError[Boolean](
-                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.Galaxy)
-                  )
-              case Some(FormattedBy.GCE) =>
-                if (willBeUsedBy == FormattedBy.Galaxy)
-                  F.raiseError[Boolean](
-                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.GCE)
-                  )
-                else
-                  RuntimeConfigQueries.isDiskAttached(pd.id).transaction
-            }
-            // throw 409 if the disk is attached to a runtime
-            _ <- if (isAttached)
-              F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
-            else F.unit
+            // TODO rethink
+//            isAttached <- pd.formattedBy match {
+//              case None =>
+//                for {
+//                  isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+//                  isAttached <- if (isAttachedToRuntime) F.pure(true)
+//                  else appQuery.isDiskAttached(pd.id).transaction
+//                } yield isAttached
+//              case Some(FormattedBy.Galaxy) =>
+//                if (willBeUsedBy == FormattedBy.Galaxy) //TODO: If we support more apps, we need to update this check
+//                  appQuery.isDiskAttached(pd.id).transaction
+//                else
+//                  F.raiseError[Boolean](
+//                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.Galaxy)
+//                  )
+//              case Some(FormattedBy.GCE) =>
+//                if (willBeUsedBy == FormattedBy.Galaxy)
+//                  F.raiseError[Boolean](
+//                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.GCE)
+//                  )
+//                else
+//                  RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+//            }
+//            // throw 409 if the disk is attached to a runtime
+//            _ <- if (isAttached)
+//              F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, req.name, ctx.traceId))
+//            else F.unit
             hasPermission <- authProvider.hasPermission(pd.samResource,
                                                         PersistentDiskAction.AttachPersistentDisk,
                                                         userInfo)
