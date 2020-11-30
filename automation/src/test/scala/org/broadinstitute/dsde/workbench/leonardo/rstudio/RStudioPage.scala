@@ -2,8 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.openqa.selenium.{By, WebDriver, WebElement}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{JupyterPage, NotebooksListPage}
+import org.openqa.selenium.WebDriver
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.JupyterPage
 
 import scala.concurrent.duration.FiniteDuration
 import scala.concurrent.duration._

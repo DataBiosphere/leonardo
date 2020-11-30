@@ -6,7 +6,6 @@ import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
 import scala.concurrent._
 import scala.concurrent.duration._
-import scala.language.postfixOps
 
 trait RStudioTestUtils extends LeonardoTestUtils {
   this: Suite =>

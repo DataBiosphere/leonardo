@@ -11,7 +11,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
   FirewallRuleName,
-  GoogleTopicAdminInterpreter,
   KubernetesName,
   Location,
   MachineTypeName,
@@ -662,9 +661,8 @@ object Config {
                                                             None,
                                                             None)
 
-  private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
   val publisherConfig: PublisherConfig =
-    PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic, retryConfig)
+    PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic)
 
   val dataprocInterpreterConfig = DataprocInterpreterConfig(
     dataprocConfig,
