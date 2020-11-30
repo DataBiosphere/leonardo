@@ -398,16 +398,19 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             nfsDisk
           )
         case AppType.Custom =>
-          installCustomApp(app.id,
-                           app.appName,
-                           app.release,
-                           dbCluster,
-                           googleCluster,
-                           dbApp.nodepool.nodepoolName,
-                           namespaceName,
-                           nfsDisk,
-                           app.descriptorPath.get, // TODO
-                           app.extraArgs)
+          installCustomApp(
+            app.id,
+            app.appName,
+            app.release,
+            dbCluster,
+            googleCluster,
+            dbApp.nodepool.nodepoolName,
+            namespaceName,
+            nfsDisk,
+            app.descriptorPath.get, // TODO
+            app.extraArgs,
+            app.customEnvironmentVariables
+          )
       }
 
       _ <- logger.info(
@@ -797,7 +800,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                      namespaceName: NamespaceName,
                                      disk: PersistentDisk,
                                      descriptorPath: String,
-                                     extraArgs: List[String])(
+                                     extraArgs: List[String],
+                                     customEnvironmentVariables: Map[String, String])(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -826,13 +830,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
       chartValues = buildCustomChartOverrideValuesString(appName,
+                                                         release,
                                                          nodepoolName,
                                                          serviceName,
                                                          dbCluster,
                                                          namespaceName,
                                                          serviceConfig,
                                                          extraArgs,
-                                                         disk)
+                                                         disk,
+                                                         serviceConfig.environment ++ customEnvironmentVariables)
 
       _ <- logger.info(
         s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
@@ -1073,17 +1079,20 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   }
 
   private[util] def buildCustomChartOverrideValuesString(appName: AppName,
+                                                         release: Release,
                                                          nodepoolName: NodepoolName,
                                                          serviceName: String,
                                                          cluster: KubernetesCluster,
                                                          namespaceName: NamespaceName,
                                                          service: CustomAppService,
                                                          extraArgs: List[String],
-                                                         disk: PersistentDisk): String = {
+                                                         disk: PersistentDisk,
+                                                         customEnvironmentVariables: Map[String, String]): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/${serviceName}"
 
+    // Command and args
     val command = service.command.zipWithIndex.map {
       case (c, i) =>
         raw"""image.command[$i]=$c"""
@@ -1094,6 +1103,17 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     } ++ extraArgs.zipWithIndex.map {
       case (a, i) =>
         raw"""image.args[${i + service.args.length}]=$a"""
+    }
+
+    // Custom EVs
+    val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap {
+      case ((k, v), i) =>
+        List(
+          raw"""configs.$k=$v""",
+          raw"""extraEnv[$i].name=$k""",
+          raw"""extraEnv[$i].valueFrom.configMapKeyRef.name=${release.asString}-${serviceName}-configs""",
+          raw"""extraEnv[$i].valueFrom.configMapKeyRef.key=$k"""
+        )
     }
 
     (List(
@@ -1114,7 +1134,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       raw"""persistence.mountPath=${service.pdMountPath}""",
       raw"""persistence.accessMode=${service.pdAccessMode}"""
-    ) ++ command ++ args).mkString(",")
+    ) ++ command ++ args ++ configs).mkString(",")
   }
 
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,

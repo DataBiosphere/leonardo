@@ -55,12 +55,21 @@ object HttpAppDescriptorDAO {
       args <- d.downField("args").as[Option[List[String]]]
       pdMountPath <- d.downField("pdMountPath").as[String]
       pdAccessMode <- d.downField("pdAccessMode").as[String]
-    } yield CustomAppService(image,
-                             port.getOrElse(80),
-                             command.getOrElse(List.empty),
-                             args.getOrElse(List.empty),
-                             pdMountPath,
-                             pdAccessMode)
+      environment <- d.downField("environment").as[Option[List[String]]]
+    } yield CustomAppService(
+      image,
+      port.getOrElse(80),
+      command.getOrElse(List.empty),
+      args.getOrElse(List.empty),
+      pdMountPath,
+      pdAccessMode,
+      environment
+        .map(_.flatMap(_.split("=") match {
+          case Array(k, v) => Some(k -> v)
+          case _           => None
+        }).toMap)
+        .getOrElse(Map.empty)
+    )
   }
 }
 final case class AppDescriptor(name: String,
@@ -74,7 +83,8 @@ final case class CustomAppService(image: ContainerImage,
                                   command: List[String],
                                   args: List[String],
                                   pdMountPath: String,
-                                  pdAccessMode: String)
+                                  pdAccessMode: String,
+                                  environment: Map[String, String])
 
 final case class AppDescriptorException(traceId: TraceId, path: String, msg: String)
     extends LeoException(message = s"${traceId} | Error occurred fetching app descriptor from path $path: $msg")
