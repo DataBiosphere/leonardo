@@ -271,19 +271,17 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
               .compile
               .lastOrError
           }
-          _ <- lastOpOpt match {
-            case None => F.unit
-            case Some(lastOp) =>
-              if (lastOp.isDone)
-                logger.info(
-                  s"Nodepool creation operation has finished for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
-                )
-              else
-                logger.error(
-                  s"Create nodepool operation has failed or timed out for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
-                ) >>
-                  // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
-                  F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
+          _ <- lastOpOpt.traverse_ { op =>
+            if (op.isDone)
+              logger.info(
+                s"Nodepool creation operation has finished for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
+              )
+            else
+              logger.error(
+                s"Create nodepool operation has failed or timed out for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
+              ) >>
+                // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
+                F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
           }
         } yield opOpt
       }
@@ -413,18 +411,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
         .compile
         .lastOrError
-      _ <- lastOp match {
-        case None => F.unit
-        case Some(op) =>
-          if (op.isDone)
-            logger.info(
-              s"Delete cluster operation has finished for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
-            )
-          else
-            logger.error(
-              s"Delete cluster operation has failed or timed out for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
-            ) >>
-              F.raiseError[Unit](ClusterDeletionException(params.clusterId))
+      _ <- lastOp.traverse_ { op =>
+        if (op.isDone)
+          logger.info(
+            s"Delete cluster operation has finished for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+          )
+        else
+          logger.error(
+            s"Delete cluster operation has failed or timed out for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+          ) >>
+            F.raiseError[Unit](ClusterDeletionException(params.clusterId))
       }
       _ <- operationOpt.traverse(_ => kubernetesClusterQuery.markAsDeleted(params.clusterId, ctx.now).transaction)
     } yield ()
@@ -462,18 +458,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             )
             .compile
             .lastOrError
-          _ <- lastOp match {
-            case None => F.unit
-            case Some(op) =>
-              if (op.isDone)
-                logger.info(
-                  s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-                )
-              else
-                logger.error(
-                  s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
-                ) >>
-                  F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
+          _ <- lastOp.traverse_ { op =>
+            if (op.isDone)
+              logger.info(
+                s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+              )
+            else
+              logger.error(
+                s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+              ) >>
+                F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
           }
         } yield operationOpt
       }
