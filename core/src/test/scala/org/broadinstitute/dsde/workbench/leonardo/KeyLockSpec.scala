@@ -8,38 +8,6 @@ import scala.concurrent.duration._
 
 class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
 
-  "Lock" should "block on acquire/release" in {
-    val res = for {
-      test <- Lock[IO]
-      // try to acquire the lock twice
-      _ <- test.acquire
-      f <- test.acquire.start
-      // the second acquire should block
-      timeoutErr <- f.join.timeout(1 second).attempt
-      // release the lock, the second acquire should now succeed
-      _ <- test.release
-      _ <- f.join
-      _ <- test.release
-    } yield {
-      timeoutErr.isLeft shouldBe true
-    }
-
-    res.timeout(5 seconds).unsafeRunSync()
-  }
-
-  it should "perform operations using withLock" in {
-    val res = for {
-      test <- Lock[IO]
-      r1 <- test.withLock(IO(10))
-      r2 <- test.withLock(IO(20))
-    } yield {
-      r1 shouldBe 10
-      r2 shouldBe 20
-    }
-
-    res.timeout(5 seconds).unsafeRunSync()
-  }
-
   "KeyLock" should "block on acquire/release for the same key" in {
     val res = for {
       test <- KeyLock[IO, String](1 minute, 10, blocker)
