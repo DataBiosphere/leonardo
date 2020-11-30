@@ -91,7 +91,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           method = Method.GET,
           uri = config.samUri
             .withPath(
-              s"/api/resources/v1/${resourceType.asString}/${resource}/action/${action}"
+              s"/api/resources/v2/${resourceType.asString}/${resource}/action/${action}"
             ),
           headers = Headers.of(authHeader)
         )
@@ -108,7 +108,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         Request[F](
           method = Method.GET,
           uri = config.samUri
-            .withPath(s"/api/resources/v1/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}/actions"),
+            .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}/actions"),
           headers = Headers.of(authHeader)
         )
       )(onError)
@@ -122,11 +122,11 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(s"/api/resources/v1/${sr.resourceType.asString}"),
+          uri = config.samUri.withPath(s"/api/resources/v2/${sr.resourceType.asString}"),
           headers = Headers.of(authHeader)
         )
       )(onError)
-    } yield resp.map(r => (r.samResourceId, r.samPolicyName))
+    } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
 
   def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
@@ -153,7 +153,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(s"/api/resources/v1/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
+              .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
             headers = Headers.of(authHeader)
           )
         )
@@ -196,7 +196,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(s"/api/resources/v1/${sr.resourceType.asString}"),
+              .withPath(s"/api/resources/v2/${sr.resourceType.asString}"),
             headers = Headers.of(authHeader, `Content-Type`(MediaType.application.json)),
             body = Stream.emits(CreateSamResourceRequest(resource, policies).asJson.noSpaces.getBytes)
           )
@@ -231,7 +231,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.DELETE,
             uri = config.samUri
-              .withPath(s"/api/resources/v1/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
+              .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
             headers = Headers.of(authHeader)
           )
         )
@@ -393,12 +393,19 @@ object HttpSamDAO {
       email <- x.downField("email").as[SamPolicyEmail]
     } yield SyncStatusResponse(lastSyncDate, email)
   }
+
+  implicit val samRoleActionDecoder: Decoder[SamRoleAction] = Decoder.forProduct1("roles")(SamRoleAction.apply)
+
   implicit def listResourceResponseDecoder[R: Decoder]: Decoder[ListResourceResponse[R]] = Decoder.instance { x =>
     for {
       resourceId <- x.downField("resourceId").as[R]
-      policyName <- x.downField("accessPolicyName").as[SamPolicyName]
-    } yield ListResourceResponse(resourceId, policyName)
+      //these three places can have duplicated SamPolicyNames
+      direct <- x.downField("direct").as[SamRoleAction]
+      inherited <- x.downField("inherited").as[SamRoleAction]
+      public <- x.downField("public").as[SamRoleAction]
+    } yield ListResourceResponse(resourceId, (direct.roles ++ inherited.roles ++ public.roles).toSet)
   }
+
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
     for {
       ok <- c.downField("ok").as[Boolean]
@@ -417,7 +424,7 @@ object HttpSamDAO {
 
 final case class CreateSamResourceRequest[R](samResourceId: R, policies: Map[SamPolicyName, SamPolicyData])
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
-final case class ListResourceResponse[R](samResourceId: R, samPolicyName: SamPolicyName)
+final case class ListResourceResponse[R](samResourceId: R, samPolicyNames: Set[SamPolicyName])
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
@@ -425,6 +432,7 @@ final case class HttpSamDaoConfig(samUri: Uri,
                                   serviceAccountProviderConfig: ServiceAccountProviderConfig)
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
+final case class SamRoleAction(roles: List[SamPolicyName])
 
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)

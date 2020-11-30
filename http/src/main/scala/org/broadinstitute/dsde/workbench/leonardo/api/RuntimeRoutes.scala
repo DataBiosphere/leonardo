@@ -400,7 +400,7 @@ object RuntimeRoutes {
 
   // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
   // API does
-  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct20(
+  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct21(
     "id",
     "runtimeName",
     "googleProject",
@@ -420,7 +420,8 @@ object RuntimeRoutes {
     "runtimeImages",
     "scopes",
     "customEnvironmentVariables",
-    "diskConfig"
+    "diskConfig",
+    "patchInProgress"
   )(x =>
     (
       x.id,
@@ -442,7 +443,8 @@ object RuntimeRoutes {
       x.clusterImages,
       x.scopes,
       x.customClusterEnvironmentVariables,
-      x.diskConfig
+      x.diskConfig,
+      x.patchInProgress
     )
   )
 
