@@ -5,7 +5,7 @@ import enumeratum.{Enum, EnumEntry}
 
 import scala.util.matching.Regex
 
-/** Container registry, e.g. GCR, Dockerhub */
+/** Container registry, e.g. Google Container Repository, GitHub Container Repository, Dockerhub */
 sealed trait ContainerRegistry extends EnumEntry with Product with Serializable {
   def regex: Regex
 }
@@ -16,6 +16,12 @@ object ContainerRegistry extends Enum[ContainerRegistry] {
     val regex: Regex =
       """^((?:us\.|eu\.|asia\.)?gcr.io)/([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
     override def toString: String = "GCR"
+  }
+
+  final case object GHCR extends ContainerRegistry {
+    val regex: Regex =
+      """^(ghcr.io)(/([\w.-]+/)+[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+    override def toString: String = "GHCR"
   }
 
   // Repo format: https://docs.docker.com/docker-hub/repos/
