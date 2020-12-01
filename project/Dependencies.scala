@@ -77,9 +77,9 @@ object Dependencies {
   val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
-  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-14" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
-  val scalaTestMockito = "org.scalatestplus" %% "mockito-3-3" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-selenium
-  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.0.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-14" % "3.2.2.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
+  val scalaTestMockito = "org.scalatestplus" %% "mockito-3-3" % "3.2.2.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.2.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
