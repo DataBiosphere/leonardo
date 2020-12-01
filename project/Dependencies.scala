@@ -15,7 +15,7 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.26.0"
 
-  val serviceTestV = "0.18-c5713ac"
+  val serviceTestV = "0.18-5908784"
   val workbenchUtilV = "0.6-c5713ac"
   val workbenchModelV = "0.14-c5713ac"
   val workbenchGoogleV = "0.21-c5713ac"
