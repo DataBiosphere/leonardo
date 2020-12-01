@@ -21,7 +21,7 @@ object Dependencies {
   val workbenchGoogleV = "0.21-c5713ac"
   val workbenchGoogle2V = "0.15-c5713ac"
   val workbenchOpenTelemetryV = "0.1-c5713ac"
-  val workbenchErrorReportingV = "0.1-c5713ac"
+  val workbenchErrorReportingV = "0.1-8345256-SNAP"
 
   val helmScalaSdkV = "0.0.1-RC4"
 
