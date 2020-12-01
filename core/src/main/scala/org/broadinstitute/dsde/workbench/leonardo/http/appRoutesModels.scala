@@ -44,7 +44,8 @@ final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig
                                 proxyUrls: Map[ServiceName, URL],
                                 diskName: Option[DiskName],
                                 customEnvironmentVariables: Map[String, String],
-                                auditInfo: AuditInfo)
+                                auditInfo: AuditInfo,
+                                autopauseThreshold: FiniteDuration)
 
 final case class ListAppResponse(googleProject: GoogleProject,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
@@ -105,7 +106,8 @@ object GetAppResponse {
       appResult.app.getProxyUrls(appResult.cluster.googleProject, proxyUrlBase),
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,
-      appResult.app.auditInfo
+      appResult.app.auditInfo,
+      appResult.app.autopauseThreshold
     )
   }
 }

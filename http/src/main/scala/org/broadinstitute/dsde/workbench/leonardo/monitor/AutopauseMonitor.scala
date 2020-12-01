@@ -35,13 +35,9 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
 
   val process = {
     val processRuntimes =
-      if (runtimeAutoFreezeConfig.enableAutoFreeze)
-        (Stream.sleep[F](runtimeAutoFreezeConfig.autoFreezeCheckInterval) ++ Stream.eval(runtimeAutoPauseCheck)).repeat
-      else Stream.empty
+      (Stream.sleep[F](runtimeAutoFreezeConfig.autoFreezeCheckInterval) ++ Stream.eval(runtimeAutoPauseCheck)).repeat
     val processApps =
-      if (kubernetesAutoFreezeConfig.enableAutoFreeze)
-        (Stream.sleep[F](kubernetesAutoFreezeConfig.autoFreezeCheckInterval) ++ Stream.eval(appAutoPauseCheck)).repeat
-      else Stream.empty
+      (Stream.sleep[F](kubernetesAutoFreezeConfig.autoFreezeCheckInterval) ++ Stream.eval(appAutoPauseCheck)).repeat
 
     Stream.emits(List(processRuntimes, processApps)).covary[F].parJoin(2)
   }

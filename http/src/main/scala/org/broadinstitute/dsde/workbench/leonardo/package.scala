@@ -99,11 +99,14 @@ package object http {
                                   autopauseThreshold: Option[FiniteDuration],
                                   autoFreezeConfig: AutoFreezeConfig): FiniteDuration =
     autopause match {
+      // User has not specified whether to autopause -> use the default
       case None =>
         autoFreezeConfig.autoFreezeAfter
+      // User has explicitly disabled autopause
       case Some(false) =>
         autoPauseOffValue
-      case _ =>
+      // User has explicitly enabled autopause -> use the provided value or the default
+      case Some(true) =>
         autopauseThreshold.getOrElse(autoFreezeConfig.autoFreezeAfter).max(autoPauseOffValue)
     }
 }

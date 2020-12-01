@@ -264,11 +264,23 @@ object AppRoutes {
                         "auditInfo")(x => ListAppResponse.unapply(x).get)
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
-    Encoder.forProduct7("kubernetesRuntimeConfig",
+    Encoder.forProduct8("kubernetesRuntimeConfig",
                         "errors",
                         "status",
                         "proxyUrls",
                         "diskName",
                         "customEnvironmentVariables",
-                        "auditInfo")(x => GetAppResponse.unapply(x).get)
+                        "auditInfo",
+                        "autopauseThreshold")(x =>
+      (
+        x.kubernetesRuntimeConfig,
+        x.errors,
+        x.status,
+        x.proxyUrls,
+        x.diskName,
+        x.customEnvironmentVariables,
+        x.auditInfo,
+        x.autopauseThreshold.toMinutes.toInt
+      )
+    )
 }

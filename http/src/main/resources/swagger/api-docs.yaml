@@ -3262,6 +3262,18 @@ components:
         customEnvironmentVariables:
           type: object
           description: Optional environment variables to be set on the app
+        autopause:
+          type: boolean
+          description: Whether autopause feature is enabled for this specific app. If
+            unset, autopause will be enabled and a system default threshold will
+            be used.
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the app is
+            autopaused. If autopause is set to false, this value is disregarded.
+            A value of 0 is equivalent to autopause being turned off. If
+            autopause is enabled and this is unset, a system default threshold
+            will be used.
 
     BatchNodepoolCreateRequest:
       description: The configuration for a pool of nodepools, used to create a cluster with pre-created nodepools
@@ -3285,6 +3297,7 @@ components:
         - kubernetesRuntimeConfig
         - status
         - auditInfo
+        - autopauseThreshold
       type: object
       properties:
         kubernetesRuntimeConfig:
@@ -3307,6 +3320,11 @@ components:
           description: Optional environment variables to be set on the app
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
+        autopauseThreshold:
+          type: integer
+          description: The number of minutes of idle time to elapse before the app is
+            autopaused. A value of 0 is equivalent to autopause being turned
+            off.
 
     ListAppResponse:
       description: the configuration of an app
