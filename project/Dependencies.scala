@@ -191,8 +191,8 @@ object Dependencies {
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.11.3" % "test",
     "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
-    "com.google.auto.value" % "auto-value" % "1.6.6",
-    "com.google.auto.value" % "auto-value-annotations" % "1.6.6",
+    "com.google.auto.value" % "auto-value" % "1.7.4",
+    "com.google.auto.value" % "auto-value-annotations" % "1.7.4",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
