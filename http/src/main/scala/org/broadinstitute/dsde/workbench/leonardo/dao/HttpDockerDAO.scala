@@ -106,8 +106,8 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
             headers = Headers.of(acceptHeader)
           )
         )(onError)
-      // GHCR accepts a personal github access token, but it seems to work for public images
-      // as long as any token is sent.
+      // GHCR accepts a personal github access token for private repo support, but it seems to
+      // work for public images as long as any token is sent.
       case ContainerRegistry.GHCR => F.pure(Some(Token("")))
     }
 
