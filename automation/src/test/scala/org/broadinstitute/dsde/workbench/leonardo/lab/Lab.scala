@@ -22,8 +22,10 @@ object Lab extends RestClient with LazyLogging {
     parseResponse(getRequest(url + path))
   }
 
-  def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken,
-                                                                  webDriver: WebDriver): LabLauncherPage = {
+  def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit
+    token: AuthToken,
+    webDriver: WebDriver
+  ): LabLauncherPage = {
     val path = labPath(googleProject, clusterName)
     logger.info(s"Get jupyter lab: GET /$path")
     new LabLauncherPage(url + path)
@@ -32,7 +34,8 @@ object Lab extends RestClient with LazyLogging {
   def getContentItem(googleProject: GoogleProject,
                      clusterName: RuntimeName,
                      contentPath: String,
-                     includeContent: Boolean = true)(implicit token: AuthToken): ContentItem = {
+                     includeContent: Boolean = true
+  )(implicit token: AuthToken): ContentItem = {
     val path = contentsPath(googleProject, clusterName, contentPath) + (if (includeContent) "?content=1" else "")
     logger.info(s"Get lab notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))

@@ -52,7 +52,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                            autoFreezeConfig,
                            Config.zombieRuntimeMonitorConfig,
                            dataprocConfig,
-                           Config.gceConfig),
+                           Config.gceConfig
+      ),
       Config.persistentDiskConfig,
       whitelistAuthProvider,
       serviceAccountProvider,
@@ -96,14 +97,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           emptyCreateRuntimeReq
         )
         .attempt
-    } yield {
-      r shouldBe (Left(AuthorizationError(userInfo.userEmail)))
-    }
+    } yield r shouldBe (Left(AuthorizationError(userInfo.userEmail)))
     res.unsafeRunSync()
   }
 
   it should "successfully create a GCE runtime when no runtime is specified" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
     val googleProject = GoogleProject("googleProject")
     val runtimeName = RuntimeName("clusterName1")
 
@@ -126,8 +129,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       r shouldBe Right(())
       runtimeConfig shouldBe (Config.gceConfig.runtimeConfigDefaults)
-      cluster.googleProject shouldBe (googleProject)
-      cluster.runtimeName shouldBe (runtimeName)
+      cluster.googleProject shouldBe googleProject
+      cluster.runtimeName shouldBe runtimeName
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(cluster, gceRuntimeConfigRequest, Some(context.traceId))
         .copy(
@@ -145,7 +148,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "successfully accept https as user script and user startup script" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
     val googleProject = GoogleProject("googleProject")
     val runtimeName = RuntimeName("clusterName2")
     val request = emptyCreateRuntimeReq.copy(
@@ -171,14 +178,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         )
         .attempt
       _ <- publisherQueue.dequeue1 //dequeue the message so that it doesn't affect other tests
-    } yield {
-      r shouldBe Right(())
-    }
+    } yield r shouldBe Right(())
     res.unsafeRunSync()
   }
 
   it should "successfully create a dataproc runtime when explicitly told so when numberOfWorkers is 0" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
     val googleProject = GoogleProject("googleProject")
     val runtimeName = RuntimeName("clusterName1")
     val req = emptyCreateRuntimeReq.copy(
@@ -237,7 +246,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "successfully create a dataproc runtime when explicitly told so when numberOfWorkers is more than 0" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
     val googleProject = GoogleProject("googleProject")
     val runtimeName = RuntimeName("clusterName1")
     val req = emptyCreateRuntimeReq.copy(
@@ -289,7 +302,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "create a runtime with the latest welder from welderRegistry" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
     val googleProject = GoogleProject("googleProject")
     val runtimeName1 = RuntimeName("runtimeName1")
     val runtimeName2 = RuntimeName("runtimeName2")
@@ -337,17 +354,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- publisherQueue.dequeue1
     } yield {
       r1 shouldBe Right(())
-      runtime1.runtimeName shouldBe (runtimeName1)
+      runtime1.runtimeName shouldBe runtimeName1
       welder1 shouldBe defined
       welder1.get.imageUrl shouldBe Config.imageConfig.welderDockerHubImage.imageUrl
 
       r2 shouldBe Right(())
-      runtime2.runtimeName shouldBe (runtimeName2)
+      runtime2.runtimeName shouldBe runtimeName2
       welder2 shouldBe defined
       welder2.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
 
       r3 shouldBe Right(())
-      runtime3.runtimeName shouldBe (runtimeName3)
+      runtime3.runtimeName shouldBe runtimeName3
       welder3 shouldBe defined
       welder3.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
     }
@@ -355,7 +372,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "create a runtime with the crypto-detector image" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
     val googleProject = GoogleProject("googleProject")
     val runtimeName1 = RuntimeName("runtimeName1")
     val runtimeName2 = RuntimeName("runtimeName2")
@@ -400,7 +421,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "create a runtime with a disk config" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
     val persistentDisk = PersistentDiskRequest(
       diskName,
       Some(DiskSize(500)),
@@ -455,7 +480,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(50))
+                                                                              bootDiskSize = DiskSize(50)
+          )
         )
       message shouldBe expectedMessage
     }
@@ -464,20 +490,26 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "get a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
       getResponse <- runtimeService.getRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
-    } yield {
-      getResponse.samResource shouldBe testRuntime.samResource
-    }
+    } yield getResponse.samResource shouldBe testRuntime.samResource
     res.unsafeRunSync()
   }
 
   it should "list runtimes" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -485,15 +517,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
-    } yield {
-      listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
-    }
+    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()
   }
 
   it should "list runtimes with a project" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -501,15 +535,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       listResponse <- runtimeService.listRuntimes(userInfo, Some(project), Map.empty)
-    } yield {
-      listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
-    }
+    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()
   }
 
   it should "list runtimes with parameters" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       samResource1 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -518,9 +554,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
       _ <- labelQuery.save(runtime1.id, LabelResourceType.Runtime, "foo", "bar").transaction
       listResponse <- runtimeService.listRuntimes(userInfo, None, Map("foo" -> "bar"))
-    } yield {
-      listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
-    }
+    } yield listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
 
     res.unsafeRunSync()
   }
@@ -528,7 +562,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   // See https://broadworkbench.atlassian.net/browse/PROD-440
   // AoU relies on the ability for project owners to list other users' runtimes.
   it should "list runtimes belonging to other users" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     // Make runtimes belonging to different users than the calling user
     val res = for {
@@ -543,17 +581,20 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- IO(runtime1.save())
       _ <- IO(runtime2.save())
       listResponse <- runtimeService.listRuntimes(userInfo, None, Map.empty)
-    } yield {
-      // Since the calling user is whitelisted in the auth provider, it should return
-      // the runtimes belonging to other users.
-      listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
-    }
+    } yield
+    // Since the calling user is whitelisted in the auth provider, it should return
+    // the runtimes belonging to other users.
+    listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
 
     res.unsafeRunSync()
   }
 
   it should "delete a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
@@ -572,7 +613,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           message <- publisherQueue.tryDequeue1
         } yield {
           dbRuntimeOpt.get.status shouldBe RuntimeStatus.Deleting
-          message shouldBe (None)
+          message shouldBe None
         }
       }
     } yield res
@@ -581,7 +622,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "delete a runtime with disk properly" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
@@ -607,7 +652,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           message <- publisherQueue.tryDequeue1
         } yield {
           dbRuntimeOpt.get.status shouldBe RuntimeStatus.Deleting
-          message shouldBe (None)
+          message shouldBe None
         }
       }
     } yield res
@@ -616,7 +661,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "stop a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
@@ -633,7 +682,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           message <- publisherQueue.tryDequeue1
         } yield {
           dbRuntimeOpt.get.status shouldBe RuntimeStatus.Stopping
-          message shouldBe (None)
+          message shouldBe None
         }
       }
     } yield res
@@ -642,7 +691,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "start a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
@@ -659,7 +712,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           message <- publisherQueue.tryDequeue1
         } yield {
           dbRuntimeOpt.get.status shouldBe RuntimeStatus.Starting
-          message shouldBe (None)
+          message shouldBe None
         }
       }
     } yield res
@@ -668,7 +721,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "update autopause" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -691,7 +748,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   List(RuntimeStatus.Creating, RuntimeStatus.Stopping, RuntimeStatus.Deleting, RuntimeStatus.Starting).foreach {
     status =>
-      val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+      val userInfo = UserInfo(OAuth2BearerToken(""),
+                              WorkbenchUserId("userId"),
+                              WorkbenchEmail("user1@example.com"),
+                              0
+      ) // this email is white listed
       it should s"fail to update a runtime in $status status" in isolatedDbTest {
         val res = for {
           samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
@@ -700,9 +761,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           fail <- runtimeService
             .updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
             .attempt
-        } yield {
-          fail shouldBe Left(RuntimeCannotBeUpdatedException(testRuntime.projectNameString, testRuntime.status))
-        }
+        } yield fail shouldBe Left(RuntimeCannotBeUpdatedException(testRuntime.projectNameString, testRuntime.status))
         res.unsafeRunSync()
       }
   }
@@ -712,11 +771,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       ctx <- appContext.ask[AppContext]
       fail <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig).attempt
-    } yield {
-      fail shouldBe Left(
-        WrongCloudServiceException(CloudService.GCE, CloudService.Dataproc, ctx.traceId)
-      )
-    }
+    } yield fail shouldBe Left(
+      WrongCloudServiceException(CloudService.GCE, CloudService.Dataproc, ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -725,9 +782,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
       messageOpt <- publisherQueue.tryDequeue1
-    } yield {
-      messageOpt shouldBe None
-    }
+    } yield messageOpt shouldBe None
     res.unsafeRunSync()
   }
 
@@ -750,14 +805,15 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       patchInProgress <- patchQuery.isInprogress(savedRuntime.id).transaction
       message <- publisherQueue.dequeue1
     } yield {
-      patchInProgress shouldBe (true)
+      patchInProgress shouldBe true
       message shouldBe UpdateRuntimeMessage(savedRuntime.id,
                                             Some(MachineTypeName("n1-standard-8")),
                                             true,
                                             None,
                                             None,
                                             None,
-                                            Some(ctx.traceId))
+                                            Some(ctx.traceId)
+      )
     }
     res.unsafeRunSync()
   }
@@ -769,17 +825,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
                                                             false,
                                                             testClusterRecord.copy(status = RuntimeStatus.Stopped),
-                                                            gceRuntimeConfig)
+                                                            gceRuntimeConfig
+      )
       message <- publisherQueue.dequeue1
-    } yield {
-      message shouldBe UpdateRuntimeMessage(testClusterRecord.id,
-                                            Some(MachineTypeName("n1-micro-2")),
-                                            false,
-                                            None,
-                                            None,
-                                            None,
-                                            Some(ctx.traceId))
-    }
+    } yield message shouldBe UpdateRuntimeMessage(testClusterRecord.id,
+                                                  Some(MachineTypeName("n1-micro-2")),
+                                                  false,
+                                                  None,
+                                                  None,
+                                                  None,
+                                                  Some(ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -790,17 +846,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
                                                             true,
                                                             testClusterRecord.copy(status = RuntimeStatus.Running),
-                                                            gceRuntimeConfig)
+                                                            gceRuntimeConfig
+      )
       message <- publisherQueue.dequeue1
-    } yield {
-      message shouldBe UpdateRuntimeMessage(testClusterRecord.id,
-                                            Some(MachineTypeName("n1-micro-2")),
-                                            true,
-                                            None,
-                                            None,
-                                            None,
-                                            Some(ctx.traceId))
-    }
+    } yield message shouldBe UpdateRuntimeMessage(testClusterRecord.id,
+                                                  Some(MachineTypeName("n1-micro-2")),
+                                                  true,
+                                                  None,
+                                                  None,
+                                                  None,
+                                                  Some(ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -810,7 +866,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req,
                                                             false,
                                                             testClusterRecord.copy(status = RuntimeStatus.Running),
-                                                            gceRuntimeConfig)
+                                                            gceRuntimeConfig
+      )
     } yield ()
     res.attempt.unsafeRunSync() shouldBe Left(
       RuntimeMachineTypeCannotBeChangedException(testClusterRecord.projectNameString, RuntimeStatus.Running)
@@ -823,15 +880,14 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       ctx <- appContext.ask[AppContext]
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
       message <- publisherQueue.dequeue1
-    } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id,
-                                            None,
-                                            true,
-                                            Some(DiskUpdate.NoPdSizeUpdate(DiskSize(1024))),
-                                            None,
-                                            None,
-                                            Some(ctx.traceId))
-    }
+    } yield message shouldBe UpdateRuntimeMessage(testCluster.id,
+                                                  None,
+                                                  true,
+                                                  Some(DiskUpdate.NoPdSizeUpdate(DiskSize(1024))),
+                                                  None,
+                                                  None,
+                                                  Some(ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -847,15 +903,14 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         gceWithPdRuntimeConfig.copy(persistentDiskId = Some(disk.id))
       )
       message <- publisherQueue.dequeue1
-    } yield {
-      message shouldBe UpdateRuntimeMessage(testCluster.id,
-                                            None,
-                                            true,
-                                            Some(DiskUpdate.PdSizeUpdate(disk.id, disk.name, DiskSize(1024))),
-                                            None,
-                                            None,
-                                            Some(ctx.traceId))
-    }
+    } yield message shouldBe UpdateRuntimeMessage(testCluster.id,
+                                                  None,
+                                                  true,
+                                                  Some(DiskUpdate.PdSizeUpdate(disk.id, disk.name, DiskSize(1024))),
+                                                  None,
+                                                  None,
+                                                  Some(ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -911,11 +966,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
                                                              clusterRecord.get,
-                                                             defaultDataprocRuntimeConfig)
+                                                             defaultDataprocRuntimeConfig
+      )
       messageOpt <- publisherQueue.tryDequeue1
-    } yield {
-      messageOpt shouldBe None
-    }
+    } yield messageOpt shouldBe None
     res.unsafeRunSync()
   }
 
@@ -927,7 +981,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .processUpdateDataprocConfigRequest(req,
                                             false,
                                             testClusterRecord.copy(status = RuntimeStatus.Starting),
-                                            defaultDataprocRuntimeConfig)
+                                            defaultDataprocRuntimeConfig
+        )
         .attempt
     } yield {
       val expectedException = new LeoException(
@@ -965,17 +1020,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
                                                              clusterRecord.get,
-                                                             defaultDataprocRuntimeConfig)
+                                                             defaultDataprocRuntimeConfig
+      )
       message <- publisherQueue.dequeue1
-    } yield {
-      message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
-                                            None,
-                                            false,
-                                            None,
-                                            Some(50),
-                                            Some(1000),
-                                            Some(ctx.traceId))
-    }
+    } yield message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
+                                                  None,
+                                                  false,
+                                                  None,
+                                                  Some(50),
+                                                  Some(1000),
+                                                  Some(ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -1002,17 +1057,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
                                                              clusterRecord.get.copy(status = RuntimeStatus.Stopped),
-                                                             defaultDataprocRuntimeConfig)
+                                                             defaultDataprocRuntimeConfig
+      )
       message <- publisherQueue.dequeue1
-    } yield {
-      message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
-                                            Some(MachineTypeName("n1-micro-2")),
-                                            false,
-                                            None,
-                                            None,
-                                            None,
-                                            Some(ctx.traceId))
-    }
+    } yield message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
+                                                  Some(MachineTypeName("n1-micro-2")),
+                                                  false,
+                                                  None,
+                                                  None,
+                                                  None,
+                                                  Some(ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -1039,17 +1094,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              true,
                                                              clusterRecord.get.copy(status = RuntimeStatus.Running),
-                                                             defaultDataprocRuntimeConfig)
+                                                             defaultDataprocRuntimeConfig
+      )
       message <- publisherQueue.dequeue1
-    } yield {
-      message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
-                                            Some(MachineTypeName("n1-micro-2")),
-                                            true,
-                                            None,
-                                            None,
-                                            None,
-                                            Some(ctx.traceId))
-    }
+    } yield message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
+                                                  Some(MachineTypeName("n1-micro-2")),
+                                                  true,
+                                                  None,
+                                                  None,
+                                                  None,
+                                                  Some(ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -1059,7 +1114,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
                                                              testClusterRecord.copy(status = RuntimeStatus.Running),
-                                                             defaultDataprocRuntimeConfig)
+                                                             defaultDataprocRuntimeConfig
+      )
     } yield ()
     res.attempt.unsafeRunSync() shouldBe Left(
       RuntimeMachineTypeCannotBeChangedException(testClusterRecord.projectNameString, RuntimeStatus.Running)
@@ -1072,7 +1128,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
                                                              testClusterRecord.copy(status = RuntimeStatus.Running),
-                                                             defaultDataprocRuntimeConfig)
+                                                             defaultDataprocRuntimeConfig
+      )
     } yield ()
     res.attempt.unsafeRunSync().isLeft shouldBe true
   }
@@ -1100,15 +1157,14 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req, true, clusterRecord.get, defaultDataprocRuntimeConfig)
       message <- publisherQueue.dequeue1
-    } yield {
-      message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
-                                            None,
-                                            true,
-                                            Some(DiskUpdate.Dataproc(DiskSize(1024), masterInstance)),
-                                            None,
-                                            None,
-                                            Some(ctx.traceId))
-    }
+    } yield message shouldBe UpdateRuntimeMessage(clusterRecord.get.id,
+                                                  None,
+                                                  true,
+                                                  Some(DiskUpdate.Dataproc(DiskSize(1024), masterInstance)),
+                                                  None,
+                                                  None,
+                                                  Some(ctx.traceId)
+    )
     res.unsafeRunSync()
   }
 
@@ -1149,7 +1205,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                                       serviceAccount,
                                                                       FormattedBy.GCE,
                                                                       whitelistAuthProvider,
-                                                                      Config.persistentDiskConfig)
+                                                                      Config.persistentDiskConfig
+      )
       disk = diskResult.disk
       persistedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
@@ -1189,11 +1246,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      Config.persistentDiskConfig
+        )
         .attempt
-    } yield {
-      returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
-    }
+    } yield returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
 
     res.unsafeRunSync()
   }
@@ -1210,7 +1266,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      Config.persistentDiskConfig
+        )
         .unsafeRunSync()
     }
 
@@ -1234,11 +1291,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      Config.persistentDiskConfig
+        )
         .attempt
-    } yield {
-      err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
-    }
+    } yield err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
 
     res.unsafeRunSync()
   }
@@ -1255,7 +1311,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.Galaxy,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      Config.persistentDiskConfig
+        )
         .attempt
       galaxyDisk <- makePersistentDisk(Some(DiskName("galaxyDisk")), Some(FormattedBy.Galaxy)).save()
       req = PersistentDiskRequest(galaxyDisk.name, Some(galaxyDisk.size), Some(galaxyDisk.diskType), galaxyDisk.labels)
@@ -1266,7 +1323,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      Config.persistentDiskConfig
+        )
         .attempt
     } yield {
       formatGceDiskError shouldBe Left(
@@ -1291,7 +1349,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                              serviceAccount,
                                                              FormattedBy.GCE,
                                                              whitelistAuthProvider,
-                                                             Config.persistentDiskConfig)
+                                                             Config.persistentDiskConfig
+      )
     } yield ()
 
     val thrown = the[AuthorizationError] thrownBy {

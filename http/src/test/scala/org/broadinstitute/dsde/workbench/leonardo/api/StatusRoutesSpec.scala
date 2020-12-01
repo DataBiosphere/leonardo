@@ -49,7 +49,9 @@ class StatusRoutesSpec
         responseAs[StatusCheckResponse] shouldEqual StatusCheckResponse(true,
                                                                         Map(GoogleDataproc -> HealthMonitor.OkStatus,
                                                                             Database -> HealthMonitor.OkStatus,
-                                                                            Sam -> HealthMonitor.OkStatus))
+                                                                            Sam -> HealthMonitor.OkStatus
+                                                                        )
+        )
         status shouldEqual StatusCodes.OK
       }
     }

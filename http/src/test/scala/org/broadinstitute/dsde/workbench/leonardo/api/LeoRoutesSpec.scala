@@ -59,7 +59,9 @@ class LeoRoutesSpec
       Some(UserJupyterExtensionConfig(Map("abc" -> "def"))),
       None
     )
-    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.asString}", newCluster.asJson) ~> timedHttpRoutes.route ~> check {
+    Put(s"/api/cluster/v2/${googleProject.value}/${clusterName.asString}",
+        newCluster.asJson
+    ) ~> timedHttpRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
       validateRawCookie(header("Set-Cookie"))
@@ -90,7 +92,9 @@ class LeoRoutesSpec
   it should "202 when deleting a cluster" in isolatedDbTest {
     val newCluster = defaultClusterRequest
 
-    Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
+    Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}",
+        newCluster.asJson
+    ) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
     }
 
@@ -129,17 +133,19 @@ class LeoRoutesSpec
   it should "list clusters" in isolatedDbTest {
     val newCluster = defaultClusterRequest
 
-    for (i <- 1 to 5) {
-      Put(s"/cluster/${googleProject.value}/${clusterName.asString}-$i", newCluster.asJson) ~> leoRoutes.route ~> check {
+    for (i <- 1 to 5)
+      Put(s"/cluster/${googleProject.value}/${clusterName.asString}-$i",
+          newCluster.asJson
+      ) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.OK
       }
-    }
 
-    for (i <- 6 to 10) {
-      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}-$i", newCluster.asJson) ~> leoRoutes.route ~> check {
+    for (i <- 6 to 10)
+      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}-$i",
+          newCluster.asJson
+      ) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
-    }
 
     Get("/clusters") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -166,11 +172,12 @@ class LeoRoutesSpec
     val newCluster = defaultClusterRequest
     def clusterWithLabels(i: Int) = newCluster.copy(labels = Map(s"label$i" -> s"value$i"))
 
-    for (i <- 1 to 10) {
-      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}-$i", clusterWithLabels(i).asJson) ~> leoRoutes.route ~> check {
+    for (i <- 1 to 10)
+      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}-$i",
+          clusterWithLabels(i).asJson
+      ) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
-    }
 
     Get("/clusters?label6=value6") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -233,11 +240,12 @@ class LeoRoutesSpec
       responseClusters shouldBe List.empty[ListRuntimeResponse]
     }
 
-    for (i <- 1 to 10) {
-      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}-$i", newCluster.asJson) ~> leoRoutes.route ~> check {
+    for (i <- 1 to 10)
+      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}-$i",
+          newCluster.asJson
+      ) ~> leoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
-    }
 
     Get(s"/clusters/${googleProject.value}") ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -267,7 +275,9 @@ class LeoRoutesSpec
     val leo = makeLeonardoService(publisherQueue)
     val timedLeoRoutes = new LeoRoutes(leo, timedUserInfoDirectives)
 
-    Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}", newCluster.asJson) ~> timedLeoRoutes.route ~> check {
+    Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}",
+        newCluster.asJson
+    ) ~> timedLeoRoutes.route ~> check {
       status shouldEqual StatusCodes.Accepted
 
       //validateCookie { header[`Set-Cookie`] }
@@ -324,7 +334,9 @@ class LeoRoutesSpec
         stopAfterCreation = Some(stopAfterCreation),
         userJupyterExtensionConfig = Some(userJupyterExtensionConfig)
       )
-      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}", request.asJson) ~> timedLeoRoutes.route ~> check {
+      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}",
+          request.asJson
+      ) ~> timedLeoRoutes.route ~> check {
         status shouldEqual StatusCodes.Accepted
         //validateCookie { header[`Set-Cookie`] }
         validateRawCookie(header("Set-Cookie"))

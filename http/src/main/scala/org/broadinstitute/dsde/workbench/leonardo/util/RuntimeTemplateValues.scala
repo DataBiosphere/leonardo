@@ -56,13 +56,14 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           rstudioLicenseFile: String,
                                           proxyServerHostName: String,
                                           isGceFormatted: String,
-                                          useGceStartupScript: String) {
+                                          useGceStartupScript: String
+) {
 
   def toMap: Map[String, String] =
     this.productElementNames
       .zip(this.productIterator)
-      .map {
-        case (k, v) => (k, v.toString)
+      .map { case (k, v) =>
+        (k, v.toString)
       }
       .toMap
 
@@ -88,7 +89,8 @@ case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimePr
                                                 runtimeOperation: RuntimeOperation,
                                                 welderAction: Option[WelderAction],
                                                 isGceFormatted: Boolean,
-                                                useGceStartupScript: Boolean)
+                                                useGceStartupScript: Boolean
+)
 object RuntimeTemplateValuesConfig {
   def fromCreateRuntimeParams(
     params: CreateRuntimeParams,
@@ -138,7 +140,8 @@ object RuntimeTemplateValuesConfig {
                   clusterResourceConstraints: Option[RuntimeResourceConstraints],
                   runtimeOperation: RuntimeOperation,
                   welderAction: Option[WelderAction],
-                  useGceStartupScript: Boolean): RuntimeTemplateValuesConfig =
+                  useGceStartupScript: Boolean
+  ): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
       runtime.asyncRuntimeFields.map(_.stagingBucket),

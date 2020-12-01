@@ -38,8 +38,9 @@ class MockSamDAO extends SamDAO[IO] {
   override def hasResourcePermissionUnchecked(resourceType: SamResourceType,
                                               resource: String,
                                               action: String,
-                                              authHeader: Authorization)(
-    implicit ev: Ask[IO, TraceId]
+                                              authHeader: Authorization
+  )(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Boolean] =
     resourceType match {
       case SamResourceType.Project =>
@@ -68,8 +69,8 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
     }
 
-  override def getResourcePolicies[R](authHeader: Authorization)(
-    implicit sr: SamResource[R],
+  override def getResourcePolicies[R](authHeader: Authorization)(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[IO, TraceId]
   ): IO[List[(R, SamPolicyName)]] =
@@ -88,8 +89,8 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(appCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
     }
 
-  override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = {
     val authHeader = userEmailToAuthorization(creatorEmail)
@@ -97,8 +98,7 @@ class MockSamDAO extends SamDAO[IO] {
       case r: RuntimeSamResourceId =>
         IO(runtimes += (r, authHeader) -> RuntimeAction.allActions) >>
           IO {
-            runtimeCreators =
-              runtimeCreators |+| Map(authHeader -> Set((r, SamPolicyName.Creator)))
+            runtimeCreators = runtimeCreators |+| Map(authHeader -> Set((r, SamPolicyName.Creator)))
           }.void
       case r: PersistentDiskSamResourceId =>
         IO(persistentDisks += (r, authHeader) -> PersistentDiskAction.allActions) >>
@@ -132,8 +132,9 @@ class MockSamDAO extends SamDAO[IO] {
 
   override def createResourceWithManagerPolicy[R](resource: R,
                                                   creatorEmail: WorkbenchEmail,
-                                                  googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+                                                  googleProject: GoogleProject
+  )(implicit
+    sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = {
@@ -180,8 +181,8 @@ class MockSamDAO extends SamDAO[IO] {
     }
   }
 
-  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] =
     resource match {
@@ -196,8 +197,8 @@ class MockSamDAO extends SamDAO[IO] {
           IO(apps.remove((r, userEmailToAuthorization(projectOwnerEmail))))
     }
 
-  override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: Ask[IO, TraceId]
+  override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(petSA))
 
@@ -206,15 +207,15 @@ class MockSamDAO extends SamDAO[IO] {
   )(implicit ev: Ask[IO, TraceId]): IO[Option[WorkbenchEmail]] =
     IO.pure(Some(WorkbenchEmail("PROXY_1234567890@dev.test.firecloud.org")))
 
-  override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: Ask[IO, TraceId]
+  override def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Option[String]] = IO.pure(Some("token"))
 
   override def getStatus(implicit ev: Ask[IO, TraceId]): IO[StatusCheckResponse] =
     IO.pure(StatusCheckResponse(true, Map.empty))
 
-  override def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(
-    implicit sr: SamResourceAction[R, A],
+  override def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[List[sr.ActionCategory]] =
     sr.resourceType match {

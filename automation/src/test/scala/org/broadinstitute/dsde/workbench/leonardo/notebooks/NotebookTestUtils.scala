@@ -28,8 +28,9 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     case _                          => false
   }
 
-  def withNotebooksListPage[T](cluster: ClusterCopy)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
-                                                                                       token: AuthToken): T = {
+  def withNotebooksListPage[T](
+    cluster: ClusterCopy
+  )(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
     testCode(notebooksListPage.open)
   }
@@ -93,11 +94,11 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           )
           val result: Future[T] =
             retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
-                                                                                                            2 minutes) {
-              () =>
-                Future(
-                  notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
-                )
+                                                                                                            2 minutes
+            ) { () =>
+              Future(
+                notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
+              )
             }
           Await.result(result, 10 minutes)
         }
@@ -114,8 +115,9 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       notebooksListPage.withOpenNotebook(notebookPath, timeout)(notebookPage => testCode(notebookPage))
     }
 
-  def withDummyClientPage[T](cluster: ClusterCopy)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver,
-                                                                                   token: AuthToken): T = {
+  def withDummyClientPage[T](
+    cluster: ClusterCopy
+  )(testCode: DummyClientPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     // start a server to load the dummy client page
     val bindingFuture = DummyClient.startServer
     val testResult = Try {
@@ -157,7 +159,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     installOutput.get should include(s"Collecting $packageName")
     installOutput.get should include("Installing collected packages:")
     installOutput.get should include("Successfully installed")
-    installOutput.get should not include ("Exception:")
+    installOutput.get should not include "Exception:"
   }
 
   // https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/1_Introduction/helloworld.ipynb
@@ -200,13 +202,14 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           case Some(instantStr) => Instant.ofEpochMilli(instantStr.toLong).compareTo(Instant.now()) == 1
           case None             => false
         }
-        lastLockedBy = if (currentlyLocked) {
-          metadata match {
-            case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lastLockedBy") =>
-              Some(metadataMap("lastLockedBy"))
-            case _ => None
-          }
-        } else None
+        lastLockedBy =
+          if (currentlyLocked) {
+            metadata match {
+              case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lastLockedBy") =>
+                Some(metadataMap("lastLockedBy"))
+              case _ => None
+            }
+          } else None
       } yield lastLockedBy
     }
 
@@ -227,7 +230,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def setObjectMetadata(workspaceBucketName: GcsBucketName,
                         notebookName: GcsBlobName,
-                        metadata: Map[String, String]): IO[Unit] =
+                        metadata: Map[String, String]
+  ): IO[Unit] =
     //lockExpiresAt, lastLockedBy
     google2StorageResource.use { google2StorageDAO =>
       google2StorageDAO.setObjectMetadata(workspaceBucketName, notebookName, metadata, None).compile.drain
@@ -236,7 +240,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def setObjectContents(googleProject: GoogleProject,
                         workspaceBucketName: GcsBucketName,
                         notebookName: GcsBlobName,
-                        contents: String)(implicit token: AuthToken): IO[Unit] = {
+                        contents: String
+  )(implicit token: AuthToken): IO[Unit] = {
     val petServiceAccount = Sam.user.petServiceAccountEmail(googleProject.value)
     val userID = Identity.serviceAccount(petServiceAccount.value)
 
@@ -248,7 +253,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           .drain
         _ <- google2StorageDAO
           .setIamPolicy(workspaceBucketName,
-                        Map(ObjectAdmin.asInstanceOf[StorageRole] -> NonEmptyList[Identity](userID, List())))
+                        Map(ObjectAdmin.asInstanceOf[StorageRole] -> NonEmptyList[Identity](userID, List()))
+          )
           .compile
           .drain
       } yield ()

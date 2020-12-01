@@ -85,7 +85,8 @@ object JsonCodec {
      x.workerDiskSize,
      x.numberOfWorkerLocalSSDs,
      x.numberOfPreemptibleWorkers,
-     x.cloudService)
+     x.cloudService
+    )
   )
   implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct4(
     "machineType",
@@ -269,7 +270,8 @@ object JsonCodec {
                                          workerDiskSize,
                                          numberOfWorkerLocalSSDs,
                                          numberOfPreemptibleWorkers,
-                                         properties)
+                                         properties
+    )
   }
 
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>
@@ -302,7 +304,8 @@ object JsonCodec {
     } yield UserJupyterExtensionConfig(ne.getOrElse(Map.empty),
                                        se.getOrElse(Map.empty),
                                        ce.getOrElse(Map.empty),
-                                       le.getOrElse(Map.empty))
+                                       le.getOrElse(Map.empty)
+    )
   }
 
   implicit val clusterProjectAndNameDecoder: Decoder[RuntimeProjectAndName] =

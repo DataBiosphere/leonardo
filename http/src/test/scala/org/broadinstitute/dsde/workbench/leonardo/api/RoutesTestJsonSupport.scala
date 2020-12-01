@@ -32,9 +32,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
         operationName <- x.downField("operationName").as[Option[OperationName]]
         stagingBucket <- x.downField("stagingBucket").as[Option[GcsBucketName]]
         hostIp <- x.downField("hostIp").as[Option[IP]]
-      } yield {
-        (googleId, operationName, stagingBucket).mapN((x, y, z) => AsyncRuntimeFields(x, y, z, hostIp))
-      }
+      } yield (googleId, operationName, stagingBucket).mapN((x, y, z) => AsyncRuntimeFields(x, y, z, hostIp))
       machineConfig <- x.downField("machineConfig").as[RuntimeConfig]
       clusterUrl <- x.downField("clusterUrl").as[URL]
       status <- x.downField("status").as[RuntimeStatus]
@@ -85,9 +83,7 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
         operationName <- x.downField("operationName").as[Option[OperationName]]
         stagingBucket <- x.downField("stagingBucket").as[Option[GcsBucketName]]
         hostIp <- x.downField("hostIp").as[Option[IP]]
-      } yield {
-        (googleId, operationName, stagingBucket).mapN((x, y, z) => AsyncRuntimeFields(x, y, z, hostIp))
-      }
+      } yield (googleId, operationName, stagingBucket).mapN((x, y, z) => AsyncRuntimeFields(x, y, z, hostIp))
       machineConfig <- x.downField("machineConfig").as[RuntimeConfig]
       clusterUrl <- x.downField("clusterUrl").as[URL]
       status <- x.downField("status").as[RuntimeStatus]

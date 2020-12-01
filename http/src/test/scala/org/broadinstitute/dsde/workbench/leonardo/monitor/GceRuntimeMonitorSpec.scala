@@ -83,7 +83,8 @@ class GceRuntimeMonitorSpec
       )
       res6 <- monitor
         .validateUserScript(None,
-                            Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript")))))
+                            Some(UserScriptPath.Gcs(sucessUserScript.copy(objectName = GcsObjectName("userscript"))))
+        )
         .attempt
     } yield {
       res1 shouldBe UserScriptsValidationResult.Success
@@ -95,7 +96,7 @@ class GceRuntimeMonitorSpec
       res5 shouldBe (UserScriptsValidationResult.CheckAgain(
         "User script hasn't finished yet. See output in gs://nonExistent/object_output"
       ))
-      res6.left.value.getMessage shouldBe (s"${ctx} | staging bucket field hasn't been updated properly before monitoring started")
+      res6.left.value.getMessage shouldBe s"${ctx} | staging bucket field hasn't been updated properly before monitoring started"
     }
 
     res.unsafeRunSync
@@ -152,7 +153,7 @@ class GceRuntimeMonitorSpec
       .unsafeRunSync() shouldBe (Some(true))
     monitor
       .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("nonExistent"), GcsObjectName("")))
-      .unsafeRunSync() shouldBe (None)
+      .unsafeRunSync() shouldBe None
   }
 
   it should "retrieve user script from instance metadata properly" in {
@@ -170,8 +171,8 @@ class GceRuntimeMonitorSpec
     )
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = IO.pure(Some(readyInstance))
     }
 
@@ -205,8 +206,8 @@ class GceRuntimeMonitorSpec
     )
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val runningInstance = Instance
           .newBuilder()
@@ -254,17 +255,18 @@ class GceRuntimeMonitorSpec
     )
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val beforeInstance = None
         val runningInstance = readyInstance
 
         for {
           now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if (now - start < 5000)
-            IO.pure(beforeInstance)
-          else IO.pure(Some(runningInstance))
+          res <-
+            if (now - start < 5000)
+              IO.pure(beforeInstance)
+            else IO.pure(Some(runningInstance))
         } yield res
       }
     }
@@ -293,16 +295,17 @@ class GceRuntimeMonitorSpec
     )
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val beforeInstance = Instance.newBuilder().setStatus("TERMINATED").build()
 
         for {
           now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if (now - start < 5000)
-            IO.pure(Some(beforeInstance))
-          else IO.pure(Some(readyInstance))
+          res <-
+            if (now - start < 5000)
+              IO.pure(Some(beforeInstance))
+            else IO.pure(Some(readyInstance))
         } yield res
       }
     }
@@ -334,8 +337,8 @@ class GceRuntimeMonitorSpec
     )
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val runningInstance = Instance
           .newBuilder()
@@ -429,8 +432,8 @@ class GceRuntimeMonitorSpec
     )
 
     val computeService = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val instance = Instance.newBuilder().setStatus("Terminated").build()
         IO.pure(Some(instance))
@@ -509,16 +512,17 @@ class GceRuntimeMonitorSpec
     )
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val runningInstance = Instance.newBuilder().setStatus("Running").build()
 
         for {
           now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if (now - start < 5000)
-            IO.pure(Some(runningInstance))
-          else IO.pure(None)
+          res <-
+            if (now - start < 5000)
+              IO.pure(Some(runningInstance))
+            else IO.pure(None)
         } yield res
       }
     }
@@ -559,9 +563,7 @@ class GceRuntimeMonitorSpec
           RuntimeStatus.Deleted
         )
         .attempt
-    } yield {
-      r.left.value.getMessage shouldBe "Monitoring Deleted with pollOperation is not supported"
-    }
+    } yield r.left.value.getMessage shouldBe "Monitoring Deleted with pollOperation is not supported"
 
     res.unsafeRunSync()
   }
@@ -573,8 +575,8 @@ class GceRuntimeMonitorSpec
       pollOperation = new MockComputePollOperation {
         // In the first operation call, we set runtime status to Deleting, this should cause the original `Stopping` process to cancel and we'll
         // enqueue a delete message instead
-        override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
-          implicit ev: Ask[IO, TraceId]
+        override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(implicit
+          ev: Ask[IO, TraceId]
         ): IO[Operation] =
           clusterQuery
             .updateClusterStatus(runtime.id, RuntimeStatus.Deleting, Instant.now())
@@ -586,11 +588,10 @@ class GceRuntimeMonitorSpec
       _ <- monitor.pollCheck(runtime.googleProject,
                              RuntimeAndRuntimeConfig(runtime, gceRuntimeConfig),
                              op,
-                             RuntimeStatus.Stopping)
+                             RuntimeStatus.Stopping
+      )
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
-    } yield {
-      status shouldBe (Some(RuntimeStatus.PreDeleting))
-    }
+    } yield status shouldBe (Some(RuntimeStatus.PreDeleting))
 
     res.unsafeRunSync()
   }
@@ -605,17 +606,18 @@ class GceRuntimeMonitorSpec
     val initialOp = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("PENDING").build()
 
     def computePollOperation(start: Long): ComputePollOperation[IO] = new MockComputePollOperation {
-      override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Operation] = {
         val pendingOp = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("PENDING").build()
         val afterOperation = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("DONE").build()
 
         for {
           now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if (now - start < 4000)
-            IO.pure(pendingOp)
-          else IO.pure(afterOperation)
+          res <-
+            if (now - start < 4000)
+              IO.pure(pendingOp)
+            else IO.pure(afterOperation)
         } yield res
       }
     }
@@ -651,8 +653,8 @@ class GceRuntimeMonitorSpec
     val op = com.google.cloud.compute.v1.Operation.newBuilder().setStatus("PENDING").build()
 
     val pollOperation: ComputePollOperation[IO] = new MockComputePollOperation {
-      override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getGlobalOperation(project: GoogleProject, operationName: OperationName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Operation] = IO.pure(op)
     }
 
@@ -700,34 +702,36 @@ class GceRuntimeMonitorSpec
 
   def computeService(start: Long,
                      beforeStatus: Option[GceInstanceStatus],
-                     afterStatus: Option[GceInstanceStatus]): GoogleComputeService[IO] = new FakeGoogleComputeService {
-    override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-      implicit ev: Ask[IO, TraceId]
+                     afterStatus: Option[GceInstanceStatus]
+  ): GoogleComputeService[IO] = new FakeGoogleComputeService {
+    override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+      ev: Ask[IO, TraceId]
     ): IO[Option[Instance]] = {
       val beforeInstance = beforeStatus.map(s => Instance.newBuilder().setStatus(s.toString).build())
       val afterInstance = afterStatus.map(s => Instance.newBuilder().setStatus(s.toString).build())
 
       for {
         now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
-        res <- if (now - start < 5000)
-          IO.pure(beforeInstance)
-        else IO.pure(afterInstance)
+        res <-
+          if (now - start < 5000)
+            IO.pure(beforeInstance)
+          else IO.pure(afterInstance)
       } yield res
     }
   }
 }
 
 object GceInterp extends RuntimeAlgebra[IO] {
-  override def createRuntime(params: CreateRuntimeParams)(
-    implicit ev: Ask[IO, AppContext]
+  override def createRuntime(params: CreateRuntimeParams)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[CreateGoogleRuntimeResponse] = ???
 
-  override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: Ask[IO, TraceId]
+  override def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[RuntimeStatus] = ???
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(
-    implicit ev: Ask[IO, TraceId]
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Option[Operation]] = IO.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =

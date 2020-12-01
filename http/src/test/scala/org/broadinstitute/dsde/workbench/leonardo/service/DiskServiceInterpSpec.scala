@@ -54,14 +54,16 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
           emptyCreateDiskReq
         )
         .attempt
-    } yield {
-      d shouldBe (Left(AuthorizationError(userInfo.userEmail)))
-    }
+    } yield d shouldBe (Left(AuthorizationError(userInfo.userEmail)))
     res.unsafeRunSync()
   }
 
   it should "successfully create a persistent disk" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
     val googleProject = GoogleProject("googleProject")
     val diskName = DiskName("diskName1")
 
@@ -80,8 +82,8 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       message <- publisherQueue.dequeue1
     } yield {
       d shouldBe Right(())
-      disk.googleProject shouldBe (googleProject)
-      disk.name shouldBe (diskName)
+      disk.googleProject shouldBe googleProject
+      disk.name shouldBe diskName
       val expectedMessage = CreateDiskMessage.fromDisk(disk, Some(context.traceId))
 
       message shouldBe expectedMessage
@@ -90,7 +92,11 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "get a disk" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       samResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
@@ -107,51 +113,61 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "list disks" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       disk2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       listResponse <- diskService.listDisks(userInfo, None, Map.empty)
-    } yield {
-      listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
-    }
+    } yield listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
 
     res.unsafeRunSync()
   }
 
   it should "list disks with a project" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       disk2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       _ <- makePersistentDisk(None).copy(googleProject = project2).save()
       listResponse <- diskService.listDisks(userInfo, Some(project), Map.empty)
-    } yield {
-      listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
-    }
+    } yield listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
 
     res.unsafeRunSync()
   }
 
   it should "list disks with parameters" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       _ <- makePersistentDisk(Some(DiskName("d2"))).save()
       _ <- labelQuery.save(disk1.id.value, LabelResourceType.PersistentDisk, "foo", "bar").transaction
       listResponse <- diskService.listDisks(userInfo, None, Map("foo" -> "bar"))
-    } yield {
-      listResponse.map(_.id).toSet shouldBe Set(disk1.id)
-    }
+    } yield listResponse.map(_.id).toSet shouldBe Set(disk1.id)
 
     res.unsafeRunSync()
   }
 
   it should "list disks belonging to other users" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     // Make disks belonging to different users than the calling user
     val res = for {
@@ -162,17 +178,20 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .set(WorkbenchEmail("a_different_user2@example.com"))(makePersistentDisk(Some(DiskName("d2"))))
         .save()
       listResponse <- diskService.listDisks(userInfo, None, Map.empty)
-    } yield {
-      // Since the calling user is whitelisted in the auth provider, it should return
-      // the disks belonging to other users.
-      listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
-    }
+    } yield
+    // Since the calling user is whitelisted in the auth provider, it should return
+    // the disks belonging to other users.
+    listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
 
     res.unsafeRunSync()
   }
 
   it should "delete a disk" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       context <- ctx.ask[AppContext]
@@ -195,7 +214,11 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
   }
 
   it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       t <- ctx.ask[AppContext]
@@ -207,16 +230,18 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         )
       )
       err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt
-    } yield {
-      err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t.traceId))
-    }
+    } yield err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t.traceId))
 
     res.unsafeRunSync()
   }
 
   List(DiskStatus.Creating, DiskStatus.Restoring, DiskStatus.Failed, DiskStatus.Deleting, DiskStatus.Deleted).foreach {
     status =>
-      val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+      val userInfo = UserInfo(OAuth2BearerToken(""),
+                              WorkbenchUserId("userId"),
+                              WorkbenchEmail("user1@example.com"),
+                              0
+      ) // this email is white listed
       it should s"fail to update a disk in $status status" in isolatedDbTest {
         val res = for {
           t <- ctx.ask[AppContext]
@@ -226,15 +251,19 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
           fail <- diskService
             .updateDisk(userInfo, disk.googleProject, disk.name, req)
             .attempt
-        } yield {
-          fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = t.traceId))
-        }
+        } yield fail shouldBe Left(
+          DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = t.traceId)
+        )
         res.unsafeRunSync()
       }
   }
 
   it should "update a disk in Ready status" in isolatedDbTest {
-    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val userInfo = UserInfo(OAuth2BearerToken(""),
+                            WorkbenchUserId("userId"),
+                            WorkbenchEmail("user1@example.com"),
+                            0
+    ) // this email is white listed
 
     val res = for {
       context <- ctx.ask[AppContext]

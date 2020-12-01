@@ -27,12 +27,14 @@ import scala.concurrent.ExecutionContext
  */
 class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
   config: ZombieRuntimeMonitorConfig
-)(implicit F: Concurrent[F],
+)(implicit
+  F: Concurrent[F],
   metrics: OpenTelemetryMetrics[F],
   logger: Logger[F],
   dbRef: DbReference[F],
   ec: ExecutionContext,
-  runtimes: RuntimeInstances[F]) {
+  runtimes: RuntimeInstances[F]
+) {
 
   val process: Stream[F, Unit] =
     (Stream.sleep[F](config.zombieCheckPeriod) ++ Stream.eval(
@@ -117,12 +119,11 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       _ <- zombie.cloudService.interpreter
         .deleteRuntime(DeleteRuntimeParams(runtime))
         .void
-        .recoverWith {
-          case e =>
-            logger
-              .warn(e)(
-                s"Unable to delete inactive zombie runtime ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
-              )
+        .recoverWith { case e =>
+          logger
+            .warn(e)(
+              s"Unable to delete inactive zombie runtime ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
+            )
         }
       // In the next pass of the zombie monitor, this runtime will be marked as confirmed deleted if this succeeded
     } yield ()
@@ -131,11 +132,13 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
 object ZombieRuntimeMonitor {
   def apply[F[_]: Parallel: ContextShift: Timer](
     config: ZombieRuntimeMonitorConfig
-  )(implicit F: Concurrent[F],
+  )(implicit
+    F: Concurrent[F],
     metrics: OpenTelemetryMetrics[F],
     logger: Logger[F],
     dbRef: DbReference[F],
     ec: ExecutionContext,
-    runtimes: RuntimeInstances[F]): ZombieRuntimeMonitor[F] =
+    runtimes: RuntimeInstances[F]
+  ): ZombieRuntimeMonitor[F] =
     new ZombieRuntimeMonitor(config)
 }

@@ -79,7 +79,8 @@ class LeoPubsubMessageSubscriberSpec
   val mockWelderDAO = mock[WelderDAO[IO]]
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO() {
     override def isGroupMember(groupEmail: WorkbenchEmail,
-                               memberEmail: WorkbenchEmail): scala.concurrent.Future[Boolean] =
+                               memberEmail: WorkbenchEmail
+    ): scala.concurrent.Future[Boolean] =
       scala.concurrent.Future.successful(true)
   }
   val gdDAO = new MockGoogleDataprocDAO
@@ -89,7 +90,8 @@ class LeoPubsubMessageSubscriberSpec
     override def addIamPolicyBindingOnServiceAccount(serviceAccountProject: GoogleProject,
                                                      serviceAccountEmail: WorkbenchEmail,
                                                      memberEmail: WorkbenchEmail,
-                                                     rolesToAdd: Set[String]): Future[Unit] = Future.successful(())
+                                                     rolesToAdd: Set[String]
+    ): Future[Unit] = Future.successful(())
   }
   val iamDAO = new MockGoogleIamDAO
   val projectDAO = new MockGoogleProjectDAO
@@ -110,7 +112,8 @@ class LeoPubsubMessageSubscriberSpec
     new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                            projectDAO,
                            FakeGoogleComputeService,
-                           new MockComputePollOperation)
+                           new MockComputePollOperation
+    )
 
   val gkeInterp =
     new GKEInterpreter[IO](Config.gkeInterpConfig,
@@ -122,7 +125,8 @@ class LeoPubsubMessageSubscriberSpec
                            credentials,
                            iamDAOKubernetes,
                            whitelistAuthProvider,
-                           blocker)
+                           blocker
+    )
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -134,14 +138,16 @@ class LeoPubsubMessageSubscriberSpec
                                                    iamDAO,
                                                    projectDAO,
                                                    mockWelderDAO,
-                                                   blocker)
+                                                   blocker
+  )
   val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                          bucketHelper,
                                          vpcInterp,
                                          FakeGoogleComputeService,
                                          MockGoogleDiskService,
                                          mockWelderDAO,
-                                         blocker)
+                                         blocker
+  )
 
   implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
@@ -223,7 +229,8 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
-                                                    persistentDiskId = Some(disk.id))
+                                                    persistentDiskId = Some(disk.id)
+      )
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]
@@ -242,8 +249,8 @@ class LeoPubsubMessageSubscriberSpec
   it should "persist delete disk error when if fail to delete disk" in isolatedDbTest {
     val queue = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync()
     val pollOperation = new MockComputePollOperation {
-      override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Operation] = IO.pure(
         Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("PENDING").build()
       )
@@ -255,7 +262,8 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
-                                                    persistentDiskId = Some(disk.id))
+                                                    persistentDiskId = Some(disk.id)
+      )
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]
@@ -266,7 +274,8 @@ class LeoPubsubMessageSubscriberSpec
           val dummyNow = Instant.now()
           error.head.copy(timestamp = dummyNow) shouldBe RuntimeError(s"Fail to delete ${disk.name} in a timely manner",
                                                                       None,
-                                                                      dummyNow)
+                                                                      dummyNow
+          )
         }
       )
     } yield ()
@@ -282,9 +291,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       message = DeleteRuntimeMessage(runtime.id, None, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
-    } yield {
-      attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
-    }
+    } yield attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
 
     res.unsafeRunSync()
   }
@@ -314,9 +321,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       message = StopRuntimeMessage(runtime.id, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
-    } yield {
-      attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
-    }
+    } yield attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
 
     res.unsafeRunSync()
   }
@@ -347,9 +352,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       message = StartRuntimeMessage(runtime.id, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
-    } yield {
-      attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
-    }
+    } yield attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
 
     res.unsafeRunSync()
   }
@@ -388,9 +391,7 @@ class LeoPubsubMessageSubscriberSpec
         asyncTaskProcessor.process,
         clusterQuery.getClusterStatus(runtime.id).transaction.map(s => s shouldBe Some(RuntimeStatus.Running))
       )
-    } yield {
-      updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe 100
-    }
+    } yield updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe 100
 
     res.unsafeRunSync()
   }
@@ -485,7 +486,8 @@ class LeoPubsubMessageSubscriberSpec
                              Some(DiskUpdate.PdSizeUpdate(disk.id, disk.name, DiskSize(200))),
                              None,
                              None,
-                             Some(tr))
+                             Some(tr)
+        )
       )
 
       assert = for {
@@ -523,7 +525,8 @@ class LeoPubsubMessageSubscriberSpec
                              Some(DiskUpdate.NoPdSizeUpdate(DiskSize(1024))),
                              None,
                              None,
-                             Some(tr))
+                             Some(tr)
+        )
       )
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
       updatedRuntimeConfig <- updatedRuntime.traverse(r =>
@@ -584,9 +587,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       message = DeleteDiskMessage(disk.id, Some(tr))
       attempt <- leoSubscriber.messageResponder(message).attempt
-    } yield {
-      attempt shouldBe Right(())
-    }
+    } yield attempt shouldBe Right(())
 
     res.unsafeRunSync()
   }
@@ -601,11 +602,9 @@ class LeoPubsubMessageSubscriberSpec
 
       _ <- leoSubscriber.messageResponder(UpdateDiskMessage(disk.id, DiskSize(550), Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
-    } yield {
-      updatedDisk shouldBe 'defined
-      //TODO: fix tests
+    } yield updatedDisk shouldBe 'defined
+    //TODO: fix tests
 //      updatedDisk.get.size shouldBe DiskSize(550)
-    }
 
     res.unsafeRunSync()
   }
@@ -650,7 +649,9 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   Config.vpcConfig.subnetworkIpRange
+                                     )
+        )
       )
       getDisk.status shouldBe DiskStatus.Ready
     }
@@ -728,7 +729,9 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   Config.vpcConfig.subnetworkIpRange
+                                     )
+        )
       )
       getApp2.app.errors shouldBe List()
       getApp2.app.status shouldBe AppStatus.Running
@@ -799,7 +802,8 @@ class LeoPubsubMessageSubscriberSpec
         Some(
           ClusterNodepoolAction.CreateClusterAndNodepool(KubernetesClusterLeoId(-1),
                                                          NodepoolLeoId(-1),
-                                                         NodepoolLeoId(-1))
+                                                         NodepoolLeoId(-1)
+          )
         ),
         savedApp1.id,
         savedApp1.appName,
@@ -1000,7 +1004,8 @@ class LeoPubsubMessageSubscriberSpec
                              savedNodepool1.id,
                              savedCluster1.googleProject,
                              None,
-                             Some(tr))
+                             Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1047,7 +1052,8 @@ class LeoPubsubMessageSubscriberSpec
                              savedNodepool1.id,
                              savedCluster1.googleProject,
                              None,
-                             Some(tr))
+                             Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1093,7 +1099,8 @@ class LeoPubsubMessageSubscriberSpec
                              savedNodepool1.id,
                              savedCluster1.googleProject,
                              Some(disk.id),
-                             Some(tr))
+                             Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1126,7 +1133,8 @@ class LeoPubsubMessageSubscriberSpec
                              credentials,
                              iamDAOKubernetes,
                              whitelistAuthProvider,
-                             blocker)
+                             blocker
+      )
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
@@ -1146,7 +1154,8 @@ class LeoPubsubMessageSubscriberSpec
                              savedNodepool1.id,
                              savedCluster1.googleProject,
                              None,
-                             Some(tr))
+                             Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterp = gkeInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1166,8 +1175,8 @@ class LeoPubsubMessageSubscriberSpec
     val mockAckConsumer = mock[AckReplyConsumer]
 
     val mockGKEService = new MockGKEService {
-      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
-        implicit ev: Ask[IO, TraceId]
+      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[v1.Operation]] = IO.raiseError(new Exception(exceptionMessage))
     }
     val gkeInterp =
@@ -1180,7 +1189,8 @@ class LeoPubsubMessageSubscriberSpec
                              credentials,
                              iamDAOKubernetes,
                              whitelistAuthProvider,
-                             blocker)
+                             blocker
+      )
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
@@ -1200,7 +1210,8 @@ class LeoPubsubMessageSubscriberSpec
                              savedNodepool1.id,
                              savedCluster1.googleProject,
                              None,
-                             Some(tr))
+                             Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterp = gkeInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1237,7 +1248,8 @@ class LeoPubsubMessageSubscriberSpec
                              savedNodepool1.id,
                              savedCluster1.googleProject,
                              Some(DiskId(-1)),
-                             Some(tr))
+                             Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1277,7 +1289,8 @@ class LeoPubsubMessageSubscriberSpec
       msg = BatchNodepoolCreateMessage(savedCluster1.id,
                                        List(savedNodepool1.id, savedNodepool2.id),
                                        savedCluster1.googleProject,
-                                       Some(tr))
+                                       Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1380,7 +1393,8 @@ class LeoPubsubMessageSubscriberSpec
       msg = BatchNodepoolCreateMessage(savedCluster1.id,
                                        List(savedNodepool1.id, savedNodepool2.id, savedNodepool3.id),
                                        savedCluster1.googleProject,
-                                       Some(tr))
+                                       Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1438,7 +1452,8 @@ class LeoPubsubMessageSubscriberSpec
                              credentials,
                              iamDAOKubernetes,
                              whitelistAuthProvider,
-                             blocker)
+                             blocker
+      )
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
@@ -1519,7 +1534,8 @@ class LeoPubsubMessageSubscriberSpec
                              credentials,
                              iamDAOKubernetes,
                              whitelistAuthProvider,
-                             blocker)
+                             blocker
+      )
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
@@ -1581,8 +1597,8 @@ class LeoPubsubMessageSubscriberSpec
     val mockAckConsumer = mock[AckReplyConsumer]
 
     val mockGKEService = new MockGKEService {
-      override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(
-        implicit ev: Ask[IO, TraceId]
+      override def createCluster(request: GKEModels.KubernetesCreateClusterRequest)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[com.google.api.services.container.model.Operation]] = IO.raiseError(new Exception("test exception"))
     }
 
@@ -1596,7 +1612,8 @@ class LeoPubsubMessageSubscriberSpec
                              credentials,
                              iamDAO,
                              whitelistAuthProvider,
-                             blocker)
+                             blocker
+      )
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction
@@ -1647,14 +1664,13 @@ class LeoPubsubMessageSubscriberSpec
                              credentials,
                              iamDAOKubernetes,
                              whitelistAuthProvider,
-                             blocker)
+                             blocker
+      )
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster.id).transaction
       getCluster = clusterOpt.get
-    } yield {
-      getCluster.status shouldBe KubernetesClusterStatus.Deleted
-    }
+    } yield getCluster.status shouldBe KubernetesClusterStatus.Deleted
 
     val res = for {
       tr <- traceId.ask[TraceId]
@@ -1713,7 +1729,9 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   Config.vpcConfig.subnetworkIpRange
+                                     )
+        )
       )
       getDisk.status shouldBe DiskStatus.Ready
     }
@@ -1764,7 +1782,8 @@ class LeoPubsubMessageSubscriberSpec
                              savedNodepool1.id,
                              savedCluster1.googleProject,
                              None,
-                             Some(tr))
+                             Some(tr)
+      )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1821,7 +1840,8 @@ class LeoPubsubMessageSubscriberSpec
                         asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
                           InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
                         computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
-                        gkeInterp: GKEInterpreter[IO] = gkeInterp) = {
+                        gkeInterp: GKEInterpreter[IO] = gkeInterp
+  ) = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
@@ -1829,7 +1849,8 @@ class LeoPubsubMessageSubscriberSpec
     new LeoPubsubMessageSubscriber[IO](
       LeoPubsubMessageSubscriberConfig(1,
                                        30 seconds,
-                                       Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig),
+                                       Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig
+      ),
       googleSubscriber,
       asyncTaskQueue,
       MockGoogleDiskService,

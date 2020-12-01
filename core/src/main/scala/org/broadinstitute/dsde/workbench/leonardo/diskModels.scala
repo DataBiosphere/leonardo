@@ -18,7 +18,8 @@ final case class PersistentDisk(id: DiskId,
                                 diskType: DiskType,
                                 blockSize: BlockSize,
                                 formattedBy: Option[FormattedBy],
-                                labels: LabelMap) {
+                                labels: LabelMap
+) {
   def projectNameString: String = s"${googleProject.value}/${name.value}"
 }
 
@@ -28,7 +29,8 @@ final case class DiskId(value: Long) extends AnyVal
 case class DefaultDiskLabels(diskName: DiskName,
                              googleProject: GoogleProject,
                              creator: WorkbenchEmail,
-                             serviceAccount: WorkbenchEmail) {
+                             serviceAccount: WorkbenchEmail
+) {
   def toMap: LabelMap =
     Map(
       "diskName" -> diskName.value,

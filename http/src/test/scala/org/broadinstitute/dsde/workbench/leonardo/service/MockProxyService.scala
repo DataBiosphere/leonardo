@@ -28,22 +28,24 @@ class MockProxyService(
   kubernetesDnsCache: KubernetesDnsCache[IO],
   googleOauth2Service: GoogleOAuth2Service[IO],
   queue: Option[InspectableQueue[IO, UpdateDateAccessMessage]] = None
-)(implicit system: ActorSystem,
+)(implicit
+  system: ActorSystem,
   executionContext: ExecutionContext,
   timer: Timer[IO],
   cs: ContextShift[IO],
   dbRef: DbReference[IO],
   metrics: OpenTelemetryMetrics[IO],
-  logger: Logger[IO])
-    extends ProxyService(TestUtils.sslContext(system),
-                         proxyConfig,
-                         jupyterDAO,
-                         runtimeDnsCache,
-                         kubernetesDnsCache,
-                         authProvider,
-                         queue.getOrElse(InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
-                         googleOauth2Service,
-                         Blocker.liftExecutionContext(ExecutionContext.global)) {
+  logger: Logger[IO]
+) extends ProxyService(TestUtils.sslContext(system),
+                       proxyConfig,
+                       jupyterDAO,
+                       runtimeDnsCache,
+                       kubernetesDnsCache,
+                       authProvider,
+                       queue.getOrElse(InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
+                       googleOauth2Service,
+                       Blocker.liftExecutionContext(ExecutionContext.global)
+    ) {
 
   override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost")))

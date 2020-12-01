@@ -27,9 +27,7 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
       id <- RuntimeConfigQueries.insertRuntimeConfig(runtimeConfig, Instant.ofEpochMilli(now)).transaction
       rc <- RuntimeConfigQueries.getRuntimeConfig(id).transaction
-    } yield {
-      rc shouldBe runtimeConfig
-    }
+    } yield rc shouldBe runtimeConfig
     res.unsafeRunSync()
   }
 
@@ -69,9 +67,7 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       )
       id <- RuntimeConfigQueries.insertRuntimeConfig(runtimeConfig, Instant.ofEpochMilli(now)).transaction
       rc <- RuntimeConfigQueries.getRuntimeConfig(id).transaction
-    } yield {
-      rc shouldBe runtimeConfig
-    }
+    } yield rc shouldBe runtimeConfig
     res.unsafeRunSync()
   }
 }

@@ -75,7 +75,8 @@ object CommonTestData {
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"),
                                             ServiceAccountPrivateKeyData("abcdefg"),
                                             Some(Instant.now),
-                                            Some(Instant.now.plusSeconds(300)))
+                                            Some(Instant.now.plusSeconds(300))
+  )
   val initBucketName = GcsBucketName("init-bucket-path")
   val stagingBucketName = GcsBucketName("staging-bucket-name")
   val autopause = true
@@ -201,7 +202,8 @@ object CommonTestData {
                                         None,
                                         None,
                                         None,
-                                        Map.empty[String, String])
+                                        Map.empty[String, String]
+    )
   val gceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500), bootDiskSize = Some(DiskSize(50)))
   val gceWithPdRuntimeConfig =
@@ -345,9 +347,12 @@ object CommonTestData {
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1" -> "abc", "nbExt2" -> "def"),
                                                  Map("serverExt1" -> "pqr"),
-                                                 Map("combinedExt1" -> "xyz"))
+                                                 Map("combinedExt1" -> "xyz")
+  )
 
-  val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
+  val traceId = Ask.const[IO, TraceId](
+    TraceId(UUID.randomUUID())
+  ) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   def clusterServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
     serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()

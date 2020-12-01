@@ -51,7 +51,8 @@ trait TestLeoRoutes {
     dao
       .createGroup(Config.googleGroupsConfig.dataprocImageProjectGroupName,
                    Config.googleGroupsConfig.dataprocImageProjectGroupEmail,
-                   Option(dao.lockedDownGroupSettings))
+                   Option(dao.lockedDownGroupSettings)
+      )
       .futureValue(mockGoogleDirectoryDAOPatience, Position.here)
     dao
   }
@@ -79,7 +80,8 @@ trait TestLeoRoutes {
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                          mockGoogleProjectDAO,
                                          FakeGoogleComputeService,
-                                         new MockComputePollOperation)
+                                         new MockComputePollOperation
+  )
   val dataprocInterp =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
@@ -91,7 +93,8 @@ trait TestLeoRoutes {
                                 mockGoogleIamDAO,
                                 mockGoogleProjectDAO,
                                 MockWelderDAO,
-                                blocker)
+                                blocker
+    )
   val gceInterp =
     new GceInterpreter[IO](Config.gceInterpreterConfig,
                            bucketHelper,
@@ -99,7 +102,8 @@ trait TestLeoRoutes {
                            FakeGoogleComputeService,
                            MockGoogleDiskService,
                            MockWelderDAO,
-                           blocker)
+                           blocker
+    )
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val leoKubernetesService: LeoKubernetesServiceInterp[IO] = new LeoKubernetesServiceInterp[IO](
@@ -153,7 +157,8 @@ trait TestLeoRoutes {
                          whitelistAuthProvider,
                          runtimeDnsCache,
                          kubernetesDnsCache,
-                         MockGoogleOAuth2Service)
+                         MockGoogleOAuth2Service
+    )
   val statusService =
     new StatusService(mockGoogleDataprocDAO, mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
@@ -174,7 +179,8 @@ trait TestLeoRoutes {
                          autoFreezeConfig,
                          Config.zombieRuntimeMonitorConfig,
                          dataprocConfig,
-                         Config.gceConfig),
+                         Config.gceConfig
+    ),
     Config.persistentDiskConfig,
     whitelistAuthProvider,
     serviceAccountProvider,
@@ -204,14 +210,16 @@ trait TestLeoRoutes {
                                        MockDiskServiceInterp,
                                        leoKubernetesService,
                                        timedUserInfoDirectives,
-                                       contentSecurityPolicy)
+                                       contentSecurityPolicy
+  )
 
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r
 
   protected def validateCookie(setCookie: Option[`Set-Cookie`],
                                expectedCookie: HttpCookiePair = tokenCookie,
-                               age: Long = tokenAge): Unit = {
+                               age: Long = tokenAge
+  ): Unit = {
     setCookie shouldBe 'defined
     val cookie = setCookie.get.cookie
     cookie.name shouldBe expectedCookie.name
@@ -226,7 +234,8 @@ trait TestLeoRoutes {
   // See comment in CookieHelper.setTokenCookie.
   protected def validateRawCookie(setCookie: Option[HttpHeader],
                                   expectedCookie: HttpCookiePair = tokenCookie,
-                                  age: Long = tokenAge): Unit = {
+                                  age: Long = tokenAge
+  ): Unit = {
     setCookie shouldBe 'defined
     setCookie.get.name shouldBe "Set-Cookie"
 
@@ -238,7 +247,8 @@ trait TestLeoRoutes {
   }
 
   protected def validateUnsetRawCookie(setCookie: Option[HttpHeader],
-                                       expectedCookie: HttpCookiePair = tokenCookie): Unit = {
+                                       expectedCookie: HttpCookiePair = tokenCookie
+  ): Unit = {
     setCookie shouldBe 'defined
     setCookie.get.name shouldBe "Set-Cookie"
     setCookie.get.value shouldBe s"${tokenName}=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None"

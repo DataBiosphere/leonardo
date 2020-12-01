@@ -78,25 +78,24 @@ abstract class RuntimeFixtureSpec
           billingProject,
           runtimeName,
           getRuntimeRequest(cloudService.getOrElse(CloudService.GCE),
-                            toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR)))
+                            toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR))
+          )
         )
-      } yield {
-        ronCluster = ClusterCopy(
-          runtimeName,
-          billingProject,
-          getRuntimeResponse.serviceAccount,
-          null,
-          null,
-          getRuntimeResponse.auditInfo.creator,
-          null,
-          null,
-          null,
-          null,
-          false,
-          15,
-          false
-        )
-      }
+      } yield ronCluster = ClusterCopy(
+        runtimeName,
+        billingProject,
+        getRuntimeResponse.serviceAccount,
+        null,
+        null,
+        getRuntimeResponse.auditInfo.creator,
+        null,
+        null,
+        null,
+        null,
+        false,
+        15,
+        false
+      )
     }
 
     res.unsafeRunSync()

@@ -58,13 +58,14 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       )
       db <- IO(dbConfig.db)
       // init with liquibase if we haven't done it yet
-      _ <- if (sys.props.get(initWithLiquibaseProp).isEmpty)
-        Resource
-          .make(IO(db.source.createConnection()))(conn => IO(conn.close()))
-          .use(conn => IO(DbReference.initWithLiquibase(conn, liquiBaseConfig))) >> IO(
-          sys.props.put(initWithLiquibaseProp, "done")
-        )
-      else IO.unit
+      _ <-
+        if (sys.props.get(initWithLiquibaseProp).isEmpty)
+          Resource
+            .make(IO(db.source.createConnection()))(conn => IO(conn.close()))
+            .use(conn => IO(DbReference.initWithLiquibase(conn, liquiBaseConfig))) >> IO(
+            sys.props.put(initWithLiquibaseProp, "done")
+          )
+        else IO.unit
     } yield new DbRef[IO](dbConfig, db, concurrentPermits, blocker)
 
   def dbFutureValue[T](f: DBIO[T]): T = testDbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()
@@ -78,16 +79,15 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       testCode
     } catch {
       case t: Throwable => t.printStackTrace(); throw t
-    } finally {
-      dbFutureValue(testDbRef.dataAccess.truncateAll)
-    }
+    } finally dbFutureValue(testDbRef.dataAccess.truncateAll)
 
   protected def getClusterId(getClusterIdRequest: GetClusterKey): Long =
     getClusterId(getClusterIdRequest.googleProject, getClusterIdRequest.clusterName, getClusterIdRequest.destroyedDate)
 
   protected def getClusterId(googleProject: GoogleProject,
                              clusterName: RuntimeName,
-                             destroyedDateOpt: Option[Instant]): Long =
+                             destroyedDateOpt: Option[Instant]
+  ): Long =
     dbFutureValue(clusterQuery.getIdByUniqueKey(googleProject, clusterName, destroyedDateOpt)).get
 
   implicit class ClusterExtensions(cluster: Runtime) {
@@ -114,7 +114,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
                       Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
                       serviceAccountKeyId,
                       runtimeConfig,
-                      Instant.now)
+                      Instant.now
+          )
         )
       }
   }

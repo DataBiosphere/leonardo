@@ -27,7 +27,8 @@ import scala.concurrent.ExecutionContext
 import scala.util.control.NoStackTrace
 case class AuthenticationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
-                         StatusCodes.Unauthorized)
+                         StatusCodes.Unauthorized
+    )
     with NoStackTrace
 
 // TODO: This can probably renamed to legacyRuntimeRoutes
@@ -35,12 +36,13 @@ case class AuthenticationError(email: Option[WorkbenchEmail] = None)
 class LeoRoutes(
   val leonardoService: LeonardoService,
   userInfoDirectives: UserInfoDirectives
-)(implicit val system: ActorSystem,
+)(implicit
+  val system: ActorSystem,
   val materializer: Materializer,
   val executionContext: ExecutionContext,
   val cs: ContextShift[IO],
-  timer: Timer[IO])
-    extends LazyLogging {
+  timer: Timer[IO]
+) extends LazyLogging {
 
   import io.opencensus.scala.akka.http.TracingDirective._
 
@@ -93,18 +95,19 @@ class LeoRoutes(
                     }
                 } ~
                   path("stop") {
-                    traceRequestForService(serviceData) { span => // Use `LABEL:service.name:leonardo` to find the span on stackdriver console
-                      post {
-                        complete {
-                          for {
-                            implicit0(ctx: Ask[IO, AppContext]) <- AppContext.lift[IO](Some(span))
-                            res <- leonardoService
-                              .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
-                              .as(StatusCodes.Accepted)
-                            _ <- IO(span.end())
-                          } yield res
+                    traceRequestForService(serviceData) {
+                      span => // Use `LABEL:service.name:leonardo` to find the span on stackdriver console
+                        post {
+                          complete {
+                            for {
+                              implicit0(ctx: Ask[IO, AppContext]) <- AppContext.lift[IO](Some(span))
+                              res <- leonardoService
+                                .stopCluster(userInfo, GoogleProject(googleProject), clusterName)
+                                .as(StatusCodes.Accepted)
+                              _ <- IO(span.end())
+                            } yield res
+                          }
                         }
-                      }
                     }
                   } ~
                   path("start") {

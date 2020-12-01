@@ -27,12 +27,14 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   appType: AppType,
                                   diskConfig: Option[PersistentDiskRequest],
                                   labels: LabelMap = Map.empty,
-                                  customEnvironmentVariables: Map[String, String])
+                                  customEnvironmentVariables: Map[String, String]
+)
 
 final case class DeleteAppRequest(userInfo: UserInfo,
                                   googleProject: GoogleProject,
                                   appName: AppName,
-                                  deleteDisk: Boolean)
+                                  deleteDisk: Boolean
+)
 
 final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[AppError],
@@ -40,7 +42,8 @@ final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig
                                 proxyUrls: Map[ServiceName, URL],
                                 diskName: Option[DiskName],
                                 customEnvironmentVariables: Map[String, String],
-                                auditInfo: AuditInfo)
+                                auditInfo: AuditInfo
+)
 
 final case class ListAppResponse(googleProject: GoogleProject,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
@@ -49,11 +52,13 @@ final case class ListAppResponse(googleProject: GoogleProject,
                                  proxyUrls: Map[ServiceName, URL],
                                  appName: AppName,
                                  diskName: Option[DiskName],
-                                 auditInfo: AuditInfo)
+                                 auditInfo: AuditInfo
+)
 
 final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
                                             kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
-                                            clusterName: Option[KubernetesClusterName])
+                                            clusterName: Option[KubernetesClusterName]
+)
 
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 

@@ -85,8 +85,9 @@ trait LeonardoTestUtils
   val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker)
   val googleDiskService =
     GoogleDiskService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker, Semaphore[IO](10).unsafeRunSync())
-  val concurrentClusterCreationPermits
-    : Semaphore[IO] = Semaphore[IO](5).unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
+  val concurrentClusterCreationPermits: Semaphore[IO] =
+    Semaphore[IO](5)
+      .unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveClusterLogFiles(googleProject: GoogleProject, clusterName: RuntimeName, paths: List[String], suffix: String)(
@@ -139,7 +140,8 @@ trait LeonardoTestUtils
                  clusterName: RuntimeName,
                  googleProject: GoogleProject,
                  creator: WorkbenchEmail,
-                 clusterRequest: ClusterRequest): Unit = {
+                 clusterRequest: ClusterRequest
+  ): Unit = {
 
     // the SAs can vary here depending on which ServiceAccountProvider is used
     // set dummy values here and then remove them from the comparison
@@ -172,7 +174,8 @@ trait LeonardoTestUtils
                     userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                     jupyterUserScriptUri: Option[UserScriptPath],
                     jupyterStartUserScriptUri: Option[UserScriptPath],
-                    toolDockerImage: Option[ContainerImage]): Unit = {
+                    toolDockerImage: Option[ContainerImage]
+  ): Unit = {
 
     // the SAs can vary here depending on which ServiceAccountProvider is used
     // set dummy values here and then remove them from the comparison
@@ -203,7 +206,8 @@ trait LeonardoTestUtils
                     expectedName: RuntimeName,
                     expectedStatuses: Iterable[ClusterStatus],
                     clusterRequest: ClusterRequest,
-                    bucketCheck: Boolean = true): ClusterCopy = {
+                    bucketCheck: Boolean = true
+  ): ClusterCopy = {
     // Always log cluster errors
     if (cluster.errors.nonEmpty) {
       logger.warn(s"Runtime ${cluster.projectNameString} returned the following errors: ${cluster.errors}")
@@ -236,7 +240,8 @@ trait LeonardoTestUtils
                     jupyterUserScriptUri: Option[UserScriptPath],
                     jupyterStartUserScriptUri: Option[UserScriptPath],
                     toolDockerImage: Option[ContainerImage],
-                    bucketCheck: Boolean = true): GetRuntimeResponseCopy = {
+                    bucketCheck: Boolean = true
+  ): GetRuntimeResponseCopy = {
     // Always log cluster errors
 
     if (runtime.errors.nonEmpty) {
@@ -276,7 +281,8 @@ trait LeonardoTestUtils
                     runtimeName: RuntimeName,
                     runtimeRequest: CreateRuntime2Request,
                     monitor: Boolean,
-                    shouldError: Boolean = true)(implicit token: Authorization): GetRuntimeResponseCopy = {
+                    shouldError: Boolean = true
+  )(implicit token: Authorization): GetRuntimeResponseCopy = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
@@ -290,9 +296,10 @@ trait LeonardoTestUtils
             runtimeRequest
           )
         )
-        resp <- if (monitor)
-          LeonardoApiClient.waitUntilRunning(googleProject, runtimeName, shouldError)
-        else LeonardoApiClient.getRuntime(googleProject, runtimeName)
+        resp <-
+          if (monitor)
+            LeonardoApiClient.waitUntilRunning(googleProject, runtimeName, shouldError)
+          else LeonardoApiClient.getRuntime(googleProject, runtimeName)
       } yield resp
     }
 
@@ -342,8 +349,8 @@ trait LeonardoTestUtils
 
   }
 
-  def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(
-    implicit token: AuthToken
+  def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(implicit
+    token: AuthToken
   ): Unit = {
     //we cannot save the log if the cluster isn't running
 
@@ -351,10 +358,9 @@ trait LeonardoTestUtils
 
       saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "delete")
     }
-    try {
-      Leonardo.cluster.deleteRuntime(googleProject, runtimeName) shouldBe
-        "The request has been accepted for processing, but the processing has not been completed."
-    } catch {
+    try Leonardo.cluster.deleteRuntime(googleProject, runtimeName) shouldBe
+      "The request has been accepted for processing, but the processing has not been completed."
+    catch {
       // OK if cluster not found / already deleted
       case re: RestException if re.message.contains("\"statusCode\":409") => ()
       case e: Exception                                                   => throw e
@@ -387,8 +393,8 @@ trait LeonardoTestUtils
     }
   }
 
-  def stopRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(
-    implicit token: AuthToken
+  def stopRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(implicit
+    token: AuthToken
   ): Unit = {
     Leonardo.cluster.stopRuntime(googleProject, runtimeName) shouldBe
       "The request has been accepted for processing, but the processing has not been completed."
@@ -420,8 +426,8 @@ trait LeonardoTestUtils
   def stopAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit =
     stopRuntime(googleProject, runtimeName, monitor = true)(token)
 
-  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit token: AuthToken,
+  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
+    token: AuthToken,
     authorization: Authorization
   ): Unit = {
     // verify with get()
@@ -445,12 +451,14 @@ trait LeonardoTestUtils
   def defaultClusterRequest: ClusterRequest =
     ClusterRequest(Map("foo" -> makeRandomId()),
                    enableWelder = Some(enableWelder),
-                   toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl))
+                   toolDockerImage = Some(LeonardoConfig.Leonardo.baseImageUrl)
+    )
 
   def createNewRuntime(googleProject: GoogleProject,
                        name: RuntimeName = randomClusterName,
                        request: CreateRuntime2Request = LeonardoApiClient.defaultCreateRuntime2Request,
-                       monitor: Boolean = true)(implicit token: Authorization): ClusterCopy = {
+                       monitor: Boolean = true
+  )(implicit token: Authorization): ClusterCopy = {
 
     val cluster = createRuntime(googleProject, name, request, monitor)
     if (monitor) {
@@ -519,13 +527,14 @@ trait LeonardoTestUtils
 
     // we don't delete if there's an error
     val res = for {
-      t <- testResult.onError {
-        case _: Throwable => IO(logger.info("The test failed. Will not delete the runtime."))
+      t <- testResult.onError { case _: Throwable =>
+        IO(logger.info("The test failed. Will not delete the runtime."))
       }
-      _ <- if (deleteRuntimeAfter) {
-        IO(logger.info(s"deleting runtime ${googleProject}/${cluster.clusterName}")) >>
-          IO(deleteRuntime(googleProject, cluster.clusterName, monitorDelete))
-      } else IO(logger.info(s"not going to delete runtime ${googleProject}/${cluster.clusterName}"))
+      _ <-
+        if (deleteRuntimeAfter) {
+          IO(logger.info(s"deleting runtime ${googleProject}/${cluster.clusterName}")) >>
+            IO(deleteRuntime(googleProject, cluster.clusterName, monitorDelete))
+        } else IO(logger.info(s"not going to delete runtime ${googleProject}/${cluster.clusterName}"))
     } yield t
 
     res.unsafeRunSync()
@@ -592,7 +601,8 @@ trait LeonardoTestUtils
   def withNewBucketObject[T](bucketName: GcsBucketName,
                              objectName: GcsObjectName,
                              fileContents: String,
-                             objectType: String)(testCode: GcsObjectName => T): T =
+                             objectType: String
+  )(testCode: GcsObjectName => T): T =
     withNewBucketObject(bucketName, objectName, new ByteArrayInputStream(fileContents.getBytes), objectType)(testCode)
 
   def withNewBucketObject[T](bucketName: GcsBucketName, objectName: GcsObjectName, localFile: File, objectType: String)(
@@ -601,12 +611,14 @@ trait LeonardoTestUtils
     withNewBucketObject(bucketName,
                         objectName,
                         new ByteArrayInputStream(Files.readAllBytes(localFile.toPath)),
-                        objectType)(testCode)
+                        objectType
+    )(testCode)
 
   def withNewBucketObject[T](bucketName: GcsBucketName,
                              objectName: GcsObjectName,
                              data: ByteArrayInputStream,
-                             objectType: String)(testCode: GcsObjectName => T): T = {
+                             objectType: String
+  )(testCode: GcsObjectName => T): T = {
     implicit val patienceConfig: PatienceConfig = storagePatience
 
     // Create google bucket and run test code
@@ -639,7 +651,8 @@ trait LeonardoTestUtils
           .setObjectAccessControl(bucketName,
                                   bucketObject,
                                   EmailGcsEntity(GcsEntityTypes.User, petServiceAccount),
-                                  GcsRoles.Reader)
+                                  GcsRoles.Reader
+          )
           .futureValue
 
         testCode(GcsPath(bucketName, bucketObject))
@@ -649,7 +662,8 @@ trait LeonardoTestUtils
 
   def saveDataprocLogFiles(stagingBucket: Option[GcsBucketName],
                            googleProject: GoogleProject,
-                           clusterName: RuntimeName): IO[Unit] =
+                           clusterName: RuntimeName
+  ): IO[Unit] =
     google2StorageResource.use { storage =>
       stagingBucket
         .traverse { stagingBucketName =>

@@ -30,7 +30,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             notebookPage.executeCell(getPythonVersion).get should include("3.7")
             notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
             notebookPage.executeCell(getPandasLocation).get should include("/usr/local/lib/python3.7/dist-packages")
-            notebookPage.executeCell("! pwd").get shouldBe ("/home/jupyter-user/notebooks")
+            notebookPage.executeCell("! pwd").get shouldBe "/home/jupyter-user/notebooks"
           }
         }
     }
@@ -82,8 +82,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
       contentSecurityHeader shouldBe 'defined
       contentSecurityHeader.get.value should include("https://bvdp-saturn-dev.appspot.com")
-      contentSecurityHeader.get.value should not include ("https://bvdp-saturn-prod.appspot.com")
-      contentSecurityHeader.get.value should not include ("*.terra.bio")
+      contentSecurityHeader.get.value should not include "https://bvdp-saturn-prod.appspot.com"
+      contentSecurityHeader.get.value should not include "*.terra.bio"
     }
 
     "should allow BigQuerying via the command line" in { runtimeFixture =>
@@ -169,7 +169,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     s"should be able to import ggplot for ${Python3.toString}" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
-          notebookPage.executeCell("from ggplot import *").get should not include ("ImportError")
+          notebookPage.executeCell("from ggplot import *").get should not include "ImportError"
           notebookPage.executeCell("ggplot") shouldBe Some("ggplot.ggplot.ggplot")
         }
       }

@@ -72,9 +72,11 @@ class ProxyRoutesSpec
   before {
     proxyService.googleTokenCache.invalidateAll()
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
-                                      Some(runtimeSamResource.resourceId))
+                                      Some(runtimeSamResource.resourceId)
+    )
     proxyService.samResourceCache.put(AppCacheKey(GoogleProject(googleProject), AppName(appName)),
-                                      Some(appSamId.resourceId))
+                                      Some(appSamId.resourceId)
+    )
   }
 
   "runtime proxy routes" should "listen on /proxy/{project}/{name}" in {
@@ -104,7 +106,8 @@ class ProxyRoutesSpec
     }
     // should still 404 even if a cache entry is present
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(newName)),
-                                      Some(runtimeSamResource.resourceId))
+                                      Some(runtimeSamResource.resourceId)
+    )
     Get(s"/proxy/$googleProject/$newName").addHeader(Cookie(tokenCookie)) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
@@ -149,9 +152,11 @@ class ProxyRoutesSpec
                            runtimeDnsCache,
                            kubernetesDnsCache,
                            MockGoogleOAuth2Service,
-                           Some(queue))
+                           Some(queue)
+      )
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
-                                      Some(runtimeSamResource.resourceId))
+                                      Some(runtimeSamResource.resourceId)
+    )
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
     Get(s"/proxy/$googleProject/$clusterName").addHeader(Cookie(tokenCookie)) ~> proxyRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -223,7 +228,8 @@ class ProxyRoutesSpec
     val webSocketFlow = Http()
       .webSocketClientFlow(
         WebSocketRequest(Uri(s"ws://localhost:9000/proxy/$googleProject/$clusterName/websocket"),
-                         immutable.Seq(Cookie(tokenCookie)))
+                         immutable.Seq(Cookie(tokenCookie))
+        )
       )
       .map {
         case m: TextMessage.Strict => m.text
@@ -264,7 +270,8 @@ class ProxyRoutesSpec
       status shouldEqual StatusCodes.OK
       verify(jupyterDAO, times(1)).terminalExists(GoogleProject(googleProject),
                                                   RuntimeName(clusterName),
-                                                  TerminalName("1"))
+                                                  TerminalName("1")
+      )
       verify(jupyterDAO, times(1)).createTerminal(GoogleProject(googleProject), RuntimeName(clusterName))
     }
   }
@@ -442,7 +449,8 @@ class ProxyRoutesSpec
                            whitelistAuthProvider,
                            runtimeDnsCache,
                            kubernetesDnsCache,
-                           MockGoogleOAuth2Service)
+                           MockGoogleOAuth2Service
+      )
     proxyService.samResourceCache
       .put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)), Some(runtimeSamResource.resourceId))
     proxyService.samResourceCache
@@ -467,11 +475,8 @@ class ProxyRoutesSpec
    */
   def withWebsocketProxy[T](testCode: => T): T = {
     val bindingFuture = Http().bindAndHandle(httpRoutes.route, "0.0.0.0", 9000)
-    try {
-      testCode
-    } finally {
-      bindingFuture.flatMap(_.unbind())
-    }
+    try testCode
+    finally bindingFuture.flatMap(_.unbind())
   }
 
   private def validateCors(origin: Option[String] = None, optionsRequest: Boolean = false): Unit = {

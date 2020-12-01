@@ -12,7 +12,8 @@ final case class GalaxyAppConfig(releaseNameSuffix: String,
                                  serviceAccount: ServiceAccountName,
                                  uninstallKeepHistory: Boolean,
                                  orchUrl: String,
-                                 drsUrl: String) {
+                                 drsUrl: String
+) {
 
   def chart: Chart = Chart(chartName, chartVersion)
 }

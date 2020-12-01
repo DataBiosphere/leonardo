@@ -21,7 +21,8 @@ class CloudServiceRuntimeMonitor[F[_]](
   def pollCheck(a: CloudService)(googleProject: GoogleProject,
                                  runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                  operation: com.google.cloud.compute.v1.Operation,
-                                 action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] = a match {
+                                 action: RuntimeStatus
+  )(implicit ev: Ask[F, TraceId]): F[Unit] = a match {
     case CloudService.GCE =>
       gceRuntimeMonitorInterp.pollCheck(googleProject, runtimeAndRuntimeConfig, operation, action)
     case CloudService.Dataproc =>

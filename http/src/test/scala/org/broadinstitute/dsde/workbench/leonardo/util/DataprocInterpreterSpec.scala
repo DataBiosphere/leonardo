@@ -61,7 +61,8 @@ class DataprocInterpreterSpec
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                          mockGoogleProjectDAO,
                                          FakeGoogleComputeService,
-                                         new MockComputePollOperation)
+                                         new MockComputePollOperation
+  )
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -73,7 +74,8 @@ class DataprocInterpreterSpec
                                                    mockGoogleIamDAO,
                                                    mockGoogleProjectDAO,
                                                    MockWelderDAO,
-                                                   blocker)
+                                                   blocker
+  )
 
   override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
@@ -93,7 +95,8 @@ class DataprocInterpreterSpec
             .fromCreateRuntimeMessage(
               CreateRuntimeMessage.fromRuntime(testCluster,
                                                LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
-                                               None)
+                                               None
+              )
             )
         )
         .unsafeToFuture()
@@ -157,9 +160,7 @@ class DataprocInterpreterSpec
       _ <- dataprocInterp.stopRuntime(
         StopRuntimeParams(runtime, Some(dataprocConfig), now)
       )
-    } yield {
-      mockGoogleDataprocDAO.instances.get(runtime.runtimeName).get(DataprocRole.SecondaryWorker).size shouldBe 0
-    }
+    } yield mockGoogleDataprocDAO.instances.get(runtime.runtimeName).get(DataprocRole.SecondaryWorker).size shouldBe 0
 
     res.unsafeRunSync()
   }
@@ -187,7 +188,8 @@ class DataprocInterpreterSpec
         Set(
           RuntimeImage(RuntimeImageType.Jupyter,
                        "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da",
-                       Instant.now)
+                       Instant.now
+          )
         )
       )(testCluster)
 
@@ -197,7 +199,8 @@ class DataprocInterpreterSpec
           CreateRuntimeParams.fromCreateRuntimeMessage(
             CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage,
                                              LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
-                                             None)
+                                             None
+            )
           )
         )
         .unsafeToFuture()
@@ -218,7 +221,8 @@ class DataprocInterpreterSpec
                                                             mockGoogleIamDAO,
                                                             mockGoogleProjectDAO,
                                                             MockWelderDAO,
-                                                            blocker)
+                                                            blocker
+    )
 
     val dataprocConfig = LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get
 
@@ -255,7 +259,8 @@ class DataprocInterpreterSpec
                                                             mockGoogleIamDAO,
                                                             mockGoogleProjectDAO,
                                                             MockWelderDAO,
-                                                            blocker)
+                                                            blocker
+    )
 
     val exception =
       erroredDataprocInterp
@@ -264,7 +269,8 @@ class DataprocInterpreterSpec
             .fromCreateRuntimeMessage(
               CreateRuntimeMessage.fromRuntime(testCluster,
                                                LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
-                                               None)
+                                               None
+              )
             )
         )
         .unsafeToFuture()
@@ -288,7 +294,8 @@ class DataprocInterpreterSpec
                                                             erroredIamDAO,
                                                             mockGoogleProjectDAO,
                                                             MockWelderDAO,
-                                                            blocker)
+                                                            blocker
+    )
 
     val exception =
       erroredDataprocInterp
@@ -297,7 +304,8 @@ class DataprocInterpreterSpec
             .fromCreateRuntimeMessage(
               CreateRuntimeMessage.fromRuntime(testCluster,
                                                LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
-                                               None)
+                                               None
+              )
             )
         )
         .unsafeToFuture()
@@ -316,7 +324,8 @@ class DataprocInterpreterSpec
                                                      None,
                                                      None,
                                                      None,
-                                                     Map.empty[String, String])
+                                                     Map.empty[String, String]
+    )
     val resourceConstraints = dataprocInterp
       .getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType)
       .unsafeRunSync()
@@ -342,7 +351,8 @@ class DataprocInterpreterSpec
     override def addIamRoles(iamProject: GoogleProject,
                              email: WorkbenchEmail,
                              memberType: MemberType,
-                             rolesToAdd: Set[String]): Future[Boolean] = {
+                             rolesToAdd: Set[String]
+    ): Future[Boolean] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException =

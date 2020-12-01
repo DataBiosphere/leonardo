@@ -11,7 +11,8 @@ object TemplateHelper {
 
   def templateFile[F[_]: ContextShift: Sync](replacementMap: Map[String, String],
                                              path: Path,
-                                             blocker: Blocker): Stream[F, Byte] =
+                                             blocker: Blocker
+  ): Stream[F, Byte] =
     fileStream(path, blocker)
       .through(text.utf8Decode)
       .through(text.lines)
@@ -21,7 +22,8 @@ object TemplateHelper {
 
   def templateResource[F[_]: ContextShift: Sync](replacementMap: Map[String, String],
                                                  clusterResource: RuntimeResource,
-                                                 blocker: Blocker): Stream[F, Byte] =
+                                                 blocker: Blocker
+  ): Stream[F, Byte] =
     resourceStream(clusterResource, blocker)
       .through(text.utf8Decode)
       .through(text.lines)

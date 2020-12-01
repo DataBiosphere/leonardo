@@ -21,8 +21,8 @@ package object leonardo {
 
   // converts an Ask[F, RuntimeServiceContext] to an  Ask[F, TraceId]
   // (you'd think Ask would have a `map` function)
-  implicit def ctxConversion[F[_]: Applicative](
-    implicit as: Ask[F, AppContext]
+  implicit def ctxConversion[F[_]: Applicative](implicit
+    as: Ask[F, AppContext]
   ): Ask[F, TraceId] =
     new Ask[F, TraceId] {
       override def applicative: Applicative[F] = as.applicative

@@ -38,7 +38,8 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
           .tabulate(config.machineConfig.numberOfWorkers) { i =>
             DataprocInstanceKey(config.projectAndName.googleProject,
                                 ZoneName("my-zone"),
-                                InstanceName(s"worker-instance-$i"))
+                                InstanceName(s"worker-instance-$i")
+            )
           }
           .toSet
       val secondaryWorkerInstances = config.machineConfig.numberOfPreemptibleWorkers
@@ -47,14 +48,16 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
             .tabulate(num) { i =>
               DataprocInstanceKey(config.projectAndName.googleProject,
                                   ZoneName("my-zone"),
-                                  InstanceName(s"secondary-worker-instance-$i"))
+                                  InstanceName(s"secondary-worker-instance-$i")
+              )
             }
             .toSet
         )
         .getOrElse(Set.empty)
       instances += config.projectAndName.runtimeName -> mutable.Map(Master -> masterInstance,
                                                                     Worker -> workerInstances,
-                                                                    SecondaryWorker -> secondaryWorkerInstances)
+                                                                    SecondaryWorker -> secondaryWorkerInstances
+      )
       Future.successful(operation)
     }
 
@@ -64,7 +67,8 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
   }
 
   override def getClusterStatus(googleProject: GoogleProject,
-                                clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] =
+                                clusterName: RuntimeName
+  ): Future[Option[DataprocClusterStatus]] =
     Future.successful {
       if (clusters.contains(clusterName) && errorClusters.contains(clusterName)) Some(DataprocClusterStatus.Error)
       else if (clusters.contains(clusterName)) Some(DataprocClusterStatus.Running)
@@ -76,7 +80,8 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     else Future.successful(Stream.continually(UUID.randomUUID).take(5).toList)
 
   override def getClusterMasterInstance(googleProject: GoogleProject,
-                                        clusterName: RuntimeName): Future[Option[DataprocInstanceKey]] =
+                                        clusterName: RuntimeName
+  ): Future[Option[DataprocInstanceKey]] =
     Future.successful {
       if (clusters.contains(clusterName))
         Some(DataprocInstanceKey(googleProject, ZoneName("my-zone"), InstanceName("master-instance")))
@@ -87,13 +92,15 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
     Future.successful(None)
 
   override def getClusterStagingBucket(googleProject: GoogleProject,
-                                       clusterName: RuntimeName): Future[Option[GcsBucketName]] =
+                                       clusterName: RuntimeName
+  ): Future[Option[GcsBucketName]] =
     Future.successful(Some(GcsBucketName("staging-bucket")))
 
   override def resizeCluster(googleProject: GoogleProject,
                              clusterName: RuntimeName,
                              numWorkers: Option[Int],
-                             numPreemptibles: Option[Int]): Future[Unit] = {
+                             numPreemptibles: Option[Int]
+  ): Future[Unit] = {
     if (numWorkers.isDefined) {
       val workerInstances = numWorkers
         .map(num =>
@@ -109,7 +116,8 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
       instances += (clusterName -> mutable.Map(Master -> existingMasterInstance.getOrElse(Set.empty),
                                                Worker -> workerInstances,
-                                               SecondaryWorker -> existingSecondaryInstances.getOrElse(Set.empty)))
+                                               SecondaryWorker -> existingSecondaryInstances.getOrElse(Set.empty)
+      ))
     }
 
     val secondaryWorkerInstances = numPreemptibles
@@ -126,7 +134,8 @@ class MockGoogleDataprocDAO(ok: Boolean = true) extends GoogleDataprocDAO {
 
     instances += (clusterName -> mutable.Map(Master -> existingMasterInstance.getOrElse(Set.empty),
                                              Worker -> existingWorkerInstances.getOrElse(Set.empty),
-                                             SecondaryWorker -> secondaryWorkerInstances))
+                                             SecondaryWorker -> secondaryWorkerInstances
+    ))
 
     Future.successful(())
   }

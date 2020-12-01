@@ -165,7 +165,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       override def pollCheck(googleProject: GoogleProject,
                              runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                              operation: Operation,
-                             action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
+                             action: RuntimeStatus
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 
       override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
         implicit ev: Ask[IO, AppContext]

@@ -41,8 +41,8 @@ import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
-class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, blocker: Blocker)(
-  implicit logger: Logger[F],
+class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, blocker: Blocker)(implicit
+  logger: Logger[F],
   cs: ContextShift[F],
   timer: Timer[F],
   metrics: OpenTelemetryMetrics[F]
@@ -81,8 +81,9 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
   def hasResourcePermissionUnchecked(resourceType: SamResourceType,
                                      resource: String,
                                      action: String,
-                                     authHeader: Authorization)(
-    implicit ev: Ask[F, TraceId]
+                                     authHeader: Authorization
+  )(implicit
+    ev: Ask[F, TraceId]
   ): F[Boolean] =
     for {
       _ <- metrics.incrementCounter(s"sam/hasResourcePermission/${resourceType.asString}/${action}")
@@ -98,8 +99,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )(onError)
     } yield res
 
-  def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(
-    implicit sr: SamResourceAction[R, A],
+  def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[List[sr.ActionCategory]] = {
     implicit val d = sr.decoder
@@ -128,8 +129,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )(onError)
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
 
-  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
     for {
@@ -139,7 +140,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Effect[F].raiseError[String](
             AuthProviderException(traceId,
                                   s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized)
+                                  StatusCodes.Unauthorized
+            )
           )
         )(s => Effect[F].pure(s))
       )
@@ -166,7 +168,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     } yield ()
 
   def createResourceWithManagerPolicy[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+    implicit
+    sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
@@ -177,7 +180,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Effect[F].raiseError[String](
             AuthProviderException(traceId,
                                   s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized)
+                                  StatusCodes.Unauthorized
+            )
           )
         )(s => Effect[F].pure(s))
       )
@@ -209,8 +213,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         }
     } yield ()
 
-  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit] =
     for {
@@ -220,7 +224,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Effect[F].raiseError[String](
             AuthProviderException(traceId,
                                   s"No pet SA found for ${creatorEmail} in ${googleProject}",
-                                  StatusCodes.Unauthorized)
+                                  StatusCodes.Unauthorized
+            )
           )
         )(s => Effect[F].pure(s))
       )
@@ -241,14 +246,14 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
               logger.info(
                 s"Fail to delete ${googleProject}/${sr.resourceIdAsString(resource)} because ${sr.resourceType.asString} doesn't exist in SAM"
               )
-            case s if (s.isSuccess) => Effect[F].unit
-            case _                  => onError(resp).flatMap(Effect[F].raiseError[Unit])
+            case s if s.isSuccess => Effect[F].unit
+            case _                => onError(resp).flatMap(Effect[F].raiseError[Unit])
           }
         }
     } yield ()
 
-  def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] =
     metrics.incrementCounter("sam/getPetServiceAccount") >>
       httpClient.expectOptionOr[WorkbenchEmail](
@@ -273,8 +278,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         )(onError)
     }
 
-  def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[String]] =
     if (config.petCacheEnabled) {
       blocker.blockOn(Effect[F].delay(petTokenCache.get(UserEmailAndProject(userEmail, googleProject))))
@@ -291,8 +296,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       _ <- Resource.liftF(Effect[F].delay(scopedCredential.refresh))
     } yield scopedCredential.getAccessToken.getTokenValue
 
-  private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[String]] =
     getAccessTokenUsingLeoJson.use { leoToken =>
       val leoAuth = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
@@ -325,8 +330,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       _ <- metrics.incrementCounter("sam/errorResponse")
     } yield AuthProviderException(traceId, body, response.status.code)
 
-  private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[SamPolicyEmail] =
     for {
       _ <- metrics.incrementCounter("sam/getProjectOwnerPolicyEmail")
@@ -347,10 +352,12 @@ object HttpSamDAO {
     httpClient: Client[F],
     config: HttpSamDaoConfig,
     blocker: Blocker
-  )(implicit logger: Logger[F],
+  )(implicit
+    logger: Logger[F],
     contextShift: ContextShift[F],
     timer: Timer[F],
-    metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
+    metrics: OpenTelemetryMetrics[F]
+  ): HttpSamDAO[F] =
     new HttpSamDAO[F](httpClient, config, blocker)
 
   implicit val samRoleEncoder: Encoder[SamRole] = Encoder.encodeString.contramap(_.asString)
@@ -429,7 +436,8 @@ final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
                                   petCacheMaxSize: Int,
-                                  serviceAccountProviderConfig: ServiceAccountProviderConfig)
+                                  serviceAccountProviderConfig: ServiceAccountProviderConfig
+)
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 final case class SamRoleAction(roles: List[SamPolicyName])

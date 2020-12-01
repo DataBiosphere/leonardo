@@ -41,15 +41,16 @@ class GceRuntimeMonitor[F[_]: Parallel](
   googleStorageService: GoogleStorageService[F],
   publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage],
   override val runtimeAlg: RuntimeAlgebra[F]
-)(implicit override val dbRef: DbReference[F],
+)(implicit
+  override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   override val F: Async[F],
   override val parallel: Parallel[F],
   override val timer: Timer[F],
   override val logger: Logger[F],
   override val ec: ExecutionContext,
-  override val openTelemetry: OpenTelemetryMetrics[F])
-    extends BaseCloudServiceRuntimeMonitor[F] {
+  override val openTelemetry: OpenTelemetryMetrics[F]
+) extends BaseCloudServiceRuntimeMonitor[F] {
 
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
@@ -59,7 +60,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
   override def pollCheck(googleProject: GoogleProject,
                          runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                          operation: com.google.cloud.compute.v1.Operation,
-                         action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
+                         action: RuntimeStatus
+  )(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- ev.ask
@@ -76,15 +78,17 @@ class GceRuntimeMonitor[F[_]: Parallel](
             ) // Interrupt Stopping if new Deleting request comes in
           }
         }) ++ Stream.sleep_(5 seconds)).repeat
-      _ <- if (pollCheckSupportedStatuses.contains(action))
-        F.unit
-      else F.raiseError(new Exception(s"Monitoring ${action} with pollOperation is not supported"))
+      _ <-
+        if (pollCheckSupportedStatuses.contains(action))
+          F.unit
+        else F.raiseError(new Exception(s"Monitoring ${action} with pollOperation is not supported"))
       _ <- computePollOperation
         .pollOperation(googleProject,
                        operation,
                        config.pollingInterval,
                        config.pollCheckMaxAttempts,
-                       Some(haltWhenTrue))(
+                       Some(haltWhenTrue)
+        )(
           handlePollCheckCompletion(monitorContext, runtimeAndRuntimeConfig),
           handlePollCheckTimeout(monitorContext, runtimeAndRuntimeConfig),
           handlePollCheckWhenInterrupted(monitorContext, runtimeAndRuntimeConfig)
@@ -92,7 +96,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
     } yield ()
 
   def handlePollCheckCompletion(monitorContext: MonitorContext,
-                                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
+                                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
+  ): F[Unit] =
     for {
       timeAfterPoll <- nowInstant
       implicit0(ctx: Ask[F, AppContext]) = Ask.const[F, AppContext](
@@ -125,7 +130,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
     } yield ()
 
   def handlePollCheckWhenInterrupted(monitorContext: MonitorContext,
-                                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
+                                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
+  ): F[Unit] =
     for {
       newStatus <- clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction
       timeWhenInterrupted <- nowInstant
@@ -152,8 +158,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
    * Queries Google for the cluster status and takes appropriate action depending on the result.
    * @return ClusterMonitorMessage
    */
-  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: Ask[F, AppContext]
+  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+    ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       instance <- googleComputeService.getInstance(
@@ -195,7 +201,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
         context <- ev.ask
         gceStatus <- F.fromOption(GceInstanceStatus
                                     .withNameInsensitiveOption(i.getStatus),
-                                  new SQLDataException(s"Unknown GCE instance status ${i.getStatus}"))
+                                  new SQLDataException(s"Unknown GCE instance status ${i.getStatus}")
+        )
         r <- gceStatus match {
           case GceInstanceStatus.Provisioning | GceInstanceStatus.Staging =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Instance is still in ${gceStatus}"))
@@ -236,7 +243,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
                                  Set.empty,
-                                 Some("Could not retrieve instance IP"))
+                                 Some("Could not retrieve instance IP")
+                      )
                   }
               }
             } yield r
@@ -280,14 +288,15 @@ class GceRuntimeMonitor[F[_]: Parallel](
           GceInstanceStatus.Stopping
         )
         r <- gceStatus match {
-          case s if (startableStatuses.contains(s)) =>
+          case s if startableStatuses.contains(s) =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Instance is still in ${gceStatus}"))
           case GceInstanceStatus.Running =>
             val userStartupScript = getUserScript(i)
 
             for {
               validationResult <- validateUserStartupScript(userStartupScript,
-                                                            runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri)
+                                                            runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri
+              )
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
                   checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))
@@ -298,7 +307,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                   msg,
                                   shortMessage = Some("user_startup_script")
                                 ),
-                                Set.empty)
+                                Set.empty
+                  )
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
@@ -309,7 +319,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
                                  Set.empty,
-                                 Some("Could not retrieve instance IP"))
+                                 Some("Could not retrieve instance IP")
+                      )
                   }
               }
             } yield r
@@ -351,8 +362,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
     }
   }
 
-  private def deletedRuntime(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: Ask[F, AppContext]
+  private def deletedRuntime(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+    ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
@@ -366,7 +377,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
 
       // set the staging bucket to be deleted in ten days so that logs are still accessible until then
       _ <- setStagingBucketLifecycle(runtimeAndRuntimeConfig.runtime,
-                                     config.runtimeBucketConfig.stagingBucketExpiration)
+                                     config.runtimeBucketConfig.stagingBucketExpiration
+      )
 
       _ <- dbRef.inTransaction {
         clusterQuery.completeDeletion(runtimeAndRuntimeConfig.runtime.id, ctx.now)

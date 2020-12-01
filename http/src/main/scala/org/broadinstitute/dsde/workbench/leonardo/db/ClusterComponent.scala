@@ -46,7 +46,8 @@ final case class ClusterRecord(id: Long,
                                welderEnabled: Boolean,
                                customClusterEnvironmentVariables: Map[String, String],
                                runtimeConfigId: RuntimeConfigId,
-                               deletedFrom: Option[String]) {
+                               deletedFrom: Option[String]
+) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
 }
 
@@ -129,7 +130,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             welderEnabled,
             customClusterEnvironmentVariables,
             runtimeConfigId,
-            deletedFrom) =>
+            deletedFrom
+          ) =>
         ClusterRecord(
           id,
           internalId,
@@ -201,19 +203,21 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   //   left join label l on c.id = l.clusterId
   val clusterLabelQuery: Query[(ClusterTable, Rep[Option[LabelTable]]), (ClusterRecord, Option[LabelRecord]), Seq] = {
     for {
-      (cluster, label) <- clusterQuery joinLeft labelQuery on {
-        case (c, lbl) =>
-          lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
+      (cluster, label) <- clusterQuery joinLeft labelQuery on { case (c, lbl) =>
+        lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
       }
     } yield (cluster, label)
   }
 
   val clusterLabelPatchQuery: Query[(ClusterTable, Rep[Option[LabelTable]], Rep[Option[PatchTable]]),
                                     (ClusterRecord, Option[LabelRecord], Option[PatchRecord]),
-                                    Seq] = {
+                                    Seq
+  ] = {
     for {
       ((cluster, label), patch) <- clusterQuery joinLeft
-        labelQuery on { case (c, lbl) => lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime } joinLeft
+        labelQuery on { case (c, lbl) =>
+          lbl.resourceId === c.id && lbl.resourceType === LabelResourceType.runtime
+        } joinLeft
         patchQuery on (_._1.id === _.clusterId)
     } yield (cluster, label, patch)
   }
@@ -229,7 +233,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
                                   clusterName: RuntimeName,
-                                  destroyedDateOpt: Option[Instant]) = {
+                                  destroyedDateOpt: Option[Instant]
+  ) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery
       .filter(_.googleProject === googleProject)
@@ -251,7 +256,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
             Rep[Option[ExtensionTable]],
             Rep[Option[ClusterImageTable]],
             Rep[Option[ScopeTable]],
-            Rep[Option[PatchTable]]),
+            Rep[Option[PatchTable]]
+           ),
            (ClusterRecord,
             Option[InstanceRecord],
             Option[ClusterErrorRecord],
@@ -259,15 +265,17 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
             Option[ExtensionRecord],
             Option[ClusterImageRecord],
             Option[ScopeRecord],
-            Option[PatchRecord]),
-           Seq] =
+            Option[PatchRecord]
+           ),
+           Seq
+  ] =
     for {
       (((((((cluster, instance), error), label), extension), image), scopes), patch) <- baseClusterQuery joinLeft
         instanceQuery on (_.id === _.clusterId) joinLeft
         clusterErrorQuery on (_._1.id === _.clusterId) joinLeft
-        labelQuery on {
-        case (c, lbl) => lbl.resourceId === c._1._1.id && lbl.resourceType === LabelResourceType.runtime
-      } joinLeft
+        labelQuery on { case (c, lbl) =>
+          lbl.resourceId === c._1._1.id && lbl.resourceType === LabelResourceType.runtime
+        } joinLeft
         extensionQuery on (_._1._1._1.id === _.clusterId) joinLeft
         clusterImageQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
         scopeQuery on (_._1._1._1._1._1.id === _.clusterId) joinLeft
@@ -284,7 +292,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         saveCluster.cluster
       ) // update runtimeConfigId
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
-                                                                                   saveCluster.initBucket.map(_.toUri))
+                                                                                   saveCluster.initBucket.map(_.toUri)
+      )
       _ <- labelQuery.saveAllForResource(clusterId, LabelResourceType.Runtime, cluster.labels)
       _ <- instanceQuery.saveAllForCluster(clusterId, cluster.dataprocInstances.toSeq)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -320,7 +329,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         RuntimeToMonitor(rec._1._1.id,
                          rec._1._2.runtimeConfig.cloudService,
                          rec._1._1.status,
-                         rec._2.map(_.inProgress).getOrElse(false))
+                         rec._2.map(_.inProgress).getOrElse(false)
+        )
       }
     }
 
@@ -345,20 +355,23 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   // find* and get* methods do query the INSTANCE table
 
-  def getActiveClusterByName(project: GoogleProject,
-                             name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
+  def getActiveClusterByName(project: GoogleProject, name: RuntimeName)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[Runtime]] =
     fullClusterQueryByUniqueKey(project, name, Some(dummyDate)).result map { recs =>
       unmarshalFullCluster(recs).headOption
     }
 
-  def getDeletingClusterByName(project: GoogleProject,
-                               name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
+  def getDeletingClusterByName(project: GoogleProject, name: RuntimeName)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[Runtime]] =
     fullClusterQueryByUniqueKey(project, name, Some(dummyDate)).filter {
       _._1.status === (RuntimeStatus.Deleting: RuntimeStatus)
     }.result map { recs => unmarshalFullCluster(recs).headOption }
 
-  def getActiveClusterByNameMinimal(project: GoogleProject,
-                                    name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] = {
+  def getActiveClusterByNameMinimal(project: GoogleProject, name: RuntimeName)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[Runtime]] = {
     val res = clusterQuery
       .filter(_.googleProject === project)
       .filter(_.clusterName === name)
@@ -372,8 +385,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }
   }
 
-  def getActiveClusterRecordByName(project: GoogleProject,
-                                   name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[ClusterRecord]] =
+  def getActiveClusterRecordByName(project: GoogleProject, name: RuntimeName)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[ClusterRecord]] =
     clusterQuery
       .filter(_.googleProject === project)
       .filter(_.clusterName === name)
@@ -384,8 +398,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def getClusterById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryById(id).result map { recs => unmarshalFullCluster(recs).headOption }
 
-  def getActiveClusterInternalIdByName(project: GoogleProject, name: RuntimeName)(
-    implicit ec: ExecutionContext
+  def getActiveClusterInternalIdByName(project: GoogleProject, name: RuntimeName)(implicit
+    ec: ExecutionContext
   ): DBIO[Option[RuntimeSamResourceId]] =
     clusterQuery
       .filter(_.googleProject === project)
@@ -428,8 +442,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .result
       .map(recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption))
 
-  def getStagingBucket(project: GoogleProject,
-                       name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
+  def getStagingBucket(project: GoogleProject, name: RuntimeName)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[GcsPath]] =
     clusterQuery
       .filter(_.googleProject === project)
       .filter(_.clusterName === name)
@@ -490,7 +505,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def updateClusterStatusAndHostIp(id: Long,
                                    status: RuntimeStatus,
                                    hostIp: Option[IP],
-                                   dateAccessed: Instant): DBIO[Int] =
+                                   dateAccessed: Instant
+  ): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.status, c.hostIp, c.dateAccessed))
       .update((status, hostIp.map(_.asString), dateAccessed))
@@ -550,7 +566,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def clearKernelFoundBusyDateByProjectAndName(googleProject: GoogleProject,
                                                clusterName: RuntimeName,
-                                               dateAccessed: Instant)(implicit ec: ExecutionContext): DBIO[Int] =
+                                               dateAccessed: Instant
+  )(implicit ec: ExecutionContext): DBIO[Int] =
     clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
       case Some(c) => clusterQuery.clearKernelFoundBusyDate(c.id, dateAccessed)
       case None    => DBIO.successful(0)
@@ -561,8 +578,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(c => (c.autopauseThreshold, c.dateAccessed))
       .update((autopauseThreshold, dateAccessed))
 
-  def updateWelder(id: Long, welderImage: RuntimeImage, dateAccessed: Instant)(
-    implicit ec: ExecutionContext
+  def updateWelder(id: Long, welderImage: RuntimeImage, dateAccessed: Instant)(implicit
+    ec: ExecutionContext
   ): DBIO[Unit] =
     for {
       _ <- findByIdQuery(id).map(c => (c.welderEnabled, c.dateAccessed)).update((true, dateAccessed))
@@ -611,24 +628,23 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
     // See: https://typelevel.org/cats/datatypes/chain.html
     val clusterLabelMap: Map[ClusterRecord, (Map[String, Chain[String]], Chain[PatchRecord])] =
-      clusterLabels.toList.foldMap {
-        case (clusterRecord, labelRecordOpt, patchRecordOpt) =>
-          val labelMap = labelRecordOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
-          val patchList = patchRecordOpt.toList
-          Map(clusterRecord -> (labelMap, Chain.fromSeq(patchList)))
+      clusterLabels.toList.foldMap { case (clusterRecord, labelRecordOpt, patchRecordOpt) =>
+        val labelMap = labelRecordOpt.map(labelRecord => labelRecord.key -> Chain(labelRecord.value)).toMap
+        val patchList = patchRecordOpt.toList
+        Map(clusterRecord -> (labelMap, Chain.fromSeq(patchList)))
       }
 
     // Unmarshal each (ClusterRecord, Map[labelKey, labelValue]) to a Cluster object
-    clusterLabelMap.map {
-      case (clusterRec, (labelMap, patch)) =>
-        unmarshalCluster(clusterRec,
-                         Seq.empty,
-                         List.empty,
-                         labelMap.view.mapValues(_.toList.toSet.head).toMap,
-                         List.empty,
-                         List.empty,
-                         List.empty,
-                         patch.toList)
+    clusterLabelMap.map { case (clusterRec, (labelMap, patch)) =>
+      unmarshalCluster(clusterRec,
+                       Seq.empty,
+                       List.empty,
+                       labelMap.view.mapValues(_.toList.toSet.head).toMap,
+                       List.empty,
+                       List.empty,
+                       List.empty,
+                       patch.toList
+      )
     }.toSeq
   }
 
@@ -641,8 +657,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         Map(RunningRuntime(clusterRec.googleProject, clusterRec.runtimeName, List.empty) -> containers)
     }
 
-    clusterContainerMap.toSeq.map {
-      case (runningCluster, containers) => runningCluster.copy(containers = containers.toList)
+    clusterContainerMap.toSeq.map { case (runningCluster, containers) =>
+      runningCluster.copy(containers = containers.toList)
     }
   }
 
@@ -655,7 +671,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
        Option[ExtensionRecord],
        Option[ClusterImageRecord],
        Option[ScopeRecord],
-       Option[PatchRecord])
+       Option[PatchRecord]
+      )
     ]
   ): Seq[Runtime] = {
     // Call foldMap to aggregate a flat sequence of (cluster, instance, label) triples returned by the query
@@ -669,7 +686,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                Chain[ExtensionRecord],
                                Chain[ClusterImageRecord],
                                Chain[ScopeRecord],
-                               Chain[PatchRecord])] = clusterRecords.toList.foldMap {
+                               Chain[PatchRecord]
+                              )
+    ] = clusterRecords.toList.foldMap {
       case (clusterRecord,
             instanceRecordOpt,
             errorRecordOpt,
@@ -677,7 +696,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
             extensionOpt,
             clusterImageOpt,
             scopeOpt,
-            patchOpt) =>
+            patchOpt
+          ) =>
         val instanceList = instanceRecordOpt.toList
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap
         val errorList = errorRecordOpt.toList
@@ -713,7 +733,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                userJupyterExtensionConfig: List[ExtensionRecord],
                                clusterImageRecords: List[ClusterImageRecord],
                                scopes: List[ScopeRecord],
-                               patch: List[PatchRecord]): Runtime = {
+                               patch: List[PatchRecord]
+  ): Runtime = {
     val name = clusterRecord.runtimeName
     val project = clusterRecord.googleProject
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
@@ -721,7 +742,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         AsyncRuntimeFields(googleId,
                            OperationName(operationName),
                            GcsBucketName(stagingBucket),
-                           clusterRecord.hostIp map IP)
+                           clusterRecord.hostIp map IP
+        )
     }
     val clusterImages = clusterImageRecords map clusterImageQuery.unmarshalClusterImage toSet
     val patchInProgress = patch.headOption match {
@@ -766,10 +788,12 @@ final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                                   serviceAccountKey: Option[ServiceAccountKey],
                                                   clusterId: Long,
                                                   asyncRuntimeFields: Option[AsyncRuntimeFields],
-                                                  dateAccessed: Instant)
+                                                  dateAccessed: Instant
+)
 
 final case class SaveCluster(cluster: Runtime,
                              initBucket: Option[GcsPath] = None,
                              serviceAccountKeyId: Option[ServiceAccountKeyId] = None,
                              runtimeConfig: RuntimeConfig,
-                             now: Instant)
+                             now: Instant
+)

@@ -27,7 +27,8 @@ trait GoogleDataprocDAO {
   def listClusters(googleProject: GoogleProject): Future[List[UUID]]
 
   def getClusterMasterInstance(googleProject: GoogleProject,
-                               clusterName: RuntimeName): Future[Option[DataprocInstanceKey]]
+                               clusterName: RuntimeName
+  ): Future[Option[DataprocInstanceKey]]
 
   def getClusterStagingBucket(googleProject: GoogleProject, clusterName: RuntimeName): Future[Option[GcsBucketName]]
 
@@ -36,7 +37,8 @@ trait GoogleDataprocDAO {
   def resizeCluster(googleProject: GoogleProject,
                     clusterName: RuntimeName,
                     numWorkers: Option[Int] = None,
-                    numPreemptibles: Option[Int] = None): Future[Unit]
+                    numPreemptibles: Option[Int] = None
+  ): Future[Unit]
 }
 
 final case class CreateClusterConfig(

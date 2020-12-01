@@ -52,12 +52,11 @@ package object api {
   }
 
   def extractAppContext(span: Option[Span]): Directive1[Ask[IO, AppContext]] =
-    optionalHeaderValueByName(traceIdHeaderString).map {
-      case uuidOpt =>
-        val traceId = uuidOpt.getOrElse(UUID.randomUUID().toString)
-        val now = Instant.now()
-        val appContext = AppContext(TraceId(traceId), now, span)
-        Ask.const[IO, AppContext](appContext)
+    optionalHeaderValueByName(traceIdHeaderString).map { case uuidOpt =>
+      val traceId = uuidOpt.getOrElse(UUID.randomUUID().toString)
+      val now = Instant.now()
+      val appContext = AppContext(TraceId(traceId), now, span)
+      Ask.const[IO, AppContext](appContext)
     }
 }
 

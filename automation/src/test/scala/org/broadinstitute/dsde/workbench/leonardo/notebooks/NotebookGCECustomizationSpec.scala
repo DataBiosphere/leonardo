@@ -30,7 +30,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
         googleStorageDAO.setBucketAccessControl(bucketName,
                                                 EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                GcsRoles.Owner)
+                                                GcsRoles.Owner
+        )
 
         // Add the user script to the bucket
         val userScriptString = "#!/usr/bin/env bash\n\npip3 install mock"
@@ -41,7 +42,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
           googleStorageDAO.setObjectAccessControl(bucketName,
                                                   objectName,
                                                   EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                  GcsRoles.Owner)
+                                                  GcsRoles.Owner
+          )
 
           // Create a new cluster using the URI of the user script
           val clusterRequestWithUserScript =
@@ -157,7 +159,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
         val ronPetServiceAccount = Sam.user.petServiceAccountEmail(billingProject.value)(ronAuthToken)
         googleStorageDAO.setBucketAccessControl(bucketName,
                                                 EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                GcsRoles.Owner)
+                                                GcsRoles.Owner
+        )
 
         // Add the user script to the bucket. This script increments and writes a count to file,
         // tracking the number of times it has been invoked.
@@ -172,7 +175,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
           googleStorageDAO.setObjectAccessControl(bucketName,
                                                   objectName,
                                                   EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                  GcsRoles.Owner)
+                                                  GcsRoles.Owner
+          )
 
           withNewRuntime(
             billingProject,

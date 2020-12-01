@@ -24,11 +24,13 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
   config: AutoFreezeConfig,
   jupyterDAO: JupyterDAO[F],
   publisherQueue: InspectableQueue[F, LeoPubsubMessage]
-)(implicit F: Async[F],
+)(implicit
+  F: Async[F],
   metrics: OpenTelemetryMetrics[F],
   logger: Logger[F],
   dbRef: DbReference[F],
-  ec: ExecutionContext) {
+  ec: ExecutionContext
+) {
 
   val process: Stream[F, Unit] =
     (Stream.sleep[F](config.autoFreezeCheckInterval) ++ Stream.eval(autoPauseCheck)).repeat
@@ -87,8 +89,9 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
 object AutopauseMonitor {
   def apply[F[_]: Timer: ContextShift](config: AutoFreezeConfig,
                                        jupyterDAO: JupyterDAO[F],
-                                       publisherQueue: InspectableQueue[F, LeoPubsubMessage])(
-    implicit F: Async[F],
+                                       publisherQueue: InspectableQueue[F, LeoPubsubMessage]
+  )(implicit
+    F: Async[F],
     metrics: OpenTelemetryMetrics[F],
     logger: Logger[F],
     dbRef: DbReference[F],

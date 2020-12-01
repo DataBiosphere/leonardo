@@ -24,7 +24,8 @@ object DbReference extends LazyLogging {
 
   private[db] def initWithLiquibase(dbConnection: Connection,
                                     liquibaseConfig: LiquibaseConfig,
-                                    changelogParameters: Map[String, AnyRef] = Map.empty): Unit =
+                                    changelogParameters: Map[String, AnyRef] = Map.empty
+  ): Unit =
     try {
       val liquibaseConnection = new JdbcConnection(dbConnection)
       val resourceAccessor: ResourceAccessor = new ClassLoaderResourceAccessor()
@@ -50,16 +51,18 @@ object DbReference extends LazyLogging {
 
   def init[F[_]: Async: ContextShift: Logger](config: LiquibaseConfig,
                                               concurrentDbAccessPermits: Semaphore[F],
-                                              blocker: Blocker): Resource[F, DbReference[F]] = {
+                                              blocker: Blocker
+  ): Resource[F, DbReference[F]] = {
     val dbConfig =
       DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
 
     for {
       db <- Resource.make(Async[F].delay(dbConfig.db))(db => Async[F].delay(db.close()))
       dbConnection <- Resource.make(Async[F].delay(db.source.createConnection()))(conn => Async[F].delay(conn.close()))
-      initLiquibase = if (config.initWithLiquibase)
-        Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
-      else Async[F].unit
+      initLiquibase =
+        if (config.initWithLiquibase)
+          Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
+        else Async[F].unit
       _ <- Resource.liftF(initLiquibase)
     } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits, blocker)
   }
@@ -76,8 +79,8 @@ trait DbReference[F[_]] {
 private[db] class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProfile],
                                                    database: JdbcBackend#DatabaseDef,
                                                    concurrentDbAccessPermits: Semaphore[F],
-                                                   blocker: Blocker)
-    extends DbReference[F] {
+                                                   blocker: Blocker
+) extends DbReference[F] {
   import LeoProfile.api._
 
   val dataAccess = new DataAccess(blocker)
@@ -129,7 +132,7 @@ final class DataAccess(blocker: Blocker) {
 
 final class DBIOOps[A](private val dbio: DBIO[A]) extends AnyVal {
   def transaction[F[_]](implicit dbRef: DbReference[F]): F[A] = dbRef.inTransaction(dbio)
-  def transaction[F[_]](isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead)(
-    implicit dbRef: DbReference[F]
+  def transaction[F[_]](isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead)(implicit
+    dbRef: DbReference[F]
   ): F[A] = dbRef.inTransaction(dbio, isolationLevel)
 }

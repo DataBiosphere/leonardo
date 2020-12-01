@@ -64,7 +64,8 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
   val kubeServiceInterp = new LeoKubernetesServiceInterp[IO](whitelistAuthProvider,
                                                              serviceAccountProvider,
                                                              leoKubernetesConfig,
-                                                             QueueFactory.makePublisherQueue())
+                                                             QueueFactory.makePublisherQueue()
+  )
 
   it should "create an app and a new disk" in isolatedDbTest {
     val appName = AppName("app1")
@@ -419,11 +420,10 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
       _ <- IO(app2.save())
 
       listResponse <- kubeServiceInterp.listApp(userInfo, None, Map.empty)
-    } yield {
-      // Since the calling user is whitelisted in the auth provider, it should return
-      // the apps belonging to other users.
-      listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName)
-    }
+    } yield
+    // Since the calling user is whitelisted in the auth provider, it should return
+    // the apps belonging to other users.
+    listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName)
 
     res.unsafeRunSync()
   }
@@ -526,7 +526,8 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
 
     preAppCluster.nodepools.size shouldBe 2
     preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
-                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
+                                                                           NodepoolStatus.Unclaimed
+    ).sortBy(_.toString)
 
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -571,7 +572,8 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     preAppCluster.nodepools.size shouldBe 3
     preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
                                                                            NodepoolStatus.Unclaimed,
-                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
+                                                                           NodepoolStatus.Unclaimed
+    ).sortBy(_.toString)
 
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -670,7 +672,8 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
 
     preAppCluster.nodepools.size shouldBe 2
     preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
-                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
+                                                                           NodepoolStatus.Unclaimed
+    ).sortBy(_.toString)
 
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")

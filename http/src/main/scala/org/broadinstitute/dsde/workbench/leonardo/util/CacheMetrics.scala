@@ -9,10 +9,12 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
 
-class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implicit F: Async[F],
-                                                                          timer: Timer[F],
-                                                                          metrics: OpenTelemetryMetrics[F],
-                                                                          logger: Logger[F]) {
+class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implicit
+  F: Async[F],
+  timer: Timer[F],
+  metrics: OpenTelemetryMetrics[F],
+  logger: Logger[F]
+) {
   def process(sizeF: () => F[Long], statsF: () => F[CacheStats]): Stream[F, Unit] =
     (Stream.sleep[F](interval) ++ Stream.eval(recordMetrics(sizeF, statsF))).repeat
 
@@ -33,6 +35,7 @@ class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implic
 }
 object CacheMetrics {
   def apply[F[_]: Timer: Effect: OpenTelemetryMetrics: Logger](name: String,
-                                                               interval: FiniteDuration = 1 minute): CacheMetrics[F] =
+                                                               interval: FiniteDuration = 1 minute
+  ): CacheMetrics[F] =
     new CacheMetrics(name, interval)
 }

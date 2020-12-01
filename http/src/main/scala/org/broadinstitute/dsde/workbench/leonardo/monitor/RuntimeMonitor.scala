@@ -31,7 +31,8 @@ trait RuntimeMonitor[F[_], A] {
   def pollCheck(a: A)(googleProject: GoogleProject,
                       runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                       operation: com.google.cloud.compute.v1.Operation,
-                      action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit]
+                      action: RuntimeStatus
+  )(implicit ev: Ask[F, TraceId]): F[Unit]
 }
 
 object RuntimeMonitor {
@@ -63,7 +64,8 @@ object RuntimeMonitor {
                                 3 minutes,
                                 3.5 minutes,
                                 4 minutes,
-                                4.5 minutes) //Distribution buckets from 0.5 min to 4.5 min
+                                4.5 minutes
+      ) //Distribution buckets from 0.5 min to 4.5 min
       _ <- openTelemetry.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 
@@ -71,7 +73,9 @@ object RuntimeMonitor {
     val terraJupyterImage = imageConfig.jupyterImageRegex.r
     val anvilRStudioImage = imageConfig.rstudioImageRegex.r
     val broadDockerhubImageRegex = imageConfig.broadDockerhubImageRegex.r
-    images.find(runtimeImage => Set(RuntimeImageType.Jupyter, RuntimeImageType.RStudio) contains runtimeImage.imageType) match {
+    images.find(runtimeImage =>
+      Set(RuntimeImageType.Jupyter, RuntimeImageType.RStudio) contains runtimeImage.imageType
+    ) match {
       case Some(toolImage) =>
         toolImage.imageUrl match {
           case terraJupyterImage(imageType, hash)        => s"GCR/${imageType}/${hash}"
@@ -106,7 +110,8 @@ object RuntimeMonitor {
                                 4.5 minutes,
                                 5 minutes,
                                 5.5 minutes,
-                                6 minutes) //Distribution buckets from 1 min to 6 min
+                                6 minutes
+      ) //Distribution buckets from 1 min to 6 min
       _ <- openTelemetry.recordDuration(metricsName, duration, distributionBucket, tags)
     } yield ()
 
@@ -148,8 +153,8 @@ object MonitorConfig {
                                     runtimeBucketConfig: RuntimeBucketConfig,
                                     monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
                                     gceZoneName: ZoneName,
-                                    imageConfig: ImageConfig)
-      extends MonitorConfig
+                                    imageConfig: ImageConfig
+  ) extends MonitorConfig
 
   final case class DataprocMonitorConfig(initialDelay: FiniteDuration,
                                          pollingInterval: FiniteDuration,
@@ -159,6 +164,6 @@ object MonitorConfig {
                                          runtimeBucketConfig: RuntimeBucketConfig,
                                          monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
                                          imageConfig: ImageConfig,
-                                         regionName: RegionName)
-      extends MonitorConfig
+                                         regionName: RegionName
+  ) extends MonitorConfig
 }

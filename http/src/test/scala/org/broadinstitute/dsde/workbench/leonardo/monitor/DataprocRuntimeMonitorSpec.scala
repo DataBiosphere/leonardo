@@ -51,9 +51,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitor = dataprocRuntimeMonitor()(successToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(None, monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
-    }
+    } yield r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
 
     res.unsafeRunSync()
   }
@@ -100,9 +98,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning))(successToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
-    }
+    } yield r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
 
     res.unsafeRunSync()
   }
@@ -126,7 +122,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
-      error.head.errorMessage shouldBe ("Can't find master instance for this cluster")
+      error.head.errorMessage shouldBe "Can't find master instance for this cluster"
     }
 
     res.unsafeRunSync()
@@ -151,7 +147,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
-      error.head.errorMessage shouldBe ("Error not available")
+      error.head.errorMessage shouldBe "Error not available"
     }
 
     res.unsafeRunSync()
@@ -176,7 +172,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
-      error.head.errorMessage shouldBe ("unexpected Dataproc cluster status Updating when trying to creating an instance")
+      error.head.errorMessage shouldBe "unexpected Dataproc cluster status Updating when trying to creating an instance"
     }
 
     res.unsafeRunSync()
@@ -202,7 +198,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     } yield {
       r._2 shouldBe None
       error.head.errorCode shouldBe None
-      error.head.errorMessage shouldBe ("Error not available")
+      error.head.errorMessage shouldBe "Error not available"
     }
 
     res.unsafeRunSync()
@@ -228,14 +224,15 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))),
-                                       dataprocService = dataproc)(failureToolDao)
+                                       dataprocService = dataproc
+      )(failureToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
       error.head.errorCode shouldBe Some(4)
-      error.head.errorMessage shouldBe ("time out")
+      error.head.errorMessage shouldBe "time out"
     }
 
     res.unsafeRunSync()
@@ -259,9 +256,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
-    }
+    } yield r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
 
     res.unsafeRunSync()
   }
@@ -284,9 +279,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
-    }
+    } yield r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
 
     res.unsafeRunSync()
   }
@@ -311,7 +304,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     } yield {
       r._2 shouldBe None
       error.head.errorCode shouldBe None
-      error.head.errorMessage shouldBe ("Cluster failed to start")
+      error.head.errorMessage shouldBe "Cluster failed to start"
     }
 
     res.unsafeRunSync()
@@ -333,9 +326,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.stoppingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
-    }
+    } yield r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
 
     res.unsafeRunSync()
   }
@@ -379,13 +370,11 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.stoppingRuntime(None, monitorContext, runtimeAndRuntimeConfig).attempt
-    } yield {
-      r shouldBe Left(
-        InvalidMonitorRequest(
-          s"-1/${ctx.traceId.asString} | Can't stop an instance that hasn't been initialized yet or doesn't exist"
-        )
+    } yield r shouldBe Left(
+      InvalidMonitorRequest(
+        s"-1/${ctx.traceId.asString} | Can't stop an instance that hasn't been initialized yet or doesn't exist"
       )
-    }
+    )
 
     res.unsafeRunSync()
   }
@@ -411,7 +400,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
           s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist"
         )
       )
-      error.head.errorMessage shouldBe (s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist")
+      error.head.errorMessage shouldBe s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist"
     }
 
     res.unsafeRunSync()
@@ -433,9 +422,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitor = dataprocRuntimeMonitor()(successToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
-    }
+    } yield r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
 
     res.unsafeRunSync()
   }
@@ -458,9 +445,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
-    }
+    } yield r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
 
     res.unsafeRunSync()
   }
@@ -483,9 +468,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
-    }
+    } yield r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
 
     res.unsafeRunSync()
   }
@@ -533,9 +516,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.deletedRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
-    }
+    } yield r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
 
     res.unsafeRunSync()
   }
@@ -602,8 +583,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 
   def computeService(status: GceInstanceStatus, ip: Option[IP] = None): GoogleComputeService[IO] =
     new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
         val instanceBuilder = Instance
           .newBuilder()
@@ -626,16 +607,16 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 }
 
 class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
-  override def createRuntime(params: CreateRuntimeParams)(
-    implicit ev: Ask[IO, AppContext]
+  override def createRuntime(params: CreateRuntimeParams)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[CreateGoogleRuntimeResponse] = ???
 
-  override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: Ask[IO, TraceId]
+  override def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[RuntimeStatus] = ???
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(
-    implicit ev: Ask[IO, TraceId]
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Option[Operation]] = IO.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =

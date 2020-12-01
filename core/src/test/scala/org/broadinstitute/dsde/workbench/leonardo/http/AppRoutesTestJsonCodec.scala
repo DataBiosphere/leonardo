@@ -36,7 +36,8 @@ object AppRoutesTestJsonCodec {
                         "proxyUrls",
                         "diskName",
                         "customEnvironmentVariables",
-                        "auditInfo")(GetAppResponse.apply)
+                        "auditInfo"
+    )(GetAppResponse.apply)
 
   implicit val listAppResponseDecoder: Decoder[ListAppResponse] =
     Decoder.forProduct8("googleProject",
@@ -46,7 +47,8 @@ object AppRoutesTestJsonCodec {
                         "proxyUrls",
                         "appName",
                         "diskName",
-                        "auditInfo")(ListAppResponse.apply)
+                        "auditInfo"
+    )(ListAppResponse.apply)
 
   implicit val batchNodepoolCreateRequestEncoder: Encoder[BatchNodepoolCreateRequest] =
     Encoder.forProduct3("numNodepools", "kubernetesRuntimeConfig", "clusterName")(x =>

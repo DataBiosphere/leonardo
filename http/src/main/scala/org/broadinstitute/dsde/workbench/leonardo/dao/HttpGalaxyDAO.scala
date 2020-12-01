@@ -10,8 +10,8 @@ import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
 
 class HttpGalaxyDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCache: KubernetesDnsCache[F],
-                                                           client: Client[F])
-    extends GalaxyDAO[F] {
+                                                           client: Client[F]
+) extends GalaxyDAO[F] {
 
   def isProxyAvailable(googleProject: GoogleProject, appName: AppName): F[Boolean] =
     Proxy.getAppTargetHost[F](kubernetesDnsCache, googleProject, appName) flatMap {

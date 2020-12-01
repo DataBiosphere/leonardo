@@ -15,8 +15,8 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 class LabNotebookPage(override val url: String)(implicit override val authToken: AuthToken,
-                                                implicit override val webDriver: WebDriver)
-    extends LabPage
+                                                implicit override val webDriver: WebDriver
+) extends LabPage
     with Toolbar
     with NotebookCell
     with Eventually
@@ -27,26 +27,23 @@ class LabNotebookPage(override val url: String)(implicit override val authToken:
 
   // menu elements
 
-  lazy val fileMenu: Element = {
+  lazy val fileMenu: Element =
     findAll(cssSelector(menus))
       .filter(e => e.text == "File")
       .toList
       .head
-  }
 
-  lazy val runMenu: Element = {
+  lazy val runMenu: Element =
     findAll(cssSelector(menus))
       .filter(e => e.text == "Run")
       .toList
       .head
-  }
 
-  lazy val kernelMenu: Element = {
+  lazy val kernelMenu: Element =
     findAll(cssSelector(menus))
       .filter(e => e.text == "Kernel")
       .toList
       .head
-  }
 
   // is at least one cell currently executing?
   def cellsAreRunning: Boolean =
@@ -122,13 +119,13 @@ class LabNotebookPage(override val url: String)(implicit override val authToken:
     click on cell.findElement(By.cssSelector(".CodeMirror"))
     val jsEscapedCode = StringEscapeUtils.escapeEcmaScript(code)
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""",
-                  cell.findElement(By.cssSelector(".CodeMirror")))
+                  cell.findElement(By.cssSelector(".CodeMirror"))
+    )
 
     clickRunCell(timeout)
 
-    try {
-      await condition (cellIsRendered(cellNumber), timeout.toSeconds)
-    } catch {
+    try await condition (cellIsRendered(cellNumber), timeout.toSeconds)
+    catch {
       case e: Exception => throw new TimeoutException(s"cellIsRendered($cellNumber) failed.", e)
     }
 

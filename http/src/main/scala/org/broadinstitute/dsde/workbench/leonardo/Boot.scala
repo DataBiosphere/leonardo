@@ -90,12 +90,14 @@ object Boot extends IOApp {
       val bucketHelper = new BucketHelper(bucketHelperConfig,
                                           appDependencies.google2StorageDao,
                                           appDependencies.serviceAccountProvider,
-                                          appDependencies.blocker)
+                                          appDependencies.blocker
+      )
       val vpcInterp =
         new VPCInterpreter(vpcInterpreterConfig,
                            googleDependencies.googleProjectDAO,
                            googleDependencies.googleComputeService,
-                           googleDependencies.computePollOperation)
+                           googleDependencies.computePollOperation
+        )
 
       val dataprocInterp = new DataprocInterpreter(dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -107,7 +109,8 @@ object Boot extends IOApp {
                                                    googleDependencies.googleIamDAO,
                                                    googleDependencies.googleProjectDAO,
                                                    appDependencies.welderDAO,
-                                                   appDependencies.blocker)
+                                                   appDependencies.blocker
+      )
 
       val gceInterp = new GceInterpreter(gceInterpreterConfig,
                                          bucketHelper,
@@ -115,7 +118,8 @@ object Boot extends IOApp {
                                          googleDependencies.googleComputeService,
                                          googleDependencies.googleDiskService,
                                          appDependencies.welderDAO,
-                                         appDependencies.blocker)
+                                         appDependencies.blocker
+      )
       implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
 
       val leonardoService = new LeonardoService(dataprocConfig,
@@ -131,7 +135,8 @@ object Boot extends IOApp {
                                                 appDependencies.serviceAccountProvider,
                                                 bucketHelper,
                                                 appDependencies.dockerDAO,
-                                                appDependencies.publisherQueue)
+                                                appDependencies.publisherQueue
+      )
       val dateAccessedUpdater =
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(appDependencies.sslContext,
@@ -142,11 +147,13 @@ object Boot extends IOApp {
                                           appDependencies.authProvider,
                                           appDependencies.dateAccessedUpdaterQueue,
                                           googleDependencies.googleOauth2DAO,
-                                          appDependencies.blocker)
+                                          appDependencies.blocker
+      )
       val statusService = new StatusService(googleDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,
                                             appDependencies.dbReference,
-                                            applicationConfig)
+                                            applicationConfig
+      )
       val runtimeServiceConfig = RuntimeServiceConfig(
         proxyConfig.proxyUrlBase,
         imageConfig,
@@ -180,7 +187,8 @@ object Boot extends IOApp {
         new LeoKubernetesServiceInterp(appDependencies.authProvider,
                                        appDependencies.serviceAccountProvider,
                                        leoKubernetesConfig,
-                                       appDependencies.publisherQueue)
+                                       appDependencies.publisherQueue
+        )
 
       val httpRoutes = new HttpRoutes(swaggerConfig,
                                       statusService,
@@ -190,19 +198,20 @@ object Boot extends IOApp {
                                       diskService,
                                       leoKubernetesService,
                                       StandardUserInfoDirectives,
-                                      contentSecurityPolicy)
+                                      contentSecurityPolicy
+      )
       val httpServer = for {
-        _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
-          dataprocInterp.setupDataprocImageGoogleGroup()
-        } else IO.unit
+        _ <-
+          if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
+            dataprocInterp.setupDataprocImageGoogleGroup()
+          } else IO.unit
         _ <- IO.fromFuture {
           IO {
             Http()
               .newServerAt("0.0.0.0", 8080)
               .bindFlow(httpRoutes.route)
-              .onError {
-                case t: Throwable =>
-                  logger.error(t)("FATAL - failure starting http server").unsafeToFuture()
+              .onError { case t: Throwable =>
+                logger.error(t)("FATAL - failure starting http server").unsafeToFuture()
               }
           }
         }
@@ -213,7 +222,8 @@ object Boot extends IOApp {
           implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
                                          appDependencies.welderDAO,
-                                         appDependencies.rStudioDAO)
+                                         appDependencies.rStudioDAO
+            )
 
           val gceRuntimeMonitor = new GceRuntimeMonitor[IO](
             gceMonitorConfig,
@@ -254,7 +264,8 @@ object Boot extends IOApp {
                                                  googleDependencies.credentials,
                                                  googleDependencies.googleIamDAO,
                                                  appDependencies.authProvider,
-                                                 appDependencies.blocker)
+                                                 appDependencies.blocker
+          )
 
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
@@ -264,7 +275,8 @@ object Boot extends IOApp {
                                                googleDependencies.computePollOperation,
                                                appDependencies.authProvider,
                                                gkeInterp,
-                                               googleDependencies.errorReporting)
+                                               googleDependencies.errorReporting
+            )
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -362,14 +374,16 @@ object Boot extends IOApp {
       googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
                                                       jsonWithServiceAccountUser,
-                                                      workbenchMetricsBaseName)
+                                                      workbenchMetricsBaseName
+      )
       googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       gdDAO = new HttpGoogleDataprocDAO(applicationConfig.applicationName,
                                         json,
                                         workbenchMetricsBaseName,
                                         vpcConfig.networkTag,
                                         dataprocConfig.regionName,
-                                        dataprocConfig.zoneName)
+                                        dataprocConfig.zoneName
+      )
 
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
 
@@ -398,7 +412,8 @@ object Boot extends IOApp {
       googleComputeService <- GoogleComputeService.fromCredential(scopedCredential,
                                                                   blocker,
                                                                   semaphore,
-                                                                  googleComputeRetryPolicy)
+                                                                  googleComputeRetryPolicy
+      )
       dataprocService <- GoogleDataprocService.resource(
         pathToCredentialJson,
         blocker,
@@ -411,7 +426,8 @@ object Boot extends IOApp {
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, blocker, semaphore)
       errorReporting <- ErrorReporting.fromCredential(scopedCredential,
                                                       applicationConfig.applicationName,
-                                                      ProjectName.of(applicationConfig.leoGoogleProject.value))
+                                                      ProjectName.of(applicationConfig.leoGoogleProject.value)
+      )
       googleOauth2DAO <- GoogleOAuth2Service.resource(blocker, semaphore)
 
       googleDependencies = GoogleDependencies(

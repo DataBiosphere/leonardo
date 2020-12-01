@@ -48,12 +48,13 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
   googleDiskService: GoogleDiskService[F],
   welderDao: WelderDAO[F],
   blocker: Blocker
-)(implicit val executionContext: ExecutionContext,
+)(implicit
+  val executionContext: ExecutionContext,
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F],
   F: Async[F],
-  logger: Logger[F])
-    extends BaseRuntimeInterpreter[F](config, welderDao)
+  logger: Logger[F]
+) extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F] {
   override def createRuntime(
     params: CreateRuntimeParams
@@ -72,7 +73,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
                                                     config.gceConfig.zoneName,
-                                                    params.runtimeConfig.machineType)
+                                                    params.runtimeConfig.machineType
+      )
 
       // Create the bucket in the cluster's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.
@@ -88,7 +90,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .createStagingBucket(params.auditInfo.creator,
                              params.runtimeProjectAndName.googleProject,
                              stagingBucketName,
-                             params.serviceAccountInfo)
+                             params.serviceAccountInfo
+        )
         .compile
         .drain
 
@@ -153,7 +156,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                   .putAllLabels(Map("leonardo" -> "true").asJava)
                   .setDiskType(
                     persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject,
-                                                         persistentDisk.zone)
+                                                         persistentDisk.zone
+                    )
                   )
                   .build()
               )
@@ -200,7 +204,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .initializeBucketObjects(initBucketName,
                                  templateParams.serviceAccountKey,
                                  templateValues,
-                                 params.customEnvironmentVariables)
+                                 params.customEnvironmentVariables
+        )
         .compile
         .drain
 
@@ -249,12 +254,14 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
 
       operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject,
                                                        config.gceConfig.zoneName,
-                                                       instance)
+                                                       instance
+      )
 
       asyncRuntimeFields = AsyncRuntimeFields(GoogleId(operation.getTargetId),
                                               OperationName(operation.getName),
                                               stagingBucketName,
-                                              None)
+                                              None
+      )
     } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, config.gceConfig.customGceImage)
 
   override def getRuntimeStatus(
@@ -277,26 +284,30 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       _ <- googleComputeService.addInstanceMetadata(runtime.googleProject,
                                                     config.gceConfig.zoneName,
                                                     InstanceName(runtime.runtimeName.asString),
-                                                    metadata)
+                                                    metadata
+      )
       r <- googleComputeService.stopInstance(runtime.googleProject,
                                              config.gceConfig.zoneName,
-                                             InstanceName(runtime.runtimeName.asString))
+                                             InstanceName(runtime.runtimeName.asString)
+      )
     } yield Some(r)
 
-  override protected def startGoogleRuntime(params: StartGoogleRuntime)(
-    implicit ev: Ask[F, AppContext]
+  override protected def startGoogleRuntime(params: StartGoogleRuntime)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
       resourceConstraints <- getResourceConstraints(params.runtime.googleProject,
                                                     config.gceConfig.zoneName,
-                                                    params.runtimeConfig.machineType)
+                                                    params.runtimeConfig.machineType
+      )
       metadata <- getStartupScript(params.runtime,
                                    params.welderAction,
                                    params.initBucket,
                                    blocker,
                                    resourceConstraints,
-                                   true)
+                                   true
+      )
       // remove the startup-script-url metadata entry if present which is only used at creation time
       _ <- googleComputeService.modifyInstanceMetadata(
         params.runtime.googleProject,
@@ -307,16 +318,18 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       )
       _ <- googleComputeService.startInstance(params.runtime.googleProject,
                                               config.gceConfig.zoneName,
-                                              InstanceName(params.runtime.runtimeName.asString))
+                                              InstanceName(params.runtime.runtimeName.asString)
+      )
     } yield ()
 
-  override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
-    implicit ev: Ask[F, TraceId]
+  override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(implicit
+    ev: Ask[F, TraceId]
   ): F[Unit] =
     googleComputeService.setMachineType(runtime.googleProject,
                                         config.gceConfig.zoneName,
                                         InstanceName(runtime.runtimeName.asString),
-                                        machineType)
+                                        machineType
+    )
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
@@ -327,11 +340,13 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         _ <- googleComputeService.addInstanceMetadata(params.runtime.googleProject,
                                                       config.gceConfig.zoneName,
                                                       InstanceName(params.runtime.runtimeName.asString),
-                                                      metadata)
+                                                      metadata
+        )
         op <- googleComputeService
           .deleteInstance(params.runtime.googleProject,
                           config.gceConfig.zoneName,
-                          InstanceName(params.runtime.runtimeName.asString))
+                          InstanceName(params.runtime.runtimeName.asString)
+          )
       } yield op
     } else F.pure(None)
 
@@ -367,7 +382,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     } yield RuntimeResourceConstraints(result)
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
-                                     subnetwork: SubnetworkName): NetworkInterface =
+                                     subnetwork: SubnetworkName
+  ): NetworkInterface =
     NetworkInterface
       .newBuilder()
       .setSubnetwork(buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, subnetwork))

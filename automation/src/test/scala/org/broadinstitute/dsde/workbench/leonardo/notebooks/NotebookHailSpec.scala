@@ -50,7 +50,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               |users = hl.read_table('data/users.ht')
               |users.aggregate(hl.agg.count())""".stripMargin
           val tutorialCellResult = notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).get
-          tutorialCellResult.output.get.toInt shouldBe (943)
+          tutorialCellResult.output.get.toInt shouldBe 943
 
           // Verify spark job is run in non local mode
           val getSparkContext =
@@ -66,7 +66,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
           val sparkJobToSucceedcellResult =
             notebookPage.executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4)).get
-          sparkJobToSucceedcellResult.output.get.toInt shouldBe (1000)
+          sparkJobToSucceedcellResult.output.get.toInt shouldBe 1000
         }
       }
     }
@@ -80,7 +80,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           Sam.user.petServiceAccountEmail(clusterFixture.runtime.googleProject.value)(ronAuthToken)
         googleStorageDAO.setBucketAccessControl(bucketName,
                                                 EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                GcsRoles.Owner)
+                                                GcsRoles.Owner
+        )
 
         // Add a sample TSV to the bucket
         val tsvString =
@@ -96,7 +97,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           googleStorageDAO.setObjectAccessControl(bucketName,
                                                   objectName,
                                                   EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                  GcsRoles.Owner)
+                                                  GcsRoles.Owner
+          )
 
           withWebDriver { implicit driver =>
             withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
@@ -128,7 +130,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     "should import a pandas DataFrame into Hail" in { clusterFixture =>
       withResourceFileInBucket(clusterFixture.runtime.googleProject,
                                ResourceFile("bucket-tests/hail_samples.csv"),
-                               "text/plain") { gcsPath =>
+                               "text/plain"
+      ) { gcsPath =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
             // Localize the CSV
@@ -154,8 +157,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             val result =
               notebookPage.executeCell(s"samples = hl.Table.from_pandas(df, key = 'sample')", timeout = 5.minutes)
             result shouldBe 'defined
-            result.get should not include ("FatalError")
-            result.get should not include ("PythonException")
+            result.get should not include "FatalError"
+            result.get should not include "PythonException"
             result.get should include("Coerced sorted dataset")
 
             // Verify the Hail table

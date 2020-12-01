@@ -70,7 +70,8 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
         request =
           LeonardoApiClient.defaultCreateRuntime2Request.copy(labels = Map(deployWelderLabel -> "true"),
                                                               welderDockerImage =
-                                                                Some(LeonardoConfig.Leonardo.oldGcrWelderDockerImage))
+                                                                Some(LeonardoConfig.Leonardo.oldGcrWelderDockerImage)
+          )
       ) { runtime =>
         // Verify welder is running with old version
         val statusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()

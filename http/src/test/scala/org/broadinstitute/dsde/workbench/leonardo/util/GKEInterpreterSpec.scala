@@ -45,7 +45,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                            projectDAO,
                            FakeGoogleComputeService,
-                           new MockComputePollOperation)
+                           new MockComputePollOperation
+    )
 
   val gkeInterp =
     new GKEInterpreter[IO](Config.gkeInterpConfig,
@@ -57,7 +58,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            credentials,
                            googleIamDao,
                            whitelistAuthProvider,
-                           blocker)
+                           blocker
+    )
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
@@ -65,7 +67,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val maxNodes = 2
     val savedNodepool1 = makeNodepool(1, savedCluster1.id)
       .copy(autoscalingEnabled = true,
-            autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
+            autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes)))
+      )
       .save()
 
     val googleNodepool = gkeInterp.buildGoogleNodepool(savedNodepool1)
@@ -86,7 +89,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     secrets.map(_.secrets.keys.size).sum shouldBe 3
     secrets.flatMap(_.secrets.keys).sortBy(_.value) shouldBe List(SecretKey("ca.crt"),
                                                                   SecretKey("tls.crt"),
-                                                                  SecretKey("tls.key")).sortBy(_.value)
+                                                                  SecretKey("tls.key")
+    ).sortBy(_.value)
     val emptyFileSecrets = secrets.map(s => (s.name, s.namespaceName))
     emptyFileSecrets should contain((SecretName("ca-secret"), savedApp1.appResources.namespace.name))
     emptyFileSecrets should contain((SecretName("tls-secret"), savedApp1.appResources.namespace.name))

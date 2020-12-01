@@ -35,8 +35,9 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
   def save(clusterId: Long, clusterImage: RuntimeImage)(implicit ec: ExecutionContext): DBIO[Int] =
     for {
       exists <- getRecord(clusterId, clusterImage.imageType)
-      res <- if (exists.headOption.isDefined) DBIO.successful(0)
-      else clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
+      res <-
+        if (exists.headOption.isDefined) DBIO.successful(0)
+        else clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
     } yield res
 
   def saveAllForCluster(clusterId: Long, clusterImages: Seq[RuntimeImage]): DBIO[Option[Int]] =

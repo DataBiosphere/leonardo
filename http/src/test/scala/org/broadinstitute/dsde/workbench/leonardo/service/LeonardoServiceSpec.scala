@@ -103,7 +103,8 @@ class LeonardoServiceSpec
     val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                            projectDAO,
                                            FakeGoogleComputeService,
-                                           new MockComputePollOperation)
+                                           new MockComputePollOperation
+    )
     dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                  bucketHelper,
                                                  vpcInterp,
@@ -114,14 +115,16 @@ class LeonardoServiceSpec
                                                  iamDAO,
                                                  projectDAO,
                                                  MockWelderDAO,
-                                                 blocker)
+                                                 blocker
+    )
     gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
                                        bucketHelper,
                                        vpcInterp,
                                        FakeGoogleComputeService,
                                        MockGoogleDiskService,
                                        MockWelderDAO,
-                                       blocker)
+                                       blocker
+    )
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     leo = new LeonardoService(dataprocConfig,
                               imageConfig,
@@ -136,7 +139,8 @@ class LeonardoServiceSpec
                               serviceAccountProvider,
                               bucketHelper,
                               new MockDockerDAO,
-                              QueueFactory.makePublisherQueue())
+                              QueueFactory.makePublisherQueue()
+    )
   }
 
   override def afterAll(): Unit = {
@@ -286,7 +290,8 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          new MockDockerDAO(RStudio),
-                                         QueueFactory.makePublisherQueue())
+                                         QueueFactory.makePublisherQueue()
+    )
 
     val clusterResponse = leoForTest.createCluster(userInfo, project, name1, clusterRequest).unsafeToFuture.futureValue
 
@@ -359,7 +364,8 @@ class LeonardoServiceSpec
                                           None,
                                           None,
                                           None,
-                                          Map.empty)
+                                          Map.empty
+      )
 
     val expectedRuntimeConfig = RuntimeConfig.DataprocConfig(
       numberOfWorkers = 0,
@@ -559,7 +565,8 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          new MockDockerDAO,
-                                         publisherQueue)
+                                         publisherQueue
+    )
 
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
 
@@ -589,7 +596,7 @@ class LeonardoServiceSpec
         message <- publisherQueue.tryDequeue1
       } yield {
         status shouldBe Some(RuntimeStatus.Deleting)
-        message shouldBe (None)
+        message shouldBe None
       }
     }
 
@@ -623,7 +630,8 @@ class LeonardoServiceSpec
                                          serviceAccountProvider,
                                          bucketHelper,
                                          new MockDockerDAO,
-                                         publisherQueue)
+                                         publisherQueue
+    )
 
     // create the cluster
     val cluster = leoForTest.createCluster(userInfo, project, name1, testClusterRequest).unsafeToFuture.futureValue
@@ -654,7 +662,7 @@ class LeonardoServiceSpec
         message <- publisherQueue.tryDequeue1
       } yield {
         status shouldBe Some(RuntimeStatus.Deleting)
-        message shouldBe (None)
+        message shouldBe None
       }
     }
 
@@ -684,7 +692,8 @@ class LeonardoServiceSpec
     val getClusterKey = LeoLenses.createRuntimeRespToGetClusterKey.get(cluster)
     dbFutureValue {
       instanceQuery.saveAllForCluster(getClusterId(getClusterKey),
-                                      Seq(masterInstance, workerInstance1, workerInstance2))
+                                      Seq(masterInstance, workerInstance1, workerInstance2)
+      )
     }
 
     // change cluster status to Running so that it can be deleted
@@ -709,7 +718,7 @@ class LeonardoServiceSpec
         message <- publisherQueue.tryDequeue1
       } yield {
         status shouldBe Some(RuntimeStatus.Deleting)
-        message shouldBe (None)
+        message shouldBe None
       }
     }
 
@@ -899,7 +908,8 @@ class LeonardoServiceSpec
       .futureValue
 
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar")).unsafeToFuture.futureValue.toSet shouldBe Set(cluster1,
-                                                                                                          cluster2).map(
+                                                                                                          cluster2
+    ).map(
       LeoLenses.createRuntimeRespToListRuntimeResp.get
     )
     leo.listClusters(userInfo, Map("_labels" -> "foo=bar,bam=yes")).unsafeToFuture.futureValue.toSet shouldBe Set(
@@ -1013,7 +1023,7 @@ class LeonardoServiceSpec
         message <- publisherQueue.tryDequeue1
       } yield {
         status shouldBe Some(RuntimeStatus.Stopping)
-        message shouldBe (None)
+        message shouldBe None
       }
     }
 
@@ -1033,9 +1043,15 @@ class LeonardoServiceSpec
   }
 
   it should "calculate autopause threshold properly" in {
-    LeonardoService.calculateAutopauseThreshold(None, None, autoFreezeConfig) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    LeonardoService.calculateAutopauseThreshold(None,
+                                                None,
+                                                autoFreezeConfig
+    ) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
     LeonardoService.calculateAutopauseThreshold(Some(false), None, autoFreezeConfig) shouldBe autoPauseOffValue
-    LeonardoService.calculateAutopauseThreshold(Some(true), None, autoFreezeConfig) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    LeonardoService.calculateAutopauseThreshold(Some(true),
+                                                None,
+                                                autoFreezeConfig
+    ) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
     LeonardoService.calculateAutopauseThreshold(Some(true), Some(30), autoFreezeConfig) shouldBe 30
   }
 
@@ -1073,7 +1089,7 @@ class LeonardoServiceSpec
         message <- publisherQueue.tryDequeue1
       } yield {
         status shouldBe Some(RuntimeStatus.Starting)
-        message shouldBe (None)
+        message shouldBe None
       }
     }
 
@@ -1110,7 +1126,8 @@ class LeonardoServiceSpec
     dbFutureValue(clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Stopped, Instant.now))
     dbFutureValue {
       clusterQuery.updateClusterCreatedDate(cluster.id,
-                                            new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant)
+                                            new SimpleDateFormat("yyyy-MM-dd").parse("2018-12-31").toInstant
+      )
     }
 
     // start the cluster
@@ -1125,7 +1142,7 @@ class LeonardoServiceSpec
         message <- publisherQueue.tryDequeue1
       } yield {
         status shouldBe Some(RuntimeStatus.Starting)
-        message shouldBe (None)
+        message shouldBe None
       }
     }
 
@@ -1137,7 +1154,7 @@ class LeonardoServiceSpec
     LeonardoService.processLabelMap(input1) shouldBe (Right(Map("foo" -> "bar", "baz" -> "biz")))
 
     val failureInput = Map("_labels" -> "foo=bar,,baz=biz")
-    LeonardoService.processLabelMap(failureInput).isLeft shouldBe (true)
+    LeonardoService.processLabelMap(failureInput).isLeft shouldBe true
 
     val duplicateLabel = Map("_labels" -> "foo=bar,foo=biz")
     LeonardoService.processLabelMap(duplicateLabel) shouldBe (Right(Map("foo" -> "biz")))
@@ -1166,5 +1183,6 @@ class LeonardoServiceSpec
                         serviceAccountProvider,
                         bucketHelper,
                         new MockDockerDAO,
-                        queue)
+                        queue
+    )
 }

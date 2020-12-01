@@ -26,7 +26,8 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
                                 false,
                                 1 seconds,
                                 10,
-                                ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test")))
+                                ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test"))
+  )
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
 
   "HttpSamDAO" should "get Sam ok status" in {
@@ -111,7 +112,9 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val expectedResponse =
       StatusCheckResponse(false,
                           Map(GoogleIam -> SubsystemStatus(true, None),
-                              OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
+                              OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))
+                          )
+      )
 
     samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
   }
@@ -129,9 +132,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
     val res = for {
       result <- samDao.getStatus.attempt
-    } yield {
-      result shouldBe Left(FakeException("retried 5 times"))
-    }
+    } yield result shouldBe Left(FakeException("retried 5 times"))
 
     res.unsafeRunSync()
   }

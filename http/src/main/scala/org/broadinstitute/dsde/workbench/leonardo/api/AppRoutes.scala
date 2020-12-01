@@ -21,8 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
-  implicit metrics: OpenTelemetryMetrics[IO]
+class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(implicit
+  metrics: OpenTelemetryMetrics[IO]
 ) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
@@ -105,8 +105,9 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
   }
   private[api] def batchNodepoolCreateHandler(userInfo: UserInfo,
                                               googleProject: GoogleProject,
-                                              req: BatchNodepoolCreateRequest)(
-    implicit ev: Ask[IO, AppContext]
+                                              req: BatchNodepoolCreateRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -118,8 +119,9 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
   private[api] def createAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     appName: AppName,
-                                    req: CreateAppRequest)(
-    implicit ev: Ask[IO, AppContext]
+                                    req: CreateAppRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -133,8 +135,8 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
-  private[api] def getAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit ev: Ask[IO, AppContext]
+  private[api] def getAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -149,8 +151,9 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
 
   private[api] def listAppHandler(userInfo: UserInfo,
                                   googleProject: Option[GoogleProject],
-                                  params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                  params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -166,8 +169,9 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     appName: AppName,
-                                    params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                    params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -222,7 +226,8 @@ object AppRoutes {
                         "proxyUrls",
                         "appName",
                         "diskName",
-                        "auditInfo")(x => ListAppResponse.unapply(x).get)
+                        "auditInfo"
+    )(x => ListAppResponse.unapply(x).get)
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
     Encoder.forProduct7("kubernetesRuntimeConfig",
@@ -231,5 +236,6 @@ object AppRoutes {
                         "proxyUrls",
                         "diskName",
                         "customEnvironmentVariables",
-                        "auditInfo")(x => GetAppResponse.unapply(x).get)
+                        "auditInfo"
+    )(x => GetAppResponse.unapply(x).get)
 }

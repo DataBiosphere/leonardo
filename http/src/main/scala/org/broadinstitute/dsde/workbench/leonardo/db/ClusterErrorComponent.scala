@@ -11,7 +11,8 @@ case class ClusterErrorRecord(id: Long,
                               clusterId: Long,
                               errorMessage: String,
                               errorCode: Option[Int],
-                              timestamp: Timestamp)
+                              timestamp: Timestamp
+)
 
 class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTER_ERROR") {
   def id = column[Long]("id", O.AutoInc)
@@ -37,7 +38,8 @@ object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
                                             clusterId,
                                             clusterError.errorMessage,
                                             clusterError.errorCode,
-                                            Timestamp.from(clusterError.timestamp))
+                                            Timestamp.from(clusterError.timestamp)
+    )
 
   def get(clusterId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeError]] =
     clusterErrorQuery.filter(_.clusterId === clusterId).result map { recs =>

@@ -70,7 +70,8 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMe
   val recordCacheMetricsProcess: Stream[F, Unit] =
     CacheMetrics("runtimeDnsCache")
       .process(() => Effect[F].delay(projectClusterToHostStatus.size),
-               () => Effect[F].delay(projectClusterToHostStatus.stats))
+               () => Effect[F].delay(projectClusterToHostStatus.stats)
+      )
 
   private def host(googleId: GoogleId): Host =
     Host(googleId.value + proxyConfig.proxyDomain)

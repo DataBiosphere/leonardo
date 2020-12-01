@@ -50,12 +50,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   authProvider: LeoAuthProvider[F],
   gkeInterp: GKEInterpreter[F],
   errorReporting: ErrorReporting[F]
-)(implicit executionContext: ExecutionContext,
+)(implicit
+  executionContext: ExecutionContext,
   F: ConcurrentEffect[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
   runtimeInstances: RuntimeInstances[F],
-  monitor: RuntimeMonitor[F, CloudService]) {
+  monitor: RuntimeMonitor[F, CloudService]
+) {
 
   private[monitor] def messageResponder(
     message: LeoPubsubMessage
@@ -105,11 +107,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                     handleKubernetesError(ee)
                   case _ => F.unit
                 }
-                _ <- if (ee.isRetryable)
-                  logger.error(e)("Fail to process retryable pubsub message") >> F
-                    .delay(event.consumer.nack())
-                else
-                  logger.error(e)("Fail to process non-retryable pubsub message") >> ack(event)
+                _ <-
+                  if (ee.isRetryable)
+                    logger.error(e)("Fail to process retryable pubsub message") >> F
+                      .delay(event.consumer.nack())
+                  else
+                    logger.error(e)("Fail to process non-retryable pubsub message") >> ack(event)
               } yield ()
             case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
               logger
@@ -135,8 +138,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       event.consumer.ack()
     )
 
-  private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] = {
     val createCluster = for {
       ctx <- ev.ask
@@ -157,23 +160,24 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       )).transaction
       taskToRun = for {
         _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Creating).compile.drain
-        _ <- if (msg.stopAfterCreation) { //TODO: once we remove legacy /api/clusters route or we remove `stopAfterCreation` support, we can remove this block
-          for {
-            _ <- clusterQuery
-              .updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now)
-              .transaction
-            runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
-            runtime <- F.fromEither(runtimeOpt.toRight(new Exception(s"can't find ${msg.runtimeId} in DB")))
-            dataprocConfig = msg.runtimeConfig match {
-              case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
-                Some(dataprocInCreateRuntimeMsgToDataprocRuntime(x))
-              case _ => none[RuntimeConfig.DataprocConfig]
-            }
-            _ <- msg.runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(runtime, dataprocConfig, ctx.now))
-            _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Stopping).compile.drain
-          } yield ()
-        } else F.unit
+        _ <-
+          if (msg.stopAfterCreation) { //TODO: once we remove legacy /api/clusters route or we remove `stopAfterCreation` support, we can remove this block
+            for {
+              _ <- clusterQuery
+                .updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now)
+                .transaction
+              runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
+              runtime <- F.fromEither(runtimeOpt.toRight(new Exception(s"can't find ${msg.runtimeId} in DB")))
+              dataprocConfig = msg.runtimeConfig match {
+                case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
+                  Some(dataprocInCreateRuntimeMsgToDataprocRuntime(x))
+                case _ => none[RuntimeConfig.DataprocConfig]
+              }
+              _ <- msg.runtimeConfig.cloudService.interpreter
+                .stopRuntime(StopRuntimeParams(runtime, dataprocConfig, ctx.now))
+              _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Stopping).compile.drain
+            } yield ()
+          } else F.unit
       } yield ()
       _ <- asyncTasks.enqueue1(
         Task(
@@ -188,8 +192,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     createCluster.handleErrorWith(e => ev.ask.flatMap(ctx => createRuntimeErrorHandler(msg, ctx.now)(e)))
   }
 
-  private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -197,11 +201,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(F.pure)
-      _ <- if (!Set(RuntimeStatus.Deleting, RuntimeStatus.PreDeleting).contains(runtime.status))
-        F.raiseError[Unit](
-          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
-        )
-      else F.unit
+      _ <-
+        if (!Set(RuntimeStatus.Deleting, RuntimeStatus.PreDeleting).contains(runtime.status))
+          F.raiseError[Unit](
+            PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+          )
+        else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
         DeleteRuntimeParams(runtime)
@@ -211,7 +216,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           runtimeConfig.cloudService.pollCheck(runtime.googleProject,
                                                RuntimeAndRuntimeConfig(runtime, runtimeConfig),
                                                o,
-                                               RuntimeStatus.Deleting)
+                                               RuntimeStatus.Deleting
+          )
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Deleting).compile.drain
       }
@@ -262,8 +268,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       )
     } yield ()
 
-  private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleStopRuntimeMessage(msg: StopRuntimeMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -271,11 +277,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(F.pure)
-      _ <- if (!Set(RuntimeStatus.Stopping, RuntimeStatus.PreStopping).contains(runtime.status))
-        F.raiseError[Unit](
-          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
-        )
-      else F.unit
+      _ <-
+        if (!Set(RuntimeStatus.Stopping, RuntimeStatus.PreStopping).contains(runtime.status))
+          F.raiseError[Unit](
+            PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+          )
+        else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
         StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now)
@@ -285,7 +292,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           runtimeConfig.cloudService.pollCheck(runtime.googleProject,
                                                RuntimeAndRuntimeConfig(runtime, runtimeConfig),
                                                o,
-                                               RuntimeStatus.Stopping)
+                                               RuntimeStatus.Stopping
+          )
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
       }
@@ -301,8 +309,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       )
     } yield ()
 
-  private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleStartRuntimeMessage(msg: StartRuntimeMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -310,15 +318,17 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       )(F.pure)
-      _ <- if (!Set(RuntimeStatus.Starting, RuntimeStatus.PreStarting).contains(runtime.status))
-        F.raiseError[Unit](
-          PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
-        )
-      else F.unit
+      _ <-
+        if (!Set(RuntimeStatus.Starting, RuntimeStatus.PreStarting).contains(runtime.status))
+          F.raiseError[Unit](
+            PubsubHandleMessageError.ClusterInvalidState(msg.runtimeId, runtime.projectNameString, runtime, msg)
+          )
+        else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
       bucketName <- F.fromOption(initBucket.map(_.bucketName),
-                                 new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
+                                 new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB")
+      )
       _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, bucketName))
       _ <- asyncTasks.enqueue1(
         Task(
@@ -332,8 +342,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       )
     } yield ()
 
-  private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleUpdateRuntimeMessage(msg: UpdateRuntimeMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -346,19 +356,22 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // We assume all validation has already happened in RuntimeServiceInterp
 
       // Resize the cluster
-      hasResizedCluster <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
-        for {
-          _ <- runtimeConfig.cloudService.interpreter
-            .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
-          _ <- msg.newNumWorkers.traverse_(a =>
-            RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, ctx.now).transaction
-          )
-          _ <- msg.newNumPreemptibles.traverse_(a =>
-            RuntimeConfigQueries.updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), ctx.now).transaction
-          )
-          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Updating, ctx.now).transaction.void
-        } yield true
-      } else F.pure(false)
+      hasResizedCluster <-
+        if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
+          for {
+            _ <- runtimeConfig.cloudService.interpreter
+              .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
+            _ <- msg.newNumWorkers.traverse_(a =>
+              RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, ctx.now).transaction
+            )
+            _ <- msg.newNumPreemptibles.traverse_(a =>
+              RuntimeConfigQueries
+                .updateNumberOfPreemptibleWorkers(runtime.runtimeConfigId, Some(a), ctx.now)
+                .transaction
+            )
+            _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Updating, ctx.now).transaction.void
+          } yield true
+        } else F.pure(false)
 
       // Update the disk size
       _ <- msg.diskUpdate
@@ -387,61 +400,66 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           } yield ()
         }
 
-      _ <- if (msg.stopToUpdateMachineType) {
-        for {
-          timeToStop <- nowInstant
-          ctxStopping = Ask.const[F, AppContext](
-            AppContext(ctx.traceId, timeToStop)
-          )
-          _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
-          operation <- runtimeConfig.cloudService.interpreter
-            .stopRuntime(StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now))(
-              ctxStopping
+      _ <-
+        if (msg.stopToUpdateMachineType) {
+          for {
+            timeToStop <- nowInstant
+            ctxStopping = Ask.const[F, AppContext](
+              AppContext(ctx.traceId, timeToStop)
             )
-          task = for {
-            _ <- operation match {
-              case Some(op) =>
-                runtimeConfig.cloudService.pollCheck(runtime.googleProject,
-                                                     RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-                                                     op,
-                                                     RuntimeStatus.Stopping)
-              case None =>
-                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
-            }
-            now <- nowInstant
-            ctxStarting = Ask.const[F, AppContext](
-              AppContext(ctx.traceId, now)
-            )
-            _ <- startAndUpdateRuntime(runtime, msg.newMachineType)(ctxStarting)
-          } yield ()
-          _ <- asyncTasks.enqueue1(
-            Task(ctx.traceId,
-                 task,
-                 Some(
-                   handleRuntimeMessageError(msg.runtimeId,
-                                             ctx.now,
-                                             s"updating runtime ${runtime.projectNameString} failed")
-                 ),
-                 ctx.now)
-          )
-        } yield ()
-      } else {
-        for {
-          _ <- msg.newMachineType.traverse_(m =>
-            runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
-          )
-          _ <- if (hasResizedCluster) {
-            asyncTasks.enqueue1(
-              Task(
-                ctx.traceId,
-                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating).compile.drain,
-                Some(handleRuntimeMessageError(runtime.id, ctx.now, "updating runtime")),
-                ctx.now
+            _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
+            operation <- runtimeConfig.cloudService.interpreter
+              .stopRuntime(StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now))(
+                ctxStopping
+              )
+            task = for {
+              _ <- operation match {
+                case Some(op) =>
+                  runtimeConfig.cloudService.pollCheck(runtime.googleProject,
+                                                       RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+                                                       op,
+                                                       RuntimeStatus.Stopping
+                  )
+                case None =>
+                  runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+              }
+              now <- nowInstant
+              ctxStarting = Ask.const[F, AppContext](
+                AppContext(ctx.traceId, now)
+              )
+              _ <- startAndUpdateRuntime(runtime, msg.newMachineType)(ctxStarting)
+            } yield ()
+            _ <- asyncTasks.enqueue1(
+              Task(ctx.traceId,
+                   task,
+                   Some(
+                     handleRuntimeMessageError(msg.runtimeId,
+                                               ctx.now,
+                                               s"updating runtime ${runtime.projectNameString} failed"
+                     )
+                   ),
+                   ctx.now
               )
             )
-          } else F.unit
-        } yield ()
-      }
+          } yield ()
+        } else {
+          for {
+            _ <- msg.newMachineType.traverse_(m =>
+              runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+            )
+            _ <-
+              if (hasResizedCluster) {
+                asyncTasks.enqueue1(
+                  Task(
+                    ctx.traceId,
+                    runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating).compile.drain,
+                    Some(handleRuntimeMessageError(runtime.id, ctx.now, "updating runtime")),
+                    ctx.now
+                  )
+                )
+              } else F.unit
+          } yield ()
+        }
     } yield ()
 
   private def startAndUpdateRuntime(
@@ -457,7 +475,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       )
       initBucket <- clusterQuery.getInitBucket(runtime.id).transaction
       bucketName <- F.fromOption(initBucket.map(_.bucketName),
-                                 new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
+                                 new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB")
+      )
       _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, bucketName))
       _ <- dbRef.inTransaction {
         clusterQuery.updateClusterStatus(
@@ -470,14 +489,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Starting).compile.drain
     } yield ()
 
-  private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     createDisk(msg, false)
 
   //this returns an F[F[Unit]. It kicks off the google operation, and then return an F containing the async polling task
-  private[monitor] def createDisk(msg: CreateDiskMessage, sync: Boolean)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def createDisk(msg: CreateDiskMessage, sync: Boolean)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] = {
     val create = for {
       ctx <- ev.ask
@@ -514,34 +533,36 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             F.unit
           )
       )
-      _ <- if (sync) task
-      else {
-        asyncTasks.enqueue1(
-          Task(ctx.traceId,
-               task,
-               Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
-               ctx.now)
-        )
-      }
+      _ <-
+        if (sync) task
+        else {
+          asyncTasks.enqueue1(
+            Task(ctx.traceId,
+                 task,
+                 Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
+                 ctx.now
+            )
+          )
+        }
     } yield ()
 
-    create.onError {
-      case e =>
-        for {
-          ctx <- ev.ask
-          _ <- logger.error(e)(
-            s"Failed to create disk ${msg.name.value} in Google project ${msg.googleProject.value}"
-          )
-          _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, ctx.now).transaction[F]
-        } yield ()
+    create.onError { case e =>
+      for {
+        ctx <- ev.ask
+        _ <- logger.error(e)(
+          s"Failed to create disk ${msg.name.value} in Google project ${msg.googleProject.value}"
+        )
+        _ <- persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Failed, ctx.now).transaction[F]
+      } yield ()
     }
   }
 
   private[monitor] def createGalaxyPostgresDiskOnlyInGoogle(project: GoogleProject,
                                                             zone: ZoneName,
                                                             appName: AppName,
-                                                            namespaceName: NamespaceName)(
-    implicit ev: Ask[F, AppContext]
+                                                            namespaceName: NamespaceName
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] = {
     // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only creating the postgress disk in Google since we are not supporting persistence
     // see: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/859406337/2020-10-02+Galaxy+disk+attachment+pre+post+alpha+release
@@ -550,7 +571,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- logger.info(s"Beginning postgres disk creation for app ${appName.value} | trace id: ${ctx.traceId}")
       operationOpt <- googleDiskService.createDisk(project,
                                                    zone,
-                                                   gkeInterp.createGalaxyPostgresDisk(project, zone, namespaceName))
+                                                   gkeInterp.createGalaxyPostgresDisk(project, zone, namespaceName)
+      )
       whenDone = logger.info(
         s"Completed postgres disk creation for app ${appName.value} in project ${project.value} | trace id: ${ctx.traceId}"
       )
@@ -574,23 +596,22 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       )
     } yield ()
 
-    create.onError {
-      case e =>
-        for {
-          _ <- logger.error(e)(
-            s"Failed to create Galaxy postgres disk in Google project ${project.value}, AppName: ${appName.value}"
-          )
-        } yield ()
+    create.onError { case e =>
+      for {
+        _ <- logger.error(e)(
+          s"Failed to create Galaxy postgres disk in Google project ${project.value}, AppName: ${appName.value}"
+        )
+      } yield ()
     }
   }
 
-  private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleDeleteDiskMessage(msg: DeleteDiskMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     deleteDisk(msg.diskId, false)
 
-  private[monitor] def deleteDisk(diskId: DiskId, sync: Boolean)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def deleteDisk(diskId: DiskId, sync: Boolean)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -623,22 +644,25 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         case None =>
           whenDone
       }
-      _ <- if (sync) task
-      else {
-        asyncTasks.enqueue1(
-          Task(ctx.traceId,
-               task,
-               Some(logError(s"${ctx.traceId.asString} | ${diskId.value}", "Deleting Disk")),
-               ctx.now)
-        )
-      }
+      _ <-
+        if (sync) task
+        else {
+          asyncTasks.enqueue1(
+            Task(ctx.traceId,
+                 task,
+                 Some(logError(s"${ctx.traceId.asString} | ${diskId.value}", "Deleting Disk")),
+                 ctx.now
+            )
+          )
+        }
     } yield ()
 
   private[monitor] def deleteGalaxyPostgresDiskOnlyInGoogle(project: GoogleProject,
                                                             zone: ZoneName,
                                                             appName: AppName,
-                                                            namespaceName: NamespaceName)(
-    implicit ev: Ask[F, AppContext]
+                                                            namespaceName: NamespaceName
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only deleting the postgress disk in Google since we are not supporting persistence
     // see: https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/859406337/2020-10-02+Galaxy+disk+attachment+pre+post+alpha+release
@@ -664,15 +688,16 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                                                  OperationName(op.getName),
                                                  config.persistentDiskMonitorConfig.delete.interval,
                                                  config.persistentDiskMonitorConfig.create.maxAttempts,
-                                                 None)(whenDone, whenTimeout, whenInterrupted)
+                                                 None
+          )(whenDone, whenTimeout, whenInterrupted)
         case None =>
           whenDone
       }
       _ <- task
     } yield ()
 
-  private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -703,12 +728,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         Task(ctx.traceId,
              task,
              Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Updating Disk")),
-             ctx.now)
+             ctx.now
+        )
       )
     } yield ()
 
-  private[monitor] def handleCreateAppMessage(msg: CreateAppMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleCreateAppMessage(msg: CreateAppMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -734,8 +760,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId), false)
               )
               .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
-              .adaptError {
-                case e =>
+              .adaptError { case e =>
+                PubsubKubernetesError(
+                  AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+                  Some(msg.appId),
+                  false,
+                  // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
+                  // The app will have the error so the user can see it, delete their app, and try again
+                  None,
+                  None
+                )
+              }
+            monitorOp = createClusterResultOpt.traverse_(createClusterResult =>
+              gkeInterp
+                .pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
+                .adaptError { case e =>
                   PubsubKubernetesError(
                     AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
                     Some(msg.appId),
@@ -745,21 +784,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                     None,
                     None
                   )
-              }
-            monitorOp = createClusterResultOpt.traverse_(createClusterResult =>
-              gkeInterp
-                .pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
-                .adaptError {
-                  case e =>
-                    PubsubKubernetesError(
-                      AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-                      Some(msg.appId),
-                      false,
-                      // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
-                      // The app will have the error so the user can see it, delete their app, and try again
-                      None,
-                      None
-                    )
                 }
             )
           } yield monitorOp
@@ -767,8 +791,19 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           for {
             createNodepoolResultOpt <- gkeInterp
               .createNodepool(CreateNodepoolParams(nodepoolId, msg.project))
-              .adaptError {
-                case e =>
+              .adaptError { case e =>
+                PubsubKubernetesError(
+                  AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
+                  Some(msg.appId),
+                  false,
+                  Some(nodepoolId),
+                  None
+                )
+              }
+            monitor = createNodepoolResultOpt.traverse_(createNodepoolResult =>
+              gkeInterp
+                .pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
+                .adaptError { case e =>
                   PubsubKubernetesError(
                     AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
                     Some(msg.appId),
@@ -776,19 +811,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                     Some(nodepoolId),
                     None
                   )
-              }
-            monitor = createNodepoolResultOpt.traverse_(createNodepoolResult =>
-              gkeInterp
-                .pollNodepool(PollNodepoolParams(nodepoolId, createNodepoolResult))
-                .adaptError {
-                  case e =>
-                    PubsubKubernetesError(
-                      AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Nodepool, None),
-                      Some(msg.appId),
-                      false,
-                      Some(nodepoolId),
-                      None
-                    )
                 }
             )
           } yield monitor
@@ -796,33 +818,34 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       }
 
       // create disk asynchronously
-      createDisk = createDiskForApp(msg).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
-            Some(msg.appId),
-            false,
-            None,
-            None
-          )
+      createDisk = createDiskForApp(msg).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
+          Some(msg.appId),
+          false,
+          None,
+          None
+        )
       }
 
       dbAppOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(msg.project, msg.appName).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
       app = dbApp.app
-      createSecondDisk = if (msg.appType == Galaxy) {
-        createGalaxyPostgresDiskOnlyInGoogle(msg.project,
-                                             ZoneName("us-central1-a"),
-                                             msg.appName,
-                                             app.appResources.namespace.name).adaptError {
-          case e =>
+      createSecondDisk =
+        if (msg.appType == Galaxy) {
+          createGalaxyPostgresDiskOnlyInGoogle(msg.project,
+                                               ZoneName("us-central1-a"),
+                                               msg.appName,
+                                               app.appResources.namespace.name
+          ).adaptError { case e =>
             PubsubKubernetesError(AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Disk, None),
                                   Some(msg.appId),
                                   false,
                                   None,
-                                  None)
-        }
-      } else F.unit
+                                  None
+            )
+          }
+        } else F.unit
 
       // parallelize disk creation and cluster/nodepool monitoring
       parPreAppCreationSetup = List(createDisk, createSecondDisk, monitorClusterOrNodepool).parSequence_
@@ -834,15 +857,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         _ <- gkeInterp
           .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName))
           .onError { case _ => cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk) }
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.App, None),
-                Some(msg.appId),
-                false,
-                None,
-                None
-              )
+          .adaptError { case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.App, None),
+              Some(msg.appId),
+              false,
+              None,
+              None
+            )
           }
       } yield ()
 
@@ -851,8 +873,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       )
     } yield ()
 
-  private[monitor] def handleBatchNodepoolCreateMessage(msg: BatchNodepoolCreateMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleBatchNodepoolCreateMessage(msg: BatchNodepoolCreateMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -862,8 +884,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // Create the cluster synchronously
       createResultOpt <- gkeInterp
         .createCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
-        .adaptError {
-          case e =>
+        .adaptError { case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
+            None,
+            false,
+            None,
+            Some(msg.clusterId)
+          )
+        }
+
+      // Poll the cluster asynchronously
+      task = createResultOpt.traverse_(createResult =>
+        gkeInterp
+          .pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult))
+          .adaptError { case e =>
             PubsubKubernetesError(
               AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
               None,
@@ -871,34 +906,19 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               None,
               Some(msg.clusterId)
             )
-        }
-
-      // Poll the cluster asynchronously
-      task = createResultOpt.traverse_(createResult =>
-        gkeInterp
-          .pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult))
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateGalaxyApp, ErrorSource.Cluster, None),
-                None,
-                false,
-                None,
-                Some(msg.clusterId)
-              )
           }
       )
 
       _ <- asyncTasks.enqueue1(Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now))
     } yield ()
 
-  private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     deleteApp(msg, false, false)
 
-  private[monitor] def deleteApp(msg: DeleteAppMessage, sync: Boolean, errorAfterDelete: Boolean)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def deleteApp(msg: DeleteAppMessage, sync: Boolean, errorAfterDelete: Boolean)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -916,26 +936,24 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       deleteApp = gkeInterp
         .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.App, None),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-        }
-
-      deleteDisk = msg.diskId.traverse_(diskId => deleteDiskForApp(diskId)).adaptError {
-        case e =>
+        .adaptError { case e =>
           PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
+            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.App, None),
             Some(msg.appId),
             false,
             None,
             None
           )
+        }
+
+      deleteDisk = msg.diskId.traverse_(diskId => deleteDiskForApp(diskId)).adaptError { case e =>
+        PubsubKubernetesError(
+          AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
+          Some(msg.appId),
+          false,
+          None,
+          None
+        )
       }
 
       dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(msg.project, msg.appId).transaction
@@ -943,14 +961,15 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       deletePostgresDisk = deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
                                                                 ZoneName("us-central1-a"),
                                                                 msg.appName,
-                                                                dbApp.app.appResources.namespace.name)
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
-                                  Some(msg.appId),
-                                  false,
-                                  None,
-                                  None)
+                                                                dbApp.app.appResources.namespace.name
+      )
+        .adaptError { case e =>
+          PubsubKubernetesError(AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
+                                Some(msg.appId),
+                                false,
+                                None,
+                                None
+          )
         }
 
       deleteDisksInParallel = List(deleteDisk, deletePostgresDisk).parSequence_
@@ -959,28 +978,30 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       task = for {
         _ <- deleteApp
         _ <- deleteNodepool
-        _ <- if (!errorAfterDelete)
-          dbApp.app.status match {
-            // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
-            case AppStatus.Deleted => F.unit
-            case _ =>
-              appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >> authProvider
-                .notifyResourceDeleted(dbApp.app.samResourceId, dbApp.app.auditInfo.creator, msg.project)
-                .void
-          }
-        else F.unit
+        _ <-
+          if (!errorAfterDelete)
+            dbApp.app.status match {
+              // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
+              case AppStatus.Deleted => F.unit
+              case _ =>
+                appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >> authProvider
+                  .notifyResourceDeleted(dbApp.app.samResourceId, dbApp.app.auditInfo.creator, msg.project)
+                  .void
+            }
+          else F.unit
         _ <- deleteDisksInParallel
       } yield ()
 
-      _ <- if (sync) task
-      else
-        asyncTasks.enqueue1(
-          Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
-        )
+      _ <-
+        if (sync) task
+        else
+          asyncTasks.enqueue1(
+            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
+          )
     } yield ()
 
-  private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       // TODO: ${ctx.traceId} ends up being None with manually published messages. Make sure that's not the case with cron-job-created messages
@@ -992,33 +1013,31 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // TODO: Should we check again that the cluster is okay to delete in case a user requested app creation since the cron job published the message?
       _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
       _ <- gkeInterp
-      // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
+        // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
         .deleteAndPollCluster(DeleteClusterParams(msg.clusterId, msg.project))
-        .onError {
-          case _ =>
-            for {
-              _ <- logger.error(
-                s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
-              )
-              _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
-              // TODO: Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
-              // TODO: Need mark the nodepool(s) as Error'ed too?
-            } yield ()
-        }
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Cluster, None),
-              None,
-              false,
-              None,
-              Some(msg.clusterId)
+        .onError { case _ =>
+          for {
+            _ <- logger.error(
+              s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
             )
+            _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
+            // TODO: Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
+            // TODO: Need mark the nodepool(s) as Error'ed too?
+          } yield ()
+        }
+        .adaptError { case e =>
+          PubsubKubernetesError(
+            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Cluster, None),
+            None,
+            false,
+            None,
+            Some(msg.clusterId)
+          )
         }
     } yield ()
 
-  private def cleanUpAfterCreateClusterError(clusterId: KubernetesClusterLeoId, project: GoogleProject)(
-    implicit ev: Ask[F, AppContext]
+  private def cleanUpAfterCreateClusterError(clusterId: KubernetesClusterLeoId, project: GoogleProject)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1038,8 +1057,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private def cleanUpAfterCreateAppError(appId: AppId,
                                          appName: AppName,
                                          project: GoogleProject,
-                                         diskId: Option[DiskId])(
-    implicit ev: Ask[F, AppContext]
+                                         diskId: Option[DiskId]
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -1083,13 +1103,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         )
     }
 
-  private def deleteDiskForApp(diskId: DiskId)(
-    implicit ev: Ask[F, AppContext]
+  private def deleteDiskForApp(diskId: DiskId)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     deleteDisk(diskId, true)
 
-  private def createDiskForApp(msg: CreateAppMessage)(
-    implicit ev: Ask[F, AppContext]
+  private def createDiskForApp(msg: CreateAppMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     msg.createDisk match {
       case Some(diskId) =>
@@ -1122,9 +1142,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, None, now)) >>
           clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
-      _ <- if (e.isReportWorthy)
-        errorReporting.reportError(e)
-      else F.unit
+      _ <-
+        if (e.isReportWorthy)
+          errorReporting.reportError(e)
+        else F.unit
     } yield ()
 
   private def handleRuntimeMessageError(runtimeId: Long, now: Instant, msg: String)(e: Throwable): F[Unit] = {
@@ -1132,9 +1153,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     for {
       _ <- clusterErrorQuery.save(runtimeId, RuntimeError(m, None, now)).transaction
       _ <- logger.error(e)(m)
-      _ <- if (e.isReportWorthy)
-        errorReporting.reportError(e)
-      else F.unit
+      _ <-
+        if (e.isReportWorthy)
+          errorReporting.reportError(e)
+        else F.unit
     } yield ()
   }
 

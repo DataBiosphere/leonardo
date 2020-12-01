@@ -17,7 +17,8 @@ final case class KubernetesIngressConfig(namespace: NamespaceName,
                                          chartVersion: ChartVersion,
                                          loadBalancerService: ServiceName,
                                          values: List[ValueConfig],
-                                         secrets: List[SecretConfig]) {
+                                         secrets: List[SecretConfig]
+) {
 
   def chart: Chart = Chart(chartName, chartVersion)
 }

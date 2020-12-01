@@ -76,16 +76,16 @@ class ZombieRuntimeMonitorSpec
 
     // stub GoogleComputeService to flag instance2 as still running on google
     val gce = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] =
         if (instanceName.value === deletedRuntime2.runtimeName.asString) {
           IO.pure(Some(readyInstance))
         } else {
           IO.pure(None)
         }
-      override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
+      override def deleteInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Operation]] = {
         instanceName.value shouldBe (deletedRuntime2.runtimeName.asString)
         project shouldBe (deletedRuntime2.googleProject)
@@ -121,7 +121,8 @@ class ZombieRuntimeMonitorSpec
                                   null,
                                   null,
                                   null,
-                                  blocker)
+                                  blocker
+      )
     )
     val gceInterp =
       new GceInterpreter(gceInterpreterConfig, null, null, gce, disk, null, blocker)

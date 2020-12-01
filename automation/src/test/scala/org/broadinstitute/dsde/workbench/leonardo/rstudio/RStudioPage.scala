@@ -10,8 +10,8 @@ import scala.concurrent.duration._
 import scala.util.Try
 
 class RStudioPage(override val url: String)(implicit override val authToken: AuthToken,
-                                            implicit override val webDriver: WebDriver)
-    extends JupyterPage
+                                            implicit override val webDriver: WebDriver
+) extends JupyterPage
     with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): RStudioPage =

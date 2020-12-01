@@ -29,8 +29,9 @@ object namespaceQuery extends TableQuery(new NamespaceTable(_)) {
         NamespaceName(namespace.value)
       )
 
-  def saveAllForCluster(clusterId: KubernetesClusterLeoId,
-                        namespaces: List[NamespaceName])(implicit ec: ExecutionContext): DBIO[Unit] =
+  def saveAllForCluster(clusterId: KubernetesClusterLeoId, namespaces: List[NamespaceName])(implicit
+    ec: ExecutionContext
+  ): DBIO[Unit] =
     (namespaceQuery ++= namespaces.map(name =>
       NamespaceRecord(
         NamespaceId(0),
@@ -38,7 +39,7 @@ object namespaceQuery extends TableQuery(new NamespaceTable(_)) {
         NamespaceName(name.value)
       )
     ))
-    //the option[int] that this returns is fairly useless, as it doesn't represent the number of records inserted and in practice we .void it anyways
+      //the option[int] that this returns is fairly useless, as it doesn't represent the number of records inserted and in practice we .void it anyways
       .map(_ => ())
 
   def delete(clusterId: KubernetesClusterLeoId, namespace: NamespaceName): DBIO[Int] =

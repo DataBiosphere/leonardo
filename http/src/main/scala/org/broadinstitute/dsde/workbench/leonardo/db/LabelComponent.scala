@@ -26,13 +26,14 @@ object labelQuery extends TableQuery(new LabelTable(_)) {
   def save(resourceId: Long, resourceType: LabelResourceType, key: String, value: String): DBIO[Int] =
     labelQuery.insertOrUpdate(LabelRecord(resourceId, resourceType, key, value))
 
-  def saveAllForResource(resourceId: Long, resourceType: LabelResourceType, m: LabelMap)(
-    implicit ec: ExecutionContext
+  def saveAllForResource(resourceId: Long, resourceType: LabelResourceType, m: LabelMap)(implicit
+    ec: ExecutionContext
   ): DBIO[Int] =
     DBIO.fold(m.toSeq map { case (key, value) => save(resourceId, resourceType, key, value) }, 0)(_ + _)
 
-  def getAllForResource(resourceId: Long,
-                        resourceType: LabelResourceType)(implicit ec: ExecutionContext): DBIO[LabelMap] =
+  def getAllForResource(resourceId: Long, resourceType: LabelResourceType)(implicit
+    ec: ExecutionContext
+  ): DBIO[LabelMap] =
     labelQuery.filter(_.resourceId === resourceId).filter(_.resourceType === resourceType).result map { recs =>
       val tuples = recs map { rec => rec.key -> rec.value }
       tuples.toMap

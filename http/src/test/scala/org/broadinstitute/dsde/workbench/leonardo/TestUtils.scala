@@ -14,7 +14,7 @@ object TestUtils extends Matchers {
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
   // while comparing clusters as we typically don't care about the database assigned id field
   // http://www.scalactic.org/user_guide/CustomEquality
-  implicit val clusterEq = {
+  implicit val clusterEq =
     new Equality[Runtime] {
       private val FixedId = 0
 
@@ -24,9 +24,8 @@ object TestUtils extends Matchers {
           case _          => false
         }
     }
-  }
 
-  implicit val leonardoExceptionEq = {
+  implicit val leonardoExceptionEq =
     new Equality[LeoException] {
       def areEqual(a: LeoException, b: Any): Boolean =
         b match {
@@ -35,7 +34,6 @@ object TestUtils extends Matchers {
           case _ => false
         }
     }
-  }
 
   implicit def eitherEq[A, B](implicit ea: Equality[A], eb: Equality[B]): Equality[Either[A, B]] =
     new Equality[Either[A, B]] {
@@ -49,21 +47,22 @@ object TestUtils extends Matchers {
     }
 
   //these are not applied recursively, hence the need to dig into the nodepool Ids
-  implicit val kubeClusterEq = {
+  implicit val kubeClusterEq =
     new Equality[KubernetesCluster] {
       private val FixedId = KubernetesClusterLeoId(0)
       private val FixedNodepoolId = NodepoolLeoId(0)
       def areEqual(a: KubernetesCluster, b: Any): Boolean =
         b match {
           case c: KubernetesCluster =>
-            a.copy(id = FixedId, nodepools = a.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId))) ===
+            a.copy(id = FixedId,
+                   nodepools = a.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId))
+            ) ===
               c.copy(id = FixedId, nodepools = c.nodepools.map(n => n.copy(id = FixedNodepoolId, clusterId = FixedId)))
           case _ => false
         }
     }
-  }
 
-  implicit val namespaceEq = {
+  implicit val namespaceEq =
     new Equality[Namespace] {
       private val FixedId = NamespaceId(0)
 
@@ -73,9 +72,8 @@ object TestUtils extends Matchers {
           case _            => false
         }
     }
-  }
 
-  implicit val nodepoolEq = {
+  implicit val nodepoolEq =
     new Equality[Nodepool] {
       private val FixedId = NodepoolLeoId(0)
 
@@ -85,9 +83,8 @@ object TestUtils extends Matchers {
           case _           => false
         }
     }
-  }
 
-  implicit val appEq = {
+  implicit val appEq =
     new Equality[App] {
       private val FixedId = AppId(0)
       private val FixedNamespaceId = NamespaceId(0)
@@ -115,7 +112,6 @@ object TestUtils extends Matchers {
           case _ => false
         }
     }
-  }
 
   private def fixIdForService(service: KubernetesService): KubernetesService = {
     val FixedServiceId = ServiceId(0)
@@ -128,7 +124,7 @@ object TestUtils extends Matchers {
   private def fixIdsForServices(services: List[KubernetesService]): List[KubernetesService] =
     services.map(fixIdForService).sortBy(_.config.name.value)
 
-  implicit val serviceEq = {
+  implicit val serviceEq =
     new Equality[KubernetesService] {
 
       def areEqual(a: KubernetesService, b: Any): Boolean =
@@ -137,9 +133,8 @@ object TestUtils extends Matchers {
           case _                    => false
         }
     }
-  }
 
-  implicit val namespaceListEq = {
+  implicit val namespaceListEq =
     new Equality[List[Namespace]] {
       def areEqual(as: List[Namespace], bs: Any): Boolean =
         bs match {
@@ -147,7 +142,6 @@ object TestUtils extends Matchers {
           case _           => false
         }
     }
-  }
 
   private def isNamespaceListEquivalent(cs1: Traversable[_], cs2: Traversable[_]): Boolean = {
     val dummyId = NamespaceId(0)
@@ -158,7 +152,7 @@ object TestUtils extends Matchers {
     fcs1 == fcs2
   }
 
-  implicit val clusterSeqEq = {
+  implicit val clusterSeqEq =
     new Equality[Seq[Runtime]] {
       def areEqual(as: Seq[Runtime], bs: Any): Boolean =
         bs match {
@@ -166,9 +160,8 @@ object TestUtils extends Matchers {
           case _          => false
         }
     }
-  }
 
-  implicit val clusterSetEq = {
+  implicit val clusterSetEq =
     new Equality[Set[Runtime]] {
       def areEqual(as: Set[Runtime], bs: Any): Boolean =
         bs match {
@@ -176,9 +169,8 @@ object TestUtils extends Matchers {
           case _          => false
         }
     }
-  }
 
-  implicit val diskEq = {
+  implicit val diskEq =
     new Equality[PersistentDisk] {
       private val FixedId = DiskId(0)
 
@@ -188,7 +180,6 @@ object TestUtils extends Matchers {
           case _                 => false
         }
     }
-  }
 
   // Equivalence means clusters have the same fields when ignoring the id field
   private def isEquivalent(cs1: Traversable[_], cs2: Traversable[_]): Boolean = {
@@ -205,7 +196,8 @@ object TestUtils extends Matchers {
                  runtimeImages = Set.empty,
                  errors = List.empty,
                  scopes = Set.empty,
-                 userJupyterExtensionConfig = None)
+                 userJupyterExtensionConfig = None
+    )
   }
 
   def compareClusterAndCreateClusterAPIResponse(c: Runtime, createCluster: CreateRuntimeResponse): Assertion = {

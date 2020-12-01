@@ -10,4 +10,5 @@ case class ZombieRuntimeMonitorConfig(enableZombieRuntimeDetection: Boolean,
                                       creationHangTolerance: FiniteDuration,
                                       concurrency: Int,
                                       gceZoneName: ZoneName,
-                                      dataprocRegion: RegionName)
+                                      dataprocRegion: RegionName
+)

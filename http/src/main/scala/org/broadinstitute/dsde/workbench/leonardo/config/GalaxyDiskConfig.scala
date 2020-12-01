@@ -7,4 +7,5 @@ final case class GalaxyDiskConfig(nfsPersistenceName: String,
                                   // TODO: remove post-alpha once persistence is in place
                                   postgresDiskNameSuffix: String,
                                   postgresDiskSizeGB: DiskSize,
-                                  postgresDiskBlockSize: BlockSize) {}
+                                  postgresDiskBlockSize: BlockSize
+) {}

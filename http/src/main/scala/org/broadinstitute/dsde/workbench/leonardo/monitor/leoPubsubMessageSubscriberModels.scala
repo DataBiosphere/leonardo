@@ -50,8 +50,8 @@ object RuntimeConfigInCreateRuntimeMessage {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
-      extends RuntimeConfigInCreateRuntimeMessage {
+                                  properties: Map[String, String]
+  ) extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
     val diskSize: DiskSize = masterDiskSize
@@ -162,15 +162,16 @@ object LeoPubsubMessage {
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
                                         stopAfterCreation: Boolean = false,
-                                        traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+                                        traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
   }
 
   object CreateRuntimeMessage {
     def fromRuntime(runtime: Runtime,
                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
-                    traceId: Option[TraceId]): CreateRuntimeMessage =
+                    traceId: Option[TraceId]
+    ): CreateRuntimeMessage =
       CreateRuntimeMessage(
         runtime.id,
         RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
@@ -198,8 +199,8 @@ object LeoPubsubMessage {
                                      size: DiskSize,
                                      diskType: DiskType,
                                      blockSize: BlockSize,
-                                     traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+                                     traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateDisk
   }
 
@@ -224,8 +225,8 @@ object LeoPubsubMessage {
                                     createDisk: Option[DiskId],
                                     customEnvironmentVariables: Map[String, String],
                                     appType: AppType,
-                                    traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+                                    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
 
@@ -234,30 +235,30 @@ object LeoPubsubMessage {
                                     nodepoolId: NodepoolLeoId,
                                     project: GoogleProject,
                                     diskId: Option[DiskId],
-                                    traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+                                    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteApp
   }
 
   final case class DeleteKubernetesClusterMessage(clusterId: KubernetesClusterLeoId,
                                                   project: GoogleProject,
-                                                  traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+                                                  traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteKubernetesCluster
   }
 
   final case class BatchNodepoolCreateMessage(clusterId: KubernetesClusterLeoId,
                                               nodepools: List[NodepoolLeoId],
                                               project: GoogleProject,
-                                              traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+                                              traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.BatchNodepoolCreate
   }
 
   final case class DeleteRuntimeMessage(runtimeId: Long,
                                         persistentDiskToDelete: Option[DiskId],
-                                        traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+                                        traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteRuntime
   }
 
@@ -280,8 +281,8 @@ object LeoPubsubMessage {
                                         diskUpdate: Option[DiskUpdate],
                                         newNumWorkers: Option[Int],
                                         newNumPreemptibles: Option[Int],
-                                        traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+                                        traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateRuntime
   }
 
@@ -311,8 +312,8 @@ sealed trait ClusterNodepoolAction extends Product with Serializable {
 object ClusterNodepoolAction {
   final case class CreateClusterAndNodepool(clusterId: KubernetesClusterLeoId,
                                             defaultNodepoolId: NodepoolLeoId,
-                                            nodepoolId: NodepoolLeoId)
-      extends ClusterNodepoolAction {
+                                            nodepoolId: NodepoolLeoId
+  ) extends ClusterNodepoolAction {
     val actionType: ClusterNodepoolActionType = ClusterNodepoolActionType.CreateClusterAndNodepool
 
   }
@@ -374,7 +375,8 @@ object LeoPubsubCodec {
                         "diskUpdate",
                         "newNumWorkers",
                         "newNumPreemptibles",
-                        "traceId")(
+                        "traceId"
+    )(
       UpdateRuntimeMessage.apply
     )
 
@@ -420,7 +422,8 @@ object LeoPubsubCodec {
                         "createDisk",
                         "customEnvironmentVariables",
                         "appType",
-                        "traceId")(CreateAppMessage.apply)
+                        "traceId"
+    )(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
     Decoder.forProduct6("appId", "appName", "nodepoolId", "project", "diskId", "traceId")(DeleteAppMessage.apply)
@@ -524,7 +527,8 @@ object LeoPubsubCodec {
        x.customEnvironmentVariables,
        x.runtimeConfig,
        x.stopAfterCreation,
-       x.traceId)
+       x.traceId
+      )
     )
 
   implicit val rtDataprocConfigInCreateRuntimeMessageDecoder
@@ -546,7 +550,8 @@ object LeoPubsubCodec {
                                                                workerDiskSize,
                                                                numberOfWorkerLocalSSDs,
                                                                numberOfPreemptibleWorkers,
-                                                               properties)
+                                                               properties
+    )
   }
 
   implicit val gceConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =
@@ -631,7 +636,8 @@ object LeoPubsubCodec {
                         "diskUpdate",
                         "newNumWorkers",
                         "newNumPreemptibles",
-                        "traceId")(x =>
+                        "traceId"
+    )(x =>
       (x.messageType,
        x.runtimeId,
        x.newMachineType,
@@ -639,7 +645,8 @@ object LeoPubsubCodec {
        x.diskUpdate,
        x.newNumWorkers,
        x.newNumPreemptibles,
-       x.traceId)
+       x.traceId
+      )
     )
 
   implicit val createDiskMessageEncoder: Encoder[CreateDiskMessage] =
@@ -651,7 +658,8 @@ object LeoPubsubCodec {
                         "size",
                         "diskType",
                         "blockSize",
-                        "traceId")(x =>
+                        "traceId"
+    )(x =>
       (
         x.messageType,
         x.diskId,
@@ -714,7 +722,8 @@ object LeoPubsubCodec {
        x.createDisk,
        x.customEnvironmentVariables,
        x.appType,
-       x.traceId)
+       x.traceId
+      )
     )
 
   implicit val batchNodepoolCreateMessageEncoder: Encoder[BatchNodepoolCreateMessage] =
@@ -756,8 +765,8 @@ object PubsubHandleMessageError {
                                          appId: Option[AppId],
                                          isRetryable: Boolean,
                                          nodepoolId: Option[NodepoolLeoId],
-                                         clusterId: Option[KubernetesClusterLeoId])
-      extends PubsubHandleMessageError {
+                                         clusterId: Option[KubernetesClusterLeoId]
+  ) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
   }
@@ -771,8 +780,8 @@ object PubsubHandleMessageError {
   final case class ClusterNotStopped(clusterId: Long,
                                      projectName: String,
                                      clusterStatus: RuntimeStatus,
-                                     message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
+                                     message: LeoPubsubMessage
+  ) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"Unable to process message ${message} for cluster ${clusterId}/${projectName} in status ${clusterStatus.toString}, when the monitor signalled it stopped as it is not stopped."
     val isRetryable: Boolean = false
@@ -781,8 +790,8 @@ object PubsubHandleMessageError {
   final case class ClusterInvalidState(clusterId: Long,
                                        projectName: String,
                                        cluster: Runtime,
-                                       message: LeoPubsubMessage)
-      extends PubsubHandleMessageError {
+                                       message: LeoPubsubMessage
+  ) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"${clusterId}, ${projectName}, ${message} | This is likely due to a mismatch in state between the db and the message, or an improperly formatted machineConfig in the message. Cluster details: ${cluster}"
     val isRetryable: Boolean = false
@@ -810,8 +819,10 @@ final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration) {
 
 final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
                                              delete: PollMonitorConfig,
-                                             update: PollMonitorConfig)
+                                             update: PollMonitorConfig
+)
 
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
-                                                  persistentDiskMonitorConfig: PersistentDiskMonitorConfig)
+                                                  persistentDiskMonitorConfig: PersistentDiskMonitorConfig
+)

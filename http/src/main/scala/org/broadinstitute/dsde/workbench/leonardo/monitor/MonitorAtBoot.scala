@@ -17,8 +17,9 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import scala.concurrent.ExecutionContext
 
 class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage],
-                                 errorReporting: ErrorReporting[F])(
-  implicit F: ConcurrentEffect[F],
+                                 errorReporting: ErrorReporting[F]
+)(implicit
+  F: ConcurrentEffect[F],
   dbRef: DbReference[F],
   logger: Logger[F],
   ec: ExecutionContext,
@@ -71,35 +72,38 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
     for {
       traceId <- ev.ask
       patchInProgress <- patchQuery.isInprogress(runtimeToMonitor.id).transaction
-      _ <- if (patchInProgress) {
-        for {
-          statusOpt <- clusterQuery.getClusterStatus(runtimeToMonitor.id).transaction
-          s <- F.fromEither(
-            statusOpt
-              .toRight(
-                MonitorAtBootException(s"${runtimeToMonitor.id} not found after transition. This is very weird!",
-                                       traceId)
-              )
-          )
-          _ <- if (s != RuntimeStatus.Running) {
-            // There's slight chance where pubsub message is never published during a redeploy.
-            // In this case, user will see that the runtime doesn't get patched after clicking patch button.
-            // In the ideal case, patch is completed, and runtime has come back to Running.
-            metrics.incrementCounter("PatchInProgressFailed")
-          } else {
-            // If patch is in progress and we didn't finish patching, we don't really have a good way to recover;
-            // There is a chance that leonardo will be able to recover if the UpdateRuntimeEvent has already been sent to pubsub,
-            // we'll evaluate if this edge case is worth addressing based on PatchInProgressAtStartUp metrics
-            F.unit
-          }
-          _ <- patchQuery.updatePatchAsComplete(runtimeToMonitor.id).transaction
-          _ <- metrics.incrementCounter("PatchInProgressAtStartUp")
-        } yield ()
-      } else F.unit
+      _ <-
+        if (patchInProgress) {
+          for {
+            statusOpt <- clusterQuery.getClusterStatus(runtimeToMonitor.id).transaction
+            s <- F.fromEither(
+              statusOpt
+                .toRight(
+                  MonitorAtBootException(s"${runtimeToMonitor.id} not found after transition. This is very weird!",
+                                         traceId
+                  )
+                )
+            )
+            _ <-
+              if (s != RuntimeStatus.Running) {
+                // There's slight chance where pubsub message is never published during a redeploy.
+                // In this case, user will see that the runtime doesn't get patched after clicking patch button.
+                // In the ideal case, patch is completed, and runtime has come back to Running.
+                metrics.incrementCounter("PatchInProgressFailed")
+              } else {
+                // If patch is in progress and we didn't finish patching, we don't really have a good way to recover;
+                // There is a chance that leonardo will be able to recover if the UpdateRuntimeEvent has already been sent to pubsub,
+                // we'll evaluate if this edge case is worth addressing based on PatchInProgressAtStartUp metrics
+                F.unit
+              }
+            _ <- patchQuery.updatePatchAsComplete(runtimeToMonitor.id).transaction
+            _ <- metrics.incrementCounter("PatchInProgressAtStartUp")
+          } yield ()
+        } else F.unit
     } yield ()
 
-  private def handleApp(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(
-    implicit ev: Ask[F, TraceId]
+  private def handleApp(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(implicit
+    ev: Ask[F, TraceId]
   ): F[Unit] = {
     val res = for {
       traceId <- ev.ask
@@ -115,7 +119,8 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
   private def appStatusToMessage(app: App,
                                  nodepool: Nodepool,
                                  cluster: KubernetesCluster,
-                                 traceId: TraceId): F[LeoPubsubMessage] =
+                                 traceId: TraceId
+  ): F[LeoPubsubMessage] =
     app.status match {
       case AppStatus.Provisioning =>
         for {
@@ -127,7 +132,8 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
                                     MonitorAtBootException(
                                       s"Default nodepool not found for cluster ${cluster.id} in Provisioning status",
                                       traceId
-                                    ))
+                                    )
+                )
               } yield Some(ClusterNodepoolAction.CreateClusterAndNodepool(cluster.id, dnp.id, nodepool.id)): Option[
                 ClusterNodepoolAction
               ]
@@ -222,13 +228,11 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
               )
           }
           rtConfigInMessage <- F.fromEither(r.leftMap(s => MonitorAtBootException(s, traceId)))
-        } yield {
-          LeoPubsubMessage.CreateRuntimeMessage.fromRuntime(
-            rt,
-            rtConfigInMessage,
-            Some(traceId)
-          )
-        }
+        } yield LeoPubsubMessage.CreateRuntimeMessage.fromRuntime(
+          rt,
+          rtConfigInMessage,
+          Some(traceId)
+        )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
 }

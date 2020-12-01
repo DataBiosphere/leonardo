@@ -41,8 +41,8 @@ case object RKernel extends NotebookKernel {
 }
 
 class NotebooksListPage(override val url: String)(implicit override val authToken: AuthToken,
-                                                  implicit override val webDriver: WebDriver)
-    extends JupyterPage
+                                                  implicit override val webDriver: WebDriver
+) extends JupyterPage
     with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): NotebooksListPage = super.open.asInstanceOf[NotebooksListPage]
@@ -69,15 +69,15 @@ class NotebooksListPage(override val url: String)(implicit override val authToke
     val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
     notebookPage.awaitReadyKernel(timeout)
     val result = Try(testCode(notebookPage))
-    Try(notebookPage.shutdownKernel()).recover {
-      case e =>
-        logger.error(s"Error occurred shutting down kernel for notebook ${file.getAbsolutePath}", e)
+    Try(notebookPage.shutdownKernel()).recover { case e =>
+      logger.error(s"Error occurred shutting down kernel for notebook ${file.getAbsolutePath}", e)
     }
     result.get
   }
 
-  def withNewNotebook[T](kernel: NotebookKernel = Python3,
-                         timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(
+    testCode: NotebookPage => T
+  ): T = {
     switchToNewTab {
       await visible (newButton, timeout.toSeconds)
       click on newButton
@@ -96,10 +96,9 @@ class NotebooksListPage(override val url: String)(implicit override val authToke
     if (attempt > 5)
       logger.error(s"Error occurred shutting down ${kernel} kernel")
     else
-      Try(page.shutdownKernel()).recover {
-        case e =>
-          logger.error(s"Error occurred shutting down ${kernel} kernel on attempt ${attempt}", e)
-          shutDownKernel(page, kernel, attempt + 1)
+      Try(page.shutdownKernel()).recover { case e =>
+        logger.error(s"Error occurred shutting down ${kernel} kernel on attempt ${attempt}", e)
+        shutDownKernel(page, kernel, attempt + 1)
       }
 
   def withSubFolder[T](timeout: FiniteDuration = 1.minutes)(testCode: NotebooksListPage => T): T = {

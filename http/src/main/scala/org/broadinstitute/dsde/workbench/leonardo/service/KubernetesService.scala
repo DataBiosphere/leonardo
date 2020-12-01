@@ -13,8 +13,8 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait KubernetesService[F[_]] {
-  def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
-    implicit ev: Ask[F, AppContext]
+  def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit]
 
   def createApp(
@@ -36,7 +36,7 @@ trait KubernetesService[F[_]] {
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
 
-  def deleteApp(request: DeleteAppRequest)(
-    implicit as: Ask[F, AppContext]
+  def deleteApp(request: DeleteAppRequest)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 }

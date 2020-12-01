@@ -23,7 +23,8 @@ object RuntimeRoutesTestJsonCodec {
      x.workerMachineType,
      x.workerDiskSize,
      x.numberOfWorkerLocalSSDs,
-     x.numberOfPreemptibleWorkers)
+     x.numberOfPreemptibleWorkers
+    )
   )
   implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct3(
     "cloudService",
@@ -93,7 +94,8 @@ object RuntimeRoutesTestJsonCodec {
        x.updatedMasterMachineType,
        x.updatedMasterDiskSize,
        x.updatedNumberOfWorkers,
-       x.updatedNumberOfPreemptibleWorkers)
+       x.updatedNumberOfPreemptibleWorkers
+      )
     )
 
   implicit val updateRuntimeConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest] = Encoder.instance { x =>

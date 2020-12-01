@@ -35,14 +35,16 @@ object FakeGoogleStorageService extends BaseFakeGoogleStorage {
   override def getObjectMetadata(bucketName: GcsBucketName,
                                  blobName: GcsBlobName,
                                  traceId: Option[TraceId],
-                                 retryConfig: RetryConfig): fs2.Stream[IO, GetMetadataResponse] =
+                                 retryConfig: RetryConfig
+  ): fs2.Stream[IO, GetMetadataResponse] =
     fs2.Stream.empty.covary[IO]
 
   override def getBlob(bucketName: GcsBucketName,
                        blobName: GcsBlobName,
                        credentials: scala.Option[Credentials],
                        traceId: Option[TraceId],
-                       retryConfig: RetryConfig): fs2.Stream[IO, Blob] =
+                       retryConfig: RetryConfig
+  ): fs2.Stream[IO, Blob] =
     bucketName match {
       case GcsBucketName("nonExistent") => fs2.Stream.empty
       case GcsBucketName("failure") =>
@@ -68,15 +70,16 @@ object NoDeleteGoogleStorage extends BaseFakeGoogleStorage {
                             isRecursive: Boolean,
                             bucketSourceOptions: List[BucketSourceOption],
                             traceId: Option[TraceId],
-                            retryConfig: RetryConfig): fs2.Stream[IO, Boolean] =
+                            retryConfig: RetryConfig
+  ): fs2.Stream[IO, Boolean] =
     throw new Exception("this shouldn't get called")
 }
 
 object MockAuthProvider extends LeoAuthProvider[IO] {
   override def serviceAccountProvider: ServiceAccountProvider[IO] = ???
 
-  override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = ???
 
@@ -88,13 +91,14 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
     googleProject: GoogleProject
   )(implicit sr: SamResourceAction[R, A], ev: Ask[IO, TraceId]): IO[Boolean] = ???
 
-  override def getActions[R, A](samResource: R, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  override def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[List[sr.ActionCategory]] = ???
 
   override def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+    implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[(List[sr.ActionCategory], List[ProjectAction])] = ???
 
@@ -110,13 +114,15 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
     ???
 
   override def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+    implicit
+    sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
 
   override def notifyResourceDeleted[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+    implicit
+    sr: SamResource[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit
 }
@@ -129,22 +135,22 @@ class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
 }
 
 object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
-  override def createRuntime(params: CreateRuntimeParams)(
-    implicit ev: Ask[IO, AppContext]
+  override def createRuntime(params: CreateRuntimeParams)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[CreateGoogleRuntimeResponse] = ???
 
-  override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: Ask[IO, TraceId]
+  override def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[RuntimeStatus] = ???
 
-  override def deleteRuntime(params: DeleteRuntimeParams)(
-    implicit ev: Ask[IO, TraceId]
+  override def deleteRuntime(params: DeleteRuntimeParams)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Option[Operation]] = IO.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
 
-  override def stopRuntime(params: StopRuntimeParams)(
-    implicit ev: Ask[IO, AppContext]
+  override def stopRuntime(params: StopRuntimeParams)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[Option[Operation]] = ???
 
   override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???

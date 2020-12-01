@@ -35,7 +35,8 @@ object ZombieMonitorQueries {
             AsyncRuntimeFields(googleId,
                                OperationName(operationName),
                                GcsBucketName(stagingBucket),
-                               runtimeRec.hostIp map IP)
+                               runtimeRec.hostIp map IP
+            )
         }
         ZombieCandidate(
           runtimeRec.id,
@@ -57,4 +58,5 @@ final case class ZombieCandidate(id: Long,
                                  status: RuntimeStatus,
                                  createdDate: Instant,
                                  asyncRuntimeFields: Option[AsyncRuntimeFields],
-                                 cloudService: CloudService)
+                                 cloudService: CloudService
+)

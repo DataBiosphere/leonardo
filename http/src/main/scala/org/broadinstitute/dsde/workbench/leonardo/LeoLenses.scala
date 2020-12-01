@@ -33,7 +33,8 @@ object LeoLenses {
     a =>
       a.copy(googleProject = x.googleProject,
              clusterName = x.clusterName,
-             auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate))
+             auditInfo = a.auditInfo.copy(destroyedDate = x.destroyedDate)
+      )
   )
 
   val ipRuntimeAndRuntimeConfig: Optional[RuntimeAndRuntimeConfig, IP] = runtimeAndRuntimeConfigToRuntime

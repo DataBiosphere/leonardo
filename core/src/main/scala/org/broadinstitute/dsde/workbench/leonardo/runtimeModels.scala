@@ -44,7 +44,8 @@ final case class Runtime(id: Long,
                          welderEnabled: Boolean,
                          customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId,
-                         patchInProgress: Boolean) {
+                         patchInProgress: Boolean
+) {
   def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
   def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
 }
@@ -54,7 +55,8 @@ object Runtime {
                   googleProject: GoogleProject,
                   runtimeName: RuntimeName,
                   runtimeImages: Set[RuntimeImage],
-                  labels: Map[String, String]): URL = {
+                  labels: Map[String, String]
+  ): URL = {
     val tool = runtimeImages
       .map(_.imageType)
       .filterNot(Set(Welder, VM).contains)
@@ -151,7 +153,8 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
 case class AsyncRuntimeFields(googleId: GoogleId,
                               operationName: OperationName,
                               stagingBucket: GcsBucketName,
-                              hostIp: Option[IP])
+                              hostIp: Option[IP]
+)
 
 /** The cloud environment of the runtime, e.g. Dataproc, GCE. */
 sealed trait CloudService extends EnumEntry with Product with Serializable {
@@ -205,8 +208,8 @@ object RuntimeConfig {
   // When persistentDiskId is None, then we don't have any disk attached to the runtime
   final case class GceWithPdConfig(machineType: MachineTypeName,
                                    persistentDiskId: Option[DiskId],
-                                   bootDiskSize: DiskSize)
-      extends RuntimeConfig {
+                                   bootDiskSize: DiskSize
+  ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
 
@@ -218,8 +221,8 @@ object RuntimeConfig {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
-      extends RuntimeConfig {
+                                  properties: Map[String, String]
+  ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
     val diskSize: DiskSize = masterDiskSize
@@ -254,7 +257,8 @@ object UserScriptPath {
 final case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map.empty,
                                             serverExtensions: Map[String, String] = Map.empty,
                                             combinedExtensions: Map[String, String] = Map.empty,
-                                            labExtensions: Map[String, String] = Map.empty) {
+                                            labExtensions: Map[String, String] = Map.empty
+) {
 
   def asLabels: Map[String, String] =
     nbExtensions ++ serverExtensions ++ combinedExtensions ++ labExtensions
@@ -322,7 +326,8 @@ final case class RuntimeImage(imageType: RuntimeImageType, imageUrl: String, tim
 final case class AuditInfo(creator: WorkbenchEmail,
                            createdDate: Instant,
                            destroyedDate: Option[Instant],
-                           dateAccessed: Instant)
+                           dateAccessed: Instant
+)
 
 /** UIs that can be used to access a runtime */
 sealed trait RuntimeUI extends Product with Serializable {
@@ -347,7 +352,8 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
                                 serviceAccount: WorkbenchEmail,
                                 notebookUserScript: Option[UserScriptPath],
                                 notebookStartUserScript: Option[UserScriptPath],
-                                tool: Option[RuntimeImageType]) {
+                                tool: Option[RuntimeImageType]
+) {
   def toMap: LabelMap =
     Map(
       "runtimeName" -> runtimeName.asString,
@@ -388,14 +394,16 @@ final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
 
 final case class RunningRuntime(googleProject: GoogleProject,
                                 runtimeName: RuntimeName,
-                                containers: List[RuntimeContainerServiceType])
+                                containers: List[RuntimeContainerServiceType]
+)
 
 final case class RuntimeName(asString: String) extends AnyVal
 final case class RuntimeError(errorMessage: String, errorCode: Option[Int], timestamp: Instant)
 final case class RuntimeErrorDetails(longMessage: String,
                                      code: Option[Int] = None,
                                      shortMessage: Option[String] = None,
-                                     labels: Map[String, String] = Map.empty)
+                                     labels: Map[String, String] = Map.empty
+)
 final case class RuntimeResource(asString: String) extends AnyVal
 final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName: RuntimeName) {
   override def toString: String = s"${googleProject.value}/${runtimeName.asString}"

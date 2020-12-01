@@ -11,7 +11,8 @@ case class ProxyConfig(proxyDomain: String,
                        tokenCacheExpiryTime: FiniteDuration,
                        tokenCacheMaxSize: Int,
                        internalIdCacheExpiryTime: FiniteDuration,
-                       internalIdCacheMaxSize: Int) {
+                       internalIdCacheMaxSize: Int
+) {
   def getProxyServerHostName: String = {
     val url = new URL(proxyUrlBase)
     // The port is specified in fiabs, but generally unset otherwise

@@ -14,7 +14,8 @@ case class AppErrorRecord(id: KubernetesErrorId,
                           timestamp: Instant,
                           action: ErrorAction,
                           source: ErrorSource,
-                          googleErrorCode: Option[Int])
+                          googleErrorCode: Option[Int]
+)
 
 class AppErrorTable(tag: Tag) extends Table[AppErrorRecord](tag, "APP_ERROR") {
   def id = column[KubernetesErrorId]("id", O.AutoInc)
@@ -26,7 +27,14 @@ class AppErrorTable(tag: Tag) extends Table[AppErrorRecord](tag, "APP_ERROR") {
   def googleErrorCode = column[Option[Int]]("googleErrorCode")
 
   def * =
-    (id, appId, errorMessage, timestamp, action, source, googleErrorCode) <> (AppErrorRecord.tupled, AppErrorRecord.unapply)
+    (id,
+     appId,
+     errorMessage,
+     timestamp,
+     action,
+     source,
+     googleErrorCode
+    ) <> (AppErrorRecord.tupled, AppErrorRecord.unapply)
 }
 
 object appErrorQuery extends TableQuery(new AppErrorTable(_)) {
@@ -53,6 +61,7 @@ object appErrorQuery extends TableQuery(new AppErrorTable(_)) {
              appErrorRecord.timestamp,
              appErrorRecord.action,
              appErrorRecord.source,
-             appErrorRecord.googleErrorCode)
+             appErrorRecord.googleErrorCode
+    )
 
 }

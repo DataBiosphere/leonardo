@@ -24,8 +24,8 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
-  implicit materializer: Materializer,
+class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(implicit
+  materializer: Materializer,
   cs: ContextShift[IO],
   metrics: OpenTelemetryMetrics[IO]
 ) extends LazyLogging {
@@ -197,15 +197,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
       ctx <- ev.ask[AppContext]
       apiCall = proxyService
         .proxyAppRequest(userInfo, googleProject, appName, serviceName, request)
-        .onError {
-          case e =>
-            IO(
-              logger.warn(
-                s"${ctx.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${appName.value} ${serviceName.value}",
-                e
-              )
-            ) <* IO
-              .fromFuture(IO(request.entity.discardBytes().future))
+        .onError { case e =>
+          IO(
+            logger.warn(
+              s"${ctx.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${appName.value} ${serviceName.value}",
+              e
+            )
+          ) <* IO
+            .fromFuture(IO(request.entity.discardBytes().future))
         }
       _ <- metrics.incrementCounter("proxyApp")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))

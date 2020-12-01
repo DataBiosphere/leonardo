@@ -60,7 +60,8 @@ class InstanceComponentSpec extends AnyFlatSpecLike with TestComponent with GcsP
     dbFutureValue(instanceQuery.getAllForCluster(savedCluster1.id)) shouldBe updatedStatus
 
     val removedOne = Seq(masterInstance.copy(status = GceInstanceStatus.Terminated),
-                         workerInstance1.copy(status = GceInstanceStatus.Terminated))
+                         workerInstance1.copy(status = GceInstanceStatus.Terminated)
+    )
     dbFutureValue(instanceQuery.mergeForCluster(savedCluster1.id, removedOne)) shouldEqual 3
     dbFutureValue(instanceQuery.getAllForCluster(savedCluster1.id)) shouldBe removedOne
 

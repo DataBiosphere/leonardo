@@ -121,8 +121,9 @@ object LeonardoApiClient {
 
   def createRuntimeWithWait(googleProject: GoogleProject,
                             runtimeName: RuntimeName,
-                            createRuntime2Request: CreateRuntime2Request)(
-    implicit timer: Timer[IO],
+                            createRuntime2Request: CreateRuntime2Request
+  )(implicit
+    timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
   ): IO[GetRuntimeResponseCopy] =
@@ -194,8 +195,8 @@ object LeonardoApiClient {
   //If you care about the error message, place the function before this line
   import org.http4s.circe.CirceEntityDecoder._
 
-  def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
-    implicit timer: Timer[IO],
+  def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(implicit
+    timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
   ): IO[GetRuntimeResponseCopy] = {
@@ -235,9 +236,10 @@ object LeonardoApiClient {
       )(onError(s"Failed to get runtime ${googleProject.value}/${runtimeName.asString}"))
     } yield r
 
-  def deleteRuntime(googleProject: GoogleProject,
-                    runtimeName: RuntimeName,
-                    deleteDisk: Boolean = true)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, deleteDisk: Boolean = true)(implicit
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
@@ -260,8 +262,8 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def deleteRuntimeWithWait(googleProject: GoogleProject, runtimeName: RuntimeName, deleteDisk: Boolean = true)(
-    implicit timer: Timer[IO],
+  def deleteRuntimeWithWait(googleProject: GoogleProject, runtimeName: RuntimeName, deleteDisk: Boolean = true)(implicit
+    timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
@@ -269,8 +271,9 @@ object LeonardoApiClient {
       _ <- deleteRuntime(googleProject, runtimeName, deleteDisk)
       ioa = getRuntime(googleProject, runtimeName).attempt
       res <- timer.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
-      _ <- if (res.isDone) IO.unit
-      else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
+      _ <-
+        if (res.isDone) IO.unit
+        else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
     } yield ()
 
   def createDisk(
@@ -298,7 +301,8 @@ object LeonardoApiClient {
     } yield r
 
   def createDiskWithWait(googleProject: GoogleProject, diskName: DiskName, createDiskRequest: CreateDiskRequest)(
-    implicit timer: Timer[IO],
+    implicit
+    timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
@@ -347,8 +351,10 @@ object LeonardoApiClient {
     } yield r
   }
 
-  def deleteDisk(googleProject: GoogleProject, diskName: DiskName)(implicit client: Client[IO],
-                                                                   authHeader: Authorization): IO[Unit] =
+  def deleteDisk(googleProject: GoogleProject, diskName: DiskName)(implicit
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
@@ -367,8 +373,8 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def deleteDiskWithWait(googleProject: GoogleProject, diskName: DiskName)(
-    implicit timer: Timer[IO],
+  def deleteDiskWithWait(googleProject: GoogleProject, diskName: DiskName)(implicit
+    timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
@@ -376,8 +382,9 @@ object LeonardoApiClient {
       _ <- deleteDisk(googleProject, diskName)
       ioa = getDisk(googleProject, diskName).attempt
       res <- timer.sleep(3 seconds) >> streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
-      _ <- if (res.isDone) IO.unit
-      else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName.value}"))
+      _ <-
+        if (res.isDone) IO.unit
+        else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName.value}"))
     } yield ()
 
   private def onError(message: String)(response: Response[IO]): IO[Throwable] =
@@ -409,8 +416,10 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
-                                                                authHeader: Authorization): IO[Unit] =
+  def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
@@ -429,8 +438,8 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def deleteAppWithWait(googleProject: GoogleProject, appName: AppName)(
-    implicit timer: Timer[IO],
+  def deleteAppWithWait(googleProject: GoogleProject, appName: AppName)(implicit
+    timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
@@ -438,12 +447,15 @@ object LeonardoApiClient {
       _ <- deleteApp(googleProject, appName)
       ioa = getApp(googleProject, appName).attempt
       res <- timer.sleep(120 seconds) >> streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError
-      _ <- if (res.isDone) IO.unit
-      else IO.raiseError(new TimeoutException(s"delete app ${googleProject.value}/${appName.value}"))
+      _ <-
+        if (res.isDone) IO.unit
+        else IO.raiseError(new TimeoutException(s"delete app ${googleProject.value}/${appName.value}"))
     } yield ()
 
-  def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
-                                                             authHeader: Authorization): IO[GetAppResponse] =
+  def getApp(googleProject: GoogleProject, appName: AppName)(implicit
+    client: Client[IO],
+    authHeader: Authorization
+  ): IO[GetAppResponse] =
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client.expectOr[GetAppResponse](

@@ -105,25 +105,25 @@ class RuntimeCreationDiskSpec
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
         ioa = getRuntime(googleProject, runtimeName).attempt
         res <- testTimer.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
-        _ <- if (res.isDone) IO.unit
-        else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
+        _ <-
+          if (res.isDone) IO.unit
+          else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
         disk <- LeonardoApiClient.getDisk(googleProject, diskName)
         _ <- IO(disk.status shouldBe DiskStatus.Ready)
         _ <- IO(disk.size shouldBe diskSize)
         _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
         listofDisks <- LeonardoApiClient.listDisk(googleProject, true)
-      } yield {
-        listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
-          DiskStatus.Deleted
-        ) //assume we won't have multiple disks with same name in the same project in tests
-      }
+      } yield listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
+        DiskStatus.Deleted
+      ) //assume we won't have multiple disks with same name in the same project in tests
     }
     res.unsafeRunSync()
   }
 
   "create runtime and attach an existing persistent disk" in { googleProject =>
     val randomeName = randomClusterName
-    val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
+    val runtimeName =
+      randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
@@ -148,7 +148,8 @@ class RuntimeCreationDiskSpec
       for {
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
                                                   diskName,
-                                                  defaultCreateDiskRequest.copy(size = Some(diskSize)))
+                                                  defaultCreateDiskRequest.copy(size = Some(diskSize))
+        )
         runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
         // validate that saved files and user installed packages persist

@@ -22,8 +22,8 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
   )(implicit as: Ask[IO, AppContext]): IO[Unit] =
     IO.unit
 
-  override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: Ask[IO, AppContext]
+  override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
+    as: Ask[IO, AppContext]
   ): IO[GetRuntimeResponse] =
     IO.pure(
       GetRuntimeResponse.fromRuntime(CommonTestData.testCluster, CommonTestData.defaultDataprocRuntimeConfig, None)
@@ -49,18 +49,18 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
       )
     )
 
-  override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
-    implicit as: Ask[IO, AppContext]
+  override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(implicit
+    as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit
 
-  override def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: Ask[IO, AppContext]
+  override def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
+    as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit
 
-  override def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: Ask[IO, AppContext]
+  override def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
+    as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit
 

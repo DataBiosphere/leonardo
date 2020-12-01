@@ -6,4 +6,5 @@ case class SecurityFilesConfig(proxyServerCrt: Path,
                                proxyServerKey: Path,
                                proxyRootCaPem: Path,
                                proxyRootCaKey: Path,
-                               rstudioLicenseFile: Path)
+                               rstudioLicenseFile: Path
+)

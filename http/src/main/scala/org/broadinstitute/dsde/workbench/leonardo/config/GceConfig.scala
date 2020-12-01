@@ -10,4 +10,5 @@ case class GceConfig(customGceImage: GceCustomImage,
                      zoneName: ZoneName,
                      defaultScopes: Set[String],
                      gceReservedMemory: Option[MemorySize],
-                     runtimeConfigDefaults: RuntimeConfig.GceConfig)
+                     runtimeConfigDefaults: RuntimeConfig.GceConfig
+)

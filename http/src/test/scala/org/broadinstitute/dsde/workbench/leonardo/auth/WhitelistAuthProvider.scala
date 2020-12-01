@@ -19,8 +19,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   protected def checkWhitelist(userInfo: UserInfo): IO[Boolean] =
     IO.pure(whitelist contains userInfo.userEmail.value.toLowerCase)
 
-  def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = checkWhitelist(userInfo)
 
@@ -32,8 +32,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     googleProject: GoogleProject
   )(implicit sr: SamResourceAction[R, A], ev: Ask[IO, TraceId]): IO[Boolean] = checkWhitelist(userInfo)
 
-  def getActions[R, A](samResource: R, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[List[sr.ActionCategory]] =
     checkWhitelist(userInfo).map {
@@ -41,8 +41,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       case false => List.empty
     }
 
-  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
   ): IO[(List[sr.ActionCategory], List[ProjectAction])] =
     checkWhitelist(userInfo).map {
@@ -50,8 +50,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
       case false => (List.empty, List.empty)
     }
 
-  def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
-    implicit sr: SamResource[R],
+  def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[IO, TraceId]
   ): IO[List[R]] =
@@ -65,8 +65,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
   def filterUserVisibleWithProjectFallback[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
-  )(
-    implicit sr: SamResource[R],
+  )(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[IO, TraceId]
   ): IO[List[(GoogleProject, R)]] =
@@ -78,8 +78,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     }
 
   // Creates a resource in Sam
-  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[IO, TraceId]
   ): IO[Unit] = IO.unit

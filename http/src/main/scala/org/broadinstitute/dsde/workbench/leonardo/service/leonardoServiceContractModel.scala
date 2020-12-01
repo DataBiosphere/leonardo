@@ -25,7 +25,8 @@ final case class CreateRuntimeRequest(labels: LabelMap = Map.empty,
                                       welderDockerImage: Option[ContainerImage] = None,
                                       scopes: Set[String] = Set.empty,
                                       enableWelder: Option[Boolean] = None,
-                                      customClusterEnvironmentVariables: Map[String, String] = Map.empty)
+                                      customClusterEnvironmentVariables: Map[String, String] = Map.empty
+)
 
 object CreateRuntimeRequest {
   def toRuntime(request: CreateRuntimeRequest,
@@ -38,7 +39,8 @@ object CreateRuntimeRequest {
                 autopauseThreshold: Int,
                 scopes: Set[String],
                 runtimeImages: Set[RuntimeImage],
-                timestamp: Instant): Runtime =
+                timestamp: Instant
+  ): Runtime =
     Runtime(
       id = -1,
       samResource = samResource,
@@ -96,7 +98,8 @@ final case class CreateRuntimeResponse(id: Long,
                                        scopes: Set[String],
                                        welderEnabled: Boolean,
                                        patchInProgress: Boolean,
-                                       customClusterEnvironmentVariables: Map[String, String])
+                                       customClusterEnvironmentVariables: Map[String, String]
+)
 
 object CreateRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig) = CreateRuntimeResponse(
@@ -147,7 +150,8 @@ final case class ListRuntimeResponse(id: Long,
                                      defaultClientId: Option[String],
                                      stopAfterCreation: Boolean,
                                      welderEnabled: Boolean,
-                                     patchInProgress: Boolean)
+                                     patchInProgress: Boolean
+)
 
 object ListRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig): ListRuntimeResponse =
@@ -199,7 +203,8 @@ final case class GetRuntimeResponse(id: Long,
                                     welderEnabled: Boolean,
                                     patchInProgress: Boolean,
                                     customClusterEnvironmentVariables: Map[String, String],
-                                    diskConfig: Option[DiskConfig])
+                                    diskConfig: Option[DiskConfig]
+)
 
 object GetRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig, diskConfig: Option[DiskConfig]) = GetRuntimeResponse(

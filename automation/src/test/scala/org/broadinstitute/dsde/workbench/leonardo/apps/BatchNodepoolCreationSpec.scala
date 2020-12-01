@@ -43,7 +43,8 @@ class BatchNodepoolCreationSpec
         for {
           clusterName <- IO.fromEither(KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply))
           _ <- LeonardoApiClient.batchNodepoolCreate(googleProject,
-                                                     defaultBatchNodepoolRequest.copy(clusterName = Some(clusterName)))
+                                                     defaultBatchNodepoolRequest.copy(clusterName = Some(clusterName))
+          )
           getCluster = gkeServiceResource.use { gkeClient =>
             val id = KubernetesClusterId(googleProject, LeonardoConfig.Leonardo.location, clusterName)
             gkeClient.getCluster(id)
@@ -107,7 +108,8 @@ class BatchNodepoolCreationSpec
 
           _ <- LeonardoApiClient.createApp(googleProject,
                                            appName1,
-                                           createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig1))
+                                           createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig1)
+          )
 
           _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to get app ${googleProject.value}/${appName1.value}")
 
@@ -131,7 +133,8 @@ class BatchNodepoolCreationSpec
 
           _ <- LeonardoApiClient.createApp(googleProject,
                                            appName2,
-                                           createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig2))
+                                           createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig2)
+          )
 
           //creating a second app with 1 precreated nodepool should cause a second user nodepool to be created
           getApp2 = LeonardoApiClient.getApp(googleProject, appName2)

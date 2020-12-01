@@ -16,8 +16,7 @@ object StandardUserInfoDirectives extends UserInfoDirectives {
     (headerValueByName("OIDC_access_token") &
       headerValueByName("OIDC_CLAIM_user_id") &
       headerValueByName("OIDC_CLAIM_expires_in") &
-      headerValueByName("OIDC_CLAIM_email")).tmap {
-      case (token, userId, expiresIn, email) =>
-        UserInfo(OAuth2BearerToken(token), WorkbenchUserId(userId), WorkbenchEmail(email), expiresIn.toLong)
+      headerValueByName("OIDC_CLAIM_email")).tmap { case (token, userId, expiresIn, email) =>
+      UserInfo(OAuth2BearerToken(token), WorkbenchUserId(userId), WorkbenchEmail(email), expiresIn.toLong)
     }
 }

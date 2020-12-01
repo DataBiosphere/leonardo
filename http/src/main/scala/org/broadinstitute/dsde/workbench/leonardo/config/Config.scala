@@ -655,7 +655,8 @@ object Config {
                                                 gkeNodepoolConfig,
                                                 gkeIngressConfig,
                                                 gkeGalaxyAppConfig,
-                                                persistentDiskConfig)
+                                                persistentDiskConfig
+  )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val vpcConfig = config.as[VPCConfig]("vpc")
@@ -665,7 +666,8 @@ object Config {
                                                             topic,
                                                             config.as[FiniteDuration]("pubsub.ackDeadLine"),
                                                             MaxRetries(10),
-                                                            None)
+                                                            None
+  )
 
   private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
   val publisherConfig: PublisherConfig =
@@ -693,7 +695,8 @@ object Config {
     clusterResourcesConfig,
     securityFilesConfig,
     gceMonitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating,
-                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
+                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating")
+    )
   )
   val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 
@@ -721,5 +724,6 @@ object Config {
                          gkeMonitorConfig,
                          gkeClusterConfig,
                          proxyConfig,
-                         gkeGalaxyDiskConfig)
+                         gkeGalaxyDiskConfig
+    )
 }

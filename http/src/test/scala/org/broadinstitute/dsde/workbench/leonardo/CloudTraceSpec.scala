@@ -43,6 +43,6 @@ class CloudTraceSpec
       }
     res.unsafeRunSync()
 
-    1 shouldBe (1)
+    1 shouldBe 1
   }
 }

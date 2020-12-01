@@ -87,10 +87,12 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2 <- IO(makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig))
       labels1 = Map("googleProject" -> c1.googleProject.value,
                     "clusterName" -> c1.runtimeName.asString,
-                    "creator" -> c1.auditInfo.creator.value)
+                    "creator" -> c1.auditInfo.creator.value
+      )
       labels2 = Map("googleProject" -> c2.googleProject.value,
                     "clusterName" -> c2.runtimeName.asString,
-                    "creator" -> c2.auditInfo.creator.value)
+                    "creator" -> c2.auditInfo.creator.value
+      )
       list1 <- RuntimeServiceDbQueries.listRuntimes(labels1, false, None).transaction
       list2 <- RuntimeServiceDbQueries.listRuntimes(labels2, false, None).transaction
       _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
@@ -218,7 +220,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                           runtime.googleProject,
                           runtime.runtimeName,
                           Set.empty,
-                          labels),
+                          labels
+      ),
       runtime.status,
       labels,
       false

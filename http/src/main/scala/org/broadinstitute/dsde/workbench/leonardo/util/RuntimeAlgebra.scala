@@ -20,8 +20,8 @@ import scala.concurrent.duration.FiniteDuration
  * Currently has interpreters for Dataproc and GCE.
  */
 trait RuntimeAlgebra[F[_]] {
-  def createRuntime(params: CreateRuntimeParams)(
-    implicit ev: Ask[F, AppContext]
+  def createRuntime(params: CreateRuntimeParams)(implicit
+    ev: Ask[F, AppContext]
   ): F[CreateGoogleRuntimeResponse]
   def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: Ask[F, TraceId]): F[RuntimeStatus]
   def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: Ask[F, TraceId]): F[Option[Operation]]
@@ -47,7 +47,8 @@ final case class CreateRuntimeParams(id: Long,
                                      scopes: Set[String],
                                      welderEnabled: Boolean,
                                      customEnvironmentVariables: Map[String, String],
-                                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage)
+                                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage
+)
 object CreateRuntimeParams {
   def fromCreateRuntimeMessage(message: CreateRuntimeMessage): CreateRuntimeParams =
     CreateRuntimeParams(
@@ -70,10 +71,12 @@ object CreateRuntimeParams {
 final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                              initBucket: GcsBucketName,
                                              serviceAccountKey: Option[ServiceAccountKey],
-                                             customImage: CustomImage)
+                                             customImage: CustomImage
+)
 final case class GetRuntimeStatusParams(googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        zoneName: Option[ZoneName]) // zoneName is only needed for GCE
+                                        zoneName: Option[ZoneName]
+) // zoneName is only needed for GCE
 final case class DeleteRuntimeParams(runtime: Runtime)
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig], now: Instant)
@@ -117,8 +120,8 @@ object RuntimeInterpreterConfig {
                                              vpcConfig: VPCConfig,
                                              clusterResourcesConfig: ClusterResourcesConfig,
                                              clusterFilesConfig: SecurityFilesConfig,
-                                             runtimeCreationTimeout: FiniteDuration)
-      extends RuntimeInterpreterConfig
+                                             runtimeCreationTimeout: FiniteDuration
+  ) extends RuntimeInterpreterConfig
 
   final case class GceInterpreterConfig(gceConfig: GceConfig,
                                         welderConfig: WelderConfig,
@@ -127,6 +130,6 @@ object RuntimeInterpreterConfig {
                                         vpcConfig: VPCConfig,
                                         clusterResourcesConfig: ClusterResourcesConfig,
                                         clusterFilesConfig: SecurityFilesConfig,
-                                        runtimeCreationTimeout: FiniteDuration)
-      extends RuntimeInterpreterConfig
+                                        runtimeCreationTimeout: FiniteDuration
+  ) extends RuntimeInterpreterConfig
 }

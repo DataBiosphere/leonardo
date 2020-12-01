@@ -24,10 +24,12 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
                                   stubProjectDAO(
                                     Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
-                                        vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
+                                        vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet"
+                                    )
                                   ),
                                   FakeGoogleComputeService,
-                                  new MockComputePollOperation)
+                                  new MockComputePollOperation
+    )
 
     test
       .setUpProjectNetwork(SetUpProjectNetworkParams(project))
@@ -40,7 +42,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                     Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_network")
                                   ),
                                   FakeGoogleComputeService,
-                                  new MockComputePollOperation)
+                                  new MockComputePollOperation
+    )
 
     test.setUpProjectNetwork(SetUpProjectNetworkParams(project)).attempt.unsafeRunSync() shouldBe Left(
       InvalidVPCSetupException(project)
@@ -51,7 +54,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                      Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                    ),
                                    FakeGoogleComputeService,
-                                   new MockComputePollOperation)
+                                   new MockComputePollOperation
+    )
 
     test2.setUpProjectNetwork(SetUpProjectNetworkParams(project)).attempt.unsafeRunSync() shouldBe Left(
       InvalidVPCSetupException(project)
@@ -62,7 +66,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
                                   stubProjectDAO(Map.empty),
                                   FakeGoogleComputeService,
-                                  new MockComputePollOperation)
+                                  new MockComputePollOperation
+    )
 
     test
       .setUpProjectNetwork(SetUpProjectNetworkParams(project))
@@ -74,7 +79,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
                                   stubProjectDAO(Map.empty),
                                   computeService,
-                                  new MockComputePollOperation)
+                                  new MockComputePollOperation
+    )
 
     test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
     computeService.firewallMap.size shouldBe 3
@@ -98,7 +104,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
                                   stubProjectDAO(Map.empty),
                                   computeService,
-                                  new MockComputePollOperation)
+                                  new MockComputePollOperation
+    )
     test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
   }
@@ -111,18 +118,18 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
   class MockGoogleComputeServiceWithFirewalls extends FakeGoogleComputeService {
     val firewallMap = scala.collection.concurrent.TrieMap.empty[FirewallRuleName, Firewall]
 
-    override def addFirewallRule(project: GoogleProject, firewall: Firewall)(
-      implicit ev: Ask[IO, TraceId]
+    override def addFirewallRule(project: GoogleProject, firewall: Firewall)(implicit
+      ev: Ask[IO, TraceId]
     ): IO[Operation] =
       IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall)) >> super
         .addFirewallRule(project, firewall)(ev)
 
-    override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
-      implicit ev: Ask[IO, TraceId]
+    override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(implicit
+      ev: Ask[IO, TraceId]
     ): IO[Unit] = IO(firewallMap.remove(firewallRuleName)).void
 
-    override def getNetwork(project: GoogleProject, networkName: NetworkName)(
-      implicit ev: Ask[IO, TraceId]
+    override def getNetwork(project: GoogleProject, networkName: NetworkName)(implicit
+      ev: Ask[IO, TraceId]
     ): IO[Option[Network]] =
       if (networkName.value == "default")
         IO.pure(Some(Network.newBuilder().setName("default").build))

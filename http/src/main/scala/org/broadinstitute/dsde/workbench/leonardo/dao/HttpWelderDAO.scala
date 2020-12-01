@@ -14,8 +14,8 @@ import org.http4s.{Method, Request, Uri}
 class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
   val runtimeDnsCache: RuntimeDnsCache[F],
   client: Client[F]
-)(
-  implicit metrics: OpenTelemetryMetrics[F]
+)(implicit
+  metrics: OpenTelemetryMetrics[F]
 ) extends WelderDAO[F] {
 
   def flushCache(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit] =
@@ -38,10 +38,11 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
             )
             .as(false)
       }
-      _ <- if (res)
-        metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "success"))
-      else
-        metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "failure"))
+      _ <-
+        if (res)
+          metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "success"))
+        else
+          metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "failure"))
     } yield ()
 
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
@@ -66,10 +67,11 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
             )
             .as(false)
       }
-      _ <- if (res) {
-        metrics.incrementCounter("welder/status", tags = Map("result" -> "success"))
-      } else
-        metrics.incrementCounter("welder/status", tags = Map("result" -> "failure"))
+      _ <-
+        if (res) {
+          metrics.incrementCounter("welder/status", tags = Map("result" -> "success"))
+        } else
+          metrics.incrementCounter("welder/status", tags = Map("result" -> "failure"))
     } yield res
 }
 

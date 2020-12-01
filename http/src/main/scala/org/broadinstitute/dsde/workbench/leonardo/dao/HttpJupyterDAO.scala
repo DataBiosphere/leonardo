@@ -15,8 +15,8 @@ import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
-class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
-  implicit F: Concurrent[F],
+class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(implicit
+  F: Concurrent[F],
   logger: Logger[F]
 ) extends JupyterDAO[F] {
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
@@ -72,7 +72,8 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
 
   override def terminalExists(googleProject: GoogleProject,
                               runtimeName: RuntimeName,
-                              terminalName: TerminalName): F[Boolean] =
+                              terminalName: TerminalName
+  ): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
       case HostReady(targetHost) =>
         client

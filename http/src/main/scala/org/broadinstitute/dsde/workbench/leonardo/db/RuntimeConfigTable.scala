@@ -52,8 +52,10 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              numberOfWorkerLocalSSDs,
              numberOfPreemptibleWorkers,
              dataprocProperties,
-             persistentDiskId),
-            dateAccessed) =>
+             persistentDiskId
+            ),
+            dateAccessed
+          ) =>
         val r = cloudService match {
           case CloudService.GCE =>
             diskSize match {
@@ -92,8 +94,10 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                 None,
                 None,
                 None,
-                None),
-               x.dateAccessed)
+                None
+               ),
+               x.dateAccessed
+          )
         case r: RuntimeConfig.DataprocConfig =>
           Some(
             x.id,
@@ -107,7 +111,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.numberOfWorkerLocalSSDs,
              r.numberOfPreemptibleWorkers,
              Some(r.properties),
-             None),
+             None
+            ),
             x.dateAccessed
           )
         case r: RuntimeConfig.GceWithPdConfig =>
@@ -123,7 +128,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              None,
              None,
-             r.persistentDiskId),
+             r.persistentDiskId
+            ),
             x.dateAccessed
           )
       }

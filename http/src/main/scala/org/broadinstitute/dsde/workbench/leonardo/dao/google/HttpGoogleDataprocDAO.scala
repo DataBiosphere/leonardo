@@ -46,11 +46,10 @@ class HttpGoogleDataprocDAO(
 
   override val scopes: Seq[String] = Seq(ComputeScopes.CLOUD_PLATFORM)
 
-  private lazy val dataproc = {
+  private lazy val dataproc =
     new Dataproc.Builder(httpTransport, jsonFactory, googleCredential)
       .setApplicationName(appName)
       .build()
-  }
 
   override def createCluster(createClusterConfig: CreateClusterConfig): Future[GoogleOperation] = {
     val cluster = new DataprocCluster()
@@ -70,7 +69,8 @@ class HttpGoogleDataprocDAO(
         throw DataprocDisabledException(e.getMessage)
     }.map(op => GoogleOperation(OperationName(op.getName), getGoogleId(op)))
       .handleGoogleException(createClusterConfig.projectAndName.googleProject,
-                             Some(createClusterConfig.projectAndName.runtimeName.asString))
+                             Some(createClusterConfig.projectAndName.runtimeName.asString)
+      )
 
   }
 
@@ -90,7 +90,8 @@ class HttpGoogleDataprocDAO(
   }
 
   override def getClusterStatus(googleProject: GoogleProject,
-                                clusterName: RuntimeName): Future[Option[DataprocClusterStatus]] = {
+                                clusterName: RuntimeName
+  ): Future[Option[DataprocClusterStatus]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       status <- OptionT.fromOption[Future](
@@ -107,14 +108,13 @@ class HttpGoogleDataprocDAO(
     val transformed = for {
       result <- OptionT.liftF(retry(retryPredicates: _*)(() => executeGoogleRequest(request)))
       googleClusters <- OptionT.fromOption[Future](Option(result.getClusters))
-    } yield {
-      googleClusters.asScala.toList.map(c => UUID.fromString(c.getClusterUuid))
-    }
+    } yield googleClusters.asScala.toList.map(c => UUID.fromString(c.getClusterUuid))
     transformed.value.map(_.getOrElse(List.empty)).handleGoogleException(googleProject)
   }
 
   override def getClusterMasterInstance(googleProject: GoogleProject,
-                                        clusterName: RuntimeName): Future[Option[DataprocInstanceKey]] = {
+                                        clusterName: RuntimeName
+  ): Future[Option[DataprocInstanceKey]] = {
     val transformed = for {
       cluster <- OptionT(getCluster(googleProject, clusterName))
       masterInstanceName <- OptionT.fromOption[Future](getMasterInstanceName(cluster))
@@ -125,7 +125,8 @@ class HttpGoogleDataprocDAO(
   }
 
   override def getClusterStagingBucket(googleProject: GoogleProject,
-                                       clusterName: RuntimeName): Future[Option[GcsBucketName]] = {
+                                       clusterName: RuntimeName
+  ): Future[Option[GcsBucketName]] = {
     // If an expression might be null, need to use `OptionT.fromOption(Option(expr))`.
     // `OptionT.pure(expr)` throws a NPE!
     val transformed = for {
@@ -145,7 +146,8 @@ class HttpGoogleDataprocDAO(
       code <- OptionT.fromOption[Future](Option(error.getCode))
     } yield RuntimeErrorDetails(Option(error.getDetails).map(_.asScala.mkString(",")).getOrElse(""),
                                 Some(code),
-                                Option(error.getMessage))
+                                Option(error.getMessage)
+    )
 
     errorOpt.value.handleGoogleException(GoogleProject(""), operationName.map(_.value))
   }
@@ -153,7 +155,8 @@ class HttpGoogleDataprocDAO(
   override def resizeCluster(googleProject: GoogleProject,
                              clusterName: RuntimeName,
                              numWorkers: Option[Int] = None,
-                             numPreemptibles: Option[Int] = None): Future[Unit] = {
+                             numPreemptibles: Option[Int] = None
+  ): Future[Unit] = {
     val workerMask = "config.worker_config.num_instances"
     val preemptibleMask = "config.secondary_worker_config.num_instances"
 

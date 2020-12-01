@@ -93,8 +93,8 @@ package object http {
     }
 }
 
-final case class CloudServiceMonitorOps[F[_], A](a: A)(
-  implicit monitor: RuntimeMonitor[F, A]
+final case class CloudServiceMonitorOps[F[_], A](a: A)(implicit
+  monitor: RuntimeMonitor[F, A]
 ) {
   def process(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
     monitor.process(a)(runtimeId, action)
@@ -103,6 +103,7 @@ final case class CloudServiceMonitorOps[F[_], A](a: A)(
   def pollCheck(googleProject: GoogleProject,
                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                 operation: com.google.cloud.compute.v1.Operation,
-                action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
+                action: RuntimeStatus
+  )(implicit ev: Ask[F, TraceId]): F[Unit] =
     monitor.pollCheck(a)(googleProject, runtimeAndRuntimeConfig, operation, action)
 }

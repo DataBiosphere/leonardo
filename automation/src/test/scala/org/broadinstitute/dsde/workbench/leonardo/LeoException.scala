@@ -5,8 +5,8 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource, 
 
 abstract class LeoException(val message: String = null,
                             val statusCode: StatusCode = StatusCodes.InternalServerError,
-                            val cause: Throwable = null)
-    extends WorkbenchException(message) {
+                            val cause: Throwable = null
+) extends WorkbenchException(message) {
 
   implicit val errorReportSource = ErrorReportSource("test")
 

@@ -13,8 +13,10 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
 
-final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, asyncTasks: InspectableQueue[F, Task[F]])(
-  implicit logger: Logger[F],
+final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config,
+                                            asyncTasks: InspectableQueue[F, Task[F]]
+)(implicit
+  logger: Logger[F],
   F: Concurrent[F],
   metrics: OpenTelemetryMetrics[F]
 ) {
@@ -34,11 +36,10 @@ final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, a
       _ <- logger.info(
         s"Executing task with traceId ${task.traceId.asString} with latency of ${latency.toSeconds} seconds"
       )
-      _ <- task.op.handleErrorWith {
-        case err =>
-          task.errorHandler.traverse(cb => cb(err)) >> logger.error(err)(
-            s"${task.traceId.asString} | Error when executing async task"
-          )
+      _ <- task.op.handleErrorWith { case err =>
+        task.errorHandler.traverse(cb => cb(err)) >> logger.error(err)(
+          s"${task.traceId.asString} | Error when executing async task"
+        )
       }
     } yield ()
 
@@ -63,7 +64,8 @@ final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, a
                              8 minutes,
                              16 minutes,
                              32 minutes
-                           ))
+                           )
+    )
 }
 
 object AsyncTaskProcessor {
@@ -76,6 +78,7 @@ object AsyncTaskProcessor {
   final case class Task[F[_]](traceId: TraceId,
                               op: F[Unit],
                               errorHandler: Option[Throwable => F[Unit]] = None,
-                              enqueuedTime: Instant)
+                              enqueuedTime: Instant
+  )
   final case class Config(queueBound: Int, maxConcurrentTasks: Int)
 }

@@ -59,7 +59,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       Config.imageConfig
     )
 
-    Config.gceMonitorConfig shouldBe (expected)
+    Config.gceMonitorConfig shouldBe expected
   }
 
   "GKE config" should "read ClusterConfig properly" in {
@@ -97,7 +97,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
     val expectedResult = GalaxyNodepoolConfig(MachineTypeName("n1-standard-8"),
                                               NumNodes(2),
                                               true,
-                                              AutoscalingConfig(AutoscalingMin(0), AutoscalingMax(2)))
+                                              AutoscalingConfig(AutoscalingMin(0), AutoscalingMax(2))
+    )
     Config.gkeGalaxyNodepoolConfig shouldBe expectedResult
   }
 

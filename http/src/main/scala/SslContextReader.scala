@@ -24,6 +24,7 @@ object SslContextReader {
     new ConfigSSLContextBuilder(new AkkaLoggerFactory(as),
                                 sslConfigSettings,
                                 keyManagerAlgorithm,
-                                trustManagerAlgorithm).build()
+                                trustManagerAlgorithm
+    ).build()
   }
 }

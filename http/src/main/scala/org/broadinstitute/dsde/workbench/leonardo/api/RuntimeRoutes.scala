@@ -30,8 +30,8 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
 
-class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
-  implicit metrics: OpenTelemetryMetrics[IO]
+class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(implicit
+  metrics: OpenTelemetryMetrics[IO]
 ) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
@@ -154,8 +154,9 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   private[api] def createRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        req: CreateRuntime2Request)(
-    implicit ev: Ask[IO, AppContext]
+                                        req: CreateRuntime2Request
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -182,8 +183,9 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
 
   private[api] def listRuntimesHandler(userInfo: UserInfo,
                                        googleProject: Option[GoogleProject],
-                                       params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                       params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -198,8 +200,9 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   private[api] def deleteRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                        params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -245,8 +248,9 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   private[api] def updateRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        req: UpdateRuntimeRequest)(
-    implicit ev: Ask[IO, AppContext]
+                                        req: UpdateRuntimeRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -485,4 +489,5 @@ final case class ListRuntimeResponse2(id: Long,
                                       proxyUrl: URL,
                                       status: RuntimeStatus,
                                       labels: LabelMap,
-                                      patchInProgress: Boolean)
+                                      patchInProgress: Boolean
+)

@@ -40,12 +40,13 @@ class HttpRoutes(
   kubernetesService: KubernetesService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String
-)(implicit timer: Timer[IO],
+)(implicit
+  timer: Timer[IO],
   ec: ExecutionContext,
   ac: ActorSystem,
   cs: ContextShift[IO],
-  metrics: OpenTelemetryMetrics[IO])
-    extends LazyLogging {
+  metrics: OpenTelemetryMetrics[IO]
+) extends LazyLogging {
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)
@@ -55,7 +56,7 @@ class HttpRoutes(
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
 
-  private val myExceptionHandler = {
+  private val myExceptionHandler =
     ExceptionHandler {
       case requestValidationError: RequestValidationError =>
         complete(StatusCodes.BadRequest, requestValidationError.getMessage)
@@ -69,10 +70,10 @@ class HttpRoutes(
                                                          Some(StatusCodes.InternalServerError),
                                                          Seq(),
                                                          Seq(),
-                                                         Some(e.getClass))
+                                                         Some(e.getClass)
+          )
         )
     }
-  }
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
   private val logRequestResult: Directive0 = {
@@ -99,7 +100,7 @@ class HttpRoutes(
     DebuggingDirectives.logRequestResult(LoggingMagnet(myLoggingFunction))
   }
 
-  val route: Route = {
+  val route: Route =
     logRequestResult {
       handleExceptions(myExceptionHandler) {
         swaggerRoutes.routes ~ proxyRoutes.route ~ statusRoutes.route ~
@@ -108,5 +109,4 @@ class HttpRoutes(
           }
       }
     }
-  }
 }

@@ -21,8 +21,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives)(
-  implicit metrics: OpenTelemetryMetrics[IO]
+class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives)(implicit
+  metrics: OpenTelemetryMetrics[IO]
 ) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
@@ -125,8 +125,8 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
-  private[api] def getDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit ev: Ask[IO, AppContext]
+  private[api] def getDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -147,8 +147,8 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listDisks").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
-  private[api] def deleteDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit ev: Ask[IO, AppContext]
+  private[api] def deleteDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]

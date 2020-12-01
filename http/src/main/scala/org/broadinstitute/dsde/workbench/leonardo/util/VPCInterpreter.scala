@@ -80,22 +80,25 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
             )
             // If we specify autoCreateSubnetworks, a subnet is automatically created in each region with the same name as the network.
             // See https://cloud.google.com/vpc/docs/vpc#subnet-ranges
-            subnetworkName <- if (config.vpcConfig.autoCreateSubnetworks) {
-              F.pure(SubnetworkName(config.vpcConfig.networkName.value))
-            } else {
-              // create the subnet
-              createIfAbsent(
-                params.project,
-                googleComputeService.getSubnetwork(params.project,
-                                                   config.vpcConfig.subnetworkRegion,
-                                                   config.vpcConfig.subnetworkName),
-                googleComputeService.createSubnetwork(params.project,
-                                                      config.vpcConfig.subnetworkRegion,
-                                                      buildSubnetwork(params.project)),
-                SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
-                s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
-              ).as(config.vpcConfig.subnetworkName)
-            }
+            subnetworkName <-
+              if (config.vpcConfig.autoCreateSubnetworks) {
+                F.pure(SubnetworkName(config.vpcConfig.networkName.value))
+              } else {
+                // create the subnet
+                createIfAbsent(
+                  params.project,
+                  googleComputeService.getSubnetwork(params.project,
+                                                     config.vpcConfig.subnetworkRegion,
+                                                     config.vpcConfig.subnetworkName
+                  ),
+                  googleComputeService.createSubnetwork(params.project,
+                                                        config.vpcConfig.subnetworkRegion,
+                                                        buildSubnetwork(params.project)
+                  ),
+                  SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
+                  s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
+                ).as(config.vpcConfig.subnetworkName)
+              }
           } yield (config.vpcConfig.networkName, subnetworkName)
         case _ =>
           F.raiseError[(NetworkName, SubnetworkName)](InvalidVPCSetupException(params.project))
@@ -118,32 +121,35 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
       }
       // if the default network exists, remove configured firewalls
       defaultNetwork <- googleComputeService.getNetwork(params.project, defaultNetworkName)
-      _ <- if (defaultNetwork.isDefined) {
-        config.vpcConfig.firewallsToRemove
-          .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
-      } else F.unit
+      _ <-
+        if (defaultNetwork.isDefined) {
+          config.vpcConfig.firewallsToRemove
+            .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
+        } else F.unit
     } yield ()
 
   private def createIfAbsent[A](project: GoogleProject,
                                 get: F[Option[A]],
                                 create: F[Operation],
                                 fail: Throwable,
-                                msg: String)(
-    implicit ev: Ask[F, TraceId]
+                                msg: String
+  )(implicit
+    ev: Ask[F, TraceId]
   ): F[Unit] = {
     val getAndCreate = for {
       existing <- get
-      _ <- if (existing.isEmpty) {
-        for {
-          initialOp <- create
-          _ <- computePollOperation
-            .pollOperation(project, initialOp, config.vpcConfig.pollPeriod, config.vpcConfig.maxAttempts, None)(
-              F.unit,
-              F.raiseError[Unit](fail),
-              F.unit
-            )
-        } yield ()
-      } else F.unit
+      _ <-
+        if (existing.isEmpty) {
+          for {
+            initialOp <- create
+            _ <- computePollOperation
+              .pollOperation(project, initialOp, config.vpcConfig.pollPeriod, config.vpcConfig.maxAttempts, None)(
+                F.unit,
+                F.raiseError[Unit](fail),
+                F.unit
+              )
+          } yield ()
+        } else F.unit
     } yield ()
 
     // Retry the whole get-check-create operation in case of 409
@@ -168,7 +174,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
 
   private[util] def buildFirewall(googleProject: GoogleProject,
                                   networkName: NetworkName,
-                                  fwConfig: FirewallRuleConfig): Firewall =
+                                  fwConfig: FirewallRuleConfig
+  ): Firewall =
     Firewall
       .newBuilder()
       .setName(fwConfig.name.value)

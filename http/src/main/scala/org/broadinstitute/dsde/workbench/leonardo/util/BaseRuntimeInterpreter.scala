@@ -28,16 +28,16 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 )(implicit dbRef: DbReference[F], metrics: OpenTelemetryMetrics[F], executionContext: ExecutionContext)
     extends RuntimeAlgebra[F] {
 
-  protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
-    implicit ev: Ask[F, TraceId]
+  protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[Operation]]
 
-  protected def startGoogleRuntime(params: StartGoogleRuntime)(
-    implicit ev: Ask[F, AppContext]
+  protected def startGoogleRuntime(params: StartGoogleRuntime)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit]
 
-  protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
-    implicit ev: Ask[F, TraceId]
+  protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(implicit
+    ev: Ask[F, TraceId]
   ): F[Unit]
 
   final override def stopRuntime(
@@ -46,15 +46,16 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
     for {
       ctx <- ev.ask
       // Flush the welder cache to disk
-      _ <- if (params.runtime.welderEnabled) {
-        welderDao
-          .flushCache(params.runtime.googleProject, params.runtime.runtimeName)
-          .handleErrorWith(e =>
-            Logger[F].error(e)(
-              s"Failed to flush welder cache for ${params.runtime.projectNameString}"
+      _ <-
+        if (params.runtime.welderEnabled) {
+          welderDao
+            .flushCache(params.runtime.googleProject, params.runtime.runtimeName)
+            .handleErrorWith(e =>
+              Logger[F].error(e)(
+                s"Failed to flush welder cache for ${params.runtime.projectNameString}"
+              )
             )
-          )
-      } else Async[F].unit
+        } else Async[F].unit
 
       _ <- clusterQuery.updateClusterHostIp(params.runtime.id, None, ctx.now).transaction
 
@@ -140,7 +141,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       }
 
       newRuntime = runtime.copy(welderEnabled = true,
-                                runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
+                                runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage
+      )
     } yield newRuntime
 
   override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
@@ -162,8 +164,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
                                  initBucket: GcsBucketName,
                                  blocker: Blocker,
                                  runtimeResourceConstraints: RuntimeResourceConstraints,
-                                 useGceStartupScript: Boolean)(
-    implicit ev: Ask[F, AppContext]
+                                 useGceStartupScript: Boolean
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
@@ -232,4 +235,5 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
 final case class StartGoogleRuntime(runtime: Runtime,
                                     initBucket: GcsBucketName,
                                     welderAction: Option[WelderAction],
-                                    runtimeConfig: RuntimeConfig)
+                                    runtimeConfig: RuntimeConfig
+)

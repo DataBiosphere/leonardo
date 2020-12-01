@@ -39,8 +39,8 @@ object RuntimeConfigRequest {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
-      extends RuntimeConfigRequest {
+                                  properties: Map[String, String]
+  ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }
 }
@@ -72,8 +72,8 @@ object UpdateRuntimeConfigRequest {
   final case class DataprocConfig(updatedMasterMachineType: Option[MachineTypeName],
                                   updatedMasterDiskSize: Option[DiskSize],
                                   updatedNumberOfWorkers: Option[Int],
-                                  updatedNumberOfPreemptibleWorkers: Option[Int])
-      extends UpdateRuntimeConfigRequest {
+                                  updatedNumberOfPreemptibleWorkers: Option[Int]
+  ) extends UpdateRuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }
 }
@@ -81,4 +81,5 @@ object UpdateRuntimeConfigRequest {
 final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntimeConfigRequest],
                                       allowStop: Boolean,
                                       updateAutopauseEnabled: Option[Boolean],
-                                      updateAutopauseThreshold: Option[FiniteDuration])
+                                      updateAutopauseThreshold: Option[FiniteDuration]
+)

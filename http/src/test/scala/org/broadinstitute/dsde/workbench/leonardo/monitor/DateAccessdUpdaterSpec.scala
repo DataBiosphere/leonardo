@@ -39,7 +39,7 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       msg4
     )
 
-    messagesToUpdate(messages) should contain theSameElementsAs (expectedResult)
+    messagesToUpdate(messages) should contain theSameElementsAs expectedResult
   }
 
   it should "update date accessed" in isolatedDbTest {
@@ -59,8 +59,8 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
       updatedRuntime1 <- clusterQuery.getClusterById(runtime1.id).transaction
       updatedRuntime2 <- clusterQuery.getClusterById(runtime2.id).transaction
     } yield {
-      updatedRuntime1.get.auditInfo.dateAccessed.toEpochMilli shouldBe (1588264615490L)
-      updatedRuntime2.get.auditInfo.dateAccessed.toEpochMilli shouldBe (1588264615480L)
+      updatedRuntime1.get.auditInfo.dateAccessed.toEpochMilli shouldBe 1588264615490L
+      updatedRuntime2.get.auditInfo.dateAccessed.toEpochMilli shouldBe 1588264615480L
     }
   }
 

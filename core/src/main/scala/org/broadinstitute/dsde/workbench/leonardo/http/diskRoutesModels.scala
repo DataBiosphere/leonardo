@@ -8,7 +8,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 final case class CreateDiskRequest(labels: LabelMap,
                                    size: Option[DiskSize],
                                    diskType: Option[DiskType],
-                                   blockSize: Option[BlockSize])
+                                   blockSize: Option[BlockSize]
+)
 
 object CreateDiskRequest {
   def fromDiskConfigRequest(create: PersistentDiskRequest): CreateDiskRequest =
@@ -18,7 +19,8 @@ object CreateDiskRequest {
 final case class PersistentDiskRequest(name: DiskName,
                                        size: Option[DiskSize],
                                        diskType: Option[DiskType],
-                                       labels: LabelMap)
+                                       labels: LabelMap
+)
 
 final case class DiskConfig(name: DiskName, size: DiskSize, diskType: DiskType, blockSize: BlockSize)
 object DiskConfig {
@@ -34,7 +36,8 @@ final case class ListPersistentDiskResponse(id: DiskId,
                                             auditInfo: AuditInfo,
                                             size: DiskSize,
                                             diskType: DiskType,
-                                            blockSize: BlockSize)
+                                            blockSize: BlockSize
+)
 
 final case class GetPersistentDiskResponse(id: DiskId,
                                            googleProject: GoogleProject,
@@ -48,4 +51,5 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            size: DiskSize,
                                            diskType: DiskType,
                                            blockSize: BlockSize,
-                                           labels: LabelMap)
+                                           labels: LabelMap
+)

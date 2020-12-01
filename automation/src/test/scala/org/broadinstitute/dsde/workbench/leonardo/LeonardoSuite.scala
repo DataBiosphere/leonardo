@@ -63,7 +63,8 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       _ <- IO(
         Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
                                                       ronEmail,
-                                                      BillingProject.BillingProjectRole.User)(hermioneAuthToken)
+                                                      BillingProject.BillingProjectRole.User
+        )(hermioneAuthToken)
       )
       _ <- IO(logger.info(s"Billing project claimed: ${claimedBillingProject.projectName}"))
     } yield GoogleProject(claimedBillingProject.projectName)
@@ -121,9 +122,10 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- IO(logger.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaimProp"))
       projectProp <- IO(sys.props.get(gpallocProjectKey))
       project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
-      _ <- if (shouldUnclaimProp != Some("false")) {
-        project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
-      } else IO(logger.info(s"Not going to release project: ${projectProp} due to error happened"))
+      _ <-
+        if (shouldUnclaimProp != Some("false")) {
+          project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
+        } else IO(logger.info(s"Not going to release project: ${projectProp} due to error happened"))
       _ <- IO(sys.props.remove(gpallocProjectKey))
       _ <- IO(super.afterAll())
     } yield ()
@@ -153,7 +155,8 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
             IO(
               logger
                 .warn(s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error",
-                      err)
+                      err
+                )
             )
         }
       } yield ()
@@ -176,7 +179,8 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
             IO(
               logger
                 .warn(s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error",
-                      err)
+                      err
+                )
             )
         }
       } yield ()

@@ -85,7 +85,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     dbFutureValue(clusterErrorQuery.save(savedCluster1.id, err1))
     val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id,
                                                          stopAfterCreation = true,
-                                                         runtimeConfigId = savedCluster1.runtimeConfigId)
+                                                         runtimeConfigId = savedCluster1.runtimeConfigId
+    )
 
     dbFutureValue(clusterQuery.getClusterById(savedCluster1.id)) shouldEqual Some(cluster1WithErrAssignedId)
     dbFutureValue(clusterQuery.getClusterById(savedCluster2.id)) shouldEqual Some(savedCluster2)
@@ -99,7 +100,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
                                   Some(gcsPath("gs://bucket3")),
                                   Some(serviceAccountKey.id),
                                   defaultDataprocRuntimeConfig,
-                                  Instant.now())
+                                  Instant.now()
+    )
     dbFailure(clusterQuery.save(saveCluster)) shouldBe a[
       SQLException
     ]
@@ -153,7 +155,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     val runningCluster = dbFutureValue(clusterQuery.getClusterById(initialCluster.id)).get
     val expectedRunningCluster = initialCluster.copy(id = initialCluster.id,
                                                      auditInfo =
-                                                       initialCluster.auditInfo.copy(dateAccessed = dateAccessed))
+                                                       initialCluster.auditInfo.copy(dateAccessed = dateAccessed)
+    )
     runningCluster
       .copy(auditInfo = runningCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedRunningCluster
     runningCluster.auditInfo.dateAccessed should be > stoppedCluster.auditInfo.dateAccessed
@@ -176,7 +179,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
 
     val updatedCluster1Again = savedCluster1.copy(
       dataprocInstances = Set(masterInstance.copy(status = GceInstanceStatus.Terminated),
-                              workerInstance1.copy(status = GceInstanceStatus.Terminated))
+                              workerInstance1.copy(status = GceInstanceStatus.Terminated)
+      )
     )
 
     dbFutureValue(clusterQuery.mergeInstances(updatedCluster1Again)) shouldEqual updatedCluster1Again
@@ -185,12 +189,14 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
   it should "get list of clusters to auto freeze" in isolatedDbTest {
     val runningCluster1 = makeCluster(1)
       .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
-            status = RuntimeStatus.Running)
+            status = RuntimeStatus.Running
+      )
       .save()
 
     val runningCluster2 = makeCluster(2)
       .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
-            status = RuntimeStatus.Stopped)
+            status = RuntimeStatus.Stopped
+      )
       .save()
 
     val stoppedCluster = makeCluster(3).copy(status = RuntimeStatus.Stopped).save()
@@ -198,7 +204,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     val autopauseDisabledCluster = makeCluster(4)
       .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
             status = RuntimeStatus.Running,
-            autopauseThreshold = 0)
+            autopauseThreshold = 0
+      )
       .save()
 
     val autoFreezeList = dbFutureValue(clusterQuery.getClustersReadyToAutoFreeze)
@@ -212,7 +219,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
   it should "get for dns cache" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
       .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-            dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2))
+            dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
+      )
       .save(Some(serviceAccountKey.id))
 
     // Result should not include labels or instances
@@ -350,9 +358,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       )
       _ <- clusterQuery.updateDeletedFrom(savedRuntime.id, "zombieMonitor").transaction
       deletedFrom <- clusterQuery.getDeletedFrom(savedRuntime.id).transaction
-    } yield {
-      deletedFrom shouldBe Some("zombieMonitor")
-    }
+    } yield deletedFrom shouldBe Some("zombieMonitor")
 
     res.unsafeRunSync()
   }

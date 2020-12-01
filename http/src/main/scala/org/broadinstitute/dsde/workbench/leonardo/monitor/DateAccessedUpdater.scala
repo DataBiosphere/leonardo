@@ -57,12 +57,14 @@ object DateAccessedUpdater {
     }
 
   // group all messages by googleProject and runtimeName, and discard all older messages for the same runtime
-  def messagesToUpdate(messages: Chain[UpdateDateAccessMessage]): List[UpdateDateAccessMessage] = {
-    messages.groupBy(m => s"${m.runtimeName.asString}/${m.googleProject.value}").toList.traverse {
-      case (_, messages) =>
+  def messagesToUpdate(messages: Chain[UpdateDateAccessMessage]): List[UpdateDateAccessMessage] =
+    messages
+      .groupBy(m => s"${m.runtimeName.asString}/${m.googleProject.value}")
+      .toList
+      .traverse { case (_, messages) =>
         messages.toChain.toList.sorted.lastOption
-    }
-  }.getOrElse(List.empty)
+      }
+      .getOrElse(List.empty)
 }
 
 final case class DateAccessedUpdaterConfig(interval: FiniteDuration, maxUpdate: Int, queueSize: Int)
