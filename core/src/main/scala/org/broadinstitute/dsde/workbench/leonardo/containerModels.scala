@@ -20,7 +20,7 @@ object ContainerRegistry extends Enum[ContainerRegistry] {
 
   final case object GHCR extends ContainerRegistry {
     val regex: Regex =
-      """^(ghcr.io)(/([\w.-]+/)+[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+      """^(ghcr.io)/((?:[\w.-]+/)+[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
     override def toString: String = "GHCR"
   }
 

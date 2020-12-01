@@ -126,7 +126,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
           .toRight(new Exception(s"Unable to update welder because current welder image is not available"))
           .flatMap(x =>
             x.registry match {
-              case Some(ContainerRegistry.GCR)       => Right(config.imageConfig.welderGcrImage.imageUrl)
+              case Some(ContainerRegistry.GCR) | Some(ContainerRegistry.GHCR) =>
+                Right(config.imageConfig.welderGcrImage.imageUrl)
               case Some(ContainerRegistry.DockerHub) => Right(config.imageConfig.welderDockerHubImage.imageUrl)
               case None                              => Left(new Exception(s"Unable to update Welder: registry for ${x.imageUrl} not parsable"))
             }
