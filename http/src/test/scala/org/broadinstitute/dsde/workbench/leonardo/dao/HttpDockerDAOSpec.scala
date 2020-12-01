@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, GCR}
+import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, GCR, GHCR}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
@@ -27,12 +27,16 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     ContainerImage("us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev", GCR),
     ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.4", GCR),
     ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.5", GCR),
-    ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.4", GCR)
+    ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.4", GCR),
     // gcr with sha
     // TODO shas are currently not working
 //    GCR(
 //      "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter@sha256:fa11b7c528304726985b4ad4cb4cb4d8b9a2fbf7c5547671ef495f414564727c"
-//    )
+//    ),
+    // ghcr with tag
+    ContainerImage("ghcr.io/lucidtronix/ml4h/ml4h_terra:20201117_123026", GHCR),
+    // ghcr no tag
+    ContainerImage("ghcr.io/lucidtronix/ml4h/ml4h_terra", GHCR)
   )
 
   val rstudioImages = List(
@@ -100,6 +104,18 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
   it should s"detect invalid dockerhub image if image doesn't have proper environment variables set" in withDockerDAO {
     dockerDAO =>
       val image = ContainerImage("library/nginx:latest", DockerHub) // not a supported tool
+      val res = for {
+        ctx <- appContext.ask[AppContext]
+        response <- dockerDAO.detectTool(image).attempt
+      } yield {
+        response shouldBe Left(InvalidImage(ctx.traceId, image))
+      }
+      res.unsafeRunSync()
+  }
+
+  it should "detect invalid ghcr imaeg if image doesn't have proper environment variables set" in withDockerDAO {
+    dockerDAO =>
+      val image = ContainerImage("ghcr.io/github/super-linter:latest", GHCR) // not a supported tool
       val res = for {
         ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image).attempt

@@ -5,7 +5,7 @@ import enumeratum.{Enum, EnumEntry}
 
 import scala.util.matching.Regex
 
-/** Container registry, e.g. GCR, Dockerhub */
+/** Container registry, e.g. Google Container Repository, GitHub Container Repository, Dockerhub */
 sealed trait ContainerRegistry extends EnumEntry with Product with Serializable {
   def regex: Regex
 }
@@ -18,6 +18,12 @@ object ContainerRegistry extends Enum[ContainerRegistry] {
     override def toString: String = "GCR"
   }
 
+  final case object GHCR extends ContainerRegistry {
+    val regex: Regex =
+      """^(ghcr.io)/((?:[\w.-]+/)+[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
+    override def toString: String = "GHCR"
+  }
+
   // Repo format: https://docs.docker.com/docker-hub/repos/
   final case object DockerHub extends ContainerRegistry {
     val regex: Regex = """^([\w.-]+/[\w.-]+)(?::(\w[\w.-]+))?(?:@([\w+.-]+:[A-Fa-f0-9]{32,}))?$""".r
@@ -25,7 +31,7 @@ object ContainerRegistry extends Enum[ContainerRegistry] {
   }
 
   def inferRegistry(imageUrl: String): Option[ContainerRegistry] =
-    List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
+    allRegistries
       .find(image => image.regex.pattern.asPredicate().test(imageUrl))
 
   val allRegistries: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
