@@ -189,7 +189,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeWorkbenchGoogle, excludeGuava)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.11.3" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.0" % "test",
     "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
     "com.google.auto.value" % "auto-value" % "1.6.6",
     "com.google.auto.value" % "auto-value-annotations" % "1.6.6",
