@@ -136,7 +136,7 @@ object Dependencies {
     helmScalaSdk,
     helmScalaSdkTest,
 //    "net.logstash.logback" % "logstash-logback-encoder" % "6.2", // for structured logging in logback
-    "org.scalacheck" %% "scalacheck" % "1.14.1" % "test",
+    "org.scalacheck" %% "scalacheck" % "1.14.3" % "test",
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     sealerate,
