@@ -13,7 +13,7 @@ object Dependencies {
   val http4sVersion = "0.21.8"
   val guavaV = "28.2-jre"
   val monocleV = "2.1.0"
-  val opencensusV = "0.26.0"
+  val opencensusV = "0.28.2"
 
   val serviceTestV = "0.18-c5713ac"
   val workbenchUtilV = "0.6-c5713ac"
