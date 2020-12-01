@@ -318,12 +318,12 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no StopStartApp permission
-      hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopStartApp)
+      hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
       _ <- if (hasReadPermission) F.unit
       else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
 
       // throw 403 if no StopStartApp permission
-      hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopStartApp)
+      hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopApp)
       _ <- if (hasStopStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
       canStop = AppStatus.stoppableStatuses.contains(appResult.app.status)
@@ -354,12 +354,12 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       listOfPermissions <- authProvider.getActions(appResult.app.samResourceId, userInfo)
 
       // throw 404 if no StopStartApp permission
-      hasReadPermission = listOfPermissions.toSet.contains(AppAction.StopStartApp)
+      hasReadPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
       _ <- if (hasReadPermission) F.unit
       else F.raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
 
       // throw 403 if no StopStartApp permission
-      hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StopStartApp)
+      hasStopStartPermission = listOfPermissions.toSet.contains(AppAction.StartApp)
       _ <- if (hasStopStartPermission) F.unit else F.raiseError[Unit](AuthorizationError(userInfo.userEmail))
 
       canStop = AppStatus.startableStatuses.contains(appResult.app.status)
