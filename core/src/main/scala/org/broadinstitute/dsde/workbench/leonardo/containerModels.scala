@@ -31,7 +31,7 @@ object ContainerRegistry extends Enum[ContainerRegistry] {
   }
 
   def inferRegistry(imageUrl: String): Option[ContainerRegistry] =
-    List(ContainerRegistry.GCR, ContainerRegistry.DockerHub)
+    allRegistries
       .find(image => image.regex.pattern.asPredicate().test(imageUrl))
 
   val allRegistries: Set[ContainerRegistry] = sealerate.values[ContainerRegistry]
