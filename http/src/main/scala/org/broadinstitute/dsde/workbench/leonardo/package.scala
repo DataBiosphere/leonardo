@@ -11,6 +11,7 @@ import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthy
+import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
 import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
@@ -24,6 +25,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
 import shapeless._
 import slick.dbio.DBIO
+
+import scala.concurrent.duration.FiniteDuration
 
 package object http {
   implicit val errorReportSource = ErrorReportSource("leonardo")
@@ -90,6 +93,18 @@ package object http {
       case _: InvalidMonitorRequest  => true
       case _: MonitorAtBootException => true
       case _                         => false
+    }
+
+  def calculateAutopauseThreshold(autopause: Option[Boolean],
+                                  autopauseThreshold: Option[FiniteDuration],
+                                  autoFreezeConfig: AutoFreezeConfig): FiniteDuration =
+    autopause match {
+      case None =>
+        autoFreezeConfig.autoFreezeAfter
+      case Some(false) =>
+        autoPauseOffValue
+      case _ =>
+        autopauseThreshold.getOrElse(autoFreezeConfig.autoFreezeAfter).max(autoPauseOffValue)
     }
 }
 

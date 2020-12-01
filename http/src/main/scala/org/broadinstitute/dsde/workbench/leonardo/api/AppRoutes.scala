@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import scala.concurrent.duration._
 
 class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit metrics: OpenTelemetryMetrics[IO]
@@ -229,7 +230,15 @@ object AppRoutes {
         d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
         l <- x.downField("labels").as[Option[LabelMap]]
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
-      } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty))
+        ap <- x.downField("autopause").as[Option[Boolean]]
+        apt <- x.downField("autopauseThreshold").as[Option[Int]]
+      } yield CreateAppRequest(c,
+                               a.getOrElse(AppType.Galaxy),
+                               d,
+                               l.getOrElse(Map.empty),
+                               cv.getOrElse(Map.empty),
+                               ap,
+                               apt.map(_.minute))
     }
 
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>

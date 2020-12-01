@@ -510,6 +510,12 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         s"${uid}-${galaxyConfig.releaseNameSuffix}",
         Release.apply
       )
+
+      autopauseThreshold = calculateAutopauseThreshold(
+        req.autopause,
+        req.autopauseThreshold,
+        leoKubernetesConfig.autoFreezeConfig
+      )
     } yield SaveApp(
       App(
         AppId(-1),
@@ -536,7 +542,9 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           Option.empty
         ),
         List.empty,
-        req.customEnvironmentVariables
+        req.customEnvironmentVariables,
+        autopauseThreshold,
+        None
       )
     )
   }
@@ -549,7 +557,8 @@ object LeoKubernetesServiceInterp {
                                  nodepoolConfig: NodepoolConfig,
                                  ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,
-                                 diskConfig: PersistentDiskConfig)
+                                 diskConfig: PersistentDiskConfig,
+                                 autoFreezeConfig: AutoFreezeConfig)
 }
 case class AppNotFoundException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
     extends LeoException(

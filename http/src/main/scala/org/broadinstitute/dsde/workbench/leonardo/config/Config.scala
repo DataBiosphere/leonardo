@@ -644,12 +644,15 @@ object Config {
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
-  val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
-                                                gkeClusterConfig,
-                                                gkeNodepoolConfig,
-                                                gkeIngressConfig,
-                                                gkeGalaxyAppConfig,
-                                                persistentDiskConfig)
+  val leoKubernetesConfig = LeoKubernetesConfig(
+    kubeServiceAccountProviderConfig,
+    gkeClusterConfig,
+    gkeNodepoolConfig,
+    gkeIngressConfig,
+    gkeGalaxyAppConfig,
+    persistentDiskConfig,
+    kubernetesAutoFreezeConfig
+  )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val vpcConfig = config.as[VPCConfig]("vpc")

@@ -427,7 +427,7 @@ object RuntimeRoutes {
       x.jupyterStartUserScriptUri,
       x.errors,
       x.userJupyterExtensionConfig,
-      x.autopauseThreshold,
+      x.autopauseThreshold.toMinutes.toInt,
       x.defaultClientId,
       x.clusterImages,
       x.scopes,

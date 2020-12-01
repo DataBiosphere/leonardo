@@ -216,6 +216,23 @@ object KubernetesServiceDbQueries {
       _ <- diskId.fold[DBIO[Int]](DBIO.successful(0))(diskId => persistentDiskQuery.markPendingDeletion(diskId, now))
     } yield ()
 
+  def getAppsReadyToAutopause(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] = {
+    val now = SimpleFunction.nullary[Instant]("NOW")
+    val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
+    val minute = SimpleLiteral[String]("MINUTE")
+
+    val autopauseQuery = appQuery
+      .filter(_.autopauseThreshold =!= autoPauseOffValue.toMinutes.toInt)
+      .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autopauseThreshold)
+      .filter(_.status inSetBind AppStatus.stoppableStatuses)
+
+    joinFullAppAndUnmarshal(
+      kubernetesClusterQuery,
+      nodepoolQuery,
+      autopauseQuery
+    )
+  }
+
   private[db] def listClustersByProject(
     googleProject: Option[GoogleProject],
     includeDeleted: Boolean = false

@@ -557,19 +557,6 @@ class LeonardoService(
       }
     } yield res
 
-  private[service] def calculateAutopauseThreshold(autopause: Option[Boolean],
-                                                   autopauseThreshold: Option[Int],
-                                                   autoFreezeConfig: AutoFreezeConfig): Int =
-    autopause match {
-      case None =>
-        autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-      case Some(false) =>
-        autoPauseOffValue
-      case _ =>
-        if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        else Math.max(autoPauseOffValue, autopauseThreshold.get)
-    }
-
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
                                                userToken: String,
                                                gcsUri: String): IO[Unit] = {
@@ -730,19 +717,6 @@ object LeonardoService {
                                                    request: CreateRuntimeRequest,
                                                    clusterImages: Set[RuntimeImage]): CreateRuntimeRequest =
     addClusterLabels(serviceAccountInfo, googleProject, clusterName, userEmail, request, clusterImages)
-
-  private[service] def calculateAutopauseThreshold(autopause: Option[Boolean],
-                                                   autopauseThreshold: Option[Int],
-                                                   autoFreezeConfig: AutoFreezeConfig): Int =
-    autopause match {
-      case None =>
-        autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-      case Some(false) =>
-        autoPauseOffValue
-      case _ =>
-        if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        else Math.max(autoPauseOffValue, autopauseThreshold.get)
-    }
 
   private[service] def addClusterLabels(serviceAccountInfo: WorkbenchEmail,
                                         googleProject: GoogleProject,

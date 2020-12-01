@@ -8,11 +8,11 @@ import cats.{Applicative, Functor}
 import cats.effect.Timer
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.model.TraceId
+import scala.concurrent.duration._
 
 package object leonardo {
   type LabelMap = Map[String, String]
-  //this value is the default for autopause, if none is specified. An autopauseThreshold of 0 indicates no autopause
-  val autoPauseOffValue = 0
+  val autoPauseOffValue = 0 minutes
   val traceIdHeaderString = "X-Cloud-Trace-Context"
 
   // convenience to get now as a F[Instant] using a Timer

@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtim
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeToMonitor
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 final case class ClusterRecord(id: Long,
                                internalId: String,
@@ -453,7 +454,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     val minute = SimpleLiteral[String]("MINUTE")
 
     val baseQuery = clusterQuery
-      .filter(_.autopauseThreshold =!= autoPauseOffValue)
+      .filter(_.autopauseThreshold =!= autoPauseOffValue.toMinutes.toInt)
       .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autopauseThreshold)
       .filter(_.status inSetBind RuntimeStatus.stoppableStatuses)
 
@@ -556,10 +557,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       case None    => DBIO.successful(0)
     }
 
-  def updateAutopauseThreshold(id: Long, autopauseThreshold: Int, dateAccessed: Instant): DBIO[Int] =
+  def updateAutopauseThreshold(id: Long, autopauseThreshold: FiniteDuration, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.autopauseThreshold, c.dateAccessed))
-      .update((autopauseThreshold, dateAccessed))
+      .update((autopauseThreshold.toMinutes.toInt, dateAccessed))
 
   def updateWelder(id: Long, welderImage: RuntimeImage, dateAccessed: Instant)(
     implicit ec: ExecutionContext
@@ -595,7 +596,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.kernelFoundBusyDate,
       runtime.serviceAccount,
       runtime.asyncRuntimeFields.map(_.stagingBucket.value),
-      runtime.autopauseThreshold,
+      runtime.autopauseThreshold.toMinutes.toInt,
       runtime.defaultClientId,
       runtime.stopAfterCreation,
       runtime.welderEnabled,
@@ -746,7 +747,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       errors map clusterErrorQuery.unmarshallClusterErrorRecord,
       instanceRecords map instanceQuery.unmarshalInstance toSet,
       extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
-      clusterRecord.autopauseThreshold,
+      clusterRecord.autopauseThreshold.minutes,
       clusterRecord.defaultClientId,
       clusterRecord.stopAfterCreation,
       false,

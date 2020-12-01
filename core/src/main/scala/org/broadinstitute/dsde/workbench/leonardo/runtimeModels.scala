@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketNa
 import org.broadinstitute.dsde.workbench.model.{IP, ValueObject, WorkbenchEmail}
 
 import scala.collection.immutable
+import scala.concurrent.duration.FiniteDuration
 
 /**
  * This file contains models for Leonardo runtimes.
@@ -35,7 +36,7 @@ final case class Runtime(id: Long,
                          errors: List[RuntimeError],
                          dataprocInstances: Set[DataprocInstance],
                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                         autopauseThreshold: Int,
+                         autopauseThreshold: FiniteDuration, // Note zero means no autopause
                          defaultClientId: Option[String],
                          stopAfterCreation: Boolean,
                          allowStop: Boolean,

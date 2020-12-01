@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.CreateRuntimeRequest
 import org.broadinstitute.dsde.workbench.model.google.GcsPath
+import scala.concurrent.duration._
 
 // Shared routes specific codecs live in this file. When Routes file get too big, we can potentially move codec to this file too
 object LeoRoutesJsonCodec {
@@ -120,7 +121,7 @@ object LeoRoutesJsonCodec {
         allowStop.getOrElse(false),
         if (updatedUserJupyterExtensionConfig.asLabels.isEmpty) None else Some(updatedUserJupyterExtensionConfig),
         autopause,
-        autopauseThreshold,
+        autopauseThreshold.map(_.minute),
         defaultClientId,
         jupyterDockerImage,
         toolDockerImage,

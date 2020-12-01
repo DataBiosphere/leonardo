@@ -23,11 +23,15 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import scala.concurrent.duration.FiniteDuration
+
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
                                   diskConfig: Option[PersistentDiskRequest],
                                   labels: LabelMap = Map.empty,
-                                  customEnvironmentVariables: Map[String, String])
+                                  customEnvironmentVariables: Map[String, String],
+                                  autopause: Option[Boolean],
+                                  autopauseThreshold: Option[FiniteDuration])
 
 final case class DeleteAppRequest(userInfo: UserInfo,
                                   googleProject: GoogleProject,

@@ -23,6 +23,8 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
+import scala.concurrent.duration.FiniteDuration
+
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              googleProject: GoogleProject,
                              clusterName: KubernetesClusterName,
@@ -345,7 +347,9 @@ final case class App(id: AppId,
                      //this is populated async to app creation
                      appResources: AppResources,
                      errors: List[AppError],
-                     customEnvironmentVariables: Map[String, String]) {
+                     customEnvironmentVariables: Map[String, String],
+                     autopauseThreshold: FiniteDuration, // Note zero means no autopause
+                     foundBusyDate: Option[Instant]) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       (service.config.name,

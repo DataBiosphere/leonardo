@@ -124,7 +124,7 @@ object Boot extends IOApp {
                                                 appDependencies.welderDAO,
                                                 proxyConfig,
                                                 swaggerConfig,
-                                                autoFreezeConfig,
+                                                runtimeAutoFreezeConfig,
                                                 zombieRuntimeMonitorConfig,
                                                 welderConfig,
                                                 googleDependencies.petGoogleStorageDAO,
@@ -151,7 +151,7 @@ object Boot extends IOApp {
       val runtimeServiceConfig = RuntimeServiceConfig(
         proxyConfig.proxyUrlBase,
         imageConfig,
-        autoFreezeConfig,
+        runtimeAutoFreezeConfig,
         zombieRuntimeMonitorConfig,
         dataprocConfig,
         gceConfig
@@ -267,9 +267,11 @@ object Boot extends IOApp {
                                                gkeInterp,
                                                googleDependencies.errorReporting)
 
-          val autopauseMonitor = AutopauseMonitor(
-            autoFreezeConfig,
+          val autopauseMonitor = new AutopauseMonitor(
+            runtimeAutoFreezeConfig,
+            kubernetesAutoFreezeConfig,
             appDependencies.jupyterDAO,
+            appDependencies.galaxyDAO,
             appDependencies.publisherQueue
           )
 

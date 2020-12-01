@@ -4,18 +4,19 @@ package db
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import slick.lifted.Tag
-import LeoProfile.api._
-import LeoProfile.mappedColumnImplicits._
 import akka.http.scaladsl.model.StatusCodes
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.Release
+import slick.lifted.Tag
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 final case class AppRecord(id: AppId,
                            nodepoolId: NodepoolLeoId,
@@ -33,7 +34,9 @@ final case class AppRecord(id: AppId,
                            dateAccessed: Instant,
                            namespaceId: NamespaceId,
                            diskId: Option[DiskId],
-                           customEnvironmentVariables: Option[Map[String, String]])
+                           customEnvironmentVariables: Option[Map[String, String]],
+                           autopauseThreshold: Int,
+                           foundBusyDate: Option[Instant])
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   //unique (appName, destroyedDate)
@@ -54,6 +57,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def namespaceId = column[NamespaceId]("namespaceId", O.Length(254))
   def diskId = column[Option[DiskId]]("diskId", O.Length(254))
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
+  def autopauseThreshold = column[Int]("autopauseThreshold")
+  def foundBusyDate = column[Option[Instant]]("foundBusyDate", O.SqlType("TIMESTAMP(6)"))
 
   def * =
     (
@@ -73,7 +78,9 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       dateAccessed,
       namespaceId,
       diskId,
-      customEnvironmentVariables
+      customEnvironmentVariables,
+      autopauseThreshold,
+      foundBusyDate
     ) <> (AppRecord.tupled, AppRecord.unapply)
 }
 
@@ -108,7 +115,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         app.kubernetesServiceAccount
       ),
       errors,
-      app.customEnvironmentVariables.getOrElse(Map.empty)
+      app.customEnvironmentVariables.getOrElse(Map.empty),
+      app.autopauseThreshold.minute,
+      app.foundBusyDate
     )
 
   def save(saveApp: SaveApp)(implicit ec: ExecutionContext): DBIO[App] = {
@@ -168,7 +177,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.auditInfo.dateAccessed,
         namespaceId,
         diskOpt.map(_.id),
-        if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables)
+        if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
+        saveApp.app.autopauseThreshold.toMinutes.toInt,
+        saveApp.app.foundBusyDate
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
@@ -206,6 +217,14 @@ object appQuery extends TableQuery(new AppTable(_)) {
     getByIdQuery(id)
       .map(_.kubernetesServiceAccount)
       .update(Option(ksa))
+
+  def updateFoundBusyDate(id: AppId, kernelFoundBusyDate: Instant): DBIO[Int] =
+    getByIdQuery(id)
+      .map(_.foundBusyDate)
+      .update(Some(kernelFoundBusyDate))
+
+  def clearFoundBusyDate(id: AppId): DBIO[Int] =
+    getByIdQuery(id).map(_.foundBusyDate).update(None)
 
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)

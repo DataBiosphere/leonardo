@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration._
 
 // TODO deprecated in favor of RuntimeServiceDbQueries
 // This object is only used by the deprecated LeonardoService
@@ -102,7 +103,7 @@ object LeonardoServiceDbQueries {
             lmp,
             clusterRec.jupyterUserScriptUri,
             Set.empty, //TODO: remove instances from ListResponse
-            clusterRec.autopauseThreshold,
+            clusterRec.autopauseThreshold.minutes,
             clusterRec.defaultClientId,
             clusterRec.stopAfterCreation,
             clusterRec.welderEnabled,

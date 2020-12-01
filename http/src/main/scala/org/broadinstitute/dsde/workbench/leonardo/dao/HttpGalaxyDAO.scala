@@ -28,8 +28,12 @@ class HttpGalaxyDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCach
           .handleError(_ => false)
       case _ => Concurrent[F].pure(false)
     }
+
+  // TODO
+  def hasJobsRunning(googleProject: GoogleProject, appName: AppName): F[Boolean] = Concurrent[F].pure(false)
 }
 
 trait GalaxyDAO[F[_]] {
   def isProxyAvailable(googleProject: GoogleProject, appName: AppName): F[Boolean]
+  def hasJobsRunning(googleProject: GoogleProject, appName: AppName): F[Boolean]
 }

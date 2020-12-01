@@ -590,6 +590,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Update nodepool status to Running and app status to Stopped
       _ <- dbRef.inTransaction {
         nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running) >>
+          appQuery.clearFoundBusyDate(params.appId) >>
           appQuery.updateStatus(params.appId, AppStatus.Stopped)
       }
     } yield F.unit
