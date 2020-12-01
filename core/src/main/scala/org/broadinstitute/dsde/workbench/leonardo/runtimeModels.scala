@@ -361,6 +361,16 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
     ).filterNot(_._2 == null)
 }
 
+object defaultLabelKeys {
+  val defaultLabels = DefaultRuntimeLabels(RuntimeName(""),
+                                           GoogleProject(""),
+                                           WorkbenchEmail(""),
+                                           WorkbenchEmail(""),
+                                           None,
+                                           None,
+                                           None).toMap
+}
+
 /** Welder operations */
 sealed trait WelderAction extends EnumEntry
 object WelderAction extends Enum[WelderAction] {

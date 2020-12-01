@@ -381,8 +381,11 @@ object RuntimeRoutes {
       ul <- x.downField("labelsToUpsert").as[Option[LabelMap]]
       dl <- x.downField("labelsToDelete").as[Option[List[String]]]
     } yield {
+      val labelsToDelete =
+        dl.getOrElse(List.empty).filter(labelKey => !(defaultLabelKeys.defaultLabels.keySet contains labelKey))
       val labelsToUpdate = ul.getOrElse(Map.empty).filter { case (_, v) => v.nonEmpty }
-      UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), labelsToUpdate, dl.getOrElse(List.empty))
+      labelsToUpdate.filter { case (k, _) => !(defaultLabelKeys.defaultLabels.keySet contains k) }
+      UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), labelsToUpdate, labelsToDelete)
     }
   }
 
