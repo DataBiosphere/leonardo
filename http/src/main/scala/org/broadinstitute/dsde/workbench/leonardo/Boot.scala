@@ -134,14 +134,17 @@ object Boot extends IOApp {
                                                 appDependencies.dockerDAO,
                                                 appDependencies.publisherQueue)
       val dateAccessedUpdater =
-        new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
+        new DateAccessedUpdater(dateAccessUpdaterConfig,
+                                appDependencies.runtimeDateAccessedUpdaterQueue,
+                                appDependencies.appDateAccessedUpdaterQueue)
       val proxyService = new ProxyService(appDependencies.sslContext,
                                           proxyConfig,
                                           appDependencies.jupyterDAO,
                                           appDependencies.runtimeDnsCache,
                                           googleDependencies.kubernetesDnsCache,
                                           appDependencies.authProvider,
-                                          appDependencies.dateAccessedUpdaterQueue,
+                                          appDependencies.runtimeDateAccessedUpdaterQueue,
+                                          appDependencies.appDateAccessedUpdaterQueue,
                                           googleDependencies.googleOauth2DAO,
                                           appDependencies.blocker)
       val statusService = new StatusService(googleDependencies.googleDataprocDAO,
@@ -377,8 +380,11 @@ object Boot extends IOApp {
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
 
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
-      dataAccessedUpdater <- Resource.liftF(
-        InspectableQueue.bounded[F, UpdateDateAccessMessage](dateAccessUpdaterConfig.queueSize)
+      runtimeDataAccessedUpdater <- Resource.liftF(
+        InspectableQueue.bounded[F, RuntimeUpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
+      )
+      appDataAccessedUpdater <- Resource.liftF(
+        InspectableQueue.bounded[F, AppUpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
       )
 
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
@@ -457,7 +463,8 @@ object Boot extends IOApp {
       semaphore,
       leoPublisher,
       publisherQueue,
-      dataAccessedUpdater,
+      runtimeDataAccessedUpdater,
+      appDataAccessedUpdater,
       subscriber,
       asyncTasksQueue,
       helmClient,
@@ -504,7 +511,8 @@ final case class AppDependencies[F[_]](
   semaphore: Semaphore[F],
   leoPublisher: LeoPublisher[F],
   publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage],
-  dateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, UpdateDateAccessMessage],
+  runtimeDateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, RuntimeUpdateDateAccessedMessage],
+  appDateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, AppUpdateDateAccessedMessage],
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   asyncTasksQueue: InspectableQueue[F, Task[F]],
   helmClient: HelmAlgebra[F],

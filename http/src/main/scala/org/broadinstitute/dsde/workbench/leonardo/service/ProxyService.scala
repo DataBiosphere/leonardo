@@ -33,14 +33,17 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  AppUpdateDateAccessedMessage,
+  RuntimeUpdateDateAccessedMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
-
 import akka.http.scaladsl.unmarshalling.Unmarshal
+
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -83,7 +86,8 @@ class ProxyService(
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
-  dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
+  runtimeDateAccessUpdaterQueue: InspectableQueue[IO, RuntimeUpdateDateAccessedMessage],
+  appDateAccessUpdaterQueue: InspectableQueue[IO, AppUpdateDateAccessedMessage],
   googleOauth2Service: GoogleOAuth2Service[IO],
   blocker: Blocker
 )(implicit val system: ActorSystem,
@@ -239,7 +243,7 @@ class ProxyService(
       hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
       _ <- hostStatus match {
         case HostReady(_) =>
-          dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
+          runtimeDateAccessUpdaterQueue.enqueue1(RuntimeUpdateDateAccessedMessage(runtimeName, googleProject, ctx.now))
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
@@ -280,6 +284,11 @@ class ProxyService(
         IO.raiseError(AuthorizationError(userInfo.userEmail))
       } else IO.unit
       hostStatus <- getAppTargetHost(googleProject, appName)
+      _ <- hostStatus match {
+        case HostReady(_) =>
+          appDateAccessUpdaterQueue.enqueue1(AppUpdateDateAccessedMessage(appName, googleProject, ctx.now))
+        case _ => IO.unit
+      }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
       r <- proxyInternal(hostContext, request)
     } yield r

@@ -223,8 +223,19 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .map(_.foundBusyDate)
       .update(Some(kernelFoundBusyDate))
 
+  def getAppIdByProjectAndName(googleProject: GoogleProject,
+                               appName: AppName)(implicit ec: ExecutionContext): DBIO[Option[AppId]] = {
+    val query = appQuery.filter(_.appName === appName) join
+      nodepoolQuery on (_.nodepoolId === _.id) join
+      kubernetesClusterQuery.filter(_.googleProject === googleProject) on (_._2.clusterId === _.id)
+    query.map(_._1._1.id).result.map(_.headOption)
+  }
+
   def clearFoundBusyDate(id: AppId): DBIO[Int] =
     getByIdQuery(id).map(_.foundBusyDate).update(None)
+
+  def updateDateAccessed(id: AppId, dateAccessed: Instant): DBIO[Int] =
+    getByIdQuery(id).map(_.dateAccessed).update(dateAccessed)
 
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)
