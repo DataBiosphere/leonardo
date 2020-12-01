@@ -201,7 +201,7 @@ object Dependencies {
     "com.typesafe.akka" %% "akka-slf4j" % akkaV,
     scalaTest,
     "com.typesafe.scala-logging" %% "scala-logging" % scalaLoggingV,
-    "org.apache.commons" % "commons-text" % "1.2",
+    "org.apache.commons" % "commons-text" % "1.9",
     googleRpc,
     workbenchUtil,
     workbenchModel,
