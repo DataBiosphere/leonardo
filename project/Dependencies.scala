@@ -121,7 +121,7 @@ object Dependencies {
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
-  val fs2Io: ModuleID =   "co.fs2"            %% "fs2-io"               % "2.4.4"
+  val fs2Io: ModuleID =   "co.fs2"            %% "fs2-io"               % "2.4.6"
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
   val coreDependencies = List(
