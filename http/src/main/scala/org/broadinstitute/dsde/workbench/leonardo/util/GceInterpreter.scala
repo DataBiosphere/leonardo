@@ -3,7 +3,7 @@ package util
 
 import cats.Parallel
 import cats.effect.{Async, Blocker, ContextShift}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{Operation, _}
 import io.chrisdavenport.log4cats.Logger
@@ -232,12 +232,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
               Items.newBuilder
                 .setKey(userScriptStartupOutputUriMetadataKey)
                 .setValue(templateValues.jupyterStartUserScriptOutputUri)
-                .build()
-            )
-            .addItems(
-              Items.newBuilder
-                .setKey("enable-guest-attributes")
-                .setValue("TRUE")
                 .build()
             )
             .build()

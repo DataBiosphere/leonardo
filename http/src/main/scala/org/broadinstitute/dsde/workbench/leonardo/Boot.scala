@@ -8,7 +8,7 @@ import akka.http.scaladsl.Http
 import cats.Parallel
 import cats.effect.concurrent.Semaphore
 import cats.effect._
-import cats.implicits._
+import cats.syntax.all._
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
@@ -59,7 +59,7 @@ import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
-
+import NonLeoMessageSubscriber.nonLeoMessageDecoder
 import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -245,16 +245,16 @@ object Boot extends IOApp {
           // only needed for backleo
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
-          val gkeInterp = new GKEInterpreter[IO](gkeInterpConfig,
-                                                 vpcInterp,
-                                                 googleDependencies.gkeService,
-                                                 googleDependencies.kubeService,
-                                                 appDependencies.helmClient,
-                                                 appDependencies.galaxyDAO,
-                                                 googleDependencies.credentials,
-                                                 googleDependencies.googleIamDAO,
-                                                 appDependencies.authProvider,
-                                                 appDependencies.blocker)
+          val gkeAlg = new GKEInterpreter[IO](gkeInterpConfig,
+                                              vpcInterp,
+                                              googleDependencies.gkeService,
+                                              googleDependencies.kubeService,
+                                              appDependencies.helmClient,
+                                              appDependencies.galaxyDAO,
+                                              googleDependencies.credentials,
+                                              googleDependencies.googleIamDAO,
+                                              appDependencies.authProvider,
+                                              appDependencies.blocker)
 
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
@@ -263,7 +263,7 @@ object Boot extends IOApp {
                                                googleDiskService,
                                                googleDependencies.computePollOperation,
                                                appDependencies.authProvider,
-                                               gkeInterp,
+                                               gkeAlg,
                                                googleDependencies.errorReporting)
 
           val autopauseMonitor = AutopauseMonitor(
@@ -272,7 +272,14 @@ object Boot extends IOApp {
             appDependencies.publisherQueue
           )
 
+          val nonLeoMessageSubscriber =
+            new NonLeoMessageSubscriber[IO](gkeAlg,
+                                            googleDependencies.googleComputeService,
+                                            appDependencies.nonLeoMessageGoogleSubscriber)
+
           List(
+            nonLeoMessageSubscriber.process,
+            Stream.eval(appDependencies.nonLeoMessageGoogleSubscriber.start),
             asyncTasks.process,
             pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
@@ -389,6 +396,11 @@ object Boot extends IOApp {
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
 
+      nonLeoMessageSubscriberQueue <- Resource.liftF(
+        InspectableQueue.bounded[F, Event[NonLeoMessage]](pubsubConfig.queueSize)
+      )
+      nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig, nonLeoMessageSubscriberQueue)
+
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
       // (e.g. if the subnet isn't ready when creating an instance).
       googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(
@@ -451,6 +463,7 @@ object Boot extends IOApp {
       publisherQueue,
       dataAccessedUpdater,
       subscriber,
+      nonLeoMessageSubscriber,
       asyncTasksQueue,
       helmClient,
       galaxyDAO
@@ -497,6 +510,7 @@ final case class AppDependencies[F[_]](
   publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage],
   dateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, UpdateDateAccessMessage],
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
+  nonLeoMessageGoogleSubscriber: GoogleSubscriber[F, NonLeoMessage],
   asyncTasksQueue: InspectableQueue[F, Task[F]],
   helmClient: HelmAlgebra[F],
   galaxyDAO: GalaxyDAO[F]

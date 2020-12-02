@@ -14,7 +14,7 @@ import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging

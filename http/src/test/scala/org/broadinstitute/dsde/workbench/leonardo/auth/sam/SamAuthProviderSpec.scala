@@ -4,7 +4,7 @@ package auth.sam
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.data.NonEmptyList
 import cats.effect.IO
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._

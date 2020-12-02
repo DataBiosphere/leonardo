@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import cats.Parallel
 import cats.effect.{Async, Sync, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream

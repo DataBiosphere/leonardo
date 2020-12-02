@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, BatchNodepoolCreationSpec}
@@ -83,12 +83,12 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       _ <- IO(logger.info(s"Billing project released: ${project.value}"))
     } yield ()
 
-  def withNewProject[T](testCode: GoogleProject => T): T = {
+  def withNewProject[T](testCode: GoogleProject => IO[T]): T = {
     val test = for {
       _ <- IO(logger.info("Allocating a new single-test project"))
       project <- claimProject()
       _ <- IO(logger.info(s"Single test project $project claimed"))
-      t <- IO(testCode(project))
+      t <- testCode(project)
       _ <- unclaimProject(project)
       _ <- IO(logger.info(s"releasing single-test project: ${project.value}"))
     } yield t
