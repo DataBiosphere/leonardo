@@ -16,7 +16,8 @@ if [ "$skip_docker_build" = false ]; then
   # clean up
   rm -f dspci-wb-gcr-service-account.json
 else
-  GIT_SHA=$(git rev-parse origin/${BRANCH})
+  REMOTE=$(if [[ ${BRANCH} == "update/"* ]]; then echo "scalaSteward"; else echo "origin"; fi)
+  GIT_SHA=$(git rev-parse ${REMOTE}/${BRANCH})
   echo GIT_SHA=$GIT_SHA > env.properties
 fi
 

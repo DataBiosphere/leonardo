@@ -5,7 +5,7 @@ import akka.http.scaladsl.model.StatusCodes
 import java.time.Instant
 
 import cats.data.Chain
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._

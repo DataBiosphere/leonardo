@@ -3,7 +3,7 @@ package monitor
 
 import akka.actor.{Actor, Props, Timers}
 import cats.effect.{ContextShift, IO}
-import cats.implicits._
+import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO

@@ -166,3 +166,37 @@ class MockKubernetesService(podStatus: PodStatus = PodStatus.Running)
     IO(List(KubernetesPodStatus.apply(PodName("test"), podStatus)))
 
 }
+
+class MockGKEService extends GKEAlgebra[IO] {
+
+  /** Creates a GKE cluster but doesn't wait for its completion. */
+  override def createCluster(params: CreateClusterParams)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[Option[CreateClusterResult]] = IO.pure(None)
+
+  /**
+   * Polls a creating GKE cluster for its completion and also does other cluster-wide set-up like
+   * install nginx ingress controller.
+   */
+  override def pollCluster(params: PollClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Creates a GKE nodepool but doesn't wait for its completion. */
+  override def createNodepool(params: CreateNodepoolParams)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[Option[CreateNodepoolResult]] = IO.pure(None)
+
+  /** Polls a creating nodepool for its completion. */
+  override def pollNodepool(params: PollNodepoolParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Creates an app and polls it for completion. */
+  override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Deletes a cluster and polls for completion */
+  override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Deletes a nodepool and polls for completion */
+  override def deleteAndPollNodepool(params: DeleteNodepoolParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Deletes an app and polls for completion */
+  override def deleteAndPollApp(params: DeleteAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+}

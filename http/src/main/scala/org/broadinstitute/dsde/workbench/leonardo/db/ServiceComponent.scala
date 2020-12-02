@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import slick.lifted.Tag
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
-import cats.implicits._
+import cats.syntax.all._
 import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 

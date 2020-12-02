@@ -14,7 +14,6 @@ trait CookieAuthedPage[P <: Page] extends Page with PageUtil[P] with WebBrowserU
   // always use open() to access a CookieAuthedPage - `go to` will not set the cookie
   override def open(implicit webDriver: WebDriver): P = {
     go.to(this)
-
     addCookie("LeoToken", authToken.value)
     Try(super.open) match {
       case Success(page) => page

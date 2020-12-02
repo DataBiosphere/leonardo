@@ -8,7 +8,7 @@ import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
@@ -81,8 +81,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         handleCreateAppMessage(msg)
       case msg: DeleteAppMessage =>
         handleDeleteAppMessage(msg)
-      case msg: DeleteKubernetesClusterMessage =>
-        handleDeleteKubernetesClusterMessage(msg)
       case msg: BatchNodepoolCreateMessage =>
         handleBatchNodepoolCreateMessage(msg)
     }
@@ -977,44 +975,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         asyncTasks.enqueue1(
           Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
         )
-    } yield ()
-
-  private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
-    implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      // TODO: ${ctx.traceId} ends up being None with manually published messages. Make sure that's not the case with cron-job-created messages
-      ctx <- ev.ask
-      clusterId = msg.clusterId
-      _ <- logger.info(
-        s"Beginning clean-up of cluster $clusterId in project ${msg.project} because it has had no apps running for a period of time. | trace id: ${ctx.traceId}"
-      )
-      // TODO: Should we check again that the cluster is okay to delete in case a user requested app creation since the cron job published the message?
-      _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
-      _ <- gkeInterp
-      // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
-        .deleteAndPollCluster(DeleteClusterParams(msg.clusterId, msg.project))
-        .onError {
-          case _ =>
-            for {
-              _ <- logger.error(
-                s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
-              )
-              _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
-              // TODO: Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
-              // TODO: Need mark the nodepool(s) as Error'ed too?
-            } yield ()
-        }
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Cluster, None),
-              None,
-              false,
-              None,
-              Some(msg.clusterId)
-            )
-        }
     } yield ()
 
   private def cleanUpAfterCreateClusterError(clusterId: KubernetesClusterLeoId, project: GoogleProject)(

@@ -5,7 +5,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.effect.{Async, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream

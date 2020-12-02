@@ -2667,8 +2667,9 @@ components:
           description: Deprecated. Please use toolDockerImage.
         toolDockerImage:
           type: string
-          description: The tool docker image to install. May be Dockerhub or GCR. If not
-            set, a default Jupyter image will be installed.
+          description: The tool docker image to install. May be Google Container Repository (GCR),
+            GitHub Container Repository (GHCR), or Dockerhub. If not set, a default Jupyter image will
+            be installed.
         welderRegistry:
           type: string
           enum: [GCR, DockerHub]
@@ -2750,8 +2751,9 @@ components:
           description: The default Google Client ID.
         toolDockerImage:
           type: string
-          description: The tool docker image to install. May be Dockerhub or GCR. If not
-            set, a default Jupyter image will be installed.
+          description: The tool docker image to install. May be Google Container Repository (GCR),
+            GitHub Container Repository (GHCR), or Dockerhub. If not set, a default Jupyter image
+            will be installed.
         welderRegistry:
           type: string
           enum: [GCR, DockerHub]

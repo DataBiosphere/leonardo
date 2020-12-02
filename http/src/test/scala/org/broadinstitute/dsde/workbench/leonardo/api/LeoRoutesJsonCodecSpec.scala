@@ -5,7 +5,7 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
-import cats.implicits._
+import cats.syntax.all._
 import io.circe.CursorOp.DownField
 import io.circe.DecodingFailure
 import io.circe.parser.decode

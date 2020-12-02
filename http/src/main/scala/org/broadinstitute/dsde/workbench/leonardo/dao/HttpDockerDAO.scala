@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.effect.Concurrent
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import io.chrisdavenport.log4cats.Logger
 import io.circe.Decoder
@@ -28,7 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
  *
  * Currently supports:
  * - Jupyter or RStudio images
- * - Dockerhub or GCR repos
+ * - Dockerhub, GCR, or GHCR repos
  * - Tagged or untagged images
  * Does not support:
  * - Private images
@@ -93,7 +93,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
                             petTokenOpt: Option[String])(implicit ev: Ask[F, TraceId]): F[Option[Token]] =
     parsedImage.registry match {
       // If it's a GCR repo, use the pet token
-      case ContainerRegistry.GCR => Concurrent[F].pure(petTokenOpt.map(Token))
+      case ContainerRegistry.GCR => F.pure(petTokenOpt.map(Token))
       // If it's a Dockerhub repo, need to request a token from Dockerhub
       case ContainerRegistry.DockerHub =>
         httpClient.expectOptionOr[Token](
@@ -106,6 +106,9 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
             headers = Headers.of(acceptHeader)
           )
         )(onError)
+      // GHCR accepts a personal github access token for private repo support, but it seems to
+      // work for public images as long as any token is sent.
+      case ContainerRegistry.GHCR => F.pure(Some(Token("")))
     }
 
   private def onError(response: Response[F])(implicit ev: Ask[F, TraceId]): F[Throwable] =
@@ -137,6 +140,12 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
           .orElse(Option(shaOpt).map(Sha))
           .getOrElse(Tag("latest"))
         F.pure(ParsedImage(DockerHub, dockerHubRegistryUri, imageName, identifier))
+      case GHCR.regex(registry, imageName, tagOpt, shaOpt) =>
+        val identifier = Option(tagOpt)
+          .map(Tag)
+          .orElse(Option(shaOpt).map(Sha))
+          .getOrElse(Tag("latest"))
+        F.pure(ParsedImage(GHCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, identifier))
       case _ =>
         for {
           traceId <- ev.ask

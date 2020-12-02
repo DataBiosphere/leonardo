@@ -271,6 +271,22 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       .asPredicate()
       .test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe (false)
     ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("a///////") shouldBe (false)
+    ContainerRegistry.GHCR.regex.pattern.asPredicate().test("ghcr.io/github/super-linter:latest") shouldBe (true)
+    ContainerRegistry.GHCR.regex.pattern
+      .asPredicate()
+      .test("ghcr.io/lucidtronix/ml4h/ml4h_terra:20201117_123026") shouldBe (true)
+    ContainerRegistry.GHCR.regex.pattern
+      .asPredicate()
+      .test("ghcr.io/lucidtronix/ml4h/ml4h_terra:latest") shouldBe (true)
+    ContainerRegistry.GHCR.regex.pattern
+      .asPredicate()
+      .test("us.ghcr.io/lucidtronix/ml4h/ml4h_terra:20201117_123026") shouldBe (false)
+    ContainerRegistry.GHCR.regex.pattern
+      .asPredicate()
+      .test("ghcr.io/github/super-linter:latest; foo") shouldBe (false)
+    ContainerRegistry.GHCR.regex.pattern
+      .asPredicate()
+      .test("ghcr.io:foo") shouldBe (false)
   }
 
   "ContainerImage.stringToJupyterDockerImage" should "match GCR first, and then dockerhub" in {

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.util.UUID
 import java.util.concurrent.TimeoutException
 
-import cats.implicits._
+import cats.syntax.all._
 import cats.effect.{IO, Resource, Timer}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}

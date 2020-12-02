@@ -7,7 +7,7 @@ import java.util.concurrent.TimeUnit
 import cats.data.NonEmptyList
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Sync, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import fs2.Stream

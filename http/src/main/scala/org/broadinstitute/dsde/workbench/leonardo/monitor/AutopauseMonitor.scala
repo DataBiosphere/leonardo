@@ -4,7 +4,7 @@ package monitor
 import java.util.UUID
 
 import cats.effect.{Async, ContextShift, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.Logger

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.time.Instant
 
 import cats.effect.{Concurrent, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.Logger
