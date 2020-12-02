@@ -225,7 +225,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def getAppIdByProjectAndName(googleProject: GoogleProject,
                                appName: AppName)(implicit ec: ExecutionContext): DBIO[Option[AppId]] = {
-    val query = appQuery.filter(_.appName === appName) join
+    val query = appQuery.filter(_.appName === appName).filter(_.destroyedDate === dummyDate) join
       nodepoolQuery on (_.nodepoolId === _.id) join
       kubernetesClusterQuery.filter(_.googleProject === googleProject) on (_._2.clusterId === _.id)
     query.map(_._1._1.id).result.map(_.headOption)

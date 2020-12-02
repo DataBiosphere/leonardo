@@ -7,7 +7,7 @@
             </column>
         </addColumn>
         <addColumn tableName="APP">
-            <column name="kernelFoundBusyDate" type="TIMESTAMP">
+            <column name="foundBusyDate" type="TIMESTAMP">
                 <constraints nullable="true"/>
             </column>
         </addColumn>

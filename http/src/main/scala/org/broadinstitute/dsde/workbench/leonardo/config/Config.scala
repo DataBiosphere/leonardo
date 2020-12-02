@@ -273,9 +273,11 @@ object Config {
 
   implicit private val autoFreezeConfigReader: ValueReader[AutoFreezeConfig] = ValueReader.relative { config =>
     AutoFreezeConfig(
-      toScalaDuration(config.getDuration("autoFreezeAfter")),
-      toScalaDuration(config.getDuration("autoFreezeCheckScheduler")),
-      toScalaDuration(config.getDuration("maxKernelBusyLimit"))
+      toScalaDuration(config.getDuration("autoFreezeRuntimeAfter")),
+      toScalaDuration(config.getDuration("autoFreezeAppeAfter")),
+      toScalaDuration(config.getDuration("maxJupyterKernelBusyLimit")),
+      toScalaDuration(config.getDuration("maxGalaxyJobBusyLimit")),
+      toScalaDuration(config.getDuration("autoFreezeCheckScheduler"))
     )
   }
 
@@ -650,7 +652,7 @@ object Config {
     gkeIngressConfig,
     gkeGalaxyAppConfig,
     persistentDiskConfig,
-    kubernetesAutoFreezeConfig
+    autoFreezeConfig
   )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")

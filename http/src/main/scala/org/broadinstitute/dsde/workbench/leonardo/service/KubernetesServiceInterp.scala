@@ -514,7 +514,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       autopauseThreshold = calculateAutopauseThreshold(
         req.autopause,
         req.autopauseThreshold,
-        leoKubernetesConfig.autoFreezeConfig
+        leoKubernetesConfig.autoFreezeConfig.autoFreezeAppAfter
       )
     } yield SaveApp(
       App(

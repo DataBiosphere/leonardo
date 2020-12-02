@@ -288,7 +288,9 @@ class LeonardoService(
         .getOrElse(defaultDataprocConfig)
 
       now <- nowInstant
-      autopauseThreshold = calculateAutopauseThreshold(request.autopause, request.autopauseThreshold, autoFreezeConfig)
+      autopauseThreshold = calculateAutopauseThreshold(request.autopause,
+                                                       request.autopauseThreshold,
+                                                       autoFreezeConfig.autoFreezeRuntimeAfter)
       clusterScopes = if (request.scopes.isEmpty) dataprocConfig.defaultScopes else request.scopes
       initialClusterToSave = CreateRuntimeRequest.toRuntime(
         augmentedClusterRequest,

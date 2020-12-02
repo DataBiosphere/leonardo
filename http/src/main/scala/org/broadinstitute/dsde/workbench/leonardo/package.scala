@@ -11,7 +11,6 @@ import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthy
-import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
 import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
@@ -97,17 +96,17 @@ package object http {
 
   def calculateAutopauseThreshold(autopause: Option[Boolean],
                                   autopauseThreshold: Option[FiniteDuration],
-                                  autoFreezeConfig: AutoFreezeConfig): FiniteDuration =
+                                  defaultAutopauseThreshold: FiniteDuration): FiniteDuration =
     autopause match {
       // User has not specified whether to autopause -> use the default
       case None =>
-        autoFreezeConfig.autoFreezeAfter
+        defaultAutopauseThreshold
       // User has explicitly disabled autopause
       case Some(false) =>
         autoPauseOffValue
       // User has explicitly enabled autopause -> use the provided value or the default
       case Some(true) =>
-        autopauseThreshold.getOrElse(autoFreezeConfig.autoFreezeAfter).max(autoPauseOffValue)
+        autopauseThreshold.getOrElse(defaultAutopauseThreshold).max(autoPauseOffValue)
     }
 }
 

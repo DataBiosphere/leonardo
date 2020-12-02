@@ -124,7 +124,7 @@ object Boot extends IOApp {
                                                 appDependencies.welderDAO,
                                                 proxyConfig,
                                                 swaggerConfig,
-                                                runtimeAutoFreezeConfig,
+                                                autoFreezeConfig,
                                                 zombieRuntimeMonitorConfig,
                                                 welderConfig,
                                                 googleDependencies.petGoogleStorageDAO,
@@ -134,17 +134,14 @@ object Boot extends IOApp {
                                                 appDependencies.dockerDAO,
                                                 appDependencies.publisherQueue)
       val dateAccessedUpdater =
-        new DateAccessedUpdater(dateAccessUpdaterConfig,
-                                appDependencies.runtimeDateAccessedUpdaterQueue,
-                                appDependencies.appDateAccessedUpdaterQueue)
+        new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(appDependencies.sslContext,
                                           proxyConfig,
                                           appDependencies.jupyterDAO,
                                           appDependencies.runtimeDnsCache,
                                           googleDependencies.kubernetesDnsCache,
                                           appDependencies.authProvider,
-                                          appDependencies.runtimeDateAccessedUpdaterQueue,
-                                          appDependencies.appDateAccessedUpdaterQueue,
+                                          appDependencies.dateAccessedUpdaterQueue,
                                           googleDependencies.googleOauth2DAO,
                                           appDependencies.blocker)
       val statusService = new StatusService(googleDependencies.googleDataprocDAO,
@@ -154,7 +151,7 @@ object Boot extends IOApp {
       val runtimeServiceConfig = RuntimeServiceConfig(
         proxyConfig.proxyUrlBase,
         imageConfig,
-        runtimeAutoFreezeConfig,
+        autoFreezeConfig,
         zombieRuntimeMonitorConfig,
         dataprocConfig,
         gceConfig
@@ -271,8 +268,7 @@ object Boot extends IOApp {
                                                googleDependencies.errorReporting)
 
           val autopauseMonitor = new AutopauseMonitor(
-            runtimeAutoFreezeConfig,
-            kubernetesAutoFreezeConfig,
+            autoFreezeConfig,
             appDependencies.jupyterDAO,
             appDependencies.galaxyDAO,
             appDependencies.publisherQueue
@@ -380,11 +376,8 @@ object Boot extends IOApp {
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
 
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
-      runtimeDataAccessedUpdater <- Resource.liftF(
-        InspectableQueue.bounded[F, RuntimeUpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
-      )
-      appDataAccessedUpdater <- Resource.liftF(
-        InspectableQueue.bounded[F, AppUpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
+      dateAccessedUpdaterQueue <- Resource.liftF(
+        InspectableQueue.bounded[F, UpdateDateAccessedMessage](dateAccessUpdaterConfig.queueSize)
       )
 
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
@@ -463,8 +456,7 @@ object Boot extends IOApp {
       semaphore,
       leoPublisher,
       publisherQueue,
-      runtimeDataAccessedUpdater,
-      appDataAccessedUpdater,
+      dateAccessedUpdaterQueue,
       subscriber,
       asyncTasksQueue,
       helmClient,
@@ -511,8 +503,7 @@ final case class AppDependencies[F[_]](
   semaphore: Semaphore[F],
   leoPublisher: LeoPublisher[F],
   publisherQueue: fs2.concurrent.InspectableQueue[F, LeoPubsubMessage],
-  runtimeDateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, RuntimeUpdateDateAccessedMessage],
-  appDateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, AppUpdateDateAccessedMessage],
+  dateAccessedUpdaterQueue: fs2.concurrent.InspectableQueue[F, UpdateDateAccessedMessage],
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   asyncTasksQueue: InspectableQueue[F, Task[F]],
   helmClient: HelmAlgebra[F],

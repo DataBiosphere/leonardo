@@ -4,7 +4,7 @@ package monitor
 import java.time.Instant
 import java.util.UUID
 
-import cats.effect.{Concurrent, ContextShift, Timer}
+import cats.effect.{Async, ContextShift, Timer}
 import cats.implicits._
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
@@ -26,21 +26,17 @@ import scala.concurrent.ExecutionContext
 class AutopauseMonitor[F[_]: ContextShift: Timer](
   config: AutoFreezeConfig,
   jupyterDAO: JupyterDAO[F],
+  galaxyDAO: GalaxyDAO[F],
   publisherQueue: InspectableQueue[F, LeoPubsubMessage]
-)(implicit F: Concurrent[F],
+)(implicit F: Async[F],
   metrics: OpenTelemetryMetrics[F],
   logger: Logger[F],
   dbRef: DbReference[F],
   ec: ExecutionContext) {
 
-  val process = {
-    val processRuntimes =
-      (Stream.sleep[F](runtimeAutoFreezeConfig.autoFreezeCheckInterval) ++ Stream.eval(runtimeAutoPauseCheck)).repeat
-    val processApps =
-      (Stream.sleep[F](kubernetesAutoFreezeConfig.autoFreezeCheckInterval) ++ Stream.eval(appAutoPauseCheck)).repeat
-
-    Stream.emits(List(processRuntimes, processApps)).covary[F].parJoin(2)
-  }
+  val process = (Stream.sleep(config.autoFreezeCheckInterval) ++ Stream.eval(runtimeAutoPauseCheck) ++ Stream.eval(
+    appAutoPauseCheck
+  )).repeat
 
   private val runtimeAutoPauseCheck: F[Unit] =
     for {
@@ -103,7 +99,7 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
         val maxKernelActiveTimeExceeded = runtime.kernelFoundBusyDate match {
           case Some(attemptedDate) =>
             val maxBusyLimitReached =
-              now.toEpochMilli - attemptedDate.toEpochMilli > runtimeAutoFreezeConfig.maxBusyLimit.toMillis
+              now.toEpochMilli - attemptedDate.toEpochMilli > config.maxJupyterKernelBusyLimit.toMillis
             F.pure(maxBusyLimitReached)
           case None =>
             clusterQuery
@@ -137,7 +133,7 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
         val maxyBusyTimeExceeded = candidate.foundBusyDate match {
           case Some(attemptedDate) =>
             val maxBusyLimitReached =
-              now.toEpochMilli - attemptedDate.toEpochMilli > kubernetesAutoFreezeConfig.maxBusyLimit.toMillis
+              now.toEpochMilli - attemptedDate.toEpochMilli > config.maxGalaxyJobBusyLimit.toMillis
             F.pure(maxBusyLimitReached)
           case None =>
             appQuery.updateFoundBusyDate(candidate.id, now).transaction.as(false)

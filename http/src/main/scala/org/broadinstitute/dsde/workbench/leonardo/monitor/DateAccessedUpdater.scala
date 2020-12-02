@@ -2,16 +2,16 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
 
-import cats.Order
 import cats.data.Chain
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.implicits._
+import cats.{Order, Parallel}
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.leonardo.{AppName, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
+import org.broadinstitute.dsde.workbench.leonardo.{AppName, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import slick.dbio.DBIO
@@ -19,41 +19,32 @@ import slick.dbio.DBIO
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
-class DateAccessedUpdater[F[_]: ContextShift: Timer](
+class DateAccessedUpdater[F[_]: ContextShift: Timer: Parallel](
   config: DateAccessedUpdaterConfig,
-  runtimeQueue: InspectableQueue[F, RuntimeUpdateDateAccessedMessage],
-  appQueue: InspectableQueue[F, AppUpdateDateAccessedMessage]
+  queue: InspectableQueue[F, UpdateDateAccessedMessage]
 )(implicit F: Concurrent[F], metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F], ec: ExecutionContext) {
 
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.interval) ++ Stream.eval(checkRuntimes) ++ Stream.eval(checkApps)).repeat
+    (Stream.sleep[F](config.interval) ++ Stream.eval(check)).repeat
 
-  private[monitor] val checkRuntimes: F[Unit] =
-    runtimeQueue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
+  private[monitor] val check: F[Unit] =
+    queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
       chunks
         .traverse(c =>
-          runtimeMessagesToUpdate(c.toChain)
-            .traverse(updateRuntimeDateAccessed)
+          messagesToUpdate(c.toChain).traverseN {
+            case (runtime, app) =>
+              List(updateRuntimeDateAccessed(runtime), updateAppDateAccessed(app)).parSequence_
+          }
         )
         .void
     }
 
-  private[monitor] val checkApps: F[Unit] =
-    appQueue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
-      chunks
-        .traverse(c =>
-          appMessagesToUpdate(c.toChain)
-            .traverse(updateAppDateAccessed)
-        )
-        .void
-    }
-
-  private def updateRuntimeDateAccessed(msg: RuntimeUpdateDateAccessedMessage): F[Unit] =
+  private def updateRuntimeDateAccessed(msg: UpdateDateAccessedMessage.Runtime): F[Unit] =
     metrics.incrementCounter("jupyterAccessCount") >>
       (clusterQuery.clearKernelFoundBusyDateByProjectAndName(msg.googleProject, msg.runtimeName, msg.dateAccessed) >>
         clusterQuery.updateDateAccessedByProjectAndName(msg.googleProject, msg.runtimeName, msg.dateAccessed)).transaction.void
 
-  private def updateAppDateAccessed(msg: AppUpdateDateAccessedMessage): F[Unit] =
+  private def updateAppDateAccessed(msg: UpdateDateAccessedMessage.App): F[Unit] =
     metrics.incrementCounter("appAccessCount") >>
       appQuery
         .getAppIdByProjectAndName(msg.googleProject, msg.appName)
@@ -67,44 +58,54 @@ class DateAccessedUpdater[F[_]: ContextShift: Timer](
 }
 
 object DateAccessedUpdater {
-  implicit val runtimeUpdateDateAccessMessageOrder: Order[RuntimeUpdateDateAccessedMessage] =
-    Order.fromLessThan[RuntimeUpdateDateAccessedMessage] { (msg1, msg2) =>
+  implicit val runtimeMessageOrder: Order[UpdateDateAccessedMessage.Runtime] =
+    Order.fromLessThan[UpdateDateAccessedMessage.Runtime] { (msg1, msg2) =>
       if (msg1.googleProject == msg2.googleProject && msg1.runtimeName == msg2.runtimeName)
         msg1.dateAccessed.toEpochMilli < msg2.dateAccessed.toEpochMilli
       else
         false //we don't really care about order if they're not the same runtime, but we just need an Order if they're the same
     }
 
-  implicit val appUpdateDateAccessMessageOrder: Order[AppUpdateDateAccessedMessage] =
-    Order.fromLessThan[AppUpdateDateAccessedMessage] { (msg1, msg2) =>
+  implicit val appMessageOrder: Order[UpdateDateAccessedMessage.App] =
+    Order.fromLessThan[UpdateDateAccessedMessage.App] { (msg1, msg2) =>
       if (msg1.googleProject == msg2.googleProject && msg1.appName == msg2.appName)
         msg1.dateAccessed.toEpochMilli < msg2.dateAccessed.toEpochMilli
       else
         false //we don't really care about order if they're not the same app, but we just need an Order if they're the same
     }
 
-  // group all messages by googleProject and runtimeName, and discard all older messages for the same runtime
-  def runtimeMessagesToUpdate(
-    messages: Chain[RuntimeUpdateDateAccessedMessage]
-  ): List[RuntimeUpdateDateAccessedMessage] = {
-    messages.groupBy(m => s"${m.runtimeName.asString}/${m.googleProject.value}").toList.traverse {
-      case (_, messages) =>
-        messages.toChain.toList.sorted.lastOption
-    }
-  }.getOrElse(List.empty)
+  def messagesToUpdate(
+    messages: Chain[UpdateDateAccessedMessage]
+  ): (List[UpdateDateAccessedMessage.Runtime], List[UpdateDateAccessedMessage.App]) =
+    messages
+      .partitionEither {
+        case r: UpdateDateAccessedMessage.Runtime => Left(r)
+        case a: UpdateDateAccessedMessage.App     => Right(a)
+      }
+      .bimap(
+        lastOfGroup((m: UpdateDateAccessedMessage.Runtime) => s"${m.googleProject.value}/${m.runtimeName.asString}"),
+        lastOfGroup((m: UpdateDateAccessedMessage.App) => s"${m.googleProject.value}/${m.appName.value}")
+      )
 
-  def appMessagesToUpdate(
-    messages: Chain[AppUpdateDateAccessedMessage]
-  ): List[AppUpdateDateAccessedMessage] = {
-    messages.groupBy(m => s"${m.appName.value}/${m.googleProject.value}").toList.traverse {
-      case (_, messages) =>
-        messages.toChain.toList.sorted.lastOption
-    }
-  }.getOrElse(List.empty)
+  // group messages, and discard all older messages for the same resource
+  private def lastOfGroup[A: Order](f: A => String)(as: Chain[A]): List[A] =
+    as.groupBy(f)
+      .toList
+      .traverse {
+        case (_, as) =>
+          as.toList.sorted.lastOption
+      }
+      .getOrElse(List.empty)
 }
 
+sealed trait UpdateDateAccessedMessage extends Product with Serializable {
+  def dateAccessed: Instant
+}
+object UpdateDateAccessedMessage {
+  final case class Runtime(runtimeName: RuntimeName, googleProject: GoogleProject, dateAccessed: Instant)
+      extends UpdateDateAccessedMessage
+  final case class App(appName: AppName, googleProject: GoogleProject, dateAccessed: Instant)
+      extends UpdateDateAccessedMessage
+
+}
 final case class DateAccessedUpdaterConfig(interval: FiniteDuration, maxUpdate: Int, queueSize: Int)
-final case class RuntimeUpdateDateAccessedMessage(runtimeName: RuntimeName,
-                                                  googleProject: GoogleProject,
-                                                  dateAccessed: Instant)
-final case class AppUpdateDateAccessedMessage(appName: AppName, googleProject: GoogleProject, dateAccessed: Instant)

@@ -499,7 +499,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Updating autopause is just a DB update, so we can do it here instead of sending a PubSub message
       updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopauseEnabled,
                                                               req.updateAutopauseThreshold,
-                                                              config.autoFreezeConfig)
+                                                              config.autoFreezeConfig.autoFreezeRuntimeAfter)
       _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold)
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
@@ -814,7 +814,7 @@ object RuntimeServiceInterp {
     val autopauseThreshold = calculateAutopauseThreshold(
       req.autopause,
       req.autopauseThreshold,
-      config.autoFreezeConfig
+      config.autoFreezeConfig.autoFreezeRuntimeAfter
     )
     val clusterScopes = req.runtimeConfig match {
       case Some(rq) if rq.cloudService == CloudService.GCE =>

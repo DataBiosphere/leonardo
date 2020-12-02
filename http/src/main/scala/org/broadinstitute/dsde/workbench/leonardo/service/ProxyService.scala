@@ -7,11 +7,12 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
+import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import cats.implicits._
@@ -33,16 +34,12 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  AppUpdateDateAccessedMessage,
-  RuntimeUpdateDateAccessedMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessedMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
-import akka.http.scaladsl.unmarshalling.Unmarshal
 
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -86,8 +83,7 @@ class ProxyService(
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
-  runtimeDateAccessUpdaterQueue: InspectableQueue[IO, RuntimeUpdateDateAccessedMessage],
-  appDateAccessUpdaterQueue: InspectableQueue[IO, AppUpdateDateAccessedMessage],
+  dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessedMessage],
   googleOauth2Service: GoogleOAuth2Service[IO],
   blocker: Blocker
 )(implicit val system: ActorSystem,
@@ -243,7 +239,7 @@ class ProxyService(
       hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
       _ <- hostStatus match {
         case HostReady(_) =>
-          runtimeDateAccessUpdaterQueue.enqueue1(RuntimeUpdateDateAccessedMessage(runtimeName, googleProject, ctx.now))
+          dateAccessUpdaterQueue.enqueue1(UpdateDateAccessedMessage.Runtime(runtimeName, googleProject, ctx.now))
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
@@ -286,7 +282,7 @@ class ProxyService(
       hostStatus <- getAppTargetHost(googleProject, appName)
       _ <- hostStatus match {
         case HostReady(_) =>
-          appDateAccessUpdaterQueue.enqueue1(AppUpdateDateAccessedMessage(appName, googleProject, ctx.now))
+          dateAccessUpdaterQueue.enqueue1(UpdateDateAccessedMessage.App(appName, googleProject, ctx.now))
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
