@@ -7,7 +7,7 @@ import java.util.UUID
 import akka.actor.ActorSystem
 import akka.util.Timeout
 import cats.effect.{ContextShift, IO}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import akka.pattern.ask
 import io.chrisdavenport.log4cats.Logger

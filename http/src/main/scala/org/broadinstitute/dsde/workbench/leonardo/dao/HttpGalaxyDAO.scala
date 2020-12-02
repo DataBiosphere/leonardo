@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.AppName
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.KubernetesDnsCache

@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
-import cats.implicits._
+import cats.syntax.all._
 import com.rms.miu.slickcats.DBIOInstances._
 
 import scala.concurrent.ExecutionContext

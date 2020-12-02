@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.{Concurrent, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import fs2.concurrent.InspectableQueue
@@ -51,6 +51,7 @@ final class LeoPublisher[F[_]: Logger: Timer](
           .newBuilder()
           .setData(byteString)
           .putAttributes("traceId", msg.traceId.map(_.asString).getOrElse("null"))
+          .putAttributes("leonardo", "true")
           .build()
       }
 

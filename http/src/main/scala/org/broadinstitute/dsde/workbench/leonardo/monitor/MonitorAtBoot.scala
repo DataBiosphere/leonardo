@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import cats.effect.{ConcurrentEffect, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger

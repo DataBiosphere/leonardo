@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.util
+package org.broadinstitute.dsde.workbench.leonardo
+package util
 
 import java.nio.file.Files
 import java.util.Base64
@@ -16,18 +17,11 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   MockKubernetesService
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGalaxyDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppName,
-  AutoscalingConfig,
-  AutoscalingMax,
-  AutoscalingMin,
-  FormattedBy,
-  LeonardoTestSuite
-}
+import org.broadinstitute.dsde.workbench.leonardo.db.{kubernetesClusterQuery, TestComponent}
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -138,5 +132,21 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod3"), PodStatus.Failed)) shouldBe true
     gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod4"), PodStatus.Unknown)) shouldBe false
     gkeInterp.isPodDone(KubernetesPodStatus(PodName("pod5"), PodStatus.Running)) shouldBe false
+  }
+
+  it should "deleteAndPollCluster properly" in isolatedDbTest {
+    val res = for {
+      savedCluster <- IO(makeKubeCluster(1).save())
+      m = DeleteClusterParams(
+        savedCluster.id,
+        savedCluster.googleProject
+      )
+      _ <- gkeInterp.deleteAndPollCluster(m)
+      clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster.id).transaction
+    } yield {
+      clusterOpt.get.status shouldBe KubernetesClusterStatus.Deleted
+    }
+
+    res.unsafeRunSync()
   }
 }

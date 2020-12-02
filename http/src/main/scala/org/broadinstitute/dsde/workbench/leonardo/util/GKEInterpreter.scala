@@ -7,7 +7,6 @@ import java.util.Base64
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
-import cats.implicits._
 import cats.mtl.Ask
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.container.v1._
@@ -46,6 +45,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, HelmAlgebra, Release}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 
+import cats.syntax.all._
 import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 
@@ -514,8 +514,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // delete the namespace only after the helm uninstall completes
-      _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
-                                       KubernetesNamespace(dbApp.app.appResources.namespace.name))
+      _ <- kubeService
+        .deleteNamespace(dbApp.cluster.getGkeClusterId, KubernetesNamespace(dbApp.app.appResources.namespace.name))
       _ <- logger.info(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
       )

@@ -3,7 +3,7 @@ package db
 
 import java.time.Instant
 
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.OperationName
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
