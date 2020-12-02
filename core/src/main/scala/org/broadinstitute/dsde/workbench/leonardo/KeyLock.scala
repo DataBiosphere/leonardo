@@ -14,8 +14,6 @@ import scala.concurrent.duration.FiniteDuration
  * A functional lock which works on a per-key basis.
  */
 abstract class KeyLock[F[_], K] {
-  def acquire(key: K): F[Unit]
-  def release(key: K): F[Unit]
   def withKeyLock[A](key: K)(fa: F[A]): F[A]
 }
 object KeyLock {
@@ -42,18 +40,6 @@ object KeyLock {
             Semaphore(1L).toIO.unsafeRunSync()
         }
       )
-
-    override def acquire(key: K): F[Unit] =
-      for {
-        lock <- blocker.blockOn(F.delay(cache.get(key)))
-        _ <- lock.acquire
-      } yield ()
-
-    override def release(key: K): F[Unit] =
-      for {
-        lock <- blocker.blockOn(F.delay(cache.get(key)))
-        _ <- lock.release
-      } yield ()
 
     override def withKeyLock[A](key: K)(fa: F[A]): F[A] =
       for {
