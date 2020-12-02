@@ -13,7 +13,7 @@ object Dependencies {
   val http4sVersion = "0.21.13"
   val guavaV = "30.0-jre"
   val monocleV = "2.1.0"
-  val opencensusV = "0.26.0"
+  val opencensusV = "0.28.2"
 
   private val workbenchLibsHash = "1e1f697"
   val serviceTestV = s"0.18-${workbenchLibsHash}"
@@ -68,7 +68,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore)
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.33.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr, excludeAutoValueAnnotation, excludeAutoValue)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.33.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
   val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 
@@ -80,7 +80,7 @@ object Dependencies {
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
   val workbenchModel: ModuleID =        "org.broadinstitute.dsde.workbench" %% "workbench-model"    % workbenchModelV excludeAll (excludeGoogleError, excludeGuava)
-  val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeAutoValue, excludeAutoValueAnnotation, excludeGuava)
+  val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeGuava)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (
     excludeWorkbenchModel,
     excludeWorkbenchMetrics,
@@ -89,8 +89,6 @@ object Dependencies {
     excludeGoogleApiClient,
     excludeGoogleError,
     excludeHttpComponent,
-    excludeAutoValue,
-    excludeAutoValueAnnotation,
     excludeFirestore,
     excludeBouncyCastle,
     excludeBouncyCastleExt,

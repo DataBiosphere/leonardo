@@ -817,10 +817,13 @@ object RuntimeServiceInterp {
       config.autoFreezeConfig
     ) //TODO: use FiniteDuration for autopauseThreshold field in Cluster
     val clusterScopes = req.runtimeConfig match {
-      case Some(rq) if rq.cloudService == CloudService.GCE =>
-        if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes
-      case Some(rq) if rq.cloudService == CloudService.Dataproc =>
-        if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
+      case Some(rq) =>
+        rq.cloudService match {
+          case CloudService.GCE =>
+            if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes
+          case CloudService.Dataproc =>
+            if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
+        }
       case None =>
         if (req.scopes.isEmpty) config.gceConfig.defaultScopes
         else req.scopes //default to create gce runtime if runtimeConfig is not specified

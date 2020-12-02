@@ -46,7 +46,7 @@ class StatusService(
 
   private def checkStatus(): Map[Subsystem, Future[SubsystemStatus]] =
     Map(
-      GoogleDataproc -> checkGoogleDataproc,
+      GoogleDataproc -> checkGoogleDataproc(),
       Sam -> checkSam.unsafeToFuture(),
       Database -> checkDatabase
     ).map(logFailures.tupled)
