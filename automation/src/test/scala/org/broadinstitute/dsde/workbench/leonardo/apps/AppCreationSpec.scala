@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package apps
 
 import cats.effect.IO
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.streamFUntilDone
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
@@ -20,10 +20,6 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
-
-  val dependencies = for {
-    httpClient <- LeonardoApiClient.client
-  } yield AppDependencies(httpClient)
 
   "create app when cluster doesn't exist" in { _ =>
     withNewProject { googleProject =>
@@ -48,8 +44,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           )
         )
       )
-      val res = dependencies.use { dep =>
-        implicit val client = dep.httpClient
+
+      LeonardoApiClient.client.use { implicit client =>
         val creatingDoneCheckable: DoneCheckable[GetAppResponse] =
           x => x.status == AppStatus.Running || x.status == AppStatus.Error
 
@@ -131,7 +127,6 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
         } yield ()
       }
-      res.unsafeRunSync()
     }
   }
 

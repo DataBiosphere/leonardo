@@ -4,7 +4,7 @@ package db
 import java.time.Instant
 
 import cats.data.Chain
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
@@ -237,6 +237,16 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .filter(_.destroyedDate === destroyedDate)
 
     fullClusterQuery(baseQuery)
+  }
+
+  def clusterRecordQueryByUniqueKey(googleProject: GoogleProject,
+                                    clusterName: RuntimeName,
+                                    destroyedDateOpt: Option[Instant]) = {
+    val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
+    clusterQuery
+      .filter(_.googleProject === googleProject)
+      .filter(_.clusterName === clusterName)
+      .filter(_.destroyedDate === destroyedDate)
   }
 
   private def fullClusterQueryById(id: Long) =
@@ -474,6 +484,17 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       rid <- findByIdQuery(id).result.head.map[RuntimeConfigId](_.runtimeConfigId): DBIO[RuntimeConfigId]
       _ <- RuntimeConfigQueries.updatePersistentDiskId(rid, None, destroyedDate): DBIO[Int]
     } yield ()
+
+  def markDeleted(googleProject: GoogleProject,
+                  runtimeName: RuntimeName,
+                  destroyedDate: Instant,
+                  deletedFrom: Option[String])(
+    implicit ec: ExecutionContext
+  ): DBIO[Unit] =
+    clusterRecordQueryByUniqueKey(googleProject, runtimeName, Some(dummyDate))
+      .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed, c.deletedFrom))
+      .update((destroyedDate, RuntimeStatus.Deleted, None, destroyedDate, deletedFrom))
+      .map(_ => ())
 
   def updateDeletedFrom(id: Long, deletedFrom: String): DBIO[Int] =
     findByIdQuery(id)

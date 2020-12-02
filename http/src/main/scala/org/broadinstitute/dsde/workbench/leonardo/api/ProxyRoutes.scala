@@ -12,7 +12,7 @@ import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, Logg
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.stream.Materializer
 import cats.effect.{ContextShift, IO}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.typesafe.scalalogging.LazyLogging
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService

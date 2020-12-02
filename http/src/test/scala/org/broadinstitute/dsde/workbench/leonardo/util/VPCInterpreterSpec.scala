@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.effect.IO
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{Firewall, Network, Operation}
 import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO

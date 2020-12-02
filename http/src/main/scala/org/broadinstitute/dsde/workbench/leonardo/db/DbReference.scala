@@ -16,7 +16,7 @@ import slick.jdbc.{JdbcBackend, JdbcProfile, TransactionIsolation}
 import sun.security.provider.certpath.SunCertPathBuilderException
 import LeoProfile.api._
 import io.chrisdavenport.log4cats.Logger
-import cats.implicits._
+import cats.syntax.all._
 
 import scala.concurrent.Future
 

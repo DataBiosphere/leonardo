@@ -3,7 +3,7 @@ package monitor
 
 import cats.Parallel
 import cats.effect.{Async, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import com.google.cloud.dataproc.v1.Cluster

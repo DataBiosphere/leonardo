@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import cats.effect.IO
 import cats.Eq
-import cats.implicits._
+import cats.syntax.all._
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppStatus,

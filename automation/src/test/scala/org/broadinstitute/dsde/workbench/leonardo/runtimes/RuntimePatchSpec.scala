@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
 import cats.effect.IO
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, MachineTypeName}

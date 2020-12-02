@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
