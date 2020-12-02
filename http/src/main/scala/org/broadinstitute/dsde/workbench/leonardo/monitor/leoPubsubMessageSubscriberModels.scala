@@ -450,19 +450,19 @@ object LeoPubsubCodec {
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
       value <- messageType match {
-        case LeoPubsubMessageType.CreateDisk              => message.as[CreateDiskMessage]
-        case LeoPubsubMessageType.UpdateDisk              => message.as[UpdateDiskMessage]
-        case LeoPubsubMessageType.DeleteDisk              => message.as[DeleteDiskMessage]
-        case LeoPubsubMessageType.CreateRuntime           => message.as[CreateRuntimeMessage]
-        case LeoPubsubMessageType.DeleteRuntime           => message.as[DeleteRuntimeMessage]
-        case LeoPubsubMessageType.StopRuntime             => message.as[StopRuntimeMessage]
-        case LeoPubsubMessageType.StartRuntime            => message.as[StartRuntimeMessage]
-        case LeoPubsubMessageType.UpdateRuntime           => message.as[UpdateRuntimeMessage]
-        case LeoPubsubMessageType.CreateApp               => message.as[CreateAppMessage]
-        case LeoPubsubMessageType.DeleteApp               => message.as[DeleteAppMessage]
-        case LeoPubsubMessageType.BatchNodepoolCreate     => message.as[BatchNodepoolCreateMessage]
-        case LeoPubsubMessageType.StopApp                 => message.as[StopAppMessage]
-        case LeoPubsubMessageType.StartApp                => message.as[StartAppMessage]
+        case LeoPubsubMessageType.CreateDisk          => message.as[CreateDiskMessage]
+        case LeoPubsubMessageType.UpdateDisk          => message.as[UpdateDiskMessage]
+        case LeoPubsubMessageType.DeleteDisk          => message.as[DeleteDiskMessage]
+        case LeoPubsubMessageType.CreateRuntime       => message.as[CreateRuntimeMessage]
+        case LeoPubsubMessageType.DeleteRuntime       => message.as[DeleteRuntimeMessage]
+        case LeoPubsubMessageType.StopRuntime         => message.as[StopRuntimeMessage]
+        case LeoPubsubMessageType.StartRuntime        => message.as[StartRuntimeMessage]
+        case LeoPubsubMessageType.UpdateRuntime       => message.as[UpdateRuntimeMessage]
+        case LeoPubsubMessageType.CreateApp           => message.as[CreateAppMessage]
+        case LeoPubsubMessageType.DeleteApp           => message.as[DeleteAppMessage]
+        case LeoPubsubMessageType.BatchNodepoolCreate => message.as[BatchNodepoolCreateMessage]
+        case LeoPubsubMessageType.StopApp             => message.as[StopAppMessage]
+        case LeoPubsubMessageType.StartApp            => message.as[StartAppMessage]
       }
     } yield value
   }
@@ -752,19 +752,19 @@ object LeoPubsubCodec {
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
-    case m: CreateDiskMessage              => m.asJson
-    case m: UpdateDiskMessage              => m.asJson
-    case m: DeleteDiskMessage              => m.asJson
-    case m: CreateRuntimeMessage           => m.asJson
-    case m: DeleteRuntimeMessage           => m.asJson
-    case m: StopRuntimeMessage             => m.asJson
-    case m: StartRuntimeMessage            => m.asJson
-    case m: UpdateRuntimeMessage           => m.asJson
-    case m: CreateAppMessage               => m.asJson
-    case m: DeleteAppMessage               => m.asJson
-    case m: BatchNodepoolCreateMessage     => m.asJson
-    case m: StopAppMessage                 => m.asJson
-    case m: StartAppMessage                => m.asJson
+    case m: CreateDiskMessage          => m.asJson
+    case m: UpdateDiskMessage          => m.asJson
+    case m: DeleteDiskMessage          => m.asJson
+    case m: CreateRuntimeMessage       => m.asJson
+    case m: DeleteRuntimeMessage       => m.asJson
+    case m: StopRuntimeMessage         => m.asJson
+    case m: StartRuntimeMessage        => m.asJson
+    case m: UpdateRuntimeMessage       => m.asJson
+    case m: CreateAppMessage           => m.asJson
+    case m: DeleteAppMessage           => m.asJson
+    case m: BatchNodepoolCreateMessage => m.asJson
+    case m: StopAppMessage             => m.asJson
+    case m: StartAppMessage            => m.asJson
   }
 }
 

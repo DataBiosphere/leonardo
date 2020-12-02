@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesName,
   Location,
   MachineTypeName,
+  MaxRetries,
   NetworkName,
   PublisherConfig,
   RegionName,
@@ -46,8 +47,8 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()

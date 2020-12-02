@@ -9,8 +9,8 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
-import cats.implicits._
 import cats.mtl.Ask
+import cats.syntax.all._
 import io.chrisdavenport.log4cats.StructuredLogger
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}

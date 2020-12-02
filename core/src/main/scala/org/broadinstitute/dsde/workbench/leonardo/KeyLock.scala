@@ -5,7 +5,7 @@ import java.util.concurrent.TimeUnit
 import cats.effect.concurrent.Semaphore
 import cats.effect.implicits._
 import cats.effect.{Blocker, ConcurrentEffect, ContextShift}
-import cats.implicits._
+import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 
 import scala.concurrent.duration.FiniteDuration

@@ -247,15 +247,15 @@ object Boot extends IOApp {
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
           val gkeAlg = new GKEInterpreter[IO](gkeInterpConfig,
-                                                 vpcInterp,
-                                                 googleDependencies.gkeService,
-                                                 googleDependencies.kubeService,
-                                                 appDependencies.helmClient,
-                                                 appDependencies.galaxyDAO,
-                                                 googleDependencies.credentials,
-                                                 googleDependencies.googleIamDAO,
-                                                 appDependencies.blocker,
-                                                 appDependencies.nodepoolLock)
+                                              vpcInterp,
+                                              googleDependencies.gkeService,
+                                              googleDependencies.kubeService,
+                                              appDependencies.helmClient,
+                                              appDependencies.galaxyDAO,
+                                              googleDependencies.credentials,
+                                              googleDependencies.googleIamDAO,
+                                              appDependencies.blocker,
+                                              appDependencies.nodepoolLock)
 
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
