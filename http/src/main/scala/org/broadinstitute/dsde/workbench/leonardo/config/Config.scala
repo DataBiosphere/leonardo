@@ -520,7 +520,9 @@ object Config {
       config.as[Location]("location"),
       config.as[RegionName]("region"),
       config.as[List[CidrIP]]("authorizedNetworks"),
-      config.as[KubernetesClusterVersion]("version")
+      config.as[KubernetesClusterVersion]("version"),
+      config.as[FiniteDuration]("nodepoolLockCacheExpiryTime"),
+      config.getInt("nodepoolLockCacheMaxSize")
     )
   }
 

@@ -716,9 +716,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       ctx <- ev.ask
 
       // The "create app" flow potentially does a number of things:
-      //  1. creates a Kubernetes cluster
-      //  2. creates a nodepool within the cluster
-      //  3. creates a disk
+      //  1. creates a Kubernetes cluster if it doesn't exist
+      //  2. creates a nodepool within the cluster if it doesn't exist
+      //  3. creates a disk if it doesn't exist
       //  4. creates an app
       //
       // Numbers 1-3 are all Google calls; (4) is a helm call. If (1) is needed, we will do the
