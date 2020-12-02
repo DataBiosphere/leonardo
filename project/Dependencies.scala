@@ -19,7 +19,7 @@ object Dependencies {
   val workbenchUtilV = "0.6-c5713ac"
   val workbenchModelV = "0.14-c5713ac"
   val workbenchGoogleV = "0.21-c5713ac"
-  val workbenchGoogle2V = "0.17-dcd18ab"
+  val workbenchGoogle2V = "0.17-1e1f697"
   val workbenchOpenTelemetryV = "0.1-c5713ac"
   val workbenchErrorReportingV = "0.1-c5713ac"
 
