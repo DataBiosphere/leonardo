@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeService
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{UserInfo}
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._
