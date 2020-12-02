@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException

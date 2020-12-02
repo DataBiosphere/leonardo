@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat
 import java.time.Instant
 
 import cats.effect.{Async, Blocker, ContextShift}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Operation
 import io.chrisdavenport.log4cats.Logger

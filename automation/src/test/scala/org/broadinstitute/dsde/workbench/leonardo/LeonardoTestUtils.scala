@@ -7,7 +7,7 @@ import java.nio.file.Files
 import akka.actor.ActorSystem
 import cats.effect.IO
 import cats.effect.concurrent.Semaphore
-import cats.implicits._
+import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}

@@ -5,7 +5,7 @@ import java.sql.SQLDataException
 
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Blocker, ContextShift, Resource, Sync}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}

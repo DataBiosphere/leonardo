@@ -7,7 +7,7 @@ import java.nio.file.Files
 import _root_.io.chrisdavenport.log4cats.Logger
 import cats.data.NonEmptyList
 import cats.effect.{Async, Blocker, Concurrent, ContextShift}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.Identity
 import fs2._

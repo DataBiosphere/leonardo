@@ -4,7 +4,7 @@ import java.time.Instant
 import java.util.UUID
 
 import cats.effect.{Sync, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.model.TraceId

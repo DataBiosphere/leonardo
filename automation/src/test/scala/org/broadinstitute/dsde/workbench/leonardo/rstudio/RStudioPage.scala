@@ -2,11 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.openqa.selenium.{By, WebDriver, WebElement}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.{JupyterPage, NotebooksListPage}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.JupyterPage
+import org.openqa.selenium.WebDriver
 
-import scala.concurrent.duration.FiniteDuration
-import scala.concurrent.duration._
+import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.Try
 
 class RStudioPage(override val url: String)(implicit override val authToken: AuthToken,
