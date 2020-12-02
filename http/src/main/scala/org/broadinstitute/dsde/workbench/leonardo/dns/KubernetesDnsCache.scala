@@ -4,7 +4,7 @@ import java.util.concurrent.TimeUnit
 
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger

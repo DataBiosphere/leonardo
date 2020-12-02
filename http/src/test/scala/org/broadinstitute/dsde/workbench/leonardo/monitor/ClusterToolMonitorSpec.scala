@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeContainerServiceType, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import cats.implicits._
+import cats.syntax.all._
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually

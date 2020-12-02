@@ -136,8 +136,11 @@ object AppAction {
   final case object DeleteApp extends AppAction {
     val asString = "delete"
   }
-  final case object StopStartApp extends AppAction {
-    val asString = "stop_start"
+  final case object StopApp extends AppAction {
+    val asString = "stop"
+  }
+  final case object StartApp extends AppAction {
+    val asString = "start"
   }
   final case object ReadPolicies extends AppAction {
     val asString = "read_policies"

@@ -40,6 +40,7 @@ set -e
 TARGET="${TARGET:-leonardo}"
 DB_CONTAINER="leonardo-mysql"
 GIT_BRANCH="${BRANCH:-$(git rev-parse --abbrev-ref HEAD)}"
+REMOTE=$(if [[ ${GIT_BRANCH} == "update/"* ]]; then echo "scalaSteward"; else echo "origin"; fi)
 DOCKER_REGISTRY="dockerhub"  # Must be either "dockerhub" or "gcr"
 BUILD_UI=false
 DOCKER_CMD=""
@@ -163,7 +164,7 @@ function docker_cmd()
 {
     if [ $DOCKER_CMD = "build" ] || [ $DOCKER_CMD = "push" ]; then
         echo "building $TARGET docker image..."
-        GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
+        GIT_SHA=$(git rev-parse ${REMOTE}/${GIT_BRANCH})
         echo GIT_SHA=$GIT_SHA > env.properties
 
         if [ -n "$DOCKER_TAG" ]; then
