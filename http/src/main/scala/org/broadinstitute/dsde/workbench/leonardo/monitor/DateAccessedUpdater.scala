@@ -2,10 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
 
-import cats.Order
 import cats.data.Chain
 import cats.effect.{Concurrent, ContextShift, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
@@ -48,8 +47,8 @@ class DateAccessedUpdater[F[_]: ContextShift: Timer](
 }
 
 object DateAccessedUpdater {
-  implicit val updateDateAccessMessageOrder: Order[UpdateDateAccessMessage] =
-    Order.fromLessThan[UpdateDateAccessMessage] { (msg1, msg2) =>
+  implicit val updateDateAccessMessageOrder: Ordering[UpdateDateAccessMessage] =
+    Ordering.fromLessThan[UpdateDateAccessMessage] { (msg1, msg2) =>
       if (msg1.googleProject == msg2.googleProject && msg1.runtimeName == msg2.runtimeName)
         msg1.dateAccessd.toEpochMilli < msg2.dateAccessd.toEpochMilli
       else

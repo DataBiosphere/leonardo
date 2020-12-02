@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.effect.{Async, Effect, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import com.google.common.cache.CacheStats
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger

@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit
 import cats.Parallel
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Concurrent, ContextShift, Timer}
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
 import io.chrisdavenport.log4cats.Logger

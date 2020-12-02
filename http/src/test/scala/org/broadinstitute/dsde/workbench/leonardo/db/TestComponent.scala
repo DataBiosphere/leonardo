@@ -4,7 +4,7 @@ import java.time.Instant
 
 import cats.effect.concurrent.Semaphore
 import cats.effect.{IO, Resource}
-import cats.implicits._
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,

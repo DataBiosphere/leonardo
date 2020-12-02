@@ -3,7 +3,7 @@ package config
 
 import java.nio.file.{Path, Paths}
 
-import com.google.pubsub.v1.ProjectTopicName
+import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
 import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
   FirewallRuleName,
-  GoogleTopicAdminInterpreter,
   KubernetesName,
   Location,
   MachineTypeName,
@@ -27,6 +26,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName,
   SubscriberConfig,
+  SubscriberDeadLetterPolicy,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
@@ -661,15 +661,37 @@ object Config {
   val vpcConfig = config.as[VPCConfig]("vpc")
   val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
 
-  val subscriberConfig: SubscriberConfig = SubscriberConfig(applicationConfig.leoServiceAccountJsonFile.toString,
-                                                            topic,
-                                                            config.as[FiniteDuration]("pubsub.ackDeadLine"),
-                                                            MaxRetries(10),
-                                                            None)
+  val subscriberConfig: SubscriberConfig = SubscriberConfig(
+    applicationConfig.leoServiceAccountJsonFile.toString,
+    topic,
+    None,
+    config.as[FiniteDuration]("pubsub.ackDeadLine"),
+    None,
+    None,
+    Some("attributes:leonardo")
+  )
 
-  private val retryConfig = GoogleTopicAdminInterpreter.defaultRetryConfig
+  val nonLeoMessageSubscriberConfig: SubscriberConfig = SubscriberConfig(
+    applicationConfig.leoServiceAccountJsonFile.toString,
+    topic,
+    Some(
+      ProjectSubscriptionName.of(applicationConfig.leoGoogleProject.value,
+                                 config.as[String]("pubsub.non-leo-message-subscriber.subscription-name"))
+    ),
+    config.as[FiniteDuration]("pubsub.ackDeadLine"),
+    Some(
+      SubscriberDeadLetterPolicy(
+        TopicName.of(applicationConfig.leoGoogleProject.value,
+                     config.as[String]("pubsub.non-leo-message-subscriber.dead-letter-topic")),
+        MaxRetries(5)
+      )
+    ),
+    None,
+    Some("NOT attributes:leonardo")
+  )
+
   val publisherConfig: PublisherConfig =
-    PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic, retryConfig)
+    PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic)
 
   val dataprocInterpreterConfig = DataprocInterpreterConfig(
     dataprocConfig,

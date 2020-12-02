@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   SaveApp,
   SaveKubernetesCluster
 }
-import cats.implicits._
+import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.leonardo.config.{
   Config,

@@ -3,7 +3,7 @@ package runtimes
 
 import java.util.concurrent.TimeoutException
 
-import cats.implicits._
+import cats.syntax.all._
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GoogleDiskService, ZoneName}
