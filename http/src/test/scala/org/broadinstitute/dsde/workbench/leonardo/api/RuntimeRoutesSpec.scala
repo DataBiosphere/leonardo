@@ -59,6 +59,23 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
     decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
   }
 
+  it should "decode UpdateRuntimeRequest ignoring invalid label options" in {
+    val jsonString =
+      """
+        |{
+        |  "allowStop": true,
+        |  "labelsToUpsert": {
+        |  "new_label" : "label_val",
+        |  "bad_label" : "",
+        |  "googleProject" : "i_am_a_default_label"
+        |  },
+        |  "labelsToDelete": ["googleProject"]
+        |}
+        |""".stripMargin
+    val expectedResult = UpdateRuntimeRequest(None, true, None, None, Map("new_label" -> "label_val"), List.empty)
+    decode[UpdateRuntimeRequest](jsonString) shouldBe Right(expectedResult)
+  }
+
   it should "decode empty CreateRuntime2Request correctly" in {
     val jsonString =
       """
