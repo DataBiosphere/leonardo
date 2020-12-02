@@ -7,8 +7,8 @@ import java.util.Base64
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.compute.v1.Disk
 import com.google.container.v1._
