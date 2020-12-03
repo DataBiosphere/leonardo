@@ -7,13 +7,7 @@ import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicNam
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
-  NamespaceName,
-  SecretKey,
-  SecretName,
-  ServiceAccountName,
-  ServiceName
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
   FirewallRuleName,
@@ -53,8 +47,8 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
@@ -527,7 +521,9 @@ object Config {
       config.as[Location]("location"),
       config.as[RegionName]("region"),
       config.as[List[CidrIP]]("authorizedNetworks"),
-      config.as[KubernetesClusterVersion]("version")
+      config.as[KubernetesClusterVersion]("version"),
+      config.as[FiniteDuration]("nodepoolLockCacheExpiryTime"),
+      config.getInt("nodepoolLockCacheMaxSize")
     )
   }
 
@@ -730,7 +726,10 @@ object Config {
       config.as[PollMonitorConfig]("deleteCluster"),
       config.as[PollMonitorConfig]("createIngress"),
       config.as[PollMonitorConfig]("createApp"),
-      config.as[PollMonitorConfig]("deleteApp")
+      config.as[PollMonitorConfig]("deleteApp"),
+      config.as[PollMonitorConfig]("scaleNodepool"),
+      config.as[PollMonitorConfig]("setNodepoolAutoscaling"),
+      config.as[PollMonitorConfig]("startApp")
     )
   }
 

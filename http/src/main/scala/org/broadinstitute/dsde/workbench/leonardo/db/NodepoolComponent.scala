@@ -3,9 +3,9 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
-import org.broadinstitute.dsde.workbench.leonardo.{App}
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
+  App,
   AuditInfo,
   AutoscalingConfig,
   AutoscalingMax,
