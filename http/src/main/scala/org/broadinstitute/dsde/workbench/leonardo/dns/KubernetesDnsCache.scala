@@ -58,7 +58,7 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTe
               }
             } yield hostStatus
 
-            res.toIO.unsafeRunSync
+            res.toIO.unsafeRunSync()
           }
         }
       )
