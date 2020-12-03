@@ -48,13 +48,6 @@ image_hardening_script_file="${cis_hardening_dir}/${image_hardening_script_file_
 daisy_sources_metadata_url="http://metadata.google.internal/computeMetadata/v1/instance/attributes/daisy-sources-path"
 vm_metadata_google_header="Metadata-Flavor: Google"
 
-# Variables for downloading Falco cryptomining prevention scripts
-falco_dir="terra-cryptomining-security-alerts"
-falco_install_script="install_falco.sh"
-falco_config="falco.yaml"
-falco_cryptomining_rules="terra-cryptomining-rules.yaml"
-falco_report_script="report.py"
-
 #
 # Functions
 #
@@ -170,21 +163,6 @@ gsutil cp "${daisy_sources_path}/${image_hardening_script_file}" .
 # Run CIS hardening
 chmod u+x $image_hardening_script_file_name
 ./$image_hardening_script_file_name
-
-log "Downloading and installing Falco cryptomining detection agent..."
-gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_install_script}" .
-gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_config}" .
-gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_cryptomining_rules}" .
-gsutil cp "${daisy_sources_path}/${falco_dir}/${falco_report_script}" .
-
-# Install and configure Falco
-chmod u+x $falco_install_script
-chmod u+x $falco_report_script
-./$falco_install_script
-cp $falco_config /etc/falco
-cp $falco_cryptomining_rules /etc/falco/falco_rules.local.yaml
-cp $falco_report_script /etc/falco
-service falco restart
 
 log 'Installing Docker...'
 
