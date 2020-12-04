@@ -4,6 +4,3 @@
 [submodule "jenkins/gce-custom-images/cis-harden-images"]
 	path = jenkins/gce-custom-images/cis-harden-images
 	url = https://github.com/broadinstitute/dsp-appsec-base-image-hardening.git
-[submodule "jenkins/gce-custom-images/terra-cryptomining-security-alerts"]
-	path = jenkins/gce-custom-images/terra-cryptomining-security-alerts
-	url = git@github.com:broadinstitute/terra-cryptomining-security-alerts.git
