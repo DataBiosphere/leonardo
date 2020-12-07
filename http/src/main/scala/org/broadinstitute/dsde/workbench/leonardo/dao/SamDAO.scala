@@ -65,4 +65,10 @@ trait SamDAO[F[_]] {
   def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: Ask[F, TraceId]
   ): F[Option[String]]
+
+  def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: Ask[F, TraceId]
+  ): F[Option[UserSubjectId]]
 }
+
+final case class UserSubjectId(asString: String) extends AnyVal

@@ -6,9 +6,17 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
 import io.chrisdavenport.log4cats.StructuredLogger
-import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.google2.{Event, GoogleComputeService, GoogleSubscriber, InstanceName, ZoneName}
+import io.circe.{Decoder, DecodingFailure, Encoder}
+import org.broadinstitute.dsde.workbench.google2.{
+  Event,
+  GoogleComputeService,
+  GooglePublisher,
+  GoogleSubscriber,
+  InstanceName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, kubernetesClusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{CryptoMining, DeleteKubernetesClusterMessage}
@@ -16,6 +24,10 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, GKE
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import NonLeoMessageSubscriber.cryptominingUserMessageEncoder
+import com.google.protobuf.ByteString
+import com.google.pubsub.v1.PubsubMessage
+import io.circe.syntax._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -25,7 +37,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
  */
 class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
                                            computeService: GoogleComputeService[F],
-                                           subscriber: GoogleSubscriber[F, NonLeoMessage])(
+                                           samDao: SamDAO[F],
+                                           subscriber: GoogleSubscriber[F, NonLeoMessage],
+                                           publisher: GooglePublisher[F])(
   implicit logger: StructuredLogger[F],
   F: Concurrent[F],
   metrics: OpenTelemetryMetrics[F],
@@ -90,22 +104,38 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
         F.unit
       else
         for {
-          runtimeFromGoogle <- computeService.getInstance(msg.resource.labels.projectId,
+          runtimeFromGoogle <- computeService.getInstance(msg.googleProject,
                                                           msg.resource.labels.zone,
                                                           InstanceName(msg.resource.labels.instanceId.toString))
           // We mark the runtime as Deleted, and delete the instance.
           // If instance deletion fails for some reason, it will be cleaned up by resource-validator
           _ <- runtimeFromGoogle.traverse { instance =>
             for {
-              _ <- clusterQuery
-                .markDeleted(msg.resource.labels.projectId,
-                             RuntimeName(instance.getName),
-                             ctx.now,
-                             Some("cryptomining"))
+              runtimeInfo <- clusterQuery
+                .getActiveClusterRecordByName(msg.googleProject, RuntimeName(instance.getName))
                 .transaction
-              _ <- computeService.deleteInstance(msg.resource.labels.projectId,
-                                                 msg.resource.labels.zone,
-                                                 InstanceName(msg.resource.labels.instanceId.toString))
+              _ <- runtimeInfo.traverse { runtime =>
+                for {
+                  _ <- clusterQuery
+                    .markDeleted(msg.googleProject, RuntimeName(instance.getName), ctx.now, Some("cryptomining"))
+                    .transaction
+                  _ <- computeService.deleteInstance(msg.googleProject,
+                                                     msg.resource.labels.zone,
+                                                     InstanceName(msg.resource.labels.instanceId.toString))
+                  userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, runtime.googleProject)
+                  _ <- userSubjectId.traverse { sid =>
+                    val byteString = ByteString.copyFromUtf8(CryptominingUserMessage(sid).asJson.noSpaces)
+
+                    val message = PubsubMessage
+                      .newBuilder()
+                      .setData(byteString)
+                      .putAttributes("traceId", ctx.traceId.asString)
+                      .putAttributes("cryptomining", "true")
+                      .build()
+                    publisher.publishNativeOne(message)
+                  }
+                } yield ()
+              }
             } yield ()
           }
         } yield ()
@@ -117,15 +147,31 @@ object NonLeoMessageSubscriber {
     Decoder.forProduct2("clusterId", "project")(DeleteKubernetesClusterMessage.apply)
 
   implicit val googleLabelsDecoder: Decoder[GoogleLabels] =
-    Decoder.forProduct3("instance_id", "project_id", "zone")(GoogleLabels.apply)
+    Decoder.forProduct2("instance_id", "zone")(GoogleLabels.apply)
   implicit val googleResourceDecoder: Decoder[GoogleResource] = Decoder.forProduct1("labels")(GoogleResource.apply)
-  Decoder.forProduct2("textPayload", "resource")(CryptoMining.apply)
-  implicit val cryptoMiningDecoder: Decoder[CryptoMining] =
-    Decoder.forProduct2("textPayload", "resource")(CryptoMining.apply)
+  implicit val cryptoMiningDecoder: Decoder[CryptoMining] = Decoder.instance { c =>
+    for {
+      textpayload <- c.downField("textPayload").as[String]
+      resource <- c.downField("resource").as[GoogleResource]
+      logName <- c.downField("logName").as[String]
+      // logName looks like `projects/general-dev-billing-account/logs/cryptomining`
+      // we're extracting google project from logName instead of `labels` because `labels` are easier to spoof.
+      // We're using instance id from `labels` which is relatively okay because worst case is we're deleting an instance
+      // in this user's own billing project
+      splitted = logName.split("/")
+      googleProject <- Either
+        .catchNonFatal(GoogleProject(splitted(1)))
+        .leftMap(t => DecodingFailure(s"can't parse google project from logName due to ${t}", List.empty))
+    } yield CryptoMining(textpayload, resource, googleProject)
+  }
 
   implicit val nonLeoMessageDecoder: Decoder[NonLeoMessage] = Decoder.instance { x =>
     deleteKubernetesClusterDecoder.tryDecode(x) orElse (cryptoMiningDecoder.tryDecode(x))
   }
+
+  implicit val userSubjectIdEncoder: Encoder[UserSubjectId] = Encoder.encodeString.contramap(_.asString)
+  implicit val cryptominingUserMessageEncoder: Encoder[CryptominingUserMessage] =
+    Encoder.forProduct1("userSubjectId")(x => CryptominingUserMessage.unapply(x).get)
 }
 
 sealed abstract class NonLeoMessage extends Product with Serializable {
@@ -136,9 +182,12 @@ object NonLeoMessage {
       extends NonLeoMessage {
     val messageType: String = "delete-k8s-cluster"
   }
-  final case class CryptoMining(textPayload: String, resource: GoogleResource) extends NonLeoMessage {
+  final case class CryptoMining(textPayload: String, resource: GoogleResource, googleProject: GoogleProject)
+      extends NonLeoMessage {
     val messageType: String = "crypto-minining"
   }
 }
 final case class GoogleResource(labels: GoogleLabels)
-final case class GoogleLabels(instanceId: Long, projectId: GoogleProject, zone: ZoneName)
+final case class GoogleLabels(instanceId: Long, zone: ZoneName)
+
+final case class CryptominingUserMessage(userSubjectId: UserSubjectId)

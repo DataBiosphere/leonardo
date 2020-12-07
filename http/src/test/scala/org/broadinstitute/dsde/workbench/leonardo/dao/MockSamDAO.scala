@@ -247,6 +247,10 @@ class MockSamDAO extends SamDAO[IO] {
           .asInstanceOf[List[sr.ActionCategory]]
         IO.pure(res)
     }
+
+  def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[Option[UserSubjectId]] = IO.pure(None)
 }
 
 object MockSamDAO {

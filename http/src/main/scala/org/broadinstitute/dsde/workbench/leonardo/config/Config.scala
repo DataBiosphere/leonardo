@@ -686,6 +686,15 @@ object Config {
     Some("NOT attributes:leonardo")
   )
 
+  private val nonLeoMessageSubscriberCryptominingTopic =
+    config.as[String]("pubsub.non-leo-message-subscriber.terra-cryptomining-topic")
+
+  val cryptominingTopicPublisherConfig: PublisherConfig =
+    PublisherConfig(
+      applicationConfig.leoServiceAccountJsonFile.toString,
+      ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, nonLeoMessageSubscriberCryptominingTopic)
+    )
+
   val publisherConfig: PublisherConfig =
     PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic)
 

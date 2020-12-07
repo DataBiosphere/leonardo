@@ -96,8 +96,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[Boolean] = {
-    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+  )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[Boolean] =
     for {
       // First check permission at the resource level
       resourcePermission <- hasPermission(samResource, action, userInfo)
@@ -107,7 +106,6 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
         case _    => hasPermission(ProjectSamResourceId(googleProject), projectAction, userInfo)
       }
     } yield res
-  }
 
   override def getActions[R, A](
     samResource: R,

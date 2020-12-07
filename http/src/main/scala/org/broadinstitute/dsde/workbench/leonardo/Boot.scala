@@ -290,7 +290,9 @@ object Boot extends IOApp {
           val nonLeoMessageSubscriber =
             new NonLeoMessageSubscriber[IO](gkeAlg,
                                             googleDependencies.googleComputeService,
-                                            appDependencies.nonLeoMessageGoogleSubscriber)
+                                            appDependencies.samDAO,
+                                            appDependencies.nonLeoMessageGoogleSubscriber,
+                                            googleDependencies.cryptoMiningUserPublisher)
 
           List(
             nonLeoMessageSubscriber.process,
@@ -394,6 +396,7 @@ object Boot extends IOApp {
                                         dataprocConfig.zoneName)
 
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
+      cryptoMiningUserPublisher <- GooglePublisher.resource[F](cryptominingTopicPublisherConfig)
 
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
       dataAccessedUpdater <- Resource.liftF(
@@ -454,6 +457,7 @@ object Boot extends IOApp {
         googleDiskService,
         googleProjectDAO,
         googleDirectoryDAO,
+        cryptoMiningUserPublisher,
         googleIamDAO,
         gdDAO,
         dataprocService,
@@ -501,6 +505,7 @@ final case class GoogleDependencies[F[_]](
   googleDiskService: GoogleDiskService[F],
   googleProjectDAO: HttpGoogleProjectDAO,
   googleDirectoryDAO: HttpGoogleDirectoryDAO,
+  cryptoMiningUserPublisher: GooglePublisher[F],
   googleIamDAO: HttpGoogleIamDAO,
   googleDataprocDAO: HttpGoogleDataprocDAO,
   googleDataproc: GoogleDataprocService[F],
