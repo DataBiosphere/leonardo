@@ -467,6 +467,7 @@ class ProxyService(
     "Sec-WebSocket-Version",
     "Sec-WebSocket-Key",
     "Sec-WebSocket-Extensions",
+    "Sec-WebSocket-Protocol",
     "UpgradeToWebSocket",
     "Upgrade",
     "Connection"
