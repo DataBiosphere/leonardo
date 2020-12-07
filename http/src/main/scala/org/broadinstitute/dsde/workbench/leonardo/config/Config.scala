@@ -375,14 +375,14 @@ object Config {
   implicit private val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
   implicit private val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
   implicit private val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
-  implicit private val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
-  implicit private val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
+  implicit private val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName(_))
+  implicit private val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName(_))
   implicit private val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
   implicit private val dataprocCustomImageReader: ValueReader[DataprocCustomImage] =
     stringValueReader.map(DataprocCustomImage)
   implicit private val gceCustomImageReader: ValueReader[GceCustomImage] = stringValueReader.map(GceCustomImage)
-  implicit private val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(s =>
-    ContainerImage.fromImageUrl(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
+  implicit private val containerImageValueReader: ValueReader[ContainerImage] = stringValueReader.map(
+    s => ContainerImage.fromImageUrl(s).getOrElse(throw new RuntimeException(s"Unable to parse ContainerImage from $s"))
   )
   implicit private val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
   implicit private val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
@@ -396,8 +396,8 @@ object Config {
   implicit private val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
   implicit private val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
   implicit private val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
-  implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
-    DiskType.stringToObject.get(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
+  implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(
+    s => DiskType.stringToObject.getOrElse(s, throw new RuntimeException(s"Unable to parse diskType from $s"))
   )
   implicit private val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
   implicit private val frameAncestorsReader: ValueReader[FrameAncestors] =
@@ -564,10 +564,11 @@ object Config {
   }
 
   implicit private val secretNameReader: ValueReader[SecretName] =
-    stringValueReader.map(s =>
-      KubernetesName
-        .withValidation(s, SecretName)
-        .getOrElse(throw new RuntimeException(s"Unable to parse the secret name $s into a valid kubernetes name"))
+    stringValueReader.map(
+      s =>
+        KubernetesName
+          .withValidation(s, SecretName)
+          .getOrElse(throw new RuntimeException(s"Unable to parse the secret name $s into a valid kubernetes name"))
     )
 
   implicit private val secretConfigReader: ValueReader[SecretConfig] = ValueReader.relative { config =>
@@ -629,10 +630,11 @@ object Config {
   implicit private val numNodesValueReader: ValueReader[NumNodes] = intValueReader.map(NumNodes)
   implicit private val autoscalingMinValueReader: ValueReader[AutoscalingMin] = intValueReader.map(AutoscalingMin)
   implicit private val autoscalingMaxValueReader: ValueReader[AutoscalingMax] = intValueReader.map(AutoscalingMax)
-  implicit private val serviceNameValueReader: ValueReader[ServiceName] = stringValueReader.map(s =>
-    KubernetesName
-      .withValidation(s, ServiceName)
-      .getOrElse(throw new Exception(s"Invalid service name in config: ${s}"))
+  implicit private val serviceNameValueReader: ValueReader[ServiceName] = stringValueReader.map(
+    s =>
+      KubernetesName
+        .withValidation(s, ServiceName)
+        .getOrElse(throw new Exception(s"Invalid service name in config: ${s}"))
   )
   implicit private val serviceKindValueReader: ValueReader[KubernetesServiceKindName] =
     stringValueReader.map(KubernetesServiceKindName)

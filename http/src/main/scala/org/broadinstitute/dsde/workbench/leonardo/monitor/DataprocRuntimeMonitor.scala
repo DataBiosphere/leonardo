@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
   DataprocRole,
+  DataprocRoleZonePreemptibility,
   GoogleComputeService,
   GoogleDataprocInterpreter,
   GoogleDataprocService,
@@ -168,8 +169,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 case _ =>
                   val operationName = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.map(_.operationName)
                   for {
-                    error <- operationName.flatTraverse(o =>
-                      googleDataprocService.getClusterError(google2.OperationName(o.value))
+                    error <- operationName.flatTraverse(
+                      o => googleDataprocService.getClusterError(google2.OperationName(o.value))
                     )
                     r <- failedRuntime(
                       monitorContext,
@@ -429,7 +430,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       dataprocInstances <- zone.fold(F.pure(Set.empty[(DataprocInstance, Instance)])) { z =>
         instances.toList
           .flatTraverse {
-            case (role, instances) =>
+            case (DataprocRoleZonePreemptibility(role, _, _), instances) =>
               instances.toList.traverseFilter { i =>
                 googleComputeService.getInstance(googleProject, z, i).map { instanceOpt => //TODO: is this necessary? do we actually need to know all instance's IP?
                   instanceOpt.map { instance =>
