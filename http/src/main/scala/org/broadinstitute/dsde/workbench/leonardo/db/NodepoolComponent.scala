@@ -90,6 +90,10 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     nodepoolQuery
       .filter(_.id === id)
 
+  private def findByNodepoolUserQuery(creator: WorkbenchEmail): Query[NodepoolTable, NodepoolRecord, Seq] =
+    nodepoolQuery
+      .filter(_.creator === creator)
+
   def saveAllForCluster(nodepools: List[Nodepool])(implicit ec: ExecutionContext): DBIO[Unit] =
     for {
       _ <- nodepoolQuery ++=
@@ -163,6 +167,11 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
   def getMinimalById(id: NodepoolLeoId)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
     for {
       nodepools <- findByNodepoolIdQuery(id).result
+    } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
+
+  def getMinimalByUser(creator: WorkbenchEmail)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+    for {
+      nodepools <- findByNodepoolUserQuery(creator).result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
 
   def getDefaultNodepoolForCluster(

@@ -308,6 +308,7 @@ object ClusterNodepoolActionType {
   final case object CreateNodepool extends ClusterNodepoolActionType {
     val asString: String = "createNodepool"
   }
+
   def values: Set[ClusterNodepoolActionType] = sealerate.values[ClusterNodepoolActionType]
   def stringToObject: Map[String, ClusterNodepoolActionType] = values.map(v => v.asString -> v).toMap
 }

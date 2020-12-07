@@ -87,7 +87,13 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      claimedNodepoolOpt <- nodepoolQuery.claimNodepool(clusterId).transaction
+      //We want to know if the user already has an app to re-use that nodepool
+      userNodepoolOpt <- nodepoolQuery.getMinimalByUser(userInfo.userEmail).transaction
+
+      //A claimed nodepool is either the user's existing nodepool, or a pre-created one in that order of precedence
+      claimedNodepoolOpt <- if (userNodepoolOpt.isDefined) F.pure(userNodepoolOpt)
+      else nodepoolQuery.claimNodepool(clusterId).transaction
+
       nodepool <- claimedNodepoolOpt match {
         case None =>
           for {

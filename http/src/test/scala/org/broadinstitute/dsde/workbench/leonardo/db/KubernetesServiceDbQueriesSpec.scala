@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
 import CommonTestData._
 import KubernetesTestData._
 import TestUtils._
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike

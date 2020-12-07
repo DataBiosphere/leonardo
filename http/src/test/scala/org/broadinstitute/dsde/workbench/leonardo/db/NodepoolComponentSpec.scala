@@ -2,9 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.time.Instant
 
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.auditInfo
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
-import org.broadinstitute.dsde.workbench.leonardo.{NodepoolStatus}
+import org.broadinstitute.dsde.workbench.leonardo.NodepoolStatus
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -88,5 +90,38 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     claim1 shouldBe Some(savedNodepool1.copy(status = NodepoolStatus.Running))
     claim1.get.status shouldBe NodepoolStatus.Running
     claim2 shouldBe None
+  }
+
+  it should "return a nodepool by user " in isolatedDbTest {
+    val cluster1 = makeKubeCluster(1).save()
+    val realUser = WorkbenchEmail("real@gmail.com")
+    val nodepool1 = makeNodepool(1, cluster1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
+
+    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(realUser))
+    nodepoolOpt.isDefined shouldBe true
+    nodepoolOpt.map(_.id) shouldBe Some(nodepool1.id)
+  }
+
+  it should "return a nodepool by user when the user has 2 apps" in isolatedDbTest {
+    val cluster1 = makeKubeCluster(1).save()
+
+    val realUser = WorkbenchEmail("real@gmail.com")
+    val nodepool1 = makeNodepool(1, cluster1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
+
+    val app1 = makeApp(1, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
+    val app2 = makeApp(2, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
+
+    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(realUser))
+    nodepoolOpt.isDefined shouldBe true
+    nodepoolOpt.map(_.id) shouldBe Some(nodepool1.id)
+  }
+
+  it should "not return a nodepool by user when it does not exist" in isolatedDbTest {
+    val cluster1 = makeKubeCluster(1).save()
+
+    val fakeUser = WorkbenchEmail("fake@gmail.com")
+
+    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(fakeUser))
+    nodepoolOpt.isDefined shouldBe false
   }
 }
