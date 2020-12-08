@@ -505,9 +505,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       else Async[F].unit
 
       // Deleting labels
-      existingLabels <- labelQuery.getAllForResource(runtime.id, LabelResourceType.runtime).transaction
-
-      _ <- req.labelsToDelete.traverse { label =>
+      _ <- req.labelsToDelete.toList.traverse { label =>
         labelQuery.deleteForResource(runtime.id, LabelResourceType.runtime, label).transaction
       }
 

@@ -2865,7 +2865,7 @@ components:
           description: Labels to update or add on the runtime. Of type Map[String, String]. You cannot alter default labels or add a label with a null value.
         labelsToDelete:
           type: array
-          description: A list of label keys to remove from the runtime labels. Of type List[String]. You cannot delete a default label.
+          description: A set of label keys to remove from the runtime labels. Of type Set[String]. You cannot delete a default label.
           items:
             type: string
     CreateDiskRequest:

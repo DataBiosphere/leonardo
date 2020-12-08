@@ -227,8 +227,8 @@ class HttpRoutesSpec
       true,
       Some(true),
       Some(5.minutes),
-      Map("" -> ""),
-      List("")
+      Map.empty,
+      Set.empty
     )
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, request.asJson.spaces2) ~> routes.route ~> check {
@@ -251,8 +251,8 @@ class HttpRoutesSpec
                            false,
                            None,
                            None,
-                           Map("" -> ""),
-                           List(""))
+                           Map.empty,
+                           Set.empty)
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, negative.asJson.spaces2) ~> routes.route ~> check {
       handled shouldBe false
@@ -262,8 +262,8 @@ class HttpRoutesSpec
                            false,
                            None,
                            None,
-                           Map("" -> ""),
-                           List(""))
+                           Map.empty,
+                           Set.empty)
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, oneWorker.asJson.spaces2) ~> routes.route ~> check {
       handled shouldBe false

@@ -72,7 +72,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "labelsToDelete": ["googleProject"]
         |}
         |""".stripMargin
-    val expectedResult = UpdateRuntimeRequest(None, true, None, None, Map("new_label" -> "label_val"), List.empty)
+    val expectedResult = UpdateRuntimeRequest(None, true, None, None, Map("new_label" -> "label_val"), Set.empty)
     decode[UpdateRuntimeRequest](jsonString) shouldBe Right(expectedResult)
   }
 

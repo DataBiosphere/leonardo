@@ -678,7 +678,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
-      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map("" -> ""), List(""))
+      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)
 
       _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
       dbRuntimeOpt <- clusterQuery
@@ -719,7 +719,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
             .save()
         )
-        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), upsertLabels, List.empty)
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), upsertLabels, Set.empty)
         _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
         dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
         _ <- publisherQueue.tryDequeue1
@@ -731,12 +731,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     }
   }
 
-  val deleteLists: List[List[String]] = List(
-    List(""),
-    List("apples"),
-    List("apples", "oranges"),
-    List("apples", "apples"),
-    List("apples", "grapes")
+  val deleteLists: List[Set[String]] = List(
+    Set(""),
+    Set("apples"),
+    Set("apples", "oranges"),
+    Set("apples", "apples"),
+    Set("apples", "grapes")
   )
 
   val finalDeleteMaps: List[LabelMap] = List(
@@ -745,10 +745,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     Map.empty
   )
 
-  deleteLists.foreach { deleteLabelList =>
+  deleteLists.foreach { deleteLabelSet =>
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
-    it should s"Process reqlabels correctly for $deleteLabelList" in isolatedDbTest {
+    it should s"Process reqlabels correctly for $deleteLabelSet" in isolatedDbTest {
       val res = for {
         samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
         testRuntime <- IO(
@@ -756,7 +756,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
             .save()
         )
-        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, deleteLabelList)
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, deleteLabelSet)
         _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
         dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
         _ <- publisherQueue.tryDequeue1
@@ -774,7 +774,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         val res = for {
           samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
           testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
-          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map("" -> ""), List(""))
+          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)
           fail <- runtimeService
             .updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
             .attempt

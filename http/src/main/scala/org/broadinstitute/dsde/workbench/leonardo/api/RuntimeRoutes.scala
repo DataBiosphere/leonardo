@@ -349,7 +349,7 @@ object RuntimeRoutes {
         .downField("masterDiskSize")
         .as[Option[DiskSize]]
       numWorkers <- x.downField("numberOfWorkers").as[Option[Int]].flatMap {
-        case Some(x) if x < 0  => Left(negativeNumberDecodingFailure)
+        case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
         case Some(x) if x == 1 => Left(oneWorkerSpecifiedDecodingFailure)
         case x                 => Right(x)
       }
@@ -379,13 +379,23 @@ object RuntimeRoutes {
       ap <- x.downField("autopause").as[Option[Boolean]]
       at <- x.downField("autopauseThreshold").as[Option[Int]]
       ul <- x.downField("labelsToUpsert").as[Option[LabelMap]]
-      dl <- x.downField("labelsToDelete").as[Option[List[String]]]
-    } yield {
-      val labelsToDelete =
-        dl.getOrElse(List.empty).filter(labelKey => !(defaultLabelKeys.defaultLabels.keySet contains labelKey))
-      val labelsToUpdate = ul.getOrElse(Map.empty).filter { case (_, v) => v.nonEmpty }.filter {
-        case (k, _) => !(defaultLabelKeys.defaultLabels.keySet contains k)
+      dl <- x.downField("labelsToDelete").as[Option[Set[String]]]
+      labelsToDelete <- dl match {
+        case None => Set.empty[String].asRight[DecodingFailure]
+        case Some(s: Set[String])
+            if s.exists(labelKey => (DefaultRuntimeLabels.defaultLabelKeys.toList contains labelKey)) =>
+          (DecodingFailure("Default labels are not allowed to be deleted", List.empty)).asLeft[Set[String]]
+        case Some(s: Set[String]) => s.asRight[DecodingFailure]
       }
+      labelsToUpdate <- ul match {
+        case None => Map.empty[String, String].asRight[DecodingFailure]
+        case Some(m: LabelMap) if m.values.exists(v => v.isEmpty) =>
+          DecodingFailure("Label values are not allowed to be empty", List.empty).asLeft[LabelMap]
+        case Some(m: LabelMap) if m.keySet.exists(k => (DefaultRuntimeLabels.defaultLabelKeys.toList contains k)) =>
+          DecodingFailure("Default labels are not allowed to be altered", List.empty).asLeft[LabelMap]
+        case Some(m: LabelMap) => m.asRight[DecodingFailure]
+      }
+    } yield {
       UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), labelsToUpdate, labelsToDelete)
     }
   }

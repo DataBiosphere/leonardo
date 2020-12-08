@@ -83,4 +83,4 @@ final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntime
                                       updateAutopauseEnabled: Option[Boolean],
                                       updateAutopauseThreshold: Option[FiniteDuration],
                                       labelsToUpsert: LabelMap,
-                                      labelsToDelete: List[String])
+                                      labelsToDelete: Set[String])

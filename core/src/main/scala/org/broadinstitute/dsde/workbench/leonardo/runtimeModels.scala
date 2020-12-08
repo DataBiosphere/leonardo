@@ -361,14 +361,15 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
     ).filterNot(_._2 == null)
 }
 
-object defaultLabelKeys {
-  val defaultLabels = DefaultRuntimeLabels(RuntimeName(""),
-                                           GoogleProject(""),
-                                           WorkbenchEmail(""),
-                                           WorkbenchEmail(""),
-                                           None,
-                                           None,
-                                           None).toMap
+object DefaultRuntimeLabels {
+  // Creating a dummy instance to obtain the default label keys
+  val defaultLabelKeys = DefaultRuntimeLabels(RuntimeName(""),
+                                              GoogleProject(""),
+                                              WorkbenchEmail(""),
+                                              WorkbenchEmail(""),
+                                              None,
+                                              None,
+                                              None).toMap.keySet
 }
 
 /** Welder operations */
