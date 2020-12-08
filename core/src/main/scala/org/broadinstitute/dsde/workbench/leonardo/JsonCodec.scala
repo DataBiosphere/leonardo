@@ -42,6 +42,9 @@ object JsonCodec {
     "num nodes must be >= 1",
     List.empty
   )
+  val deleteDefaultLabelsDecodingFailure = DecodingFailure("Default labels are not allowed to be deleted", List.empty)
+  val updateDefaultLabelDecodingFailure = DecodingFailure("Default labels are not allowed to be altered", List.empty)
+  val upsertEmptyLabelDecodingFailure = DecodingFailure("Label values are not allowed to be empty", List.empty)
 
   implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
   implicit val googleIdEncoder: Encoder[GoogleId] = Encoder.encodeString.contramap(_.value)

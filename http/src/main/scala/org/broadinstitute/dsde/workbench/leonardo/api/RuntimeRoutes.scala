@@ -349,7 +349,7 @@ object RuntimeRoutes {
         .downField("masterDiskSize")
         .as[Option[DiskSize]]
       numWorkers <- x.downField("numberOfWorkers").as[Option[Int]].flatMap {
-        case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
+        case Some(x) if x < 0  => Left(negativeNumberDecodingFailure)
         case Some(x) if x == 1 => Left(oneWorkerSpecifiedDecodingFailure)
         case x                 => Right(x)
       }
@@ -384,15 +384,15 @@ object RuntimeRoutes {
         case None => Set.empty[String].asRight[DecodingFailure]
         case Some(s: Set[String])
             if s.exists(labelKey => (DefaultRuntimeLabels.defaultLabelKeys.toList contains labelKey)) =>
-          (DecodingFailure("Default labels are not allowed to be deleted", List.empty)).asLeft[Set[String]]
+          deleteDefaultLabelsDecodingFailure.asLeft[Set[String]]
         case Some(s: Set[String]) => s.asRight[DecodingFailure]
       }
       labelsToUpdate <- ul match {
         case None => Map.empty[String, String].asRight[DecodingFailure]
         case Some(m: LabelMap) if m.values.exists(v => v.isEmpty) =>
-          DecodingFailure("Label values are not allowed to be empty", List.empty).asLeft[LabelMap]
+          upsertEmptyLabelDecodingFailure.asLeft[LabelMap]
         case Some(m: LabelMap) if m.keySet.exists(k => (DefaultRuntimeLabels.defaultLabelKeys.toList contains k)) =>
-          DecodingFailure("Default labels are not allowed to be altered", List.empty).asLeft[LabelMap]
+          updateDefaultLabelDecodingFailure.asLeft[LabelMap]
         case Some(m: LabelMap) => m.asRight[DecodingFailure]
       }
     } yield {
