@@ -77,16 +77,15 @@ object JsonCodec {
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers",
     "cloudService"
-  )(
-    x =>
-      (x.numberOfWorkers,
-       x.machineType,
-       x.diskSize,
-       x.workerMachineType,
-       x.workerDiskSize,
-       x.numberOfWorkerLocalSSDs,
-       x.numberOfPreemptibleWorkers,
-       x.cloudService)
+  )(x =>
+    (x.numberOfWorkers,
+     x.machineType,
+     x.diskSize,
+     x.workerMachineType,
+     x.workerDiskSize,
+     x.numberOfWorkerLocalSSDs,
+     x.numberOfPreemptibleWorkers,
+     x.cloudService)
   )
   implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct4(
     "machineType",
@@ -121,12 +120,11 @@ object JsonCodec {
     "bootDiskSize"
   )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize))
 
-  implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(
-    x =>
-      x match {
-        case x: RuntimeConfig.DataprocConfig  => x.asJson
-        case x: RuntimeConfig.GceConfig       => x.asJson
-        case x: RuntimeConfig.GceWithPdConfig => x.asJson
+  implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
+    x match {
+      case x: RuntimeConfig.DataprocConfig  => x.asJson
+      case x: RuntimeConfig.GceConfig       => x.asJson
+      case x: RuntimeConfig.GceWithPdConfig => x.asJson
     }
   )
   implicit val defaultRuntimeLabelsEncoder: Encoder[DefaultRuntimeLabels] = Encoder.forProduct7(
@@ -153,16 +151,15 @@ object JsonCodec {
   implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
   implicit val errorActionEncoder: Encoder[ErrorAction] = Encoder.encodeString.contramap(_.toString)
   implicit val kubernetesErrorEncoder: Encoder[AppError] =
-    Encoder.forProduct5("errorMessage", "timestamp", "action", "source", "googleErrorCode")(
-      x => AppError.unapply(x).get
+    Encoder.forProduct5("errorMessage", "timestamp", "action", "source", "googleErrorCode")(x =>
+      AppError.unapply(x).get
     )
   implicit val nodepoolIdEncoder: Encoder[NodepoolLeoId] = Encoder.encodeLong.contramap(_.id)
   implicit val nodepoolNameEncoder: Encoder[NodepoolName] = Encoder.encodeString.contramap(_.value)
-  implicit val nodepoolStatusEncoder: Encoder[NodepoolStatus] = Encoder.encodeString.contramap(
-    status =>
-      status match {
-        case NodepoolStatus.Precreating => NodepoolStatus.Provisioning.toString
-        case _                          => status.toString
+  implicit val nodepoolStatusEncoder: Encoder[NodepoolStatus] = Encoder.encodeString.contramap(status =>
+    status match {
+      case NodepoolStatus.Precreating => NodepoolStatus.Provisioning.toString
+      case _                          => status.toString
     }
   )
   implicit val numNodesEncoder: Encoder[NumNodes] = Encoder.encodeInt.contramap(_.amount)
@@ -176,11 +173,10 @@ object JsonCodec {
   implicit val locationEncoder: Encoder[Location] = Encoder.encodeString.contramap(_.value)
   implicit val kubeClusterIdEncoder: Encoder[KubernetesClusterLeoId] = Encoder.encodeLong.contramap(_.id)
   implicit val kubeClusterNameEncoder: Encoder[KubernetesClusterName] = Encoder.encodeString.contramap(_.value)
-  implicit val kubeClusterStatusEncoder: Encoder[KubernetesClusterStatus] = Encoder.encodeString.contramap(
-    status =>
-      status match {
-        case KubernetesClusterStatus.Precreating => KubernetesClusterStatus.Provisioning.toString
-        case _                                   => status.toString
+  implicit val kubeClusterStatusEncoder: Encoder[KubernetesClusterStatus] = Encoder.encodeString.contramap(status =>
+    status match {
+      case KubernetesClusterStatus.Precreating => KubernetesClusterStatus.Provisioning.toString
+      case _                                   => status.toString
     }
   )
   implicit val kubeSamIdEncoder: Encoder[AppSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
@@ -198,8 +194,8 @@ object JsonCodec {
   implicit val networkFieldsEncoder: Encoder[NetworkFields] =
     Encoder.forProduct3("networkName", "subNetworkName", "subNetworkIpRange")(x => NetworkFields.unapply(x).get)
   implicit val kubeAsyncFieldEncoder: Encoder[KubernetesClusterAsyncFields] =
-    Encoder.forProduct3("loadBalancerIp", "apiServerIp", "networkInfo")(
-      x => KubernetesClusterAsyncFields.unapply(x).get
+    Encoder.forProduct3("loadBalancerIp", "apiServerIp", "networkInfo")(x =>
+      KubernetesClusterAsyncFields.unapply(x).get
     )
 
   implicit val instanceNameEncoder: Encoder[InstanceName] = Encoder.encodeString.contramap(_.value)
@@ -219,15 +215,15 @@ object JsonCodec {
   implicit val containerImageDecoder: Decoder[ContainerImage] =
     Decoder.decodeString.emap(s => ContainerImage.fromImageUrl(s).toRight(s"invalid container image ${s}"))
   implicit val containerRegistryDecoder: Decoder[ContainerRegistry] =
-    Decoder.decodeString.emap(
-      s => ContainerRegistry.withNameInsensitiveOption(s).toRight(s"Unsupported container registry ${s}")
+    Decoder.decodeString.emap(s =>
+      ContainerRegistry.withNameInsensitiveOption(s).toRight(s"Unsupported container registry ${s}")
     )
   implicit val cloudServiceDecoder: Decoder[CloudService] =
     Decoder.decodeString.emap(s => CloudService.withNameInsensitiveOption(s).toRight(s"Unsupported cloud service ${s}"))
   implicit val runtimeNameDecoder: Decoder[RuntimeName] = Decoder.decodeString.map(RuntimeName)
   implicit val runtimeStatusDecoder: Decoder[RuntimeStatus] = Decoder.decodeString.map(s => RuntimeStatus.withName(s))
-  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(
-    s => if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
+  implicit val machineTypeDecoder: Decoder[MachineTypeName] = Decoder.decodeString.emap(s =>
+    if (s.isEmpty) Left("machine type cannot be an empty string") else Right(MachineTypeName(s))
   )
   implicit val instantDecoder: Decoder[Instant] =
     Decoder.decodeString.emap(s => Either.catchNonFatal(Instant.parse(s)).leftMap(_.getMessage))
@@ -240,8 +236,8 @@ object JsonCodec {
   implicit val blockSizeDecoder: Decoder[BlockSize] =
     Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
-  implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(
-    s => RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
+  implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
+    RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
   )
 
   implicit val runtimeImageDecoder: Decoder[RuntimeImage] = Decoder.forProduct3(
@@ -266,15 +262,14 @@ object JsonCodec {
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
-    } yield
-      RuntimeConfig.DataprocConfig(numberOfWorkers,
-                                   masterMachineType,
-                                   masterDiskSize,
-                                   workerMachineType,
-                                   workerDiskSize,
-                                   numberOfWorkerLocalSSDs,
-                                   numberOfPreemptibleWorkers,
-                                   properties)
+    } yield RuntimeConfig.DataprocConfig(numberOfWorkers,
+                                         masterMachineType,
+                                         masterDiskSize,
+                                         workerMachineType,
+                                         workerDiskSize,
+                                         numberOfWorkerLocalSSDs,
+                                         numberOfPreemptibleWorkers,
+                                         properties)
   }
 
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>
@@ -304,11 +299,10 @@ object JsonCodec {
       se <- c.downField("serverExtensions").as[Option[Map[String, String]]]
       ce <- c.downField("combinedExtensions").as[Option[Map[String, String]]]
       le <- c.downField("labExtensions").as[Option[Map[String, String]]]
-    } yield
-      UserJupyterExtensionConfig(ne.getOrElse(Map.empty),
-                                 se.getOrElse(Map.empty),
-                                 ce.getOrElse(Map.empty),
-                                 le.getOrElse(Map.empty))
+    } yield UserJupyterExtensionConfig(ne.getOrElse(Map.empty),
+                                       se.getOrElse(Map.empty),
+                                       ce.getOrElse(Map.empty),
+                                       le.getOrElse(Map.empty))
   }
 
   implicit val clusterProjectAndNameDecoder: Decoder[RuntimeProjectAndName] =
@@ -384,8 +378,8 @@ object JsonCodec {
   implicit val kubeClusterIdDecoder: Decoder[KubernetesClusterLeoId] = Decoder.decodeLong.map(KubernetesClusterLeoId)
   implicit val kubeClusterNameDecoder: Decoder[KubernetesClusterName] =
     Decoder.decodeString.emap(s => KubernetesName.withValidation(s, KubernetesClusterName).leftMap(_.getMessage))
-  implicit val kubeClusterStatusDecoder: Decoder[KubernetesClusterStatus] = Decoder.decodeString.emap(
-    s => KubernetesClusterStatus.stringToObject.get(s).toRight(s"Invalid cluster status ${s}")
+  implicit val kubeClusterStatusDecoder: Decoder[KubernetesClusterStatus] = Decoder.decodeString.emap(s =>
+    KubernetesClusterStatus.stringToObject.get(s).toRight(s"Invalid cluster status ${s}")
   )
   implicit val appSamIdDecoder: Decoder[AppSamResourceId] = Decoder.decodeString.map(AppSamResourceId)
   implicit val namespaceNameDecoder: Decoder[NamespaceName] =

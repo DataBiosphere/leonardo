@@ -169,8 +169,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 case _ =>
                   val operationName = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.map(_.operationName)
                   for {
-                    error <- operationName.flatTraverse(
-                      o => googleDataprocService.getClusterError(google2.OperationName(o.value))
+                    error <- operationName.flatTraverse(o =>
+                      googleDataprocService.getClusterError(google2.OperationName(o.value))
                     )
                     r <- failedRuntime(
                       monitorContext,
