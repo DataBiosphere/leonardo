@@ -49,7 +49,6 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                     )
                   )
                 }
-
               }
             } ~
               pathPrefix(googleProjectSegment) { googleProject =>
@@ -64,7 +63,6 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                         )
                       )
                     }
-
                   }
                 } ~
                   pathPrefix(Segment) { runtimeNameString =>
@@ -90,7 +88,6 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                             )
                           )
                         } ~ patch {
-
                           entity(as[UpdateRuntimeRequest]) { req =>
                             complete(
                               updateRuntimeHandler(
@@ -101,7 +98,6 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                               )
                             )
                           }
-
                         } ~ delete {
                           parameterMap { params =>
                             complete(
@@ -112,12 +108,10 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                                 params
                               )
                             )
-
                           }
                         }
                       } ~
                         path("stop") {
-
                           post {
                             complete(
                               stopRuntimeHandler(
@@ -127,10 +121,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                               )
                             )
                           }
-
                         } ~
                         path("start") {
-
                           post {
                             complete(
                               startRuntimeHandler(
@@ -140,7 +132,6 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                               )
                             )
                           }
-
                         }
                     }
                   }
@@ -203,10 +194,8 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      deleteDisk = params
-        .get("deleteDisk")
-        .map(s => if (s == "true") true else false)
-        .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+      // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+      deleteDisk = params.get("deleteDisk").exists(_ == "true")
       request = DeleteRuntimeRequest(userInfo, googleProject, runtimeName, deleteDisk)
       apiCall = runtimeService.deleteRuntime(request)
       _ <- metrics.incrementCounter("deleteRuntime")

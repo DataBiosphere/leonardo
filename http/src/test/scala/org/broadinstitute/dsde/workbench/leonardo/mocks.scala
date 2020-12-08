@@ -181,12 +181,7 @@ class MockGKEService extends GKEAlgebra[IO] {
   override def pollCluster(params: PollClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
   /** Creates a GKE nodepool but doesn't wait for its completion. */
-  override def createNodepool(params: CreateNodepoolParams)(
-    implicit ev: Ask[IO, AppContext]
-  ): IO[Option[CreateNodepoolResult]] = IO.pure(None)
-
-  /** Polls a creating nodepool for its completion. */
-  override def pollNodepool(params: PollNodepoolParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+  override def createAndPollNodepool(params: CreateNodepoolParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
   /** Creates an app and polls it for completion. */
   override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
@@ -199,4 +194,10 @@ class MockGKEService extends GKEAlgebra[IO] {
 
   /** Deletes an app and polls for completion */
   override def deleteAndPollApp(params: DeleteAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Stops an app and polls for completion */
+  override def stopAndPollApp(params: StopAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Starts an app and polls for completion */
+  override def startAndPollApp(params: StartAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
 }

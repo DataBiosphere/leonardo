@@ -62,7 +62,7 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMe
             }
           } yield hostStatus
 
-          res.toIO.unsafeRunSync
+          res.toIO.unsafeRunSync()
         }
       }
     )

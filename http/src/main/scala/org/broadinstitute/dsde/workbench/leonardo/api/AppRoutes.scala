@@ -5,20 +5,19 @@ package api
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server
-import JsonCodec._
-import akka.http.scaladsl.server.Directives.pathEndOrSingleSlash
+import akka.http.scaladsl.server.Directives.{pathEndOrSingleSlash, _}
 import cats.effect.IO
 import cats.mtl.Ask
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import io.circe.{Decoder, Encoder, KeyEncoder}
+import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.api.CookieSupport
+import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
+import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import akka.http.scaladsl.server.Directives._
-import io.circe.{Decoder, Encoder, KeyEncoder}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
-import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.service.KubernetesService
-import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
@@ -94,7 +93,21 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
                               )
                             }
                           }
-                      }
+                      } ~
+                        path("stop") {
+                          post {
+                            complete {
+                              stopAppHandler(userInfo, googleProject, appName)
+                            }
+                          }
+                        } ~
+                        path("start") {
+                          post {
+                            complete {
+                              startAppHandler(userInfo, googleProject, appName)
+                            }
+                          }
+                        }
                     }
                   }
               }
@@ -171,11 +184,8 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-
-      deleteDisk = params
-        .get("deleteDisk")
-        .map(s => s == "true")
-        .getOrElse(false) //if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+      // if `deleteDisk` is explicitly set to true, then we delete disk; otherwise, we don't
+      deleteDisk = params.get("deleteDisk").exists(_ == "true")
       deleteParams = DeleteAppRequest(
         userInfo,
         googleProject,
@@ -187,6 +197,26 @@ class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: Us
       )
       _ <- metrics.incrementCounter("deleteApp")
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteApp").use(_ => apiCall))
+    } yield StatusCodes.Accepted
+
+  private[api] def stopAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = kubernetesService.stopApp(userInfo, googleProject, appName)
+      _ <- metrics.incrementCounter("stopApp")
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "stopApp").use(_ => apiCall))
+    } yield StatusCodes.Accepted
+
+  private[api] def startAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = kubernetesService.startApp(userInfo, googleProject, appName)
+      _ <- metrics.incrementCounter("startApp")
+      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "startApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 }
 

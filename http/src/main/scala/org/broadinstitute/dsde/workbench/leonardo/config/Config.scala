@@ -7,13 +7,7 @@ import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicNam
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
-  NamespaceName,
-  SecretKey,
-  SecretName,
-  ServiceAccountName,
-  ServiceName
-}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
   FirewallRuleName,
@@ -53,8 +47,8 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
@@ -381,8 +375,8 @@ object Config {
   implicit private val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
   implicit private val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
   implicit private val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
-  implicit private val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
-  implicit private val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
+  implicit private val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName(_))
+  implicit private val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName(_))
   implicit private val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
   implicit private val dataprocCustomImageReader: ValueReader[DataprocCustomImage] =
     stringValueReader.map(DataprocCustomImage)
@@ -403,7 +397,7 @@ object Config {
   implicit private val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
   implicit private val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
   implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
-    DiskType.stringToObject.get(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
+    DiskType.stringToObject.getOrElse(s, throw new RuntimeException(s"Unable to parse diskType from $s"))
   )
   implicit private val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
   implicit private val frameAncestorsReader: ValueReader[FrameAncestors] =
@@ -527,7 +521,9 @@ object Config {
       config.as[Location]("location"),
       config.as[RegionName]("region"),
       config.as[List[CidrIP]]("authorizedNetworks"),
-      config.as[KubernetesClusterVersion]("version")
+      config.as[KubernetesClusterVersion]("version"),
+      config.as[FiniteDuration]("nodepoolLockCacheExpiryTime"),
+      config.getInt("nodepoolLockCacheMaxSize")
     )
   }
 
@@ -730,7 +726,10 @@ object Config {
       config.as[PollMonitorConfig]("deleteCluster"),
       config.as[PollMonitorConfig]("createIngress"),
       config.as[PollMonitorConfig]("createApp"),
-      config.as[PollMonitorConfig]("deleteApp")
+      config.as[PollMonitorConfig]("deleteApp"),
+      config.as[PollMonitorConfig]("scaleNodepool"),
+      config.as[PollMonitorConfig]("setNodepoolAutoscaling"),
+      config.as[PollMonitorConfig]("startApp")
     )
   }
 

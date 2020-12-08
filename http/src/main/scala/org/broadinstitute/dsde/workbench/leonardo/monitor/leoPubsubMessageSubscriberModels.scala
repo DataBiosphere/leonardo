@@ -7,6 +7,7 @@ import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.{
@@ -135,6 +136,12 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
     val asString = "batchNodepoolCreate"
   }
 
+  final case object StopApp extends LeoPubsubMessageType {
+    val asString = "stopApp"
+  }
+  final case object StartApp extends LeoPubsubMessageType {
+    val asString = "startApp"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -220,6 +227,7 @@ object LeoPubsubMessage {
                                     createDisk: Option[DiskId],
                                     customEnvironmentVariables: Map[String, String],
                                     appType: AppType,
+                                    namespaceName: NamespaceName,
                                     traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
@@ -241,6 +249,16 @@ object LeoPubsubMessage {
                                               traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.BatchNodepoolCreate
+  }
+
+  final case class StopAppMessage(appId: AppId, appName: AppName, project: GoogleProject, traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StopApp
+  }
+
+  final case class StartAppMessage(appId: AppId, appName: AppName, project: GoogleProject, traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.StartApp
   }
 
   final case class DeleteRuntimeMessage(runtimeId: Long,
@@ -402,13 +420,14 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct8("project",
+    Decoder.forProduct9("project",
                         "clusterNodepoolAction",
                         "appId",
                         "appName",
                         "createDisk",
                         "customEnvironmentVariables",
                         "appType",
+                        "namespaceName",
                         "traceId")(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
@@ -416,6 +435,12 @@ object LeoPubsubCodec {
 
   implicit val batchNodepoolCreateDecoder: Decoder[BatchNodepoolCreateMessage] =
     Decoder.forProduct4("clusterId", "nodepools", "project", "traceId")(BatchNodepoolCreateMessage.apply)
+
+  implicit val stopAppDecoder: Decoder[StopAppMessage] =
+    Decoder.forProduct4("appId", "appName", "project", "traceId")(StopAppMessage.apply)
+
+  implicit val startAppDecoder: Decoder[StartAppMessage] =
+    Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
@@ -436,6 +461,8 @@ object LeoPubsubCodec {
         case LeoPubsubMessageType.CreateApp           => message.as[CreateAppMessage]
         case LeoPubsubMessageType.DeleteApp           => message.as[DeleteAppMessage]
         case LeoPubsubMessageType.BatchNodepoolCreate => message.as[BatchNodepoolCreateMessage]
+        case LeoPubsubMessageType.StopApp             => message.as[StopAppMessage]
+        case LeoPubsubMessageType.StartApp            => message.as[StartAppMessage]
       }
     } yield value
   }
@@ -680,7 +707,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct9(
+    Encoder.forProduct10(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -689,6 +716,7 @@ object LeoPubsubCodec {
       "createDisk",
       "customEnvironmentVariables",
       "appType",
+      "namespaceName",
       "traceId"
     )(x =>
       (x.messageType,
@@ -699,6 +727,7 @@ object LeoPubsubCodec {
        x.createDisk,
        x.customEnvironmentVariables,
        x.appType,
+       x.namespaceName,
        x.traceId)
     )
 
@@ -710,6 +739,16 @@ object LeoPubsubCodec {
   implicit val deleteAppMessageEncoder: Encoder[DeleteAppMessage] =
     Encoder.forProduct7("messageType", "appId", "appName", "nodepoolId", "project", "diskId", "traceId")(x =>
       (x.messageType, x.appId, x.appName, x.nodepoolId, x.project, x.diskId, x.traceId)
+    )
+
+  implicit val stopAppMessageEncoder: Encoder[StopAppMessage] =
+    Encoder.forProduct5("messageType", "appId", "appName", "project", "traceId")(x =>
+      (x.messageType, x.appId, x.appName, x.project, x.traceId)
+    )
+
+  implicit val startAppMessageEncoder: Encoder[StartAppMessage] =
+    Encoder.forProduct5("messageType", "appId", "appName", "project", "traceId")(x =>
+      (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
@@ -724,6 +763,8 @@ object LeoPubsubCodec {
     case m: CreateAppMessage           => m.asJson
     case m: DeleteAppMessage           => m.asJson
     case m: BatchNodepoolCreateMessage => m.asJson
+    case m: StopAppMessage             => m.asJson
+    case m: StartAppMessage            => m.asJson
   }
 }
 

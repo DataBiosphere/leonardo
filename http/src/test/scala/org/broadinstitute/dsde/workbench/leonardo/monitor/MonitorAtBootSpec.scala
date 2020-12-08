@@ -129,6 +129,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Some(disk.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp.appResources.namespace.name,
         None
       )
       (msg eqv Some(expected)) shouldBe true
@@ -157,6 +158,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Some(disk.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp.appResources.namespace.name,
         None
       )
       (msg eqv Some(expected)) shouldBe true
@@ -185,6 +187,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Some(disk.id),
         Map.empty,
         AppType.Galaxy,
+        savedApp.appResources.namespace.name,
         None
       )
       (msg eqv Some(expected)) shouldBe true

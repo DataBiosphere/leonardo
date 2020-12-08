@@ -20,13 +20,10 @@ trait GKEAlgebra[F[_]] {
    */
   def pollCluster(params: PollClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Creates a GKE nodepool but doesn't wait for its completion. */
-  def createNodepool(params: CreateNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Option[CreateNodepoolResult]]
+  /** Creates a GKE nodepool and polls it for completion */
+  def createAndPollNodepool(params: CreateNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  /** Polls a creating nodepool for its completion. */
-  def pollNodepool(params: PollNodepoolParams)(implicit ev: Ask[F, AppContext]): F[Unit]
-
-  /** Creates an app and polls it for completion. */
+  /** Creates an app and polls it for completion */
   def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 
   /** Deletes a cluster and polls for completion */
@@ -37,6 +34,12 @@ trait GKEAlgebra[F[_]] {
 
   /** Deletes an app and polls for completion */
   def deleteAndPollApp(params: DeleteAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+
+  /** Stops an app and polls for completion */
+  def stopAndPollApp(params: StopAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+
+  /** Starts an app and polls for completion */
+  def startAndPollApp(params: StartAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 }
 
 final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,
@@ -55,10 +58,6 @@ final case class PollClusterParams(clusterId: KubernetesClusterLeoId,
 
 final case class CreateNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
 
-final case class CreateNodepoolResult(op: KubernetesOperationId)
-
-final case class PollNodepoolParams(nodepoolId: NodepoolLeoId, createResult: CreateNodepoolResult)
-
 final case class CreateAppParams(appId: AppId, googleProject: GoogleProject, appName: AppName)
 
 final case class DeleteClusterParams(clusterId: KubernetesClusterLeoId, googleProject: GoogleProject)
@@ -69,3 +68,7 @@ final case class DeleteAppParams(appId: AppId,
                                  googleProject: GoogleProject,
                                  appName: AppName,
                                  errorAfterDelete: Boolean)
+
+final case class StopAppParams(appId: AppId, appName: AppName, googleProject: GoogleProject)
+
+final case class StartAppParams(appId: AppId, appName: AppName, googleProject: GoogleProject)

@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import akka.http.scaladsl.model.StatusCodes
 import java.time.Instant
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._

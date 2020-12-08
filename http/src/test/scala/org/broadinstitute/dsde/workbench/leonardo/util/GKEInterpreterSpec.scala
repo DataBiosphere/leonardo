@@ -6,10 +6,10 @@ import java.util.Base64
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
-import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   MockComputePollOperation,
@@ -50,8 +50,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            MockGalaxyDAO,
                            credentials,
                            googleIamDao,
-                           whitelistAuthProvider,
-                           blocker)
+                           blocker,
+                           nodepoolLock.unsafeRunSync())
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
