@@ -311,7 +311,7 @@ object JsonCodec {
   implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
 
-  implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName)
+  implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName(_))
   implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.emap(s => validateName(s).map(DiskName))
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
   implicit val diskStatusDecoder: Decoder[DiskStatus] =

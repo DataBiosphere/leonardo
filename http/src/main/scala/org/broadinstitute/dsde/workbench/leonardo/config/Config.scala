@@ -375,8 +375,8 @@ object Config {
   implicit private val workbenchEmailValueReader: ValueReader[WorkbenchEmail] = stringValueReader.map(WorkbenchEmail)
   implicit private val googleProjectValueReader: ValueReader[GoogleProject] = stringValueReader.map(GoogleProject)
   implicit private val pathValueReader: ValueReader[Path] = stringValueReader.map(s => Paths.get(s))
-  implicit private val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName)
-  implicit private val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName)
+  implicit private val regionNameReader: ValueReader[RegionName] = stringValueReader.map(RegionName(_))
+  implicit private val zoneNameReader: ValueReader[ZoneName] = stringValueReader.map(ZoneName(_))
   implicit private val machineTypeReader: ValueReader[MachineTypeName] = stringValueReader.map(MachineTypeName)
   implicit private val dataprocCustomImageReader: ValueReader[DataprocCustomImage] =
     stringValueReader.map(DataprocCustomImage)
@@ -397,7 +397,7 @@ object Config {
   implicit private val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
   implicit private val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
   implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
-    DiskType.stringToObject.get(s).getOrElse(throw new RuntimeException(s"Unable to parse diskType from $s"))
+    DiskType.stringToObject.getOrElse(s, throw new RuntimeException(s"Unable to parse diskType from $s"))
   )
   implicit private val blockSizeValueReader: ValueReader[BlockSize] = intValueReader.map(BlockSize)
   implicit private val frameAncestorsReader: ValueReader[FrameAncestors] =

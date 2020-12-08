@@ -98,52 +98,60 @@ object Boot extends IOApp {
                            googleDependencies.googleComputeService,
                            googleDependencies.computePollOperation)
 
-      val dataprocInterp = new DataprocInterpreter(dataprocInterpreterConfig,
-                                                   bucketHelper,
-                                                   vpcInterp,
-                                                   googleDependencies.googleDataprocDAO,
-                                                   googleDependencies.googleComputeService,
-                                                   googleDependencies.googleDiskService,
-                                                   googleDependencies.googleDirectoryDAO,
-                                                   googleDependencies.googleIamDAO,
-                                                   googleDependencies.googleProjectDAO,
-                                                   appDependencies.welderDAO,
-                                                   appDependencies.blocker)
+      val dataprocInterp = new DataprocInterpreter(
+        dataprocInterpreterConfig,
+        bucketHelper,
+        vpcInterp,
+        googleDependencies.googleDataprocDAO,
+        googleDependencies.googleComputeService,
+        googleDependencies.googleDiskService,
+        googleDependencies.googleDirectoryDAO,
+        googleDependencies.googleIamDAO,
+        googleDependencies.googleProjectDAO,
+        appDependencies.welderDAO,
+        appDependencies.blocker
+      )
 
-      val gceInterp = new GceInterpreter(gceInterpreterConfig,
-                                         bucketHelper,
-                                         vpcInterp,
-                                         googleDependencies.googleComputeService,
-                                         googleDependencies.googleDiskService,
-                                         appDependencies.welderDAO,
-                                         appDependencies.blocker)
+      val gceInterp = new GceInterpreter(
+        gceInterpreterConfig,
+        bucketHelper,
+        vpcInterp,
+        googleDependencies.googleComputeService,
+        googleDependencies.googleDiskService,
+        appDependencies.welderDAO,
+        appDependencies.blocker
+      )
       implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
 
-      val leonardoService = new LeonardoService(dataprocConfig,
-                                                imageConfig,
-                                                appDependencies.welderDAO,
-                                                proxyConfig,
-                                                swaggerConfig,
-                                                autoFreezeConfig,
-                                                zombieRuntimeMonitorConfig,
-                                                welderConfig,
-                                                googleDependencies.petGoogleStorageDAO,
-                                                appDependencies.authProvider,
-                                                appDependencies.serviceAccountProvider,
-                                                bucketHelper,
-                                                appDependencies.dockerDAO,
-                                                appDependencies.publisherQueue)
+      val leonardoService = new LeonardoService(
+        dataprocConfig,
+        imageConfig,
+        appDependencies.welderDAO,
+        proxyConfig,
+        swaggerConfig,
+        autoFreezeConfig,
+        zombieRuntimeMonitorConfig,
+        welderConfig,
+        googleDependencies.petGoogleStorageDAO,
+        appDependencies.authProvider,
+        appDependencies.serviceAccountProvider,
+        bucketHelper,
+        appDependencies.dockerDAO,
+        appDependencies.publisherQueue
+      )
       val dateAccessedUpdater =
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
-      val proxyService = new ProxyService(appDependencies.sslContext,
-                                          proxyConfig,
-                                          appDependencies.jupyterDAO,
-                                          appDependencies.runtimeDnsCache,
-                                          googleDependencies.kubernetesDnsCache,
-                                          appDependencies.authProvider,
-                                          appDependencies.dateAccessedUpdaterQueue,
-                                          googleDependencies.googleOauth2DAO,
-                                          appDependencies.blocker)
+      val proxyService = new ProxyService(
+        appDependencies.sslContext,
+        proxyConfig,
+        appDependencies.jupyterDAO,
+        appDependencies.runtimeDnsCache,
+        googleDependencies.kubernetesDnsCache,
+        appDependencies.authProvider,
+        appDependencies.dateAccessedUpdaterQueue,
+        googleDependencies.googleOauth2DAO,
+        appDependencies.blocker
+      )
       val statusService = new StatusService(googleDependencies.googleDataprocDAO,
                                             appDependencies.samDAO,
                                             appDependencies.dbReference,
@@ -183,15 +191,17 @@ object Boot extends IOApp {
                                        leoKubernetesConfig,
                                        appDependencies.publisherQueue)
 
-      val httpRoutes = new HttpRoutes(swaggerConfig,
-                                      statusService,
-                                      proxyService,
-                                      leonardoService,
-                                      runtimeService,
-                                      diskService,
-                                      leoKubernetesService,
-                                      StandardUserInfoDirectives,
-                                      contentSecurityPolicy)
+      val httpRoutes = new HttpRoutes(
+        swaggerConfig,
+        statusService,
+        proxyService,
+        leonardoService,
+        runtimeService,
+        diskService,
+        leoKubernetesService,
+        StandardUserInfoDirectives,
+        contentSecurityPolicy
+      )
       val httpServer = for {
         _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
           dataprocInterp.setupDataprocImageGoogleGroup()
@@ -246,26 +256,30 @@ object Boot extends IOApp {
           // only needed for backleo
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
-          val gkeAlg = new GKEInterpreter[IO](gkeInterpConfig,
-                                              vpcInterp,
-                                              googleDependencies.gkeService,
-                                              googleDependencies.kubeService,
-                                              appDependencies.helmClient,
-                                              appDependencies.galaxyDAO,
-                                              googleDependencies.credentials,
-                                              googleDependencies.googleIamDAO,
-                                              appDependencies.blocker,
-                                              appDependencies.nodepoolLock)
+          val gkeAlg = new GKEInterpreter[IO](
+            gkeInterpConfig,
+            vpcInterp,
+            googleDependencies.gkeService,
+            googleDependencies.kubeService,
+            appDependencies.helmClient,
+            appDependencies.galaxyDAO,
+            googleDependencies.credentials,
+            googleDependencies.googleIamDAO,
+            appDependencies.blocker,
+            appDependencies.nodepoolLock
+          )
 
           val pubsubSubscriber =
-            new LeoPubsubMessageSubscriber[IO](leoPubsubMessageSubscriberConfig,
-                                               appDependencies.subscriber,
-                                               appDependencies.asyncTasksQueue,
-                                               googleDiskService,
-                                               googleDependencies.computePollOperation,
-                                               appDependencies.authProvider,
-                                               gkeAlg,
-                                               googleDependencies.errorReporting)
+            new LeoPubsubMessageSubscriber[IO](
+              leoPubsubMessageSubscriberConfig,
+              appDependencies.subscriber,
+              appDependencies.asyncTasksQueue,
+              googleDiskService,
+              googleDependencies.computePollOperation,
+              appDependencies.authProvider,
+              gkeAlg,
+              googleDependencies.errorReporting
+            )
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -413,6 +427,7 @@ object Boot extends IOApp {
                                                                   semaphore,
                                                                   googleComputeRetryPolicy)
       dataprocService <- GoogleDataprocService.resource(
+        googleComputeService,
         pathToCredentialJson,
         blocker,
         semaphore,
