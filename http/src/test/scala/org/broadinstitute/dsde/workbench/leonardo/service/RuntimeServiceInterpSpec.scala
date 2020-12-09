@@ -735,7 +735,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     Set(""),
     Set("apples"),
     Set("apples", "oranges"),
-    Set("apples", "apples"),
     Set("apples", "grapes")
   )
 
