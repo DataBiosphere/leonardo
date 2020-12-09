@@ -37,6 +37,11 @@ import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
+import org.broadinstitute.dsde.workbench.leonardo.monitor.DiskUpdate
+import org.broadinstitute.dsde.workbench.leonardo.LabelMap
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
 
@@ -673,7 +678,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
-      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
+      req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)
 
       _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
       dbRuntimeOpt <- clusterQuery
@@ -689,6 +694,78 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
+  val reqMaps: List[LabelMap] = List(
+    Map.empty,
+    Map("apples" -> "are_great", "grapes" -> "are_cool"),
+    Map("new_entry" -> "i_am_new")
+  )
+
+  val startLabelMap: LabelMap = Map("apples" -> "to_oranges", "grapes" -> "make_wine")
+
+  val finalUpsertMaps: List[LabelMap] = List(
+    Map("apples" -> "to_oranges", "grapes" -> "make_wine"),
+    Map("apples" -> "are_great", "grapes" -> "are_cool"),
+    Map("apples" -> "to_oranges", "grapes" -> "make_wine", "new_entry" -> "i_am_new")
+  )
+
+  reqMaps.foreach { upsertLabels =>
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    it should s"Process upsert labels correctly for $upsertLabels" in isolatedDbTest {
+      val res = for {
+        samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+        testRuntime <- IO(
+          makeCluster(1)
+            .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
+            .save()
+        )
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), upsertLabels, Set.empty)
+        _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
+        dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
+        _ <- publisherQueue.tryDequeue1
+
+      } yield {
+        finalUpsertMaps.contains(dbLabelMap) shouldBe true
+      }
+      res.unsafeRunSync()
+    }
+  }
+
+  val deleteLists: List[Set[String]] = List(
+    Set(""),
+    Set("apples"),
+    Set("apples", "oranges"),
+    Set("apples", "grapes")
+  )
+
+  val finalDeleteMaps: List[LabelMap] = List(
+    Map("grapes" -> "make_wine"),
+    Map("apples" -> "to_oranges", "grapes" -> "make_wine"),
+    Map.empty
+  )
+
+  deleteLists.foreach { deleteLabelSet =>
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    it should s"Process reqlabels correctly for $deleteLabelSet" in isolatedDbTest {
+      val res = for {
+        samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+        testRuntime <- IO(
+          makeCluster(1)
+            .copy(samResource = samResource, status = RuntimeStatus.Running, labels = startLabelMap)
+            .save()
+        )
+        req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, deleteLabelSet)
+        _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
+        dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
+        _ <- publisherQueue.tryDequeue1
+      } yield {
+        finalDeleteMaps.contains(dbLabelMap) shouldBe true
+      }
+      res.unsafeRunSync()
+    }
+  }
+
   List(RuntimeStatus.Creating, RuntimeStatus.Stopping, RuntimeStatus.Deleting, RuntimeStatus.Starting).foreach {
     status =>
       val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
@@ -696,7 +773,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         val res = for {
           samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
           testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
-          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes))
+          req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)
           fail <- runtimeService
             .updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
             .attempt

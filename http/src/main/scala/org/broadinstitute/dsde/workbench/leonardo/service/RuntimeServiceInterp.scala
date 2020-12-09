@@ -35,6 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeonardoService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
+import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,
@@ -46,6 +47,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import slick.dbio.DBIOAction
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext
@@ -503,6 +505,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold)
         clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
       else Async[F].unit
+
+      _ <- DBIOAction
+        .seq(
+          labelQuery.deleteForResource(runtime.id, LabelResourceType.runtime, req.labelsToDelete),
+          req.labelsToUpsert.toList.traverse_ {
+            case (k, v) =>
+              labelQuery.save(runtime.id, LabelResourceType.runtime, k, v)
+          }
+        )
+        .transaction
+
       // Updating the runtime config will potentially generate a PubSub message
       _ <- req.updatedRuntimeConfig.traverse_(update =>
         processUpdateRuntimeConfigRequest(update, req.allowStop, runtime, runtimeConfig)

@@ -367,7 +367,26 @@ object RuntimeRoutes {
       as <- x.downField("allowStop").as[Option[Boolean]]
       ap <- x.downField("autopause").as[Option[Boolean]]
       at <- x.downField("autopauseThreshold").as[Option[Int]]
-    } yield UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes))
+      ul <- x.downField("labelsToUpsert").as[Option[LabelMap]]
+      dl <- x.downField("labelsToDelete").as[Option[Set[String]]]
+      labelsToDelete <- dl match {
+        case None => Set.empty[String].asRight[DecodingFailure]
+        case Some(s: Set[String])
+            if s.exists(labelKey => (DefaultRuntimeLabels.defaultLabelKeys.toList contains labelKey)) =>
+          deleteDefaultLabelsDecodingFailure.asLeft[Set[String]]
+        case Some(s: Set[String]) => s.asRight[DecodingFailure]
+      }
+      labelsToUpdate <- ul match {
+        case None => Map.empty[String, String].asRight[DecodingFailure]
+        case Some(m: LabelMap) if m.values.exists(v => v.isEmpty) =>
+          upsertEmptyLabelDecodingFailure.asLeft[LabelMap]
+        case Some(m: LabelMap) if m.keySet.exists(k => (DefaultRuntimeLabels.defaultLabelKeys.toList contains k)) =>
+          updateDefaultLabelDecodingFailure.asLeft[LabelMap]
+        case Some(m: LabelMap) => m.asRight[DecodingFailure]
+      }
+    } yield {
+      UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), labelsToUpdate, labelsToDelete)
+    }
   }
 
   implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap { x =>
