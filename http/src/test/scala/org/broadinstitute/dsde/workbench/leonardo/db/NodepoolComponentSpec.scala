@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.NodepoolStatus
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -82,8 +83,8 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     val savedNodepool1 = makeNodepool(3, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
 
     val claims = for {
-      claim1 <- nodepoolQuery.claimNodepool(savedCluster1.id)
-      claim2 <- nodepoolQuery.claimNodepool(savedCluster1.id)
+      claim1 <- nodepoolQuery.claimNodepool(savedCluster1.id, auditInfo.creator)
+      claim2 <- nodepoolQuery.claimNodepool(savedCluster1.id, auditInfo.creator)
     } yield (claim1, claim2)
 
     val (claim1, claim2) = dbFutureValue(claims)
@@ -92,12 +93,12 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     claim2 shouldBe None
   }
 
-  it should "return a nodepool by user " in isolatedDbTest {
+  it should "return a nodepool by user" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1).save()
     val realUser = WorkbenchEmail("real@gmail.com")
     val nodepool1 = makeNodepool(1, cluster1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
 
-    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(realUser))
+    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(realUser, cluster1.googleProject))
     nodepoolOpt.isDefined shouldBe true
     nodepoolOpt.map(_.id) shouldBe Some(nodepool1.id)
   }
@@ -111,7 +112,7 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     val app1 = makeApp(1, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
     val app2 = makeApp(2, nodepool1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
 
-    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(realUser))
+    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(realUser, cluster1.googleProject))
     nodepoolOpt.isDefined shouldBe true
     nodepoolOpt.map(_.id) shouldBe Some(nodepool1.id)
   }
@@ -121,7 +122,17 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
 
     val fakeUser = WorkbenchEmail("fake@gmail.com")
 
-    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(fakeUser))
+    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(fakeUser, cluster1.googleProject))
     nodepoolOpt.isDefined shouldBe false
   }
+
+  it should "not return a nodepool in a different project from a user" in isolatedDbTest {
+    val cluster1 = makeKubeCluster(1).save()
+    val realUser = WorkbenchEmail("real@gmail.com")
+    val nodepool1 = makeNodepool(1, cluster1.id).copy(auditInfo = auditInfo.copy(creator = realUser)).save()
+
+    val nodepoolOpt = dbFutureValue(nodepoolQuery.getMinimalByUser(realUser, GoogleProject("fake project")))
+    nodepoolOpt.isDefined shouldBe false
+  }
+
 }
