@@ -210,13 +210,6 @@ object appQuery extends TableQuery(new AppTable(_)) {
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)
 
-  private[db] def findActiveByCreatorQuery(
-    creator: WorkbenchEmail
-  ): Query[AppTable, AppRecord, Seq] =
-    appQuery
-      .filter(_.creator === creator)
-      .filter(_.destroyedDate === dummyDate)
-
   private[db] def findActiveByNameQuery(
     appName: AppName
   ): Query[AppTable, AppRecord, Seq] =

@@ -304,7 +304,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       // create list of Precreating nodepools
       eitherNodepoolsOrError = List.tabulate(req.numNodepools.value) { _ =>
         getUserNodepool(clusterId,
-                        userInfo.copy(userEmail = WorkbenchEmail("notuserassigned@gmail.com")),
+                        userInfo.copy(userEmail = WorkbenchEmail("nouserassigned@gmail.com")),
                         req.kubernetesRuntimeConfig,
                         ctx.now)
       }
