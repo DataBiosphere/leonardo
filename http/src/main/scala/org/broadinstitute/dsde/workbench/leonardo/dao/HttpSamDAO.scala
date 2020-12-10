@@ -340,6 +340,32 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         )
       )(onError)
     } yield resp.email
+
+  override def getUserSubjectId(userEmail: WorkbenchEmail,
+                                googleProject: GoogleProject)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] =
+    for {
+      traceId <- ev.ask
+      _ <- metrics.incrementCounter("sam/getSubjectId")
+      token <- getCachedPetAccessToken(userEmail, googleProject).flatMap(
+        _.fold(
+          Effect[F].raiseError[String](
+            AuthProviderException(traceId,
+                                  s"No pet SA found for ${userEmail} in ${googleProject}",
+                                  StatusCodes.Unauthorized)
+          )
+        )(s => Effect[F].pure(s))
+      )
+      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+      resp <- httpClient.expectOptionOr[GetGoogleSubjectIdResponse](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(
+            s"/register/user/v2/self/info"
+          ),
+          headers = Headers.of(authHeader)
+        )
+      )(onError)
+    } yield resp.map(_.userSubjectId)
 }
 
 object HttpSamDAO {
@@ -368,6 +394,8 @@ object HttpSamDAO {
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =
     Decoder.decodeString.map(s => SamPolicyName.stringToSamPolicyName.getOrElse(s, SamPolicyName.Other(s)))
+  implicit val userSubjectIdDecoder: Decoder[UserSubjectId] =
+    Decoder.decodeString.map(UserSubjectId.apply)
   implicit val samPolicyEmailDecoder: Decoder[SamPolicyEmail] = Decoder[WorkbenchEmail].map(SamPolicyEmail)
   implicit val projectActionDecoder: Decoder[ProjectAction] =
     Decoder.decodeString.map(x => ProjectAction.stringToAction.getOrElse(x, ProjectAction.Other(x)))
@@ -413,6 +441,8 @@ object HttpSamDAO {
       systems <- c.downField("systems").as[Map[Subsystem, SubsystemStatus]]
     } yield StatusCheckResponse(ok, systems)
   }
+  implicit val getGoogleSubjectIdResponseDecoder: Decoder[GetGoogleSubjectIdResponse] =
+    Decoder.forProduct1("userSubjectId")(GetGoogleSubjectIdResponse.apply)
 }
 
 final case class CreateSamResourceRequest[R](samResourceId: R, policies: Map[SamPolicyName, SamPolicyData])
@@ -426,6 +456,7 @@ final case class HttpSamDaoConfig(samUri: Uri,
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
 
+final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
     extends LeoException(message = s"${traceId} | AuthProvider error: $msg", statusCode = code)

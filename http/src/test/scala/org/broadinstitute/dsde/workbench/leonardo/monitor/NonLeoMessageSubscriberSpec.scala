@@ -5,10 +5,11 @@ import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import io.circe.parser.decode
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, InstanceName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makeCluster
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.makeKubeCluster
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, kubernetesClusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.DeleteKubernetesClusterMessage
@@ -44,8 +45,9 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     val expectedResult = NonLeoMessage.CryptoMining(
       "CRYPTOMINING_DETECTED\n",
       GoogleResource(
-        GoogleLabels(715447017152936528L, GoogleProject("general-dev-billing-account"), ZoneName("us-central1-a"))
-      )
+        GoogleLabels(715447017152936528L, ZoneName("us-central1-a"))
+      ),
+      GoogleProject("general-dev-billing-account")
     )
     decode[NonLeoMessage](jsonString) shouldBe Right(expectedResult)
 
@@ -76,7 +78,8 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       _ <- subscriber.handleCryptoMiningMessage(
         NonLeoMessage
           .CryptoMining("CRYPTOMINING_DETECTED",
-                        GoogleResource(GoogleLabels(123L, runtime.googleProject, ZoneName("us-central1-a"))))
+                        GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
+                        runtime.googleProject)
       )
       statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
       deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
@@ -106,9 +109,11 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
 
   def makeSubscribler(
     gkeInterp: GKEAlgebra[IO] = new MockGKEService,
-    computeService: GoogleComputeService[IO] = FakeGoogleComputeService
+    samDao: SamDAO[IO] = new MockSamDAO,
+    computeService: GoogleComputeService[IO] = FakeGoogleComputeService,
+    publisher: GooglePublisher[IO] = new FakeGooglePublisher
   ): NonLeoMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[NonLeoMessage]
-    new NonLeoMessageSubscriber(gkeInterp, computeService, googleSubscriber)
+    new NonLeoMessageSubscriber(gkeInterp, computeService, samDao, googleSubscriber, publisher)
   }
 }
