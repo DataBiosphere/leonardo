@@ -292,7 +292,8 @@ object Boot extends IOApp {
                                             googleDependencies.googleComputeService,
                                             appDependencies.samDAO,
                                             appDependencies.nonLeoMessageGoogleSubscriber,
-                                            googleDependencies.cryptoMiningUserPublisher)
+                                            googleDependencies.cryptoMiningUserPublisher,
+                                            appDependencies.asyncTasksQueue)
 
           List(
             nonLeoMessageSubscriber.process,
