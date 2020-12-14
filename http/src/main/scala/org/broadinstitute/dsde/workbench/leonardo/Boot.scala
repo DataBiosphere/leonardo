@@ -332,7 +332,7 @@ object Boot extends IOApp {
       val app = Stream.emits(allStreams).covary[IO].parJoin(allStreams.length)
 
       app
-        .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to start leonardo")))
+        .handleErrorWith(error => Stream.eval(logger.error(error)("Unhandled error occurred")) ++ app)
         .compile
         .drain
     }
