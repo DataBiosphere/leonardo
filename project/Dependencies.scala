@@ -10,12 +10,12 @@ object Dependencies {
   val scalaLoggingV = "3.9.2"
   val scalaTestV = "3.2.3"
   val slickV = "3.3.3"
-  val http4sVersion = "0.21.13"
+  val http4sVersion = "0.21.14"
   val guavaV = "30.0-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.2"
 
-  private val workbenchLibsHash = "c9edd8e"
+  private val workbenchLibsHash = "74c9fc2"
   val serviceTestV = s"0.18-${workbenchLibsHash}"
   val workbenchModelV = s"0.14-${workbenchLibsHash}"
   val workbenchGoogleV = s"0.21-${workbenchLibsHash}"
@@ -56,7 +56,7 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.37.2"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.38.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.6.1"
 
@@ -109,7 +109,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.2.2"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.1" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.3" % Test // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
