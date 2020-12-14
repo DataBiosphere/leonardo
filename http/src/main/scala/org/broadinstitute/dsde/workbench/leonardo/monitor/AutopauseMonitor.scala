@@ -31,7 +31,10 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
   ec: ExecutionContext) {
 
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.autoFreezeCheckInterval) ++ Stream.eval(autoPauseCheck)).repeat
+    (Stream.sleep[F](config.autoFreezeCheckInterval) ++ Stream.eval(
+      autoPauseCheck
+        .handleErrorWith(e => logger.error(e)("Unexpected error occurred during auto-pause monitoring"))
+    )).repeat
 
   private[monitor] val autoPauseCheck: F[Unit] =
     for {
