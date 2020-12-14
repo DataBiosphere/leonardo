@@ -67,7 +67,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore)
+  val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore, excludeGoogleApiClient)
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.33.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
   val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
@@ -86,7 +86,6 @@ object Dependencies {
     excludeWorkbenchMetrics,
     excludeIoGrpc,
     excludeFindbugsJsr,
-    excludeGoogleApiClient,
     excludeGoogleError,
     excludeHttpComponent,
     excludeFirestore,
