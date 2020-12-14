@@ -7,6 +7,7 @@ import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
+import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -20,10 +21,17 @@ import scala.concurrent.duration.FiniteDuration
 class DateAccessedUpdater[F[_]: ContextShift: Timer](
   config: DateAccessedUpdaterConfig,
   queue: InspectableQueue[F, UpdateDateAccessMessage]
-)(implicit F: Concurrent[F], metrics: OpenTelemetryMetrics[F], dbRef: DbReference[F], ec: ExecutionContext) {
+)(implicit F: Concurrent[F],
+  metrics: OpenTelemetryMetrics[F],
+  dbRef: DbReference[F],
+  logger: Logger[F],
+  ec: ExecutionContext) {
 
   val process: Stream[F, Unit] =
-    (Stream.sleep[F](config.interval) ++ Stream.eval(check)).repeat
+    (Stream.sleep[F](config.interval) ++ Stream.eval(
+      check
+        .handleErrorWith(e => logger.error(e)("Unexpected error occurred during DateAccessedUpdater monitoring"))
+    )).repeat
 
   private[monitor] val check: F[Unit] =
     queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
