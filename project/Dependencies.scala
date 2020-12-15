@@ -10,12 +10,12 @@ object Dependencies {
   val scalaLoggingV = "3.9.2"
   val scalaTestV = "3.2.3"
   val slickV = "3.3.3"
-  val http4sVersion = "0.21.13"
-  val guavaV = "30.0-jre"
+  val http4sVersion = "0.21.14"
+  val guavaV = "30.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.2"
 
-  private val workbenchLibsHash = "c9edd8e"
+  private val workbenchLibsHash = "74c9fc2"
   val serviceTestV = s"0.18-${workbenchLibsHash}"
   val workbenchModelV = s"0.14-${workbenchLibsHash}"
   val workbenchGoogleV = s"0.21-${workbenchLibsHash}"
@@ -56,7 +56,7 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.37.2"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.38.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.6.1"
 
@@ -67,8 +67,8 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore)
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.33.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore, excludeGoogleApiClient)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.34.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
   val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 
@@ -86,7 +86,6 @@ object Dependencies {
     excludeWorkbenchMetrics,
     excludeIoGrpc,
     excludeFindbugsJsr,
-    excludeGoogleApiClient,
     excludeGoogleError,
     excludeHttpComponent,
     excludeFirestore,
@@ -109,7 +108,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.2.2"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.1" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.3" % Test // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
