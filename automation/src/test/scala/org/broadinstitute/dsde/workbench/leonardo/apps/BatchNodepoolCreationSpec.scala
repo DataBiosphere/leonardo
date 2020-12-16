@@ -7,17 +7,16 @@ import cats.effect.IO
 import cats.syntax.all._
 import com.google.container.v1.{Cluster, NodePool}
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName}
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GKEService}
+import org.broadinstitute.dsde.workbench.google2.{streamUntilDoneOrTimeout, GKEService}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
-import org.broadinstitute.dsde.workbench.leonardo.http.{GetAppResponse, ListAppResponse, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 @DoNotDiscover
 class BatchNodepoolCreationSpec
@@ -26,150 +25,90 @@ class BatchNodepoolCreationSpec
     with GPAllocUtils
     with ParallelTestExecution {
 
-  implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
-
   val gkeServiceResource = GKEService.resource(Paths.get(LeonardoConfig.GCS.pathToQAJson), blocker, semaphore)
-
-  //the cluster and nodepools should be running
-  val clusterDoneCheckable: DoneCheckable[Option[Cluster]] =
+  implicit def clusterRunning: DoneCheckable[Option[Cluster]] =
     x =>
       x.map(_.getStatus()) == Some(Cluster.Status.RUNNING) &&
         x.map(_.getNodePoolsList().asScala.toList.map(_.getStatus()).distinct) == Some(List(NodePool.Status.RUNNING))
 
-  "batch nodepool creation should work" in { _ =>
-    withNewProject { googleProject =>
-      LeonardoApiClient.client.use { implicit c =>
-        for {
-          clusterName <- IO.fromEither(KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply))
-          _ <- LeonardoApiClient.batchNodepoolCreate(googleProject,
-                                                     defaultBatchNodepoolRequest.copy(clusterName = Some(clusterName)))
-          getCluster = gkeServiceResource.use { gkeClient =>
-            val id = KubernetesClusterId(googleProject, LeonardoConfig.Leonardo.location, clusterName)
-            gkeClient.getCluster(id)
-          }
-          monitorCreationResult <- testTimer.sleep(30 seconds) >>
-            streamFUntilDone(getCluster, 60, 10 seconds)(
-              testTimer,
-              clusterDoneCheckable
-            ).compile.lastOrError
-
-          _ = monitorCreationResult.map(_.getNodePoolsList().size()) shouldBe Some(
-            defaultBatchNodepoolRequest.numNodepools.value + 1
-          )
-        } yield ()
-      }
-    }
-  }
-
-  "app creation with batch nodepool creation should work" in { _ =>
+  "create apps in batch created nodepools" in { _ =>
+    // Note: requesting a new project from gpalloc to ensure there is no pre-existing cluster
     withNewProject { googleProject =>
       LeonardoApiClient.client.use { implicit c =>
         val appName1 = randomAppName
         val appName2 = randomAppName
 
-        val appDoneCheckable: DoneCheckable[GetAppResponse] =
-          x => x.status == AppStatus.Running || x.status == AppStatus.Error
-
-        val appDeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
-          x => x.map(_.status).distinct == List(AppStatus.Deleted)
-
-        val app1DeletedDoneCheckable: DoneCheckable[List[ListAppResponse]] =
-          x => x.filter(_.appName == appName1).map(_.status).distinct == List(AppStatus.Deleted)
-
         for {
+          // Invoke batchNodepoolCreate
           clusterName <- IO.fromEither(KubernetesNameUtils.getUniqueName(KubernetesClusterName.apply))
-          _ <- LeonardoApiClient.batchNodepoolCreate(
-            googleProject,
-            defaultBatchNodepoolRequest.copy(clusterName = Some(clusterName), numNodepools = NumNodepools(1))
+          request = defaultBatchNodepoolRequest.copy(clusterName = Some(clusterName))
+          _ <- LeonardoApiClient.batchNodepoolCreate(googleProject, request)
+
+          // Verify the cluster gets created in GKE with 2 nodepools
+          clusterId = KubernetesClusterId(googleProject, LeonardoConfig.Leonardo.location, clusterName)
+          getCluster = gkeServiceResource.use(_.getCluster(clusterId))
+          _ <- testTimer.sleep(30 seconds)
+          monitorBatchCreationResult <- streamUntilDoneOrTimeout(
+            getCluster,
+            60,
+            10 seconds,
+            s"Cluster ${clusterId} did not finish creating in Google after 10 minutes"
           )
-          getCluster = gkeServiceResource.use { gkeClient =>
-            val id = KubernetesClusterId(googleProject, LeonardoConfig.Leonardo.location, clusterName)
-            gkeClient.getCluster(id)
-          }
-
-          monitorBatchCreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getCluster, 60, 10 seconds)(
-            testTimer,
-            clusterDoneCheckable
-          ).compile.lastOrError
-
-          //here we sleep, because the above verifies the google state and we need to wait until leo has polled and updated its internal state to proceed
-          //it is a long time because there is a lot of stuff leo has to do besides GKE entity creation
-          _ <- testTimer.sleep(5 minutes)
-
           _ = monitorBatchCreationResult.map(_.getNodePoolsList().size()) shouldBe Some(2)
 
-          diskConfig1 = Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
+          // Here we sleep, because the above verifies Google state and we need to wait until Leo has polled
+          // and updated its internal state to proceed.
+          _ <- testTimer.sleep(5 minutes)
 
-          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName1.value}")
-
-          _ <- LeonardoApiClient.createApp(googleProject,
-                                           appName1,
-                                           createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig1))
-
-          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to get app ${googleProject.value}/${appName1.value}")
-
-          getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
-          monitorApp1CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp1, 120, 10 seconds)(
-            testTimer,
-            appDoneCheckable
-          ).compile.lastOrError
-
-          _ <- loggerIO.info(
-            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} monitor result: ${monitorApp1CreationResult}"
+          // Create 2 apps in the pre-created nodepools
+          createAppRequest = defaultCreateAppRequest.copy(diskConfig =
+            Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
           )
-          _ = monitorApp1CreationResult.status shouldBe AppStatus.Running
-
-          clusterAfterApp1 <- getCluster
-          _ = clusterAfterApp1.map(_.getNodePoolsList().size()) shouldBe Some(2)
-
-          diskConfig2 = Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
+          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName1.value}")
+          _ <- LeonardoApiClient.createApp(googleProject, appName1, createAppRequest)
 
           _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName2.value}")
+          _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
 
-          _ <- LeonardoApiClient.createApp(googleProject,
-                                           appName2,
-                                           createAppRequest = defaultCreateAppRequest.copy(diskConfig = diskConfig2))
-
-          //creating a second app with 1 precreated nodepool should cause a second user nodepool to be created
+          // Verify the initial getApp calls
+          getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
           getApp2 = LeonardoApiClient.getApp(googleProject, appName2)
-          monitorApp2CreationResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(getApp2, 120, 10 seconds)(
-            testTimer,
-            appDoneCheckable
-          ).compile.lastOrError
+          getAppResponse1 <- getApp1
+          _ = getAppResponse1.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
+          getAppResponse2 <- getApp2
+          _ = getAppResponse2.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
-          _ <- loggerIO.info(
-            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName2.value} monitor result: ${monitorApp2CreationResult}"
-          )
-          _ = monitorApp2CreationResult.status shouldBe AppStatus.Running
+          // Wait until they both become Running
+          _ <- testTimer.sleep(60 seconds)
+          pollCreate1 = streamUntilDoneOrTimeout(
+            getApp1,
+            120,
+            10 seconds,
+            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} did not finish creating after 20 minutes"
+          )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
+          pollCreate2 = streamUntilDoneOrTimeout(
+            getApp2,
+            120,
+            10 seconds,
+            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName2.value} did not finish creating after 20 minutes"
+          )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
+          res <- List(pollCreate1, pollCreate2).parSequence
+          _ = res.foreach(_.status shouldBe AppStatus.Running)
 
-          clusterAfterApp2 <- getCluster
-          _ = clusterAfterApp2.map(_.getNodePoolsList().size()) shouldBe Some(3)
-
-          // we can only delete 1 app at a time due to the google limitation that a cluster can only have 1 nodepool related operation ongoing at a time
+          // Delete both apps
           _ <- LeonardoApiClient.deleteApp(googleProject, appName1)
-
-          listApps = LeonardoApiClient.listApps(googleProject, true)
-
-          monitorApp1DeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
-            testTimer,
-            app1DeletedDoneCheckable
-          ).compile.lastOrError
-
-          _ <- loggerIO.info(
-            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} delete result: $monitorApp1DeletionResult"
-          )
-
-          _ = monitorApp1DeletionResult.map(_.status).toSet shouldBe Set(AppStatus.Deleted, AppStatus.Running)
-
           _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
-          monitorAppDeletionResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(listApps, 120, 10 seconds)(
-            testTimer,
-            appDeletedDoneCheckable
-          ).compile.lastOrError
 
-          _ <- loggerIO.info(s"BatchNodepoolCreationSpec: all app delete result: $monitorAppDeletionResult")
+          // Verify getApp again
+          getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
+          getApp2 = LeonardoApiClient.getApp(googleProject, appName2)
+          getAppResponse1 <- getApp1
+          _ = getAppResponse1.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
+          getAppResponse2 <- getApp2
+          _ = getAppResponse2.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
 
+          // Don't need to wait until all deleted
         } yield ()
       }
     }

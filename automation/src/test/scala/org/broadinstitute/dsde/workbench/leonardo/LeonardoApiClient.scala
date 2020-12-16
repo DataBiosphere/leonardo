@@ -88,7 +88,7 @@ object LeonardoApiClient {
   )
 
   val defaultBatchNodepoolRequest = BatchNodepoolCreateRequest(
-    NumNodepools(10),
+    NumNodepools(2),
     None,
     None
   )
@@ -499,6 +499,46 @@ object LeonardoApiClient {
             IO.raiseError(
               RestError(s"Failed to batch create node pools in project ${googleProject.value}", status, None)
             )
+          else
+            IO.unit
+        }
+    } yield r
+
+  def stopApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
+                                                              authHeader: Authorization): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .status(
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}/stop")
+          )
+        )
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(RestError(s"Failed to stop app ${googleProject.value}/${appName.value}", status, None))
+          else
+            IO.unit
+        }
+    } yield r
+
+  def startApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
+                                                               authHeader: Authorization): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .status(
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}/start")
+          )
+        )
+        .flatMap { status =>
+          if (!status.isSuccess)
+            IO.raiseError(RestError(s"Failed to start app ${googleProject.value}/${appName.value}", status, None))
           else
             IO.unit
         }
