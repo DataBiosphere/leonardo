@@ -62,14 +62,17 @@ class BatchNodepoolCreationSpec
           _ <- testTimer.sleep(5 minutes)
 
           // Create 2 apps in the pre-created nodepools
-          createAppRequest = defaultCreateAppRequest.copy(diskConfig =
+          createAppRequest1 = defaultCreateAppRequest.copy(diskConfig =
+            Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
+          )
+          createAppRequest2 = defaultCreateAppRequest.copy(diskConfig =
             Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
           )
           _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName1.value}")
-          _ <- LeonardoApiClient.createApp(googleProject, appName1, createAppRequest)
+          _ <- LeonardoApiClient.createApp(googleProject, appName1, createAppRequest1)
 
           _ <- loggerIO.info(s"BatchNodepoolCreationSpec: About to create app ${googleProject.value}/${appName2.value}")
-          _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest)
+          _ <- LeonardoApiClient.createApp(googleProject, appName2, createAppRequest2)
 
           // Verify the initial getApp calls
           getApp1 = LeonardoApiClient.getApp(googleProject, appName1)
