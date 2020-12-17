@@ -29,7 +29,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
       )
     )
 
-    LeonardoApiClient.client.use { implicit client =>
+    val res = LeonardoApiClient.client.use { implicit client =>
       for {
         _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
@@ -76,6 +76,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
       } yield ()
     }
+
+    res.unsafeRunSync()
   }
 
   "stop and start an app" in { googleProject =>
@@ -92,7 +94,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
       )
     )
 
-    LeonardoApiClient.client.use { implicit client =>
+    val res = LeonardoApiClient.client.use { implicit client =>
       for {
         _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
@@ -179,6 +181,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
       } yield ()
     }
+
+    res.unsafeRunSync()
   }
 
 }
