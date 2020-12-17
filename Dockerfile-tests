@@ -1,4 +1,4 @@
-FROM hseeberger/scala-sbt:graalvm-ce-20.0.0-java11_1.4.2_2.12.12
+FROM hseeberger/scala-sbt:graalvm-ce-20.3.0-java11_1.4.5_2.13.4
 
 # This is only to make `sbt` work because `Version.scala` depends on `git` if this environment is not set
 ENV GIT_HASH="0.0.1"
