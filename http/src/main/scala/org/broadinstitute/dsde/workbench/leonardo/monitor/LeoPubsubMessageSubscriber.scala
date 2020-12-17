@@ -946,7 +946,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // The app must be deleted before the nodepool and disk, to future proof against the app potentially flushing the postgres db somewhere
       task = for {
         _ <- deleteApp
-        _ <- deleteNodepool
         _ <- if (!errorAfterDelete)
           dbApp.app.status match {
             // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
@@ -957,6 +956,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 .void
           }
         else F.unit
+        _ <- deleteNodepool
         _ <- deleteDisksInParallel
       } yield ()
 
