@@ -3,21 +3,16 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.util.UUID
 import java.util.concurrent.TimeoutException
 
-import cats.syntax.all._
 import cats.effect.{IO, Resource, Timer}
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.DoneCheckable
+import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
-import org.broadinstitute.dsde.workbench.leonardo.http.{
-  BatchNodepoolCreateRequest,
-  CreateAppRequest,
-  CreateDiskRequest,
-  CreateRuntime2Request,
-  GetAppResponse,
-  GetPersistentDiskResponse,
-  ListAppResponse,
-  ListPersistentDiskResponse,
-  UpdateRuntimeRequest
-}
+import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
+import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.http4s._
@@ -27,12 +22,7 @@ import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
 
 import scala.concurrent.ExecutionContext.global
-import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import scala.concurrent.duration._
-import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
-import ApiJsonDecoder._
 import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {
@@ -88,7 +78,7 @@ object LeonardoApiClient {
   )
 
   val defaultBatchNodepoolRequest = BatchNodepoolCreateRequest(
-    NumNodepools(10),
+    NumNodepools(2),
     None,
     None
   )
@@ -101,7 +91,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
@@ -109,12 +99,11 @@ object LeonardoApiClient {
             body = createRuntime2Request
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(
-              RestError(s"Failed to create runtime ${googleProject.value}/${runtimeName.asString}", status, None)
-            )
-          else
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to create runtime ${googleProject.value}/${runtimeName.asString}")(resp)
+              .flatMap(IO.raiseError)
+          } else
             IO.unit
         }
     } yield r
@@ -138,19 +127,18 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, traceIdHeader),
             uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}/start")
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(
-              RestError(s"Failed to start runtime ${googleProject.value}/${runtimeName.asString}", status, None)
-            )
-          else
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to start runtime ${googleProject.value}/${runtimeName.asString}")(resp)
+              .flatMap(IO.raiseError)
+          } else
             IO.unit
         }
     } yield r
@@ -172,7 +160,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.PATCH,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
@@ -180,12 +168,11 @@ object LeonardoApiClient {
             body = req
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(
-              RestError(s"Failed to update runtime ${googleProject.value}/${runtimeName.asString}", status, None)
-            )
-          else
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to update runtime ${googleProject.value}/${runtimeName.asString}")(resp)
+              .flatMap(IO.raiseError)
+          } else
             IO.unit
         }
     } yield r
@@ -241,7 +228,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.DELETE,
             headers = Headers.of(authHeader, traceIdHeader),
@@ -250,12 +237,11 @@ object LeonardoApiClient {
               .withQueryParam("deleteDisk", deleteDisk)
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(
-              RestError(s"Failed to delete runtime ${googleProject.value}/${runtimeName.asString}", status, None)
-            )
-          else
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to delete runtime ${googleProject.value}/${runtimeName.asString}")(resp)
+              .flatMap(IO.raiseError)
+          } else
             IO.unit
         }
     } yield r
@@ -281,7 +267,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
@@ -289,10 +275,11 @@ object LeonardoApiClient {
             body = createDiskRequest
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(RestError(s"Failed to create disk ${googleProject.value}/${diskName.value}", status, None))
-          else
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to create disk ${googleProject.value}/${diskName.value}")(resp)
+              .flatMap(IO.raiseError)
+          } else
             IO.unit
         }
     } yield r
@@ -352,17 +339,18 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.DELETE,
             headers = Headers.of(authHeader, traceIdHeader),
             uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(RestError(s"Failed to delete disk ${googleProject.value}/${diskName.value}", status, None))
-          else
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to delete disk ${googleProject.value}/${diskName.value}")(resp)
+              .flatMap(IO.raiseError)
+          } else
             IO.unit
         }
     } yield r
@@ -393,7 +381,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
@@ -401,11 +389,11 @@ object LeonardoApiClient {
             body = createAppRequest
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(RestError(s"Failed to create app ${googleProject.value}/${appName.value}", status, None))
-          else
+        .use { resp =>
+          if (resp.status.isSuccess)
             IO.unit
+          else
+            onError(s"Failed to create app ${googleProject.value}/${appName.value}")(resp).flatMap(IO.raiseError)
         }
     } yield r
 
@@ -414,17 +402,18 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.DELETE,
             headers = Headers.of(authHeader, traceIdHeader),
             uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(RestError(s"Failed to delete app ${googleProject.value}/${appName.value}", status, None))
-          else
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to delete app ${googleProject.value}/${appName.value}")(resp)
+              .flatMap(IO.raiseError)
+          } else
             IO.unit
         }
     } yield r
@@ -486,7 +475,7 @@ object LeonardoApiClient {
     for {
       traceIdHeader <- genTraceIdHeader()
       r <- client
-        .status(
+        .run(
           Request[IO](
             method = Method.POST,
             headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
@@ -494,12 +483,53 @@ object LeonardoApiClient {
             body = req
           )
         )
-        .flatMap { status =>
-          if (!status.isSuccess)
-            IO.raiseError(
-              RestError(s"Failed to batch create node pools in project ${googleProject.value}", status, None)
-            )
-          else
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to batch create node pools in project ${googleProject.value}")(resp)
+              .flatMap(IO.raiseError)
+          } else
+            IO.unit
+        }
+    } yield r
+
+  def stopApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
+                                                              authHeader: Authorization): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .run(
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}/stop")
+          )
+        )
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to stop app ${googleProject.value}/${appName.value}")(resp)
+              .flatMap(IO.raiseError)
+          } else
+            IO.unit
+        }
+    } yield r
+
+  def startApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
+                                                               authHeader: Authorization): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      r <- client
+        .run(
+          Request[IO](
+            method = Method.POST,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}/start")
+          )
+        )
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to start app ${googleProject.value}/${appName.value}")(resp)
+              .flatMap(IO.raiseError)
+          } else
             IO.unit
         }
     } yield r

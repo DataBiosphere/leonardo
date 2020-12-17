@@ -9,13 +9,13 @@ import cats.effect.IO
 import cats.effect.concurrent.Semaphore
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
+import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.http.CreateRuntime2Request
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
@@ -692,5 +692,14 @@ trait LeonardoTestUtils
 
   def randomAppName: AppName = AppName(s"automation-test-app-a${makeRandomId().toLowerCase}z")
   def randomDiskName: DiskName = DiskName(s"automation-test-disk-a${makeRandomId().toLowerCase}z")
+
+  def appDeleted(appName: AppName): DoneCheckable[List[ListAppResponse]] =
+    x => x.filter(_.appName == appName).map(_.status).distinct == List(AppStatus.Deleted)
+
+  def appsDeleted(appNames: Set[AppName]): DoneCheckable[List[ListAppResponse]] =
+    x => x.filter(r => appNames.contains(r.appName)).map(_.status).distinct == List(AppStatus.Deleted)
+
+  def appInStateOrError(status: AppStatus): DoneCheckable[GetAppResponse] =
+    x => x.status == status || x.status == AppStatus.Error
 
 }

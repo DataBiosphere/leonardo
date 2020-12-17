@@ -24,7 +24,9 @@ class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     "should have Pandas automatically installed" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
-          notebookPage.executeCell("import pandas") shouldBe None
+          notebookPage.executeCell("import pandas") should (be(None) or be(
+            Some("Matplotlib is building the font cache; this may take a moment.")
+          ))
         }
       }
     }

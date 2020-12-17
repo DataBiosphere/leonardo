@@ -98,7 +98,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read GalaxyNodepoolConfig properly" in {
     val expectedResult = GalaxyNodepoolConfig(MachineTypeName("n1-standard-8"),
                                               NumNodes(2),
-                                              true,
+                                              false,
                                               AutoscalingConfig(AutoscalingMin(0), AutoscalingMax(2)))
     Config.gkeGalaxyNodepoolConfig shouldBe expectedResult
   }
