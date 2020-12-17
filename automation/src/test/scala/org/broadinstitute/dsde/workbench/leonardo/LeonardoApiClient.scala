@@ -397,19 +397,6 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def createAppWithRetry(
-    googleProject: GoogleProject,
-    appName: AppName,
-    createAppRequest: CreateAppRequest = defaultCreateAppRequest
-  )(implicit client: Client[IO], authHeader: Authorization, timer: Timer[IO]): IO[Unit] =
-    fs2.Stream
-      .retry(createApp(googleProject, appName, createAppRequest), 30 seconds, _ => 30 seconds, 10, _ match {
-        case RestError(_, Status.Conflict, _) => true
-        case _                                => false
-      })
-      .compile
-      .drain
-
   def deleteApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                                 authHeader: Authorization): IO[Unit] =
     for {
