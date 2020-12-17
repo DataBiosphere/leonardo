@@ -700,6 +700,6 @@ trait LeonardoTestUtils
     x => x.filter(r => appNames.contains(r.appName)).map(_.status).distinct == List(AppStatus.Deleted)
 
   def appInStateOrError(status: AppStatus): DoneCheckable[GetAppResponse] =
-    x => x.status == AppStatus.Running || x.status == AppStatus.Error
+    x => x.status == status || x.status == AppStatus.Error
 
 }
