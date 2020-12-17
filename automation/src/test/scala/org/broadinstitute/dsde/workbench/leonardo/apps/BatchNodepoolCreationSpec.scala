@@ -45,7 +45,7 @@ class BatchNodepoolCreationSpec
           request = defaultBatchNodepoolRequest.copy(clusterName = Some(clusterName))
           _ <- LeonardoApiClient.batchNodepoolCreate(googleProject, request)
 
-          // Verify the cluster gets created in GKE with 2 nodepools
+          // Verify the cluster gets created in GKE with 3 nodepools
           clusterId = KubernetesClusterId(googleProject, LeonardoConfig.Leonardo.location, clusterName)
           getCluster = gkeServiceResource.use(_.getCluster(clusterId))
           _ <- testTimer.sleep(30 seconds)
@@ -55,7 +55,7 @@ class BatchNodepoolCreationSpec
             10 seconds,
             s"Cluster ${clusterId} did not finish creating in Google after 10 minutes"
           )
-          _ = monitorBatchCreationResult.map(_.getNodePoolsList().size()) shouldBe Some(2)
+          _ = monitorBatchCreationResult.map(_.getNodePoolsList().size()) shouldBe Some(3)
 
           // Here we sleep, because the above verifies Google state and we need to wait until Leo has polled
           // and updated its internal state to proceed.
