@@ -111,7 +111,18 @@ class BatchNodepoolCreationSpec
           getAppResponse2 <- getApp2
           _ = getAppResponse2.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
 
-          // Don't need to wait until all deleted
+          // Wait until both are deleted
+          listApps = LeonardoApiClient.listApps(googleProject, true)
+          _ <- testTimer.sleep(30 seconds)
+          monitorDeleteResult <- streamUntilDoneOrTimeout(
+            listApps,
+            120,
+            10 seconds,
+            s"AppCreationSpec: apps ${googleProject.value}/${appName1.value} and ${googleProject.value}/${appName2.value} did not finish deleting after 20 minutes"
+          )(implicitly, implicitly, appsDeleted(Set(appName1, appName2)))
+          _ <- loggerIO.info(
+            s"AppCreationSpec: apps ${googleProject.value}/${appName1.value} and ${googleProject.value}/${appName2.value} delete result: $monitorDeleteResult"
+          )
         } yield ()
       }
     }

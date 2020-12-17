@@ -696,6 +696,9 @@ trait LeonardoTestUtils
   def appDeleted(appName: AppName): DoneCheckable[List[ListAppResponse]] =
     x => x.filter(_.appName == appName).map(_.status).distinct == List(AppStatus.Deleted)
 
+  def appsDeleted(appNames: Set[AppName]): DoneCheckable[List[ListAppResponse]] =
+    x => x.filter(r => appNames.contains(r.appName)).map(_.status).distinct == List(AppStatus.Deleted)
+
   def appInStateOrError(status: AppStatus): DoneCheckable[GetAppResponse] =
     x => x.status == AppStatus.Running || x.status == AppStatus.Error
 

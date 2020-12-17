@@ -34,7 +34,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
         _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
         // Create the app
-        _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
+        _ <- LeonardoApiClient.createAppWithRetry(googleProject, appName, createAppRequest)
 
         // Verify the initial getApp call
         getApp = LeonardoApiClient.getApp(googleProject, appName)
@@ -99,7 +99,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
         _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
         // Create the app
-        _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
+        _ <- LeonardoApiClient.createAppWithRetry(googleProject, appName, createAppRequest)
 
         // Verify the initial getApp call
         getApp = LeonardoApiClient.getApp(googleProject, appName)
