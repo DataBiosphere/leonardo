@@ -137,10 +137,10 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
         _ <- loggerIO.info(
           s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"
         )
-        _ = monitorStopResult.status shouldBe AppStatus.Running
+        _ = monitorStopResult.status shouldBe AppStatus.Stopped
 
         // Start the app
-        _ <- LeonardoApiClient.stopApp(googleProject, appName)
+        _ <- LeonardoApiClient.startApp(googleProject, appName)
 
         // Verify getApp again
         getAppResponse <- getApp
