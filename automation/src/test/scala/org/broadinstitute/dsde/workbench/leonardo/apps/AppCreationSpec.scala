@@ -55,6 +55,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           )
           _ = monitorCreateResult.status shouldBe AppStatus.Running
 
+          _ <- testTimer.sleep(1 minute)
+
           // Delete the app
           _ <- LeonardoApiClient.deleteApp(googleProject, appName)
 
@@ -64,7 +66,6 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
           // Verify the app eventually becomes Deleted
           listApps = LeonardoApiClient.listApps(googleProject, true)
-          _ <- testTimer.sleep(30 seconds)
           monitorDeleteResult <- streamUntilDoneOrTimeout(
             listApps,
             120,
@@ -160,6 +161,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           )
           _ = monitorStartResult.status shouldBe AppStatus.Running
 
+          _ <- testTimer.sleep(1 minute)
+
           // Delete the app
           _ <- LeonardoApiClient.deleteApp(googleProject, appName)
 
@@ -169,7 +172,6 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
           // Verify the app eventually becomes Deleted
           listApps = LeonardoApiClient.listApps(googleProject, true)
-          _ <- testTimer.sleep(30 seconds)
           monitorDeleteResult <- streamUntilDoneOrTimeout(
             listApps,
             120,
