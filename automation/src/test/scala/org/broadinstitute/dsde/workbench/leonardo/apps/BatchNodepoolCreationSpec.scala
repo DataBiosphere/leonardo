@@ -99,6 +99,8 @@ class BatchNodepoolCreationSpec
           res <- List(pollCreate1, pollCreate2).parSequence
           _ = res.foreach(_.status shouldBe AppStatus.Running)
 
+          _ <- testTimer.sleep(1 minute)
+
           // Delete both apps
           _ <- LeonardoApiClient.deleteApp(googleProject, appName1)
           _ <- LeonardoApiClient.deleteApp(googleProject, appName2)
@@ -113,7 +115,6 @@ class BatchNodepoolCreationSpec
 
           // Wait until both are deleted
           listApps = LeonardoApiClient.listApps(googleProject, true)
-          _ <- testTimer.sleep(30 seconds)
           monitorDeleteResult <- streamUntilDoneOrTimeout(
             listApps,
             120,
