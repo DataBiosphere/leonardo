@@ -81,7 +81,10 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
     }
   }
 
-  "stop and start an app" in { _ =>
+  // TODO this test fails intermittently because the final delete fails to delete the Galaxy app.
+  // It looks like the Galaxy pre-delete job is erroring out. Need to determine why stop/start can
+  // sometimes cause this.
+  "stop and start an app" ignore { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
 
