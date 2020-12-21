@@ -32,7 +32,7 @@ class BatchNodepoolCreationSpec
       x.map(_.getStatus()) == Some(Cluster.Status.RUNNING) &&
         x.map(_.getNodePoolsList().asScala.toList.map(_.getStatus()).distinct) == Some(List(NodePool.Status.RUNNING))
 
-  "create apps in batch created nodepools" in { _ =>
+  "create apps in batch created nodepools" ignore { _ =>
     // Note: requesting a new project from gpalloc to ensure there is no pre-existing cluster
     withNewProject { googleProject =>
       LeonardoApiClient.client.use { implicit c =>

@@ -15,7 +15,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
-  "create and delete an app" in { _ =>
+  "create and delete an app" ignore { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
 
