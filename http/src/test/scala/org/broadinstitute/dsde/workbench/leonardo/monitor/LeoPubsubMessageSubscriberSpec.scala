@@ -8,9 +8,8 @@ import akka.testkit.TestKit
 import cats.effect.IO
 import cats.syntax.all._
 import cats.mtl.Ask
-import com.google.cloud.compute.v1.{Disk, Operation}
+import com.google.cloud.compute.v1.Operation
 import com.google.cloud.pubsub.v1.AckReplyConsumer
-import com.google.container.v1
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
@@ -20,16 +19,15 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
-  FakeGoogleDataprocService,
   MockComputePollOperation,
   MockGKEService
+//  MockKubernetesService => WbLibsMockKubernetesService
 }
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   DiskName,
   Event,
   GKEModels,
-  GoogleDiskService,
   KubernetesModels,
   MachineTypeName,
   MockGoogleDiskService,
@@ -65,7 +63,7 @@ import CommonTestData._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.{Left, Random}
+import scala.util.Left
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -82,6 +80,7 @@ class LeoPubsubMessageSubscriberSpec
                                memberEmail: WorkbenchEmail): scala.concurrent.Future[Boolean] =
       scala.concurrent.Future.successful(true)
   }
+  val gdDAO = new MockGoogleDataprocDAO
   val storageDAO = new MockGoogleStorageDAO
   // Kubernetes doesn't actually create a new Service Account when calling googleIamDAO
   val iamDAOKubernetes = new MockGoogleIamDAO {
@@ -114,7 +113,7 @@ class LeoPubsubMessageSubscriberSpec
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
-                                                   FakeGoogleDataprocService,
+                                                   gdDAO,
                                                    FakeGoogleComputeService,
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
@@ -920,7 +919,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.size shouldBe 1
       getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.App)
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe NodepoolStatus.Running
     }
 
     val res = for {
@@ -937,7 +936,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -999,19 +998,14 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors.size shouldBe 0
       getApp.app.status shouldBe AppStatus.Deleted
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe savedNodepool1.status
     }
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id,
-                             savedApp1.appName,
-                             savedNodepool1.id,
-                             savedCluster1.googleProject,
-                             None,
-                             Some(tr))
+      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1045,20 +1039,15 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.size shouldBe 0
       getApp.app.status shouldBe AppStatus.Deleted
       getApp.app.appResources.disk shouldBe None
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe savedNodepool1.status
       getDisk.status shouldBe DiskStatus.Ready
     }
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id,
-                             savedApp1.appName,
-                             savedNodepool1.id,
-                             savedCluster1.googleProject,
-                             None,
-                             Some(tr))
+      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1091,20 +1080,15 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors shouldBe List()
       getApp.app.status shouldBe AppStatus.Deleted
       getApp.app.appResources.disk shouldBe None
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe savedNodepool1.status
       getDisk.status shouldBe DiskStatus.Deleted
     }
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id,
-                             savedApp1.appName,
-                             savedNodepool1.id,
-                             savedCluster1.googleProject,
-                             Some(disk.id),
-                             Some(tr))
+      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(disk.id), Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1151,12 +1135,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id,
-                             savedApp1.appName,
-                             savedNodepool1.id,
-                             savedCluster1.googleProject,
-                             None,
-                             Some(tr))
+      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1166,63 +1145,6 @@ class LeoPubsubMessageSubscriberSpec
 
     res.unsafeRunSync()
     verify(mockAckConsumer, times(1)).ack()
-  }
-
-  it should "handle an error in delete nodepool" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-    val exceptionMessage = "test exception"
-    val mockAckConsumer = mock[AckReplyConsumer]
-
-    val mockGKEService = new MockGKEService {
-      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
-        implicit ev: Ask[IO, TraceId]
-      ): IO[Option[v1.Operation]] = IO.raiseError(new Exception(exceptionMessage))
-    }
-    val makeGKEInterp = for {
-      lock <- nodepoolLock
-    } yield new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                   vpcInterp,
-                                   mockGKEService,
-                                   new MockKubernetesService(PodStatus.Succeeded),
-                                   MockHelm,
-                                   MockGalaxyDAO,
-                                   credentials,
-                                   iamDAOKubernetes,
-                                   blocker,
-                                   lock)
-
-    val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
-      getApp = getAppOpt.get
-    } yield {
-      getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
-      getApp.app.errors.map(_.source) should contain(ErrorSource.Nodepool)
-      getApp.app.status shouldBe AppStatus.Error
-      getApp.nodepool.status shouldBe NodepoolStatus.Error
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id,
-                             savedApp1.appName,
-                             savedNodepool1.id,
-                             savedCluster1.googleProject,
-                             None,
-                             Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
-                                        makeGKEInterp = makeGKEInterp,
-                                        diskInterp = makeDetachingDiskInterp)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-    assertions.unsafeRunSync()
   }
 
   //error on delete disk if disk doesn't exist
@@ -1239,20 +1161,15 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.size shouldBe 1
       getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe savedNodepool1.status
       getApp.app.status shouldBe AppStatus.Error
     }
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id,
-                             savedApp1.appName,
-                             savedNodepool1.id,
-                             savedCluster1.googleProject,
-                             Some(DiskId(-1)),
-                             Some(tr))
+      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(DiskId(-1)), Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1466,12 +1383,12 @@ class LeoPubsubMessageSubscriberSpec
       getDisk = getDiskOpt.get
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
-      //only the default should be left, the other has been deleted
-      getCluster.nodepools.size shouldBe 1
+      //The non-default nodepool should still be there, as it is not deleted on app deletion
+      getCluster.nodepools.size shouldBe 2
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
       getApp.app.errors.size shouldBe 1
       getApp.app.status shouldBe AppStatus.Error
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe NodepoolStatus.Running
       getApp.app.auditInfo.destroyedDate shouldBe None
       getDisk.status shouldBe DiskStatus.Deleted
       deleteCalled shouldBe true
@@ -1492,9 +1409,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
-                                        makeGKEInterp = makeGKEInterp,
-                                        diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1551,12 +1466,12 @@ class LeoPubsubMessageSubscriberSpec
       getDisk = getDiskOpt.get
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
-      //only the default should be left, the other has been deleted
-      getCluster.nodepools.size shouldBe 1
+      //The non-default nodepool should still be there, as it is not deleted on app deletion
+      getCluster.nodepools.size shouldBe 2
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
       getApp.app.errors.size shouldBe 1
       getApp.app.status shouldBe AppStatus.Error
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe NodepoolStatus.Running
       getDisk.status shouldBe disk.status
     }
 
@@ -1575,9 +1490,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
-                                        makeGKEInterp = makeGKEInterp,
-                                        diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1798,19 +1711,14 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors.size shouldBe 0
       getApp.app.status shouldBe AppStatus.Deleted
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      getApp.nodepool.status shouldBe savedNodepool1.status
     }
 
     val res = for {
       tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id,
-                             savedApp1.appName,
-                             savedNodepool1.id,
-                             savedCluster1.googleProject,
-                             None,
-                             Some(tr))
+      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       // send message twice
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
@@ -1879,8 +1787,7 @@ class LeoPubsubMessageSubscriberSpec
                         asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
                           InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
                         computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
-                        makeGKEInterp: IO[GKEInterpreter[IO]] = makeGKEInterp,
-                        diskInterp: GoogleDiskService[IO] = MockGoogleDiskService): LeoPubsubMessageSubscriber[IO] = {
+                        makeGKEInterp: IO[GKEInterpreter[IO]] = makeGKEInterp): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
@@ -1891,18 +1798,11 @@ class LeoPubsubMessageSubscriberSpec
                                        Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig),
       googleSubscriber,
       asyncTaskQueue,
-      diskInterp,
+      MockGoogleDiskService,
       computePollOperation,
       MockAuthProvider,
       makeGKEInterp.unsafeRunSync(),
       org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting
     )
   }
-
-  def makeDetachingDiskInterp(): GoogleDiskService[IO] =
-    new MockGoogleDiskService {
-      override def getDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(
-        implicit ev: Ask[IO, TraceId]
-      ): IO[Option[Disk]] = IO(Some(Disk.newBuilder().setLastDetachTimestamp(Random.nextInt().toString).build()))
-    }
 }

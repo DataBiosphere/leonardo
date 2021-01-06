@@ -893,17 +893,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     for {
       ctx <- ev.ask
 
-      deleteNodepool = gkeInterp.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.project)).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, None),
-            Some(msg.appId),
-            false,
-            Some(msg.nodepoolId),
-            None
-          )
-      }
-
       deleteApp = gkeInterp
         .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
         .adaptError {
@@ -969,9 +958,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 .void
           }
         else F.unit
-
-        _ <- deleteNodepool
-
         // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
         getDisk = googleDiskService.getDisk(msg.project,
                                             zone,
@@ -1036,7 +1022,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // it should not clean up the disk if it already existed
       _ <- appOpt.traverse { app =>
         val deleteMsg =
-          DeleteAppMessage(appId, appName, app.nodepool.id, project, diskId, Some(ctx.traceId))
+          DeleteAppMessage(appId, appName, project, diskId, Some(ctx.traceId))
         // This is a good-faith attempt at clean-up. We do not want to take any action if clean-up fails for some reason.
         deleteApp(deleteMsg, true, true).handleErrorWith { e =>
           logger.error(e)(

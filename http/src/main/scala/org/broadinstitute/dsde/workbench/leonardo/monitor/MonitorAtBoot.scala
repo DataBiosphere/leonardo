@@ -162,7 +162,6 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
           DeleteAppMessage(
             app.id,
             app.appName,
-            nodepool.id,
             cluster.googleProject,
             None, // Assume we do not want to delete the disk, since we don't currently persist that information
             Some(traceId)

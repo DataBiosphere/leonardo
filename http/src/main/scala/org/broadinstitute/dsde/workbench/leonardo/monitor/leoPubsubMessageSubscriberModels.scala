@@ -236,7 +236,6 @@ object LeoPubsubMessage {
 
   final case class DeleteAppMessage(appId: AppId,
                                     appName: AppName,
-                                    nodepoolId: NodepoolLeoId,
                                     project: GoogleProject,
                                     diskId: Option[DiskId],
                                     traceId: Option[TraceId])
@@ -433,7 +432,7 @@ object LeoPubsubCodec {
                         "traceId")(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
-    Decoder.forProduct6("appId", "appName", "nodepoolId", "project", "diskId", "traceId")(DeleteAppMessage.apply)
+    Decoder.forProduct5("appId", "appName", "project", "diskId", "traceId")(DeleteAppMessage.apply)
 
   implicit val batchNodepoolCreateDecoder: Decoder[BatchNodepoolCreateMessage] =
     Decoder.forProduct4("clusterId", "nodepools", "project", "traceId")(BatchNodepoolCreateMessage.apply)
@@ -739,8 +738,8 @@ object LeoPubsubCodec {
     )
 
   implicit val deleteAppMessageEncoder: Encoder[DeleteAppMessage] =
-    Encoder.forProduct7("messageType", "appId", "appName", "nodepoolId", "project", "diskId", "traceId")(x =>
-      (x.messageType, x.appId, x.appName, x.nodepoolId, x.project, x.diskId, x.traceId)
+    Encoder.forProduct6("messageType", "appId", "appName", "project", "diskId", "traceId")(x =>
+      (x.messageType, x.appId, x.appName, x.project, x.diskId, x.traceId)
     )
 
   implicit val stopAppMessageEncoder: Encoder[StopAppMessage] =
