@@ -464,8 +464,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                 s"Delete nodepool operation has finished for nodepool ${params.nodepoolId}"
               )
             else
-              logger.error(ctx.loggingCtx(
-                s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId}"
+              logger.error(
+                ctx.loggingCtx(
+                  s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId}"
+                )
               ) >>
                 F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
           }
