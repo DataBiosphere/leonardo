@@ -2,14 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.sql.SQLDataException
-
 import cats.Parallel
 import cats.effect.{Async, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   GoogleComputeService,
@@ -46,7 +45,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
   override val F: Async[F],
   override val parallel: Parallel[F],
   override val timer: Timer[F],
-  override val logger: Logger[F],
+  override val logger: StructuredLogger[F],
   override val ec: ExecutionContext,
   override val openTelemetry: OpenTelemetryMetrics[F])
     extends BaseCloudServiceRuntimeMonitor[F] {
@@ -143,8 +142,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
       }
       tags = Map("original_status" -> monitorContext.action.toString, "interrupted_by" -> newStatus.toString)
       _ <- openTelemetry.incrementCounter("earlyTerminationOfMonitoring", 1, tags)
-      _ <- logger.warn(
-        s"${monitorContext} | status transitioned from ${monitorContext.action} -> ${newStatus}. This could be caused by a new status transition call!"
+      _ <- logger.warn(monitorContext.loggingContext)(
+        s"status transitioned from ${monitorContext.action} -> ${newStatus}. This could be caused by a new status transition call!"
       )
     } yield ()
 
@@ -179,7 +178,11 @@ class GceRuntimeMonitor[F[_]: Parallel](
         case RuntimeStatus.Stopping =>
           stoppingRuntime(instance, monitorContext, runtimeAndRuntimeConfig)
         case status =>
-          logger.error(s"${status} is not a transition status for GCE; hence no need to monitor").as(((), None))
+          logger
+            .error(monitorContext.loggingContext)(
+              s"${status} is not a transition status for GCE; hence no need to monitor"
+            )
+            .as(((), None))
       }
     } yield result
 
@@ -218,8 +221,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
                   checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))
                 case UserScriptsValidationResult.Error(msg) =>
                   logger
-                    .info(
-                      s"${context.traceId.asString} | ${runtimeAndRuntimeConfig.runtime.projectNameString} user script failed ${msg}"
+                    .info(context.loggingCtx)(
+                      s"${runtimeAndRuntimeConfig.runtime.projectNameString} user script failed ${msg}"
                     ) >> failedRuntime(
                     monitorContext,
                     runtimeAndRuntimeConfig,
@@ -241,8 +244,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
               }
             } yield r
           case ss =>
-            logger.info(
-              s"${context.traceId.asString} | Going to delete runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} due to unexpected status ${ss}"
+            logger.info(context.loggingCtx)(
+              s"Going to delete runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} due to unexpected status ${ss}"
             ) >> failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
@@ -260,8 +263,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = instance match {
     case None =>
       logger
-        .error(
-          s"${monitorContext} | Fail retrieve instance status when trying to start runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}"
+        .error(monitorContext.loggingContext)(
+          s"Fail retrieve instance status when trying to start runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}"
         )
         .as(((), None))
     case Some(i) =>
@@ -333,7 +336,9 @@ class GceRuntimeMonitor[F[_]: Parallel](
     gceStatus match {
       case None =>
         logger
-          .error(s"${monitorContext} | Can't stop an instance that hasn't been initialized yet or doesn't exist")
+          .error(monitorContext.loggingContext)(
+            s"Can't stop an instance that hasn't been initialized yet or doesn't exist"
+          )
           .as(((), None)) //TODO: Ideally we should have sentry report this case
       case Some(s) =>
         s match {
@@ -357,8 +362,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
     for {
       ctx <- ev.ask
       duration = (ctx.now.toEpochMilli - monitorContext.start.toEpochMilli).millis
-      _ <- logger.info(
-        s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
+      _ <- logger.info(monitorContext.loggingContext)(
+        s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
       )
 
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted

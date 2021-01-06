@@ -122,6 +122,7 @@ object RuntimeMonitor {
 
 final case class MonitorContext(start: Instant, runtimeId: Long, traceId: TraceId, action: RuntimeStatus) {
   override def toString: String = s"${runtimeId}/${traceId.asString}"
+  val loggingContext = Map("traceId" -> traceId.asString, "action" -> action.toString)
 }
 
 sealed abstract class MonitorState extends Product with Serializable
