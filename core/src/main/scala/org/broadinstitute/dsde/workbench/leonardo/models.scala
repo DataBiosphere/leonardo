@@ -11,6 +11,8 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 
 final case class AppContext(traceId: TraceId, now: Instant, span: Option[Span] = None) {
   override def toString: String = s"${traceId.asString}"
+
+  val loggingCtx = Map("traceId" -> traceId.asString)
 }
 
 object AppContext {

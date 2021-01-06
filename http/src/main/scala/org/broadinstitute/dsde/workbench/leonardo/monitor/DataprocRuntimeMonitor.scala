@@ -7,7 +7,7 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import com.google.cloud.dataproc.v1.Cluster
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
@@ -45,7 +45,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   override val F: Async[F],
   override val parallel: Parallel[F],
   override val timer: Timer[F],
-  override val logger: Logger[F],
+  override val logger: StructuredLogger[F],
   override val ec: ExecutionContext,
   override val openTelemetry: OpenTelemetryMetrics[F])
     extends BaseCloudServiceRuntimeMonitor[F] {
@@ -84,7 +84,11 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         case RuntimeStatus.Stopping =>
           stoppingRuntime(cluster, monitorContext, runtimeAndRuntimeConfig)
         case status =>
-          logger.error(s"${status} is not a transition status for GCE; hence no need to monitor").as(((), None))
+          logger
+            .error(monitorContext.loggingContext)(
+              s"${status} is not a transition status for GCE; hence no need to monitor"
+            )
+            .as(((), None))
       }
     } yield result
 
@@ -158,8 +162,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
               r <- validationResult match {
                 case UserScriptsValidationResult.Error(msg) =>
                   logger
-                    .info(
-                      s"${ctx.traceId.asString} | ${runtimeAndRuntimeConfig.runtime.projectNameString} user script failed ${msg}"
+                    .info(ctx.loggingCtx)(
+                      s"${runtimeAndRuntimeConfig.runtime.projectNameString} user script failed ${msg}"
                     ) >> failedRuntime(
                     monitorContext,
                     runtimeAndRuntimeConfig,
@@ -203,8 +207,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = cluster match {
     case None =>
       logger
-        .error(
-          s"${monitorContext} | Fail to retrieve cluster when trying to start ${runtimeAndRuntimeConfig.runtime.projectNameString}"
+        .error(monitorContext.loggingContext)(
+          s"Fail to retrieve cluster when trying to start ${runtimeAndRuntimeConfig.runtime.projectNameString}"
         )
         .as(((), None)) //TODO: shall we delete runtime in this case?
     case Some(c) =>
@@ -380,8 +384,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         for {
           ctx <- ev.ask
           duration = (ctx.now.toEpochMilli - monitorContext.start.toEpochMilli).millis
-          _ <- logger.info(
-            s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
+          _ <- logger.info(monitorContext.loggingContext)(
+            s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
           )
 
           // delete the init bucket so we don't continue to accrue costs after cluster is deleted
