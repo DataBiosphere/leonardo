@@ -891,17 +891,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     for {
       ctx <- ev.ask
 
-      deleteNodepool = gkeInterp.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.project)).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Nodepool, None),
-            Some(msg.appId),
-            false,
-            Some(msg.nodepoolId),
-            None
-          )
-      }
-
       deleteApp = gkeInterp
         .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
         .adaptError {
