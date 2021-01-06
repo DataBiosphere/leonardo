@@ -10,7 +10,7 @@ object Dependencies {
   val scalaLoggingV = "3.9.2"
   val scalaTestV = "3.2.3"
   val slickV = "3.3.3"
-  val http4sVersion = "0.21.14"
+  val http4sVersion = "0.21.15"
   val guavaV = "30.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.2"
@@ -149,7 +149,7 @@ object Dependencies {
     akkaTestKit,
     akkaHttpTestKit,
     akkaStream,
-    "de.heikoseeberger" %% "akka-http-circe" % "1.35.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
+    "de.heikoseeberger" %% "akka-http-circe" % "1.35.3" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleDataproc,
     googleRpc,
     googleErrorReporting, // forcing an older versin of google-cloud-errorreporting because latest version brings in higher version of gax-grpc, which isn't compatible with other google dependencies
