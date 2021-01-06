@@ -46,7 +46,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAcc
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2Service, HttpGoogleDataprocDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}

@@ -10,14 +10,17 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.services.admin.directory.model.Group
+import com.google.cloud.dataproc.v1.{GceClusterConfig, NodeInitializationAction}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.google2.{
+  CreateClusterConfig,
   DiskName,
   GoogleComputeService,
+  GoogleDataprocService,
   GoogleDiskService,
   MachineTypeName,
   ZoneName
@@ -38,6 +41,7 @@ import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 final case class ClusterIamSetupException(googleProject: GoogleProject)
     extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
@@ -58,7 +62,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   config: DataprocInterpreterConfig,
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
-  gdDAO: GoogleDataprocDAO,
+  googleDataprocService: GoogleDataprocService[F],
   googleComputeService: GoogleComputeService[F],
   googleDiskService: GoogleDiskService[F],
   googleDirectoryDAO: GoogleDirectoryDAO,
@@ -154,6 +158,26 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
             _: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
           Async[F].raiseError[CreateGoogleRuntimeResponse](new NotImplementedException)
         case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
+          val gceClusterConfig = GceClusterConfig
+            .newBuilder()
+            .addTags(config.vpcConfig.networkTag.value)
+            .setSubnetworkUri(subnetwork.value)
+            .setServiceAccount(params.serviceAccountInfo.value)
+            .addAllServiceAccountScopes(params.scopes.asJava)
+
+          config.dataprocConfig.zoneName.foreach(zone => gceClusterConfig.setZoneUri(zone.value))
+
+          val nodeInitializationActions = initScripts.map { script =>
+            NodeInitializationAction
+              .newBuilder()
+              .setExecutableFile(script.toUri)
+              .setExecutionTimeout(
+                com.google.protobuf.Duration.newBuilder().setSeconds(config.runtimeCreationTimeout.toSeconds)
+              )
+          }
+
+          val instanceGroupConfig =
+
           val createClusterConfig = CreateClusterConfig(
             params.runtimeProjectAndName,
             dataprocInCreateRuntimeMsgToDataprocRuntime(x),

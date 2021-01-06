@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, NetworkName, 
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import scala.concurrent.duration.FiniteDuration
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
