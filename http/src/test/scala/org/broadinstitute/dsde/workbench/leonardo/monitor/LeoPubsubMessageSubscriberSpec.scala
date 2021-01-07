@@ -1236,7 +1236,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.size shouldBe 1
       getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
-      getApp.nodepool.status shouldBe NodepoolStatus.Deleted
+      //the nodepool should be left untouched, a cron job handles deletion
+      getApp.nodepool.status shouldBe savedNodepool1.status
       getApp.app.status shouldBe AppStatus.Error
     }
 
