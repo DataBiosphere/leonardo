@@ -459,9 +459,6 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       availableTools <- streamFUntilDone(checkTools,
                                          monitorConfig.checkToolsMaxAttempts,
                                          monitorConfig.checkToolsInterval).compile.lastOrError
-      _ <- availableTools.traverse(x =>
-        logger.info("!!!RuntimeImageType:" + x._1.toString + "Boolean:" + x._2.toString)
-      )
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)

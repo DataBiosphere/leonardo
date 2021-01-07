@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   PollError
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -543,7 +543,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // - If present, we will use the client-supplied image.
       // - Otherwise we will pull the latest from the specified welderRegistry.
       // - If welderRegistry is undefined, we take the default GCR image from config.
-      //TODO: add about rstudio
+      // - If the tool is RStudio do not include a welder image
       welderImage = toolImage.imageType match {
         case RuntimeImageType.RStudio => None
         case _ =>
@@ -851,11 +851,7 @@ object RuntimeServiceInterp {
     }
 
     // Do not enable welder for rstudio
-    val welderEnabled =
-      clusterImages.map(_.imageType).filterNot(_ == Welder).headOption match {
-        case Some(RStudio) => false
-        case _             => true
-      }
+    val welderEnabled = clusterImages.map(_.imageType).contains(Welder)
 
     for {
       // check the labels do not contain forbidden keys
