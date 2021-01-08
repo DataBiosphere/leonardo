@@ -102,7 +102,7 @@ object Boot extends IOApp {
         dataprocInterpreterConfig,
         bucketHelper,
         vpcInterp,
-        googleDependencies.googleDataprocDAO,
+        googleDependencies.googleDataproc,
         googleDependencies.googleComputeService,
         googleDependencies.googleDiskService,
         googleDependencies.googleDirectoryDAO,
@@ -152,10 +152,7 @@ object Boot extends IOApp {
         googleDependencies.googleOauth2DAO,
         appDependencies.blocker
       )
-      val statusService = new StatusService(googleDependencies.googleDataprocDAO,
-                                            appDependencies.samDAO,
-                                            appDependencies.dbReference,
-                                            applicationConfig)
+      val statusService = new StatusService(appDependencies.samDAO, appDependencies.dbReference, applicationConfig)
       val runtimeServiceConfig = RuntimeServiceConfig(
         proxyConfig.proxyUrlBase,
         imageConfig,
@@ -389,12 +386,6 @@ object Boot extends IOApp {
                                                       jsonWithServiceAccountUser,
                                                       workbenchMetricsBaseName)
       googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
-      gdDAO = new HttpGoogleDataprocDAO(applicationConfig.applicationName,
-                                        json,
-                                        workbenchMetricsBaseName,
-                                        vpcConfig.networkTag,
-                                        dataprocConfig.regionName,
-                                        dataprocConfig.zoneName)
 
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
       cryptoMiningUserPublisher <- GooglePublisher.resource[F](cryptominingTopicPublisherConfig)
@@ -460,7 +451,6 @@ object Boot extends IOApp {
         googleDirectoryDAO,
         cryptoMiningUserPublisher,
         googleIamDAO,
-        gdDAO,
         dataprocService,
         kubernetesDnsCache,
         gkeService,
@@ -508,7 +498,6 @@ final case class GoogleDependencies[F[_]](
   googleDirectoryDAO: HttpGoogleDirectoryDAO,
   cryptoMiningUserPublisher: GooglePublisher[F],
   googleIamDAO: HttpGoogleIamDAO,
-  googleDataprocDAO: HttpGoogleDataprocDAO,
   googleDataproc: GoogleDataprocService[F],
   kubernetesDnsCache: KubernetesDnsCache[F],
   gkeService: GKEService[F],

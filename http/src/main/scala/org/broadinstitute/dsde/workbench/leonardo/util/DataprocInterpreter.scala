@@ -6,11 +6,17 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.OptionT
 import cats.effect.{Async, _}
-import cats.syntax.all._
 import cats.mtl.Ask
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import cats.syntax.all._
+import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
-import com.google.cloud.dataproc.v1.{DiskConfig, GceClusterConfig, InstanceGroupConfig, NodeInitializationAction}
+import com.google.cloud.dataproc.v1.{
+  DiskConfig,
+  GceClusterConfig,
+  InstanceGroupConfig,
+  NodeInitializationAction,
+  SoftwareConfig
+}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
@@ -27,11 +33,10 @@ import org.broadinstitute.dsde.workbench.google2.{
   OperationName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidDataprocMachineConfigException
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
@@ -147,7 +152,6 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       // build cluster configuration
       initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
       initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
-      credentialsFileName = s"/etc/${RuntimeTemplateValues.serviceAccountCredentialsFilename}"
 
       // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
       // we will use the new custom dataproc image
@@ -199,33 +203,37 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
         (machineConfig.workerMachineType,
          machineConfig.workerDiskSize,
          machineConfig.numberOfWorkerLocalSSDs,
-         machineConfig.numberOfPreemptibleWorkers).mapN {
-          case (machineType, diskSize, numLocalSSDs, numPreemptibles) =>
-            val workerConfig = InstanceGroupConfig
-              .newBuilder()
-              .setNumInstances(machineConfig.numberOfWorkers)
-              .setMachineTypeUri(machineType.value)
-              .setDiskConfig(DiskConfig.newBuilder().setBootDiskSizeGb(diskSize.gb).setNumLocalSsds(numLocalSSDs))
-              .setImageUri(dataprocImage.asString)
-              .build()
+         machineConfig.numberOfPreemptibleWorkers)
+          .mapN {
+            case (machineType, diskSize, numLocalSSDs, numPreemptibles) =>
+              val workerConfig = InstanceGroupConfig
+                .newBuilder()
+                .setNumInstances(machineConfig.numberOfWorkers)
+                .setMachineTypeUri(machineType.value)
+                .setDiskConfig(DiskConfig.newBuilder().setBootDiskSizeGb(diskSize.gb).setNumLocalSsds(numLocalSSDs))
+                .setImageUri(dataprocImage.asString)
+                .build()
 
-            val secondaryWorkerConfig =
-              if (numPreemptibles > 0)
-                Some(
-                  InstanceGroupConfig
-                    .newBuilder()
-                    .setIsPreemptible(true)
-                    .setNumInstances(numPreemptibles)
-                    .setMachineTypeUri(machineType.value)
-                    .setDiskConfig(DiskConfig.newBuilder().setBootDiskSizeGb(diskSize.gb))
-                    .setImageUri(dataprocImage.asString)
-                    .build()
-                )
-              else None
+              val secondaryWorkerConfig =
+                if (numPreemptibles > 0)
+                  Some(
+                    InstanceGroupConfig
+                      .newBuilder()
+                      .setIsPreemptible(true)
+                      .setNumInstances(numPreemptibles)
+                      .setMachineTypeUri(machineType.value)
+                      .setDiskConfig(DiskConfig.newBuilder().setBootDiskSizeGb(diskSize.gb))
+                      .setImageUri(dataprocImage.asString)
+                      .build()
+                  )
+                else None
 
-            (Some(workerConfig), secondaryWorkerConfig)
-        }
+              (Some(workerConfig), secondaryWorkerConfig)
+          }
+          .getOrElse((None, None))
       } else (None, None)
+
+      softwareConfig = getSoftwareConfig(params.runtimeProjectAndName.googleProject, machineConfig)
 
       createClusterConfig = CreateClusterConfig(
         gceClusterConfig,
@@ -234,7 +242,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
         workerConfig,
         secondaryWorkerConfig,
         stagingBucketName,
-        null // TODO softwareConfig
+        softwareConfig
       )
 
       op <- googleDataprocService.createCluster(
@@ -252,10 +260,12 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
     } yield res
 
     ioResult.handleErrorWith { throwable =>
-      cleanUpGoogleResourcesOnError(params.runtimeProjectAndName.googleProject,
-                                    params.runtimeProjectAndName.runtimeName,
-                                    initBucketName,
-                                    params.serviceAccountInfo) >> Async[F].raiseError(throwable)
+      cleanUpGoogleResourcesOnError(
+        params.runtimeProjectAndName.googleProject,
+        params.runtimeProjectAndName.runtimeName,
+        initBucketName,
+        params.serviceAccountInfo
+      ) >> Async[F].raiseError[CreateGoogleRuntimeResponse](throwable)
     }
   }
 
@@ -268,6 +278,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
                                                      DataprocClusterName(params.runtimeName.asString))
       status = clusterOpt
         .flatMap(c => DataprocClusterStatus.withNameInsensitiveOption(c.getStatus.getState.name))
+        .map(s => RuntimeStatus.fromDataprocClusterStatus(s))
         .getOrElse(RuntimeStatus.Deleted)
     } yield status
 
@@ -281,6 +292,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
           googleComputeService.addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
         }
         _ <- googleDataprocService.deleteCluster(params.runtime.googleProject,
+                                                 config.dataprocConfig.regionName,
                                                  DataprocClusterName(params.runtime.runtimeName.asString))
       } yield None
     } else Async[F].pure(None)
@@ -306,7 +318,6 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
-//      ctx <- ev.ask
       resourceConstraints <- getClusterResourceContraints(
         RuntimeProjectAndName(params.runtime.googleProject, params.runtime.runtimeName),
         params.runtimeConfig.machineType
@@ -317,39 +328,19 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
                                    blocker,
                                    resourceConstraints,
                                    false)
-      _ <- googleDataprocService.s
 
-      // Add back the preemptible instances, if any
-      _ <- params.runtimeConfig match {
-        case x: RuntimeConfig.DataprocConfig if (x.numberOfPreemptibleWorkers.exists(_ > 0)) =>
-          Async[F].liftIO(
-            IO.fromFuture(
-              IO(
-                gdDAO.resizeCluster(params.runtime.googleProject,
-                                    params.runtime.runtimeName,
-                                    numPreemptibles = x.numberOfPreemptibleWorkers)
-              )
-            )
-          )
-        case _ => Async[F].unit
+      dataprocConfig <- params.runtimeConfig match {
+        case c: RuntimeConfig.DataprocConfig => Async[F].pure(c)
+        case _                               => Async[F].raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
       }
 
-      // Start each instance individually
-      _ <- params.runtime.nonPreemptibleInstances.toList.parTraverse { instance =>
-        // Install a startup script on the master node so Jupyter starts back up again once the instance is restarted
-        instance.dataprocRole match {
-          case Master =>
-            googleComputeService.addInstanceMetadata(
-              instance.key.project,
-              instance.key.zone,
-              instance.key.name,
-              metadata
-            ) >> googleComputeService.startInstance(instance.key.project, instance.key.zone, instance.key.name)
-          case _ =>
-            googleComputeService.startInstance(instance.key.project, instance.key.zone, instance.key.name)
-        }
-      }
-
+      _ <- googleDataprocService.startCluster(
+        params.runtime.googleProject,
+        config.dataprocConfig.regionName,
+        DataprocClusterName(params.runtime.runtimeName.asString),
+        dataprocConfig.numberOfPreemptibleWorkers,
+        Some(metadata)
+      )
     } yield ()
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
@@ -360,26 +351,23 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = true)
 
       // Resize the cluster in Google
-      _ <- Async[F].liftIO(
-        IO.fromFuture(
-          IO(
-            gdDAO.resizeCluster(params.runtime.googleProject,
-                                params.runtime.runtimeName,
-                                params.numWorkers,
-                                params.numPreemptibles)
-          )
-        )
+      _ <- googleDataprocService.resizeCluster(
+        params.runtime.googleProject,
+        config.dataprocConfig.regionName,
+        DataprocClusterName(params.runtime.runtimeName.asString),
+        params.numWorkers,
+        params.numPreemptibles
       )
     } yield ()) recoverWith {
-      case gjre: GoogleJsonResponseException =>
+      case e: ApiException =>
         // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
         // resize the cluster we need to revoke it manually here
         for {
           _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
           // Remove member from the Google Group that has the IAM role to pull the Dataproc image
           _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
-          _ <- Logger[F].error(gjre)(s"Could not successfully update cluster ${params.runtime.projectNameString}")
-          _ <- Async[F].raiseError[Unit](InvalidDataprocMachineConfigException(gjre.getMessage))
+          _ <- Logger[F].error(e)(s"Could not successfully update cluster ${params.runtime.projectNameString}")
+          _ <- Async[F].raiseError[Unit](InvalidDataprocMachineConfigException(e.getMessage))
         } yield ()
     }
 
@@ -475,11 +463,16 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
     // Don't delete the staging bucket so the user can see error logs.
 
-    val deleteCluster =
-      Async[F].liftIO(IO.fromFuture(IO(gdDAO.deleteCluster(googleProject, clusterName)))).attempt.flatMap {
-        case Left(e) => Logger[F].error(e)(s"Failed to delete cluster ${googleProject.value} / ${clusterName.asString}")
-        case _       => Logger[F].info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.asString}")
-      }
+    val deleteCluster = {
+      googleDataprocService
+        .deleteCluster(googleProject, config.dataprocConfig.regionName, DataprocClusterName(clusterName.asString))
+        .attempt
+        .flatMap {
+          case Left(e) =>
+            Logger[F].error(e)(s"Failed to delete cluster ${googleProject.value} / ${clusterName.asString}")
+          case _ => Logger[F].info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.asString}")
+        }
+    }
 
     val removeIamRoles = removeClusterIamRoles(googleProject, serviceAccountInfo).attempt.flatMap {
       case Left(e) =>
@@ -671,5 +664,36 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       case regex(project, _) => Some(GoogleProject(project))
       case _                 => None
     }
+  }
+
+  private def getSoftwareConfig(googleProject: GoogleProject,
+                                machineConfig: RuntimeConfig.DataprocConfig): SoftwareConfig = {
+    val dataprocProps = if (machineConfig.numberOfWorkers == 0) {
+      // Set a SoftwareConfig property that makes the cluster have only one node
+      Map("dataproc:dataproc.allow.zero.workers" -> "true")
+    } else Map.empty[String, String]
+
+    val yarnProps = Map(
+      // Helps with debugging
+      "yarn:yarn.log-aggregation-enable" -> "true"
+    )
+
+    val stackdriverProps = Map("dataproc:dataproc.monitoring.stackdriver.enable" -> "true")
+
+    // Enable requester pays "auto" mode so Hail users can access reference data in public RP buckets.
+    // Since all Leo clusters are in US regions this shouldn't incur extra charges since Hail buckets
+    // are also US-based (and replicated in other regions as well).
+    // See https://broadworkbench.atlassian.net/browse/IA-2056
+    val requesterPaysProps = Map(
+      "spark:spark.hadoop.fs.gs.requester.pays.mode" -> "AUTO",
+      "spark:spark.hadoop.fs.gs.requester.pays.project.id" -> googleProject.value
+    )
+
+    SoftwareConfig
+      .newBuilder()
+      .putAllProperties(
+        (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ machineConfig.properties).asJava
+      )
+      .build()
   }
 }
