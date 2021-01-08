@@ -5,7 +5,6 @@ package service
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.model.Uri.Host
@@ -20,7 +19,8 @@ import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
+
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -39,8 +39,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
-
 import akka.http.scaladsl.unmarshalling.Unmarshal
+
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -92,7 +92,7 @@ class ProxyService(
   cs: ContextShift[IO],
   dbRef: DbReference[IO],
   metrics: OpenTelemetryMetrics[IO],
-  loggerIO: Logger[IO])
+  loggerIO: StructuredLogger[IO])
     extends LazyLogging {
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
 
@@ -295,10 +295,8 @@ class ProxyService(
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
-      _ <- IO(
-        logger.debug(
-          s"${ctx.traceId} | Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
-        )
+      _ <- loggerIO.debug(ctx.loggingCtx)(
+        s"Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
       )
       res <- hostContext.status match {
         case HostReady(targetHost) =>
@@ -313,31 +311,31 @@ class ProxyService(
                 IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
             }
             r <- if (response.status.isFailure())
-              IO(
-                logger.info(
-                  s"${ctx.traceId} | Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
+              loggerIO
+                .info(ctx.loggingCtx)(
+                  s"Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
                     .to[String]}"
                 )
-              ).as(response)
+                .as(response)
             else IO.pure(response)
           } yield r
 
           res.recoverWith {
             case e =>
-              IO(logger.error(s"${ctx.traceId} | Error occurred in proxy", e)) >> IO.raiseError[HttpResponse](
+              loggerIO.error(ctx.loggingCtx, e)(s"Error occurred in proxy") >> IO.raiseError[HttpResponse](
                 ProxyException(hostContext, ctx.traceId)
               )
           }
         case HostNotReady =>
-          IO(logger.warn(s"${ctx.traceId} | proxy host not ready for ${hostContext.description}")) >> IO.raiseError(
+          loggerIO.warn(ctx.loggingCtx)(s"proxy host not ready for ${hostContext.description}") >> IO.raiseError(
             ProxyHostNotReadyException(hostContext, ctx.traceId)
           )
         case HostPaused =>
-          IO(logger.warn(s"${ctx.traceId} | proxy host paused for ${hostContext.description}")) >> IO.raiseError(
+          loggerIO.warn(ctx.loggingCtx)(s"proxy host paused for ${hostContext.description}") >> IO.raiseError(
             ProxyHostPausedException(hostContext, ctx.traceId)
           )
         case HostNotFound =>
-          IO(logger.warn(s"${ctx.traceId} | proxy host not found for ${hostContext.description}")) >> IO.raiseError(
+          loggerIO.warn(ctx.loggingCtx)(s"proxy host not found for ${hostContext.description}") >> IO.raiseError(
             ProxyHostNotFoundException(hostContext, ctx.traceId)
           )
       }

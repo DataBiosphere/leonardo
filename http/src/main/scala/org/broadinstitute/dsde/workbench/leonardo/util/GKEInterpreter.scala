@@ -79,8 +79,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
-      _ <- logger.info(
-        s"Beginning cluster creation for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Beginning cluster creation for cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       // Get nodepools to pass in the create cluster request
@@ -160,8 +160,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
-      _ <- logger.info(
-        s"Polling cluster creation for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Polling cluster creation for cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       defaultNodepool <- F.fromOption(dbCluster.nodepools.find(_.isDefault),
@@ -178,12 +178,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .lastOrError
 
       _ <- if (lastOp.isDone)
-        logger.info(
-          s"Create cluster operation has finished for cluster ${dbCluster.getGkeClusterId.toString}| trace id: ${ctx.traceId}"
+        logger.info(ctx.loggingCtx)(
+          s"Create cluster operation has finished for cluster ${dbCluster.getGkeClusterId.toString}"
         )
       else
-        logger.error(
-          s"Create cluster operation has failed for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        logger.error(ctx.loggingCtx)(
+          s"Create cluster operation has failed for cluster ${dbCluster.getGkeClusterId.toString}"
         ) >>
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](
@@ -201,8 +201,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
-      _ <- logger.info(
-        s"Successfully created cluster ${dbCluster.getGkeClusterId.toString}! | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Successfully created cluster ${dbCluster.getGkeClusterId.toString}!"
       )
 
       // TODO: Handle the case where currently, if ingress installation fails, the cluster is marked as `Error`ed
@@ -249,8 +249,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
-      _ <- logger.info(
-        s"Beginning nodepool creation for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Beginning nodepool creation for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       req = KubernetesCreateNodepoolRequest(
@@ -273,12 +273,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           }
           _ <- lastOpOpt.traverse_ { op =>
             if (op.isDone)
-              logger.info(
-                s"Nodepool creation operation has finished for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
+              logger.info(ctx.loggingCtx)(
+                s"Nodepool creation operation has finished for nodepool with id ${params.nodepoolId.id}"
               )
             else
-              logger.error(
-                s"Create nodepool operation has failed or timed out for nodepool with id ${params.nodepoolId.id} | trace id: ${ctx.traceId}"
+              logger.error(ctx.loggingCtx)(
+                s"Create nodepool operation has failed or timed out for nodepool with id ${params.nodepoolId.id}"
               ) >>
                 // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
                 F.raiseError[Unit](NodepoolCreationException(params.nodepoolId))
@@ -305,13 +305,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       gkeClusterId = dbCluster.getGkeClusterId
       googleProject = params.googleProject
 
-      _ <- logger.info(
-        s"Beginning app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Beginning app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
       // Create namespace and secrets
-      _ <- logger.info(
-        s"Creating namespace ${namespaceName.value} and secrets for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Creating namespace ${namespaceName.value} and secrets for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
       _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
@@ -326,8 +326,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       annotations = Map("iam.gke.io/gcp-service-account" -> gsa.value)
       ksa = KubernetesModels.KubernetesServiceAccount(ksaName, annotations)
 
-      _ <- logger.info(
-        s"Creating Kubernetes service account ${ksaName.value} for app  ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Creating Kubernetes service account ${ksaName.value} for app  ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
       _ <- kubeService.createServiceAccount(gkeClusterId, ksa, KubernetesNamespace(namespaceName))
 
@@ -384,8 +384,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         nfsDisk
       )
 
-      _ <- logger.info(
-        s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
@@ -413,12 +413,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .lastOrError
       _ <- lastOp.traverse_ { op =>
         if (op.isDone)
-          logger.info(
-            s"Delete cluster operation has finished for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+          logger.info(ctx.loggingCtx)(
+            s"Delete cluster operation has finished for cluster ${params.clusterId}"
           )
         else
-          logger.error(
-            s"Delete cluster operation has failed or timed out for cluster ${params.clusterId} | trace id: ${ctx.traceId}"
+          logger.error(ctx.loggingCtx)(
+            s"Delete cluster operation has failed or timed out for cluster ${params.clusterId}"
           ) >>
             F.raiseError[Unit](ClusterDeletionException(params.clusterId))
       }
@@ -438,8 +438,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         KubernetesClusterNotFoundException(s"Cluster with id ${dbNodepool.clusterId.id} not found in database")
       )
 
-      _ <- logger.info(
-        s"Beginning nodepool deletion for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Beginning nodepool deletion for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       operationOpt <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
@@ -460,12 +460,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             .lastOrError
           _ <- lastOp.traverse_ { op =>
             if (op.isDone)
-              logger.info(
-                s"Delete nodepool operation has finished for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+              logger.info(ctx.loggingCtx)(
+                s"Delete nodepool operation has finished for nodepool ${params.nodepoolId}"
               )
             else
               logger.error(
-                s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId} | trace id: ${ctx.traceId}"
+                ctx.loggingCtx(
+                  s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId}"
+                )
               ) >>
                 F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
           }
@@ -492,8 +494,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       dbCluster = dbApp.cluster
       gkeClusterId = dbCluster.getGkeClusterId
 
-      _ <- logger.info(
-        s"Beginning app deletion for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Beginning app deletion for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
       // Resolve the cluster in Google
@@ -507,8 +509,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
                                        KubernetesNamespace(dbApp.app.appResources.namespace.name))
-      _ <- logger.info(
-        s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
       _ <- if (!params.errorAfterDelete) {
@@ -528,8 +530,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       dbCluster = dbApp.cluster
       nodepoolId = NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
 
-      _ <- logger.info(
-        s"Stopping app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Stopping app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Provisioning).transaction
