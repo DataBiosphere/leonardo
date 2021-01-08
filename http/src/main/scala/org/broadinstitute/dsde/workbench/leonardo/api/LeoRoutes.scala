@@ -32,7 +32,7 @@ case class AuthenticationError(email: Option[WorkbenchEmail] = None)
 
 // TODO: This can probably renamed to legacyRuntimeRoutes
 // Future runtime related APIs should be added to `RuntimeRoutes`
-class LeoRoutes(
+class LeoRoutesh(
   val leonardoService: LeonardoService,
   userInfoDirectives: UserInfoDirectives
 )(implicit val system: ActorSystem,
