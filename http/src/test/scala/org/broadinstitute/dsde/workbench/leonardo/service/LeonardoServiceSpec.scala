@@ -271,7 +271,7 @@ class LeonardoServiceSpec
     val rstudioImage = ContainerImage("some-rstudio-image", GCR)
 
     // create the cluster
-    val clusterRequest = testClusterRequest.copy(toolDockerImage = Some(rstudioImage), enableWelder = Some(true))
+    val clusterRequest = testClusterRequest.copy(toolDockerImage = Some(rstudioImage), enableWelder = Some(false))
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     val leoForTest = new LeonardoService(dataprocConfig,
                                          imageConfig,
@@ -294,12 +294,11 @@ class LeonardoServiceSpec
     val dbCluster = dbFutureValue(clusterQuery.getClusterById(clusterResponse.id))
     TestUtils.compareClusterAndCreateClusterAPIResponse(dbCluster.get, clusterResponse)
 
-    // cluster images should contain welder and RStudio
+    // cluster images should contain only RStudio
     clusterResponse.clusterImages.find(_.imageType == RStudio).map(_.imageUrl) shouldBe Some(rstudioImage.imageUrl)
     clusterResponse.clusterImages.find(_.imageType == Jupyter) shouldBe None
-    clusterResponse.clusterImages.find(_.imageType == Welder).map(_.imageUrl) shouldBe Some(
-      imageConfig.welderGcrImage.imageUrl
-    )
+    clusterResponse.clusterImages.find(_.imageType == Welder) shouldBe None
+
     clusterResponse.labels.get("tool") shouldBe Some("RStudio")
     clusterResponse.clusterUrl shouldBe new URL(s"https://leo/proxy/${project.value}/${name1.asString}/rstudio")
 
