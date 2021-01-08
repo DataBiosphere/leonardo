@@ -57,13 +57,17 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       _ <- F.delay(println(s"\n\ndigest for ${image.imageUrl} = $digest\n"))
 
       containerConfig <- getContainerConfig(parsed, digest, tokenOpt)
+        .adaptError {
+          case e: org.http4s.InvalidMessageBodyFailure =>
+            InvalidImage(traceId, image, e)
+        }
       _ <- F.delay(println(s"\n\ncontainerConfig for ${image.imageUrl} = $containerConfig\n"))
 
       envSet = containerConfig.env.toSet
       tool = clusterToolEnv
         .find {
-          case (_, v) =>
-            envSet.exists(_.startsWith(v))
+          case (_, env_var) =>
+            envSet.exists(_.startsWith(env_var))
         }
         .map(_._1)
       res <- F.fromEither(tool.toRight(InvalidImage(traceId, image)))
@@ -72,8 +76,8 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
   //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
     implicit ev: Ask[F, TraceId]
-  ): F[ContainerConfig] =
-    FollowRedirect(3)(httpClient).expectOr[ContainerConfig](
+  ): F[ContainerEnv] =
+    FollowRedirect(3)(httpClient).expectOr[ContainerEnv](
       Request[F](
         method = Method.GET,
         uri = parsedImage.blobUri(digest),
@@ -135,8 +139,8 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
           .orElse(Option(shaOpt).map(Sha))
         for {
           traceId <- ev.ask
-          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
-            F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
+          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(
+            i => F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
           )
         } yield res
       case DockerHub.regex(imageName, tagOpt, shaOpt) =>
@@ -183,14 +187,25 @@ object HttpDockerDAO {
       digest <- cursor.get[String]("digest")
     } yield ManifestConfig(mediaType, size, digest)
   }
-  implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.instance { d =>
-    println(s"\n\n d = ${d.value}")
-    val cursor = d.downField("container_config")
-    println(s"\n\n cursor = ${cursor.values}")
-    for {
-      image <- cursor.get[String]("Image")
-      env <- cursor.get[List[String]]("Env")
-    } yield ContainerConfig(image, env)
+
+  implicit val envDecoder: Decoder[ContainerEnv] = {
+    lazy val containerConfigDecoder: Decoder[ContainerEnv] = Decoder.instance { d =>
+      val cursor = d.downField("container_config")
+
+      for {
+        env <- cursor.get[List[String]]("Env")
+      } yield ContainerEnv(env)
+    }
+
+    lazy val configDecoder: Decoder[ContainerEnv] = Decoder.instance { d =>
+      val cursor = d.downField("confi")
+
+      for {
+        env <- cursor.get[List[String]]("Env")
+      } yield ContainerEnv(env)
+    }
+
+    containerConfigDecoder.or(configDecoder) //.withErrorMessage("could not auto-detect image")
   }
 }
 
@@ -217,9 +232,10 @@ final case class ParsedImage(registry: ContainerRegistry,
 }
 
 // API response models
-final case class Token(token: String)
+final case class Token(token: String) extends AnyVal
 final case class ManifestConfig(mediaType: String, size: Int, digest: String)
 final case class ContainerConfig(image: String, env: List[String])
+final case class ContainerEnv(env: List[String])
 
 // Exceptions
 final case class DockerImageException(traceId: TraceId, msg: String)

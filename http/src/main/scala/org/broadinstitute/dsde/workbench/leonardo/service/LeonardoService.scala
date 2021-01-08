@@ -128,10 +128,11 @@ case class InvalidDataprocMachineConfigException(errorMsg: String)
 final case class ImageNotFoundException(traceId: TraceId, image: ContainerImage)
     extends LeoException(s"${traceId} | Image ${image.imageUrl} not found", StatusCodes.NotFound)
 
-final case class InvalidImage(traceId: TraceId, image: ContainerImage)
+final case class InvalidImage(traceId: TraceId, image: ContainerImage, throwable: Option[Throwable])
     extends LeoException(
       s"${traceId} | Image ${image.imageUrl} doesn't have JUPYTER_HOME or RSTUDIO_HOME environment variables defined. Make sure your custom image extends from one of the Terra base images.",
-      StatusCodes.NotFound
+      StatusCodes.NotFound,
+      throwable.getOrElse(null)
     )
 
 final case class CloudServiceNotSupportedException(cloudService: CloudService)
