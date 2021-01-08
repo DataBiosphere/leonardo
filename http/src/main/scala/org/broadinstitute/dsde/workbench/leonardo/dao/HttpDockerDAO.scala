@@ -47,13 +47,18 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       traceId <- ev.ask
 
       parsed <- parseImage(image)
+
       tokenOpt <- getToken(parsed, petTokenOpt)
 
       digest <- parsed.imageVersion match {
         case Tag(_)      => getManifestConfig(parsed, tokenOpt).map(_.digest)
         case Sha(digest) => F.pure(digest)
       }
+      _ <- F.delay(println(s"\n\ndigest for ${image.imageUrl} = $digest\n"))
+
       containerConfig <- getContainerConfig(parsed, digest, tokenOpt)
+      _ <- F.delay(println(s"\n\ncontainerConfig for ${image.imageUrl} = $containerConfig\n"))
+
       envSet = containerConfig.env.toSet
       tool = clusterToolEnv
         .find {
@@ -179,7 +184,9 @@ object HttpDockerDAO {
     } yield ManifestConfig(mediaType, size, digest)
   }
   implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.instance { d =>
+    println(s"\n\n d = ${d.value}")
     val cursor = d.downField("container_config")
+    println(s"\n\n cursor = ${cursor.values}")
     for {
       image <- cursor.get[String]("Image")
       env <- cursor.get[List[String]]("Env")

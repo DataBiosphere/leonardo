@@ -69,6 +69,17 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     dockerDAOResource.use(dao => IO(testCode(dao))).unsafeRunSync()
   }
 
+  it should s"detect tool as Jupyter for image kimler" in withDockerDAO { dockerDAO =>
+    val image1 = ContainerImage("broadinstitute/terra-jupyter-aou:1.0.17", DockerHub)
+    val image2 = ContainerImage("kkimler/r4.0_tca:2020_11_09", DockerHub)
+
+    val response1 = dockerDAO.detectTool(image1).unsafeRunSync()
+    response1 shouldBe Jupyter
+
+    val response2 = dockerDAO.detectTool(image2).unsafeRunSync()
+    response2 shouldBe Jupyter
+  }
+
   Map(Jupyter -> jupyterImages, RStudio -> rstudioImages).foreach {
     case (tool, images) =>
       images.foreach { image =>
