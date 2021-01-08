@@ -11,23 +11,20 @@ import com.google.api.client.googleapis.testing.json.GoogleJsonResponseException
 import com.google.api.client.testing.json.MockJsonFactory
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
-import org.broadinstitute.dsde.workbench.google2.{
-  DataprocRole,
-  MachineTypeName,
-  MockGoogleDiskService,
-  OperationName,
-  SubnetworkName
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGoogleDataprocService,
+  MockComputePollOperation
 }
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.CreateClusterConfig
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -66,7 +63,7 @@ class DataprocInterpreterSpec
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
-                                                   mockGoogleDataprocDAO,
+                                                   FakeGoogleDataprocService,
                                                    FakeGoogleComputeService,
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
@@ -99,20 +96,10 @@ class DataprocInterpreterSpec
         .unsafeToFuture()
         .futureValue
 
-    // verify the mock dataproc DAO
-    mockGoogleDataprocDAO.clusters.size shouldBe 1
-    mockGoogleDataprocDAO.clusters should contain key testCluster.runtimeName
-    val operation = mockGoogleDataprocDAO.clusters(testCluster.runtimeName)
-
-    // verify the mock compute DAO
-    // TODO
-//    mockGoogleComputeDAO.firewallRules.size shouldBe 1
-//    mockGoogleComputeDAO.firewallRules should contain key testCluster.googleProject
-
     // verify the returned cluster
     val dpInfo = clusterCreationRes.asyncRuntimeFields
-    dpInfo.operationName shouldBe operation.name
-    dpInfo.googleId shouldBe operation.id
+    dpInfo.operationName.value shouldBe testCluster.runtimeName.asString
+    dpInfo.googleId.value shouldBe "clusterUuid"
     dpInfo.hostIp shouldBe None
     dpInfo.stagingBucket.value should startWith("leostaging")
 
@@ -122,46 +109,6 @@ class DataprocInterpreterSpec
     // verify the returned service account key
     mockGoogleIamDAO.serviceAccountKeys shouldBe 'empty
     clusterCreationRes.serviceAccountKey shouldBe None
-  }
-
-  it should "resize cluster when stopping cluster" in isolatedDbTest {
-    val dataprocConfig = defaultDataprocRuntimeConfig.copy(numberOfPreemptibleWorkers = Some(10))
-    val res = for {
-      now <- nowInstant
-      runtime <- IO(
-        testCluster
-          .copy(asyncRuntimeFields =
-            Some(AsyncRuntimeFields(GoogleId("id"), OperationName("operation"), GcsBucketName("bucket"), None))
-          )
-          .saveWithRuntimeConfig(runtimeConfig = dataprocConfig)
-      )
-      _ <- IO.fromFuture(
-        IO(
-          mockGoogleDataprocDAO.createCluster(
-            CreateClusterConfig(
-              RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
-              dataprocConfig,
-              List.empty,
-              runtime.auditInfo.creator,
-              "",
-              runtime.asyncRuntimeFields.map(_.stagingBucket).get,
-              Set.empty,
-              SubnetworkName(""),
-              CustomImage.DataprocCustomImage(""),
-              5 seconds
-            )
-          )
-        )
-      )
-      _ = mockGoogleDataprocDAO.instances.get(runtime.runtimeName).get(DataprocRole.SecondaryWorker).size shouldBe 10
-      _ <- dataprocInterp.stopRuntime(
-        StopRuntimeParams(runtime, Some(dataprocConfig), now)
-      )
-    } yield {
-      mockGoogleDataprocDAO.instances.get(runtime.runtimeName).get(DataprocRole.SecondaryWorker).size shouldBe 0
-    }
-
-    res.unsafeRunSync()
   }
 
   it should "be able to determine appropriate custom dataproc image" in isolatedDbTest {
@@ -206,82 +153,13 @@ class DataprocInterpreterSpec
     resForLegacyImage.customImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
   }
 
-  it should "clean up Google resources on error" in isolatedDbTest {
-    val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO
-    val erroredDataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
-                                                            bucketHelper,
-                                                            vpcInterp,
-                                                            erroredDataprocDAO,
-                                                            FakeGoogleComputeService,
-                                                            MockGoogleDiskService,
-                                                            mockGoogleDirectoryDAO,
-                                                            mockGoogleIamDAO,
-                                                            mockGoogleProjectDAO,
-                                                            MockWelderDAO,
-                                                            blocker)
-
-    val dataprocConfig = LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get
-
-    val exception =
-      erroredDataprocInterp
-        .createRuntime(
-          CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(testCluster, dataprocConfig, None))
-        )
-        .unsafeToFuture()
-        .failed
-        .futureValue
-    exception shouldBe a[GoogleJsonResponseException]
-
-    // verify Google DAOs have been cleaned up
-    erroredDataprocDAO.clusters shouldBe 'empty
-    erroredDataprocDAO.invocationCount shouldBe 1
-    // TODO
-//    mockGoogleComputeDAO.firewallRules.size shouldBe 1
-//    mockGoogleComputeDAO.firewallRules should contain key testCluster.googleProject
-    mockGoogleIamDAO.serviceAccountKeys shouldBe 'empty
-  }
-
-  it should "retry zone capacity issues" in isolatedDbTest {
-    implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
-    val erroredDataprocDAO = new ErroredMockGoogleDataprocDAO(429)
-    val erroredDataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
-                                                            bucketHelper,
-                                                            vpcInterp,
-                                                            erroredDataprocDAO,
-                                                            FakeGoogleComputeService,
-                                                            MockGoogleDiskService,
-                                                            mockGoogleDirectoryDAO,
-                                                            mockGoogleIamDAO,
-                                                            mockGoogleProjectDAO,
-                                                            MockWelderDAO,
-                                                            blocker)
-
-    val exception =
-      erroredDataprocInterp
-        .createRuntime(
-          CreateRuntimeParams
-            .fromCreateRuntimeMessage(
-              CreateRuntimeMessage.fromRuntime(testCluster,
-                                               LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
-                                               None)
-            )
-        )
-        .unsafeToFuture()
-        .failed
-        .futureValue
-    exception shouldBe a[GoogleJsonResponseException]
-
-    erroredDataprocDAO.invocationCount shouldBe 5
-  }
-
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)
     val erroredDataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                             bucketHelper,
                                                             vpcInterp,
-                                                            mockGoogleDataprocDAO,
+                                                            FakeGoogleDataprocService,
                                                             FakeGoogleComputeService,
                                                             MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
@@ -323,18 +201,6 @@ class DataprocInterpreterSpec
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m
     resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(768)
-  }
-
-  private class ErroredMockGoogleDataprocDAO(statusCode: Int = 400) extends MockGoogleDataprocDAO {
-    var invocationCount = 0
-    override def createCluster(config: CreateClusterConfig): Future[GoogleOperation] = {
-      invocationCount += 1
-      val jsonFactory = new MockJsonFactory
-      val testException =
-        GoogleJsonResponseExceptionFactoryTesting.newMock(jsonFactory, statusCode, "oh no i have failed")
-
-      Future.failed(testException)
-    }
   }
 
   private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {

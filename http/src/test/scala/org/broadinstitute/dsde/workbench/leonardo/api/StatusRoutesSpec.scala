@@ -7,7 +7,6 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -60,9 +59,8 @@ class StatusRoutesSpec
       override def getStatus(implicit ev: Ask[IO, TraceId]): IO[StatusCheckResponse] =
         IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
     }
-    val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =
-      new StatusService(badDataproc, badSam, testDbRef, applicationConfig, pollInterval = 1.second)
+      new StatusService(badSam, testDbRef, applicationConfig, pollInterval = 1.second)
     val statusRoute = new StatusRoutes(statusService) with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo
     }

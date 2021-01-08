@@ -12,7 +12,6 @@ import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
@@ -152,7 +151,6 @@ object CommonTestData {
   )
 
   val mockSamDAO = new MockSamDAO
-  val mockGoogleDataprocDAO = new MockGoogleDataprocDAO
   val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 
   val defaultUserInfo =

@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google.mock.{
 import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
+  FakeGoogleDataprocService,
   FakeGoogleStorageInterpreter,
   MockComputePollOperation
 }
@@ -84,7 +85,7 @@ trait TestLeoRoutes {
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
                                 vpcInterp,
-                                mockGoogleDataprocDAO,
+                                FakeGoogleDataprocService,
                                 FakeGoogleComputeService,
                                 MockGoogleDiskService,
                                 mockGoogleDirectoryDAO,
@@ -155,7 +156,7 @@ trait TestLeoRoutes {
                          kubernetesDnsCache,
                          MockGoogleOAuth2Service)
   val statusService =
-    new StatusService(mockGoogleDataprocDAO, mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
+    new StatusService(mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
   val corsSupport = new CorsSupport(contentSecurityPolicy)
   val statusRoutes = new StatusRoutes(statusService)
