@@ -5,7 +5,7 @@ import cats.effect.Concurrent
 import cats.syntax.all._
 import cats.mtl.Ask
 import io.chrisdavenport.log4cats.Logger
-import io.circe.Decoder
+import io.circe.{Decoder, DecodingFailure}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
@@ -67,7 +67,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
             InvalidImage(traceId, image, Some(e))
         }
 
-      envSet = containerConfig.env.toSet
+      envSet = containerConfig.containerEnv.env.toSet
       tool = clusterToolEnv
         .find {
           case (_, env_var) =>
@@ -80,8 +80,8 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
   //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
     implicit ev: Ask[F, TraceId]
-  ): F[ContainerEnv] =
-    FollowRedirect(3)(httpClient).expectOr[ContainerEnv](
+  ): F[ContainerConfig] =
+    FollowRedirect(3)(httpClient).expectOr[ContainerConfig](
       Request[F](
         method = Method.GET,
         uri = parsedImage.blobUri(digest),
@@ -192,24 +192,13 @@ object HttpDockerDAO {
     } yield ManifestConfig(mediaType, size, digest)
   }
 
-  implicit val envDecoder: Decoder[ContainerEnv] = {
-    lazy val containerConfigDecoder: Decoder[ContainerEnv] = Decoder.instance { d =>
-      val cursor = d.downField("container_config")
-
-      for {
-        env <- cursor.get[List[String]]("Env")
-      } yield ContainerEnv(env)
-    }
-
-    lazy val configDecoder: Decoder[ContainerEnv] = Decoder.instance { d =>
-      val cursor = d.downField("config")
-
-      for {
-        env <- cursor.get[List[String]]("Env")
-      } yield ContainerEnv(env)
-    }
-
-    containerConfigDecoder or configDecoder
+  implicit val containerEnvDecoder: Decoder[ContainerEnv] = Decoder.forProduct1("Env")(ContainerEnv.apply)
+  implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.instance { d =>
+    for {
+      envOpt <- d.downField("container_config").as[Option[ContainerEnv]]
+      config <- envOpt
+        .fold[Decoder.Result[ContainerEnv]](d.downField("config").as[ContainerEnv])(_.asRight[DecodingFailure])
+    } yield ContainerConfig(config)
   }
 }
 
@@ -239,6 +228,7 @@ final case class ParsedImage(registry: ContainerRegistry,
 final case class Token(token: String) extends AnyVal
 final case class ManifestConfig(mediaType: String, size: Int, digest: String)
 final case class ContainerEnv(env: List[String]) extends AnyVal
+final case class ContainerConfig(containerEnv: ContainerEnv)
 
 // Exceptions
 final case class DockerImageException(traceId: TraceId, msg: String)

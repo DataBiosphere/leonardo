@@ -2,8 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.effect.IO
+import cats.syntax.all.none
+import io.circe.CursorOp.DownField
+import io.circe.parser.decode
+import io.circe.DecodingFailure
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, GCR, GHCR}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO.containerConfigDecoder
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
@@ -115,7 +120,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       res.unsafeRunSync()
   }
 
-  it should "detect invalid ghcr imaeg if image doesn't have proper environment variables set" in withDockerDAO {
+  it should "detect invalid ghcr image if image doesn't have proper environment variables set" in withDockerDAO {
     dockerDAO =>
       val image = ContainerImage("ghcr.io/github/super-linter:latest", GHCR) // not a supported tool
       val res = for {
@@ -125,5 +130,68 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         response.isLeft shouldBe true
       }
       res.unsafeRunSync()
+  }
+
+  it should "correctly decode 'container_config' field from Docker API response if it exists" in {
+    val jsonString =
+      """
+        |{
+        |  "container_config": {
+        |     "Env": ["key1=value1", "key2=value2"]
+        |  },
+        |  "config": {
+        |     "Env": ["key3=value3", "key4=value4"]
+        |  }
+        |}
+        |""".stripMargin
+    val expectedResult = ContainerConfig(ContainerEnv(List("key1=value1", "key2=value2")))
+    decode[ContainerConfig](jsonString) shouldBe Right(expectedResult)
+  }
+
+  it should "correctly decode 'config' field from Docker API response if container_config does not exist" in {
+    val jsonString =
+      """
+        |{
+        |  "config": {
+        |     "Env": ["keyX=valueX", "keyY=valueY"]
+        |  }
+        |}
+        |""".stripMargin
+    val expectedResult = ContainerConfig(ContainerEnv(List("keyX=valueX", "keyY=valueY")))
+    decode[ContainerConfig](jsonString) shouldBe Right(expectedResult)
+  }
+
+  it should "fail to decode Docker API response if it does not contain 'container_config' or 'config' fields" in {
+    val jsonString =
+      """
+        |{
+        |  "unexpected_field": {
+        |     "Env": ["keyA=valueA", "keyB=valueB"]
+        |  }
+        |}
+        |""".stripMargin
+    val expectedResult =
+      DecodingFailure("Attempt to decode value on failed cursor", List(DownField("config")))
+    decode[ContainerConfig](jsonString) shouldBe Left(expectedResult)
+  }
+
+  it should "fail to decode Docker API response if it does not contain 'Env' field" in {
+    val jsonString =
+      """
+        |{
+        |  "container_config": {
+        |     "no_Env": ["keyFoo=valueFoo", "keyBaz=valueBaz"]
+        |  }
+        |}
+        |""".stripMargin
+    val expectedResult =
+      DecodingFailure("Attempt to decode value on failed cursor", List(DownField("Env"), DownField("container_config")))
+    decode[ContainerConfig](jsonString) shouldBe Left(expectedResult)
+  }
+
+  it should s"detect tool RStudio for image rtitle/anvil-rstudio-base:0.0.1" in withDockerDAO { dockerDAO =>
+    val image = ContainerImage("rtitle/anvil-rstudio-base:0.0.1", DockerHub)
+    val response = dockerDAO.detectTool(image).unsafeRunSync()
+    response shouldBe RStudio
   }
 }
