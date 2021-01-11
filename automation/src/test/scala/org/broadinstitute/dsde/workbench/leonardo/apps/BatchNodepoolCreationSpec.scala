@@ -86,15 +86,15 @@ class BatchNodepoolCreationSpec
           _ <- testTimer.sleep(60 seconds)
           pollCreate1 = streamUntilDoneOrTimeout(
             getApp1,
-            120,
+            180,
             10 seconds,
-            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName1.value} did not finish creating after 20 minutes"
+            s"BatchNodepoolCreationSpec: app1 ${googleProject.value}/${appName1.value} did not finish creating after 30 minutes"
           )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
           pollCreate2 = streamUntilDoneOrTimeout(
             getApp2,
-            120,
+            180,
             10 seconds,
-            s"BatchNodepoolCreationSpec: app ${googleProject.value}/${appName2.value} did not finish creating after 20 minutes"
+            s"BatchNodepoolCreationSpec: app2 ${googleProject.value}/${appName2.value} did not finish creating after 30 minutes"
           )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
           res <- List(pollCreate1, pollCreate2).parSequence
           _ = res.foreach(_.status shouldBe AppStatus.Running)
