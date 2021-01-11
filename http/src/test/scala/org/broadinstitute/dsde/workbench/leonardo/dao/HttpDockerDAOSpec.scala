@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.effect.IO
-import cats.syntax.all.none
 import io.circe.CursorOp.DownField
 import io.circe.parser.decode
 import io.circe.DecodingFailure
