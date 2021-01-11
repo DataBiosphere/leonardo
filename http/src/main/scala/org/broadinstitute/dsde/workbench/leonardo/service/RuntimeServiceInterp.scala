@@ -543,16 +543,24 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // - If present, we will use the client-supplied image.
       // - Otherwise we will pull the latest from the specified welderRegistry.
       // - If welderRegistry is undefined, we take the default GCR image from config.
-      welderImage = RuntimeImage(
-        Welder,
-        welderDockerImage
-          .map(_.imageUrl)
-          .getOrElse(welderRegistry match {
-            case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
-            case _                                 => config.imageConfig.welderGcrImage.imageUrl
-          }),
-        now
-      )
+      // - If the tool is RStudio do not include a welder image
+      welderImage = toolImage.imageType match {
+        case RuntimeImageType.RStudio => None
+        case _ =>
+          Some(
+            RuntimeImage(
+              Welder,
+              welderDockerImage
+                .map(_.imageUrl)
+                .getOrElse(welderRegistry match {
+                  case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
+                  case _                                 => config.imageConfig.welderGcrImage.imageUrl
+                }),
+              now
+            )
+          )
+      }
+
       // Get the proxy image
       proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, now)
       // Crypto detector image - note it's not currently supported on Dockerhub
@@ -560,7 +568,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Some(ContainerRegistry.DockerHub) => None
         case _                                 => Some(RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, now))
       }
-    } yield Set(Some(toolImage), Some(welderImage), Some(proxyImage), cryptoDetectorImageOpt).flatten
+    } yield Set(Some(toolImage), welderImage, Some(proxyImage), cryptoDetectorImageOpt).flatten
 
   private[service] def validateBucketObjectUri(userEmail: WorkbenchEmail,
                                                userToken: String,
@@ -842,6 +850,9 @@ object RuntimeServiceInterp {
         else req.scopes //default to create gce runtime if runtimeConfig is not specified
     }
 
+    // Do not enable welder for rstudio
+    val welderEnabled = clusterImages.map(_.imageType).contains(Welder)
+
     for {
       // check the labels do not contain forbidden keys
       labels <- if (allLabels.contains(includeDeletedKey))
@@ -869,7 +880,7 @@ object RuntimeServiceInterp {
       defaultClientId = req.defaultClientId,
       runtimeImages = clusterImages,
       scopes = clusterScopes,
-      welderEnabled = true,
+      welderEnabled = welderEnabled,
       customEnvironmentVariables = req.customEnvironmentVariables,
       allowStop = false, //TODO: double check this should be false when cluster is created
       runtimeConfigId = RuntimeConfigId(-1),
