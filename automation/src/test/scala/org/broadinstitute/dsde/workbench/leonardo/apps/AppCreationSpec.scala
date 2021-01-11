@@ -68,9 +68,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           listApps = LeonardoApiClient.listApps(googleProject, true)
           monitorDeleteResult <- streamUntilDoneOrTimeout(
             listApps,
-            120,
+            180,
             10 seconds,
-            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes"
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes"
           )(implicitly, implicitly, appDeleted(appName))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
@@ -174,9 +174,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           listApps = LeonardoApiClient.listApps(googleProject, true)
           monitorDeleteResult <- streamUntilDoneOrTimeout(
             listApps,
-            120,
+            180,
             10 seconds,
-            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes"
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes"
           )(implicitly, implicitly, appDeleted(appName))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
