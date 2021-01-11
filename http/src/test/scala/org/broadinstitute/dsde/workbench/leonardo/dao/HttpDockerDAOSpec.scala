@@ -7,7 +7,10 @@ import io.circe.parser.decode
 import io.circe.DecodingFailure
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, GCR, GHCR}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO.containerConfigDecoder
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO.{
+  containerConfigDecoder,
+  containerConfigResponseDecoder
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
@@ -143,8 +146,8 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |  }
         |}
         |""".stripMargin
-    val expectedResult = ContainerConfig(ContainerEnv(List("key1=value1", "key2=value2")))
-    decode[ContainerConfig](jsonString) shouldBe Right(expectedResult)
+    val expectedResult = ContainerConfigResponse(ContainerConfig(List("key1=value1", "key2=value2")))
+    decode[ContainerConfigResponse](jsonString) shouldBe Right(expectedResult)
   }
 
   it should "correctly decode 'config' field from Docker API response if container_config does not exist" in {
@@ -156,8 +159,8 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |  }
         |}
         |""".stripMargin
-    val expectedResult = ContainerConfig(ContainerEnv(List("keyX=valueX", "keyY=valueY")))
-    decode[ContainerConfig](jsonString) shouldBe Right(expectedResult)
+    val expectedResult = ContainerConfigResponse(ContainerConfig(List("keyX=valueX", "keyY=valueY")))
+    decode[ContainerConfigResponse](jsonString) shouldBe Right(expectedResult)
   }
 
   it should "fail to decode Docker API response if it does not contain 'container_config' or 'config' fields" in {
@@ -171,7 +174,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |""".stripMargin
     val expectedResult =
       DecodingFailure("Attempt to decode value on failed cursor", List(DownField("config")))
-    decode[ContainerConfig](jsonString) shouldBe Left(expectedResult)
+    decode[ContainerConfigResponse](jsonString) shouldBe Left(expectedResult)
   }
 
   it should "fail to decode Docker API response if it does not contain 'Env' field" in {
@@ -185,7 +188,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |""".stripMargin
     val expectedResult =
       DecodingFailure("Attempt to decode value on failed cursor", List(DownField("Env"), DownField("container_config")))
-    decode[ContainerConfig](jsonString) shouldBe Left(expectedResult)
+    decode[ContainerConfigResponse](jsonString) shouldBe Left(expectedResult)
   }
 
   it should s"detect tool RStudio for image rtitle/anvil-rstudio-base:0.0.1" in withDockerDAO { dockerDAO =>

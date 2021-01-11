@@ -67,7 +67,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
             InvalidImage(traceId, image, Some(e))
         }
 
-      envSet = containerConfig.containerEnv.env.toSet
+      envSet = containerConfig.config.env.toSet
       tool = clusterToolEnv
         .find {
           case (_, env_var) =>
@@ -80,8 +80,8 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
   //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
     implicit ev: Ask[F, TraceId]
-  ): F[ContainerConfig] =
-    FollowRedirect(3)(httpClient).expectOr[ContainerConfig](
+  ): F[ContainerConfigResponse] =
+    FollowRedirect(3)(httpClient).expectOr[ContainerConfigResponse](
       Request[F](
         method = Method.GET,
         uri = parsedImage.blobUri(digest),
@@ -192,13 +192,13 @@ object HttpDockerDAO {
     } yield ManifestConfig(mediaType, size, digest)
   }
 
-  implicit val containerEnvDecoder: Decoder[ContainerEnv] = Decoder.forProduct1("Env")(ContainerEnv.apply)
-  implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.instance { d =>
+  implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.forProduct1("Env")(ContainerConfig.apply)
+  implicit val containerConfigResponseDecoder: Decoder[ContainerConfigResponse] = Decoder.instance { d =>
     for {
-      envOpt <- d.downField("container_config").as[Option[ContainerEnv]]
+      envOpt <- d.downField("container_config").as[Option[ContainerConfig]]
       config <- envOpt
-        .fold[Decoder.Result[ContainerEnv]](d.downField("config").as[ContainerEnv])(_.asRight[DecodingFailure])
-    } yield ContainerConfig(config)
+        .fold[Decoder.Result[ContainerConfig]](d.downField("config").as[ContainerConfig])(_.asRight[DecodingFailure])
+    } yield ContainerConfigResponse(config)
   }
 }
 
@@ -227,8 +227,8 @@ final case class ParsedImage(registry: ContainerRegistry,
 // API response models
 final case class Token(token: String) extends AnyVal
 final case class ManifestConfig(mediaType: String, size: Int, digest: String)
-final case class ContainerEnv(env: List[String]) extends AnyVal
-final case class ContainerConfig(containerEnv: ContainerEnv)
+final case class ContainerConfig(env: List[String]) extends AnyVal
+final case class ContainerConfigResponse(config: ContainerConfig)
 
 // Exceptions
 final case class DockerImageException(traceId: TraceId, msg: String)
