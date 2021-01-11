@@ -10,13 +10,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
-import com.google.cloud.dataproc.v1.{
-  DiskConfig,
-  GceClusterConfig,
-  InstanceGroupConfig,
-  NodeInitializationAction,
-  SoftwareConfig
-}
+import com.google.cloud.dataproc.v1._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
@@ -30,7 +24,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDataprocService,
   GoogleDiskService,
   MachineTypeName,
-  OperationName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
@@ -252,10 +245,12 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
         Some(createClusterConfig)
       )
 
-      asyncRuntimeFields = AsyncRuntimeFields(GoogleId(op.getClusterUuid),
-                                              OperationName(op.getClusterName),
-                                              stagingBucketName,
-                                              None)
+      asyncRuntimeFields = AsyncRuntimeFields(
+        GoogleId(op.metadata.getClusterUuid),
+        op.name,
+        stagingBucketName,
+        None
+      )
       res = CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, dataprocImage)
     } yield res
 
@@ -691,6 +686,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
     SoftwareConfig
       .newBuilder()
+      .setImageVersion("1.4-debian10")
       .putAllProperties(
         (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ machineConfig.properties).asJava
       )
