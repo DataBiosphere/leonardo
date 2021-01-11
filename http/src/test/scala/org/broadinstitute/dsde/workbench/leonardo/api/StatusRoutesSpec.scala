@@ -46,8 +46,7 @@ class StatusRoutesSpec
     eventually {
       Get("/status") ~> statusRoutes.route ~> check {
         responseAs[StatusCheckResponse] shouldEqual StatusCheckResponse(true,
-                                                                        Map(GoogleDataproc -> HealthMonitor.OkStatus,
-                                                                            Database -> HealthMonitor.OkStatus,
+                                                                        Map(Database -> HealthMonitor.OkStatus,
                                                                             Sam -> HealthMonitor.OkStatus))
         status shouldEqual StatusCodes.OK
       }
@@ -68,9 +67,7 @@ class StatusRoutesSpec
     eventually {
       Get("/status") ~> statusRoute.route ~> check {
         responseAs[StatusCheckResponse].ok shouldEqual false
-        responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(GoogleDataproc, Database, Sam)
-        responseAs[StatusCheckResponse].systems(GoogleDataproc).ok shouldBe false
-        responseAs[StatusCheckResponse].systems(GoogleDataproc).messages shouldBe 'defined
+        responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(Database, Sam)
         responseAs[StatusCheckResponse].systems(Sam).ok shouldBe false
         responseAs[StatusCheckResponse].systems(Sam).messages shouldBe 'defined
         responseAs[StatusCheckResponse].systems(Database).ok shouldBe true
