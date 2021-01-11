@@ -18,6 +18,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     // TODO this will break if AoU moves off Dockerhub and we delete these images
     // dockerhub with tag
     ContainerImage("broadinstitute/terra-jupyter-aou:1.0.17", DockerHub),
+    ContainerImage("kkimler/r4.0_tca:2020_11_09", DockerHub), // added after a bug fix (see ticket IA-2439)
     // dockerhub with sha
     // TODO: shas are currently not working
 //    DockerHub(
@@ -69,17 +70,6 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     dockerDAOResource.use(dao => IO(testCode(dao))).unsafeRunSync()
   }
 
-  it should s"detect tool as Jupyter for image kimler" in withDockerDAO { dockerDAO =>
-    val image1 = ContainerImage("broadinstitute/terra-jupyter-aou:1.0.17", DockerHub)
-    val image2 = ContainerImage("kkimler/r4.0_tca:2020_11_09", DockerHub)
-
-    val response1 = dockerDAO.detectTool(image1).unsafeRunSync()
-    response1 shouldBe Jupyter
-
-    val response2 = dockerDAO.detectTool(image2).unsafeRunSync()
-    response2 shouldBe Jupyter
-  }
-
   Map(Jupyter -> jupyterImages, RStudio -> rstudioImages).foreach {
     case (tool, images) =>
       images.foreach { image =>
@@ -108,7 +98,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image).attempt
       } yield {
-        response shouldBe Left(InvalidImage(ctx.traceId, image))
+        response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       }
       res.unsafeRunSync()
   }
@@ -120,7 +110,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image).attempt
       } yield {
-        response shouldBe Left(InvalidImage(ctx.traceId, image))
+        response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       }
       res.unsafeRunSync()
   }

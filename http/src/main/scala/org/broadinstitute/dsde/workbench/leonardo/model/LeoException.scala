@@ -10,8 +10,6 @@ class LeoException(val message: String = null,
     extends WorkbenchException(message, cause) {
   override def getMessage: String = if (message != null) message else super.getMessage
 
-//  override def getCause = cause
-
   def toErrorReport: ErrorReport =
     ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass))
 }

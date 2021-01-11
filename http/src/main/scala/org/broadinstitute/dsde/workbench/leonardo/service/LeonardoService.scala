@@ -132,7 +132,7 @@ final case class InvalidImage(traceId: TraceId, image: ContainerImage, throwable
     extends LeoException(
       s"${traceId} | Image ${image.imageUrl} doesn't have JUPYTER_HOME or RSTUDIO_HOME environment variables defined. Make sure your custom image extends from one of the Terra base images.",
       StatusCodes.NotFound,
-      throwable.getOrElse(null)
+      throwable.orNull
     )
 
 final case class CloudServiceNotSupportedException(cloudService: CloudService)

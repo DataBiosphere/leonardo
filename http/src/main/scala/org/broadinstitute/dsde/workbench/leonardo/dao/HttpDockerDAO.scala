@@ -51,17 +51,21 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       tokenOpt <- getToken(parsed, petTokenOpt)
 
       digest <- parsed.imageVersion match {
-        case Tag(_)      => getManifestConfig(parsed, tokenOpt).map(_.digest)
+        case Tag(_) =>
+          getManifestConfig(parsed, tokenOpt)
+            .map(_.digest)
+            .adaptError {
+              case e: org.http4s.InvalidMessageBodyFailure =>
+                InvalidImage(traceId, image, Some(e))
+            }
         case Sha(digest) => F.pure(digest)
       }
-      _ <- F.delay(println(s"\n\ndigest for ${image.imageUrl} = $digest\n"))
 
       containerConfig <- getContainerConfig(parsed, digest, tokenOpt)
         .adaptError {
           case e: org.http4s.InvalidMessageBodyFailure =>
-            InvalidImage(traceId, image, e)
+            InvalidImage(traceId, image, Some(e))
         }
-      _ <- F.delay(println(s"\n\ncontainerConfig for ${image.imageUrl} = $containerConfig\n"))
 
       envSet = containerConfig.env.toSet
       tool = clusterToolEnv
@@ -70,7 +74,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
             envSet.exists(_.startsWith(env_var))
         }
         .map(_._1)
-      res <- F.fromEither(tool.toRight(InvalidImage(traceId, image)))
+      res <- F.fromEither(tool.toRight(InvalidImage(traceId, image, None)))
     } yield res
 
   //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
@@ -139,8 +143,8 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
           .orElse(Option(shaOpt).map(Sha))
         for {
           traceId <- ev.ask
-          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(
-            i => F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
+          res <- version.fold(F.raiseError[ParsedImage](ImageParseException(traceId, image)))(i =>
+            F.pure(ParsedImage(GCR, Uri.unsafeFromString(s"https://$registry/v2"), imageName, i))
           )
         } yield res
       case DockerHub.regex(imageName, tagOpt, shaOpt) =>
@@ -198,14 +202,14 @@ object HttpDockerDAO {
     }
 
     lazy val configDecoder: Decoder[ContainerEnv] = Decoder.instance { d =>
-      val cursor = d.downField("confi")
+      val cursor = d.downField("config")
 
       for {
         env <- cursor.get[List[String]]("Env")
       } yield ContainerEnv(env)
     }
 
-    containerConfigDecoder.or(configDecoder) //.withErrorMessage("could not auto-detect image")
+    containerConfigDecoder or configDecoder
   }
 }
 
@@ -234,8 +238,7 @@ final case class ParsedImage(registry: ContainerRegistry,
 // API response models
 final case class Token(token: String) extends AnyVal
 final case class ManifestConfig(mediaType: String, size: Int, digest: String)
-final case class ContainerConfig(image: String, env: List[String])
-final case class ContainerEnv(env: List[String])
+final case class ContainerEnv(env: List[String]) extends AnyVal
 
 // Exceptions
 final case class DockerImageException(traceId: TraceId, msg: String)
