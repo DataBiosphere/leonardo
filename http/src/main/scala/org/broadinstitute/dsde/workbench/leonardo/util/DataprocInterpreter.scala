@@ -427,11 +427,21 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
             // Note that the Dataproc service account is used to retrieve the image, and not the user's
             // pet service account. There is one Dataproc service account per Google project. For more details:
             // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+
+            // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
+            // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
+            // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
             dataprocServiceAccountEmail = WorkbenchEmail(
               s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
             )
             _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
                                        dataprocServiceAccountEmail,
+                                       createCluster)
+            apiServiceAccountEmail = WorkbenchEmail(
+              s"${projectNumber}@cloudservices.gserviceaccount.com"
+            )
+            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                       apiServiceAccountEmail,
                                        createCluster)
           } yield ()
         }
@@ -686,7 +696,6 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
     SoftwareConfig
       .newBuilder()
-      .setImageVersion("1.4-debian10")
       .putAllProperties(
         (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ machineConfig.properties).asJava
       )
