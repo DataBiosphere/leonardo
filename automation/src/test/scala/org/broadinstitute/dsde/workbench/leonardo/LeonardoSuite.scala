@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
   RuntimeAutopauseSpec,
   RuntimeCreationDiskSpec,
+  RuntimeDataprocSpec,
   RuntimePatchSpec,
   RuntimeStatusTransitionsSpec
 }
@@ -195,7 +196,8 @@ final class LeonardoSuite
       new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec,
       new BatchNodepoolCreationSpec,
-      new AppCreationSpec
+      new AppCreationSpec,
+      new RuntimeDataprocSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
