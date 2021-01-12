@@ -26,6 +26,10 @@ services:
       - /etc/spark:/etc/spark
       - /etc/hive:/etc/hive
       - /usr/bin/pyspark:/usr/bin/pyspark
+      - /usr/bin/hdfs:/usr/bin/hdfs
+      - /usr/bin/hadoop:/usr/bin/hadoop
+      - /usr/bin/spark-submit:/usr/bin/spark-submit
+      - /usr/bin/yarn:/usr/bin/yarn
       - /hadoop:/hadoop
       - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
       - /usr/local/share/google/dataproc:/usr/local/share/google/dataproc
