@@ -5,7 +5,7 @@ import cats.effect.Concurrent
 import cats.syntax.all._
 import cats.mtl.Ask
 import io.chrisdavenport.log4cats.Logger
-import io.circe.Decoder
+import io.circe.{Decoder, DecodingFailure}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
@@ -47,28 +47,41 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       traceId <- ev.ask
 
       parsed <- parseImage(image)
+
       tokenOpt <- getToken(parsed, petTokenOpt)
 
       digest <- parsed.imageVersion match {
-        case Tag(_)      => getManifestConfig(parsed, tokenOpt).map(_.digest)
+        case Tag(_) =>
+          getManifestConfig(parsed, tokenOpt)
+            .map(_.digest)
+            .adaptError {
+              case e: org.http4s.InvalidMessageBodyFailure =>
+                InvalidImage(traceId, image, Some(e))
+            }
         case Sha(digest) => F.pure(digest)
       }
+
       containerConfig <- getContainerConfig(parsed, digest, tokenOpt)
-      envSet = containerConfig.env.toSet
+        .adaptError {
+          case e: org.http4s.InvalidMessageBodyFailure =>
+            InvalidImage(traceId, image, Some(e))
+        }
+
+      envSet = containerConfig.config.env.toSet
       tool = clusterToolEnv
         .find {
-          case (_, v) =>
-            envSet.exists(_.startsWith(v))
+          case (_, env_var) =>
+            envSet.exists(_.startsWith(env_var))
         }
         .map(_._1)
-      res <- F.fromEither(tool.toRight(InvalidImage(traceId, image)))
+      res <- F.fromEither(tool.toRight(InvalidImage(traceId, image, None)))
     } yield res
 
   //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
     implicit ev: Ask[F, TraceId]
-  ): F[ContainerConfig] =
-    FollowRedirect(3)(httpClient).expectOr[ContainerConfig](
+  ): F[ContainerConfigResponse] =
+    FollowRedirect(3)(httpClient).expectOr[ContainerConfigResponse](
       Request[F](
         method = Method.GET,
         uri = parsedImage.blobUri(digest),
@@ -178,12 +191,14 @@ object HttpDockerDAO {
       digest <- cursor.get[String]("digest")
     } yield ManifestConfig(mediaType, size, digest)
   }
-  implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.instance { d =>
-    val cursor = d.downField("container_config")
+
+  implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.forProduct1("Env")(ContainerConfig.apply)
+  implicit val containerConfigResponseDecoder: Decoder[ContainerConfigResponse] = Decoder.instance { d =>
     for {
-      image <- cursor.get[String]("Image")
-      env <- cursor.get[List[String]]("Env")
-    } yield ContainerConfig(image, env)
+      envOpt <- d.downField("container_config").as[Option[ContainerConfig]]
+      config <- envOpt
+        .fold[Decoder.Result[ContainerConfig]](d.downField("config").as[ContainerConfig])(_.asRight[DecodingFailure])
+    } yield ContainerConfigResponse(config)
   }
 }
 
@@ -210,9 +225,10 @@ final case class ParsedImage(registry: ContainerRegistry,
 }
 
 // API response models
-final case class Token(token: String)
+final case class Token(token: String) extends AnyVal
 final case class ManifestConfig(mediaType: String, size: Int, digest: String)
-final case class ContainerConfig(image: String, env: List[String])
+final case class ContainerConfig(env: List[String]) extends AnyVal
+final case class ContainerConfigResponse(config: ContainerConfig)
 
 // Exceptions
 final case class DockerImageException(traceId: TraceId, msg: String)
