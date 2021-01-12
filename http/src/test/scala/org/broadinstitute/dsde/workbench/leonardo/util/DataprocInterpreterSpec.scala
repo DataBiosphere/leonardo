@@ -98,7 +98,7 @@ class DataprocInterpreterSpec
 
     // verify the returned cluster
     val dpInfo = clusterCreationRes.asyncRuntimeFields
-    dpInfo.operationName.value shouldBe testCluster.runtimeName.asString
+    dpInfo.operationName.value shouldBe "opName"
     dpInfo.googleId.value shouldBe "clusterUuid"
     dpInfo.hostIp shouldBe None
     dpInfo.stagingBucket.value should startWith("leostaging")
