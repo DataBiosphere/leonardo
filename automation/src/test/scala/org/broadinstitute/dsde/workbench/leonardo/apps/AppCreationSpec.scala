@@ -134,7 +134,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             getApp,
             180,
             10 seconds,
-            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 20 minutes"
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 30 minutes"
           )(implicitly, implicitly, appInStateOrError(AppStatus.Stopped))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"
