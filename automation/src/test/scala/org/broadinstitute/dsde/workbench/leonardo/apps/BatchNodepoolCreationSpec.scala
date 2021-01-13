@@ -61,7 +61,7 @@ class BatchNodepoolCreationSpec
           // and updated its internal state to proceed.
           _ <- testTimer.sleep(5 minutes)
 
-          // Create an app in the pre-created nodepool
+          // Create 2 apps in the pre-created nodepools
           createAppRequest1 = defaultCreateAppRequest.copy(diskConfig =
             Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
           )
@@ -86,15 +86,15 @@ class BatchNodepoolCreationSpec
           _ <- testTimer.sleep(60 seconds)
           pollCreate1 = streamUntilDoneOrTimeout(
             getApp1,
-            180,
+            120,
             10 seconds,
-            s"BatchNodepoolCreationSpec: app1 ${googleProject.value}/${appName1.value} did not finish creating after 30 minutes"
+            s"BatchNodepoolCreationSpec: app1 ${googleProject.value}/${appName1.value} did not finish creating after 20 minutes"
           )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
           pollCreate2 = streamUntilDoneOrTimeout(
             getApp2,
-            180,
+            120,
             10 seconds,
-            s"BatchNodepoolCreationSpec: app2 ${googleProject.value}/${appName2.value} did not finish creating after 30 minutes"
+            s"BatchNodepoolCreationSpec: app2 ${googleProject.value}/${appName2.value} did not finish creating after 20 minutes"
           )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
           res <- List(pollCreate1, pollCreate2).parSequence
           _ = res.foreach(_.status shouldBe AppStatus.Running)

@@ -72,9 +72,9 @@ class AppCreationSpec
           listApps = LeonardoApiClient.listApps(googleProject, true)
           monitorDeleteResult <- streamUntilDoneOrTimeout(
             listApps,
-            180,
+            120,
             10 seconds,
-            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes"
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes"
           )(implicitly, implicitly, appDeleted(appName))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
@@ -136,9 +136,9 @@ class AppCreationSpec
           _ <- testTimer.sleep(30 seconds)
           monitorStopResult <- streamUntilDoneOrTimeout(
             getApp,
-            180,
+            120,
             10 seconds,
-            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 30 minutes"
+            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 20 minutes"
           )(implicitly, implicitly, appInStateOrError(AppStatus.Stopped))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"
