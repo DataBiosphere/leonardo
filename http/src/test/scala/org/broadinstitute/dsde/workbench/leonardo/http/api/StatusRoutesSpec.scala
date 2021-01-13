@@ -66,7 +66,6 @@ class StatusRoutesSpec
     eventually {
       Get("/status") ~> statusRoute.route ~> check {
         responseAs[StatusCheckResponse].ok shouldEqual false
-        responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(GoogleDataproc, Database, Sam)
         responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(Database, Sam)
         responseAs[StatusCheckResponse].systems(Sam).ok shouldBe false
         responseAs[StatusCheckResponse].systems(Sam).messages shouldBe Symbol("defined")
