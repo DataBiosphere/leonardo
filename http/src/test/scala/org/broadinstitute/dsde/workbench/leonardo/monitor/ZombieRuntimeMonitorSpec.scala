@@ -6,10 +6,10 @@ import cats.effect.concurrent.Deferred
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{Instance, Operation}
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGoogleDataprocService}
 import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
+  GoogleDataprocService,
   GoogleDiskService,
   InstanceName,
   MachineTypeName,
@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{dataprocInterpreterConfig, gceInterpreterConfig}
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.util.{
   DataprocInterpreter,
@@ -105,16 +104,16 @@ class ZombieRuntimeMonitorSpec
   }
 
   private def withZombieMonitor[A](
-    gdDAO: GoogleDataprocDAO = new MockGoogleDataprocDAO,
+    dataproc: GoogleDataprocService[IO] = FakeGoogleDataprocService,
     gce: GoogleComputeService[IO] = new FakeGoogleComputeService,
     disk: GoogleDiskService[IO] = new MockGoogleDiskService,
-    dataprocInterp: Option[RuntimeAlgebra[IO]] = None
+    dataprocInterpOpt: Option[RuntimeAlgebra[IO]] = None
   )(validations: () => A): A = {
-    val dataproc = dataprocInterp.getOrElse(
+    val dataprocInterp = dataprocInterpOpt.getOrElse(
       new DataprocInterpreter[IO](dataprocInterpreterConfig,
                                   null,
                                   null,
-                                  gdDAO,
+                                  dataproc,
                                   gce,
                                   disk,
                                   null,
@@ -126,7 +125,7 @@ class ZombieRuntimeMonitorSpec
     val gceInterp =
       new GceInterpreter(gceInterpreterConfig, null, null, gce, disk, null, blocker)
 
-    implicit val runtimeInstances = new RuntimeInstances[IO](dataproc, gceInterp)
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
     val zombieClusterMonitor =
       ZombieRuntimeMonitor[IO](Config.zombieRuntimeMonitorConfig)
     val process = Stream.eval(Deferred[IO, A]).flatMap { signalToStop =>

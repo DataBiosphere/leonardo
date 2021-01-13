@@ -5,15 +5,14 @@ package service
 import java.util.UUID
 
 import akka.actor.ActorSystem
+import akka.pattern.ask
 import akka.util.Timeout
 import cats.effect.{ContextShift, IO}
-import cats.syntax.all._
 import cats.mtl.Ask
-import akka.pattern.ask
+import cats.syntax.all._
 import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util.health.HealthMonitor.GetCurrentStatus
@@ -23,11 +22,7 @@ import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheck
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
-/**
- * Created by rtitle on 10/26/17.
- */
 class StatusService(
-  gdDAO: GoogleDataprocDAO,
   samDAO: SamDAO[IO],
   dbRef: DbReference[IO],
   applicationConfig: ApplicationConfig,
@@ -38,7 +33,7 @@ class StatusService(
   import dbRef._
 
   private val healthMonitor =
-    system.actorOf(HealthMonitor.props(Set(GoogleDataproc, Sam, Database))(() => checkStatus()))
+    system.actorOf(HealthMonitor.props(Set(Sam, Database))(() => checkStatus()))
   system.scheduler.scheduleWithFixedDelay(initialDelay, pollInterval, healthMonitor, HealthMonitor.CheckAll)
 
   def getStatus(): Future[StatusCheckResponse] =
@@ -46,7 +41,6 @@ class StatusService(
 
   private def checkStatus(): Map[Subsystem, Future[SubsystemStatus]] =
     Map(
-      GoogleDataproc -> checkGoogleDataproc(),
       Sam -> checkSam.unsafeToFuture(),
       Database -> checkDatabase
     ).map(logFailures.tupled)
@@ -66,13 +60,6 @@ class StatusService(
           logger.warn(s"Failure checking status for subsystem [$subsystem]: ${e.getMessage}").unsafeToFuture() >> Future
             .failed(e)
       }
-
-  private def checkGoogleDataproc(): Future[SubsystemStatus] = {
-    // Does a 'list clusters' in Leo's project.
-    // Doesn't look at results, just checks if the request was successful.
-    logger.debug("Checking Google Dataproc connection").unsafeToFuture()
-    gdDAO.listClusters(applicationConfig.leoGoogleProject).map(_ => HealthMonitor.OkStatus)
-  }
 
   private def checkDatabase: Future[SubsystemStatus] = {
     logger.debug("Checking database connection").unsafeToFuture()

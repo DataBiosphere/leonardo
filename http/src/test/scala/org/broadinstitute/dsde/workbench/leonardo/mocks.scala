@@ -134,14 +134,14 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   ): IO[CreateGoogleRuntimeResponse] = ???
 
   override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: Ask[IO, TraceId]
+    implicit ev: Ask[IO, AppContext]
   ): IO[RuntimeStatus] = ???
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
-    implicit ev: Ask[IO, TraceId]
+    implicit ev: Ask[IO, AppContext]
   ): IO[Option[Operation]] = IO.pure(None)
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 
   override def stopRuntime(params: StopRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
@@ -149,12 +149,12 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
 
   override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 
-  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     ???
 
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 
-  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 }
 
 class MockKubernetesService(podStatus: PodStatus = PodStatus.Running)

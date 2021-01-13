@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
+  FakeGoogleDataprocService,
   FakeGooglePublisher,
   MockComputePollOperation
 }
@@ -56,7 +57,6 @@ class LeonardoServiceSpec
     with Retry
     with LazyLogging {
 
-  private var gdDAO: MockGoogleDataprocDAO = _
   private var directoryDAO: MockGoogleDirectoryDAO = _
   private var iamDAO: MockGoogleIamDAO = _
   private var projectDAO: MockGoogleProjectDAO = _
@@ -73,7 +73,6 @@ class LeonardoServiceSpec
   }
 
   before {
-    gdDAO = new MockGoogleDataprocDAO
     directoryDAO = new MockGoogleDirectoryDAO()
     iamDAO = new MockGoogleIamDAO
     projectDAO = new MockGoogleProjectDAO
@@ -107,7 +106,7 @@ class LeonardoServiceSpec
     dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                  bucketHelper,
                                                  vpcInterp,
-                                                 gdDAO,
+                                                 FakeGoogleDataprocService,
                                                  FakeGoogleComputeService,
                                                  MockGoogleDiskService,
                                                  directoryDAO,

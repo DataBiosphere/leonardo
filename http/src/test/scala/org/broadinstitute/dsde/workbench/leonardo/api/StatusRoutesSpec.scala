@@ -7,7 +7,6 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleDataprocDAO
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
@@ -47,8 +46,7 @@ class StatusRoutesSpec
     eventually {
       Get("/status") ~> statusRoutes.route ~> check {
         responseAs[StatusCheckResponse] shouldEqual StatusCheckResponse(true,
-                                                                        Map(GoogleDataproc -> HealthMonitor.OkStatus,
-                                                                            Database -> HealthMonitor.OkStatus,
+                                                                        Map(Database -> HealthMonitor.OkStatus,
                                                                             Sam -> HealthMonitor.OkStatus))
         status shouldEqual StatusCodes.OK
       }
@@ -60,9 +58,8 @@ class StatusRoutesSpec
       override def getStatus(implicit ev: Ask[IO, TraceId]): IO[StatusCheckResponse] =
         IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
     }
-    val badDataproc = new MockGoogleDataprocDAO(false)
     val statusService =
-      new StatusService(badDataproc, badSam, testDbRef, applicationConfig, pollInterval = 1.second)
+      new StatusService(badSam, testDbRef, applicationConfig, pollInterval = 1.second)
     val statusRoute = new StatusRoutes(statusService) with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo
     }
@@ -70,9 +67,7 @@ class StatusRoutesSpec
     eventually {
       Get("/status") ~> statusRoute.route ~> check {
         responseAs[StatusCheckResponse].ok shouldEqual false
-        responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(GoogleDataproc, Database, Sam)
-        responseAs[StatusCheckResponse].systems(GoogleDataproc).ok shouldBe false
-        responseAs[StatusCheckResponse].systems(GoogleDataproc).messages shouldBe 'defined
+        responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(Database, Sam)
         responseAs[StatusCheckResponse].systems(Sam).ok shouldBe false
         responseAs[StatusCheckResponse].systems(Sam).messages shouldBe 'defined
         responseAs[StatusCheckResponse].systems(Database).ok shouldBe true

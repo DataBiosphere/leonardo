@@ -1,15 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.Parallel
 import cats.effect.concurrent.Semaphore
 import cats.effect.{Concurrent, ContextShift, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.config.ZombieRuntimeMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -29,7 +30,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
   config: ZombieRuntimeMonitorConfig
 )(implicit F: Concurrent[F],
   metrics: OpenTelemetryMetrics[F],
-  logger: Logger[F],
+  logger: StructuredLogger[F],
   dbRef: DbReference[F],
   ec: ExecutionContext,
   runtimes: RuntimeInstances[F]) {
@@ -44,12 +45,14 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     for {
       start <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       tid = TraceId(s"fromZombieCheck_${start}")
-      implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](tid)
+      implicit0(ev: Ask[F, AppContext]) = Ask.const[F, AppContext](AppContext(tid, Instant.ofEpochMilli(start)))
+      ctx <- ev.ask
+
       semaphore <- Semaphore[F](config.concurrency)
       // Get all deleted runtimes that haven't been confirmed from the Leo DB
       unconfirmedDeletedRuntimes <- ZombieMonitorQueries.listInactiveZombieQuery.transaction
 
-      _ <- logger.info(
+      _ <- logger.info(ctx.loggingCtx)(
         s"Starting inactive zombie detection within ${unconfirmedDeletedRuntimes.size} runtimes with concurrency of ${config.concurrency}"
       )
 
@@ -60,7 +63,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
               .flatMap {
                 case Left(e) =>
                   logger
-                    .warn(e)(
+                    .warn(ctx.loggingCtx, e)(
                       s"Unable to check status of runtime ${candidate.googleProject.value} / ${candidate.runtimeName.asString} for inactive zombie runtime detection"
                     )
                     .as(None)
@@ -78,7 +81,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
       _ <- inactiveZombies.parTraverse(zombie => semaphore.withPermit(handleInactiveZombieRuntime(zombie)))
       end <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
       duration = end - start
-      _ <- logger.info(
+      _ <- logger.info(ctx.loggingCtx)(
         s"Detected ${inactiveZombies.size} inactive zombie runtimes. " +
           s"Elapsed time = ${duration} milli seconds."
       )
@@ -94,23 +97,23 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     cloudService: CloudService
-  )(implicit traceId: Ask[F, TraceId]): F[Boolean] =
+  )(implicit ev: Ask[F, AppContext]): F[Boolean] =
     cloudService.interpreter
       .getRuntimeStatus(GetRuntimeStatusParams(googleProject, runtimeName, Some(config.gceZoneName)))
       .map(s => s != RuntimeStatus.Deleted)
 
-  private def handleInactiveZombieRuntime(zombie: ZombieCandidate)(implicit ev: Ask[F, TraceId]): F[Unit] =
+  private def handleInactiveZombieRuntime(zombie: ZombieCandidate)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
-      traceId <- ev.ask
-      _ <- logger.info(
-        s"${traceId.asString} | Deleting inactive zombie runtime: ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Deleting inactive zombie runtime: ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
       )
       _ <- metrics.incrementCounter("numOfInactiveZombieRuntimes")
       runtimeOpt <- clusterQuery.getClusterById(zombie.id).transaction
       runtime <- F.fromOption(
         runtimeOpt,
         new RuntimeException(
-          s"Inactive zombine runtime ${zombie.googleProject.value} / ${zombie.runtimeName.asString} not found in Leo DB | trace id: ${traceId}"
+          s"Inactive zombine runtime ${zombie.googleProject.value} / ${zombie.runtimeName.asString} not found in Leo DB | trace id: ${ctx.traceId}"
         )
       )
       //TODO: think about this a bit more. We may want to delete disks in certain cases
@@ -120,7 +123,7 @@ class ZombieRuntimeMonitor[F[_]: Parallel: ContextShift: Timer](
         .recoverWith {
           case e =>
             logger
-              .warn(e)(
+              .warn(ctx.loggingCtx, e)(
                 s"Unable to delete inactive zombie runtime ${zombie.googleProject.value} / ${zombie.runtimeName.asString}"
               )
         }
@@ -133,7 +136,7 @@ object ZombieRuntimeMonitor {
     config: ZombieRuntimeMonitorConfig
   )(implicit F: Concurrent[F],
     metrics: OpenTelemetryMetrics[F],
-    logger: Logger[F],
+    logger: StructuredLogger[F],
     dbRef: DbReference[F],
     ec: ExecutionContext,
     runtimes: RuntimeInstances[F]): ZombieRuntimeMonitor[F] =

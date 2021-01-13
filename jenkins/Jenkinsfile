@@ -139,7 +139,7 @@ pipeline {
             description: "The path for the bucket where the custom Dataproc images will be stored")
         string(name: "GCE_IMAGE_BUCKET", defaultValue: "gs://leo-gce-image",
             description: "The path for the bucket where the custom GCE images will be stored")
-        string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.15-debian9",
+        string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.51-debian10",
             description: "A custom image will be build for each of these dataproc versions")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check if you want to specify custom image versions below")

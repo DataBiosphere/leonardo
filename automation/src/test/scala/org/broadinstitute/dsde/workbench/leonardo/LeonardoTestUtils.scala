@@ -13,7 +13,14 @@ import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  GoogleComputeService,
+  GoogleDataprocService,
+  GoogleDiskService,
+  GoogleStorageService,
+  RegionName
+}
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, GetAppResponse, ListAppResponse}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
@@ -87,6 +94,17 @@ trait LeonardoTestUtils
     GoogleDiskService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker, Semaphore[IO](10).unsafeRunSync())
   val concurrentClusterCreationPermits
     : Semaphore[IO] = Semaphore[IO](5).unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
+
+  val googleComputeService =
+    GoogleComputeService.resource(LeonardoConfig.GCS.pathToQAJson, blocker, Semaphore[IO](10).unsafeRunSync())
+  val googleDataprocService = for {
+    compute <- googleComputeService
+    dp <- GoogleDataprocService.resource(compute,
+                                         LeonardoConfig.GCS.pathToQAJson,
+                                         blocker,
+                                         Semaphore[IO](10).unsafeRunSync(),
+                                         RegionName("us-central1"))
+  } yield dp
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio
   def saveClusterLogFiles(googleProject: GoogleProject, clusterName: RuntimeName, paths: List[String], suffix: String)(
