@@ -13,10 +13,12 @@ import cats.mtl.Ask
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
+import org.broadinstitute.dsde.workbench.{DoneCheckable}
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
+  streamUntilDoneOrTimeout,
   ComputePollOperation,
   DiskName,
   Event,
@@ -928,23 +930,34 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(msg.project, msg.appId).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
+      zone = ZoneName("us-central1-a")
       deletePostgresDisk = deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
-                                                                ZoneName("us-central1-a"),
+                                                                zone,
                                                                 msg.appName,
                                                                 dbApp.app.appResources.namespace.name)
         .adaptError {
           case e =>
-            PubsubKubernetesError(AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
-                                  Some(msg.appId),
-                                  false,
-                                  None,
-                                  None)
+            PubsubKubernetesError(
+              AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.PostgresDisk, None),
+              Some(msg.appId),
+              false,
+              None,
+              None
+            )
         }
 
       deleteDisksInParallel = List(deleteDisk, deletePostgresDisk).parSequence_
 
       // The app must be deleted before the nodepool and disk, to future proof against the app potentially flushing the postgres db somewhere
       task = for {
+        //we record the last disk detach timestamp here, before it is removed from galaxy
+        originalDiskOpt <- googleDiskService.getDisk(
+          msg.project,
+          zone,
+          gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
+        )
+        originalDetachTimestampOpt = originalDiskOpt.map(_.getLastDetachTimestamp)
+
         _ <- deleteApp
         _ <- if (!errorAfterDelete)
           dbApp.app.status match {
@@ -956,6 +969,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 .void
           }
         else F.unit
+
+        // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
+        getDisk = googleDiskService.getDisk(msg.project,
+                                            zone,
+                                            gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name))
+        diskDetachResult <- streamUntilDoneOrTimeout(
+          getDiskDetachStatus(originalDetachTimestampOpt, getDisk),
+          24,
+          5 seconds,
+          "The disk failed to detach within the time limit, cannot proceed with delete disk"
+        )
+
+        _ <- logger.info(s"Disk detach result: $diskDetachResult")
+
         _ <- deleteDisksInParallel
         _ <- deleteNodepool
       } yield ()
@@ -966,6 +993,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
         )
     } yield ()
+
+  private def getDiskDetachStatus(originalDetachTimestampOpt: Option[String],
+                                  getDisk: F[Option[Disk]]): F[DiskDetachStatus] =
+    for {
+      disk <- getDisk
+    } yield DiskDetachStatus(disk, originalDetachTimestampOpt)
+  implicit val diskDetachDone: DoneCheckable[DiskDetachStatus] = x =>
+    x.disk.map(_.getLastDetachTimestamp) != x.originalDetachTimestampOpt
 
   private def cleanUpAfterCreateClusterError(clusterId: KubernetesClusterLeoId, project: GoogleProject)(
     implicit ev: Ask[F, AppContext]

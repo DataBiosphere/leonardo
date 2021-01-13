@@ -3,6 +3,7 @@ package monitor
 
 import ca.mrvisser.sealerate
 import cats.syntax.all._
+import com.google.cloud.compute.v1.Disk
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
@@ -836,3 +837,5 @@ final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
                                                   persistentDiskMonitorConfig: PersistentDiskMonitorConfig)
+
+final case class DiskDetachStatus(disk: Option[Disk], originalDetachTimestampOpt: Option[String])

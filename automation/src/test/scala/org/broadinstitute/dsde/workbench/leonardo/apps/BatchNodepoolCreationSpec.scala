@@ -61,7 +61,7 @@ class BatchNodepoolCreationSpec
           // and updated its internal state to proceed.
           _ <- testTimer.sleep(5 minutes)
 
-          // Create 2 apps in the pre-created nodepools
+          // Create an app in the pre-created nodepool
           createAppRequest1 = defaultCreateAppRequest.copy(diskConfig =
             Some(PersistentDiskRequest(randomDiskName, None, None, Map.empty))
           )

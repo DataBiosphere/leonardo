@@ -294,6 +294,9 @@ object ErrorSource {
   case object Disk extends ErrorSource {
     override def toString: String = "disk"
   }
+  case object PostgresDisk extends ErrorSource {
+    override def toString: String = "postgres-disk"
+  }
 
   def values: Set[ErrorSource] = sealerate.values[ErrorSource]
   def stringToObject: Map[String, ErrorSource] = values.map(v => v.toString -> v).toMap
