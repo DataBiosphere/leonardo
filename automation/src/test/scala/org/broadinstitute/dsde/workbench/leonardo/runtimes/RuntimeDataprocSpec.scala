@@ -18,10 +18,13 @@ import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.leonardo.{
   ClusterCopy,
+  ContainerImage,
+  ContainerRegistry,
   DataprocClusterStatus,
   DiskSize,
   GPAllocFixtureSpec,
   LeonardoApiClient,
+  LeonardoConfig,
   LeonardoTestUtils
 }
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -61,7 +64,8 @@ class RuntimeDataprocSpec
           Some(5),
           Map.empty
         )
-      )
+      ),
+      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
     )
 
     val res = dependencies.use { dep =>
