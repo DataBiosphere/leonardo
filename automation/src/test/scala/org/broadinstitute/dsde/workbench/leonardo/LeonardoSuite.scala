@@ -91,7 +91,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       _ <- IO(logger.info(s"Single test project $project claimed"))
       t <- testCode(project)
       _ <- unclaimProject(project)
-      _ <- IO(logger.info(s"not releasing single-test project: ${project.value}"))
+      _ <- IO(logger.info(s"releasing single-test project: ${project.value}"))
     } yield t
 
     test.unsafeRunSync()
