@@ -3,10 +3,10 @@ package util
 
 import cats.Parallel
 import cats.effect.{Async, Blocker, ContextShift}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.{Operation, _}
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDiskService,
@@ -19,8 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.GceInterpreter._
@@ -29,8 +28,8 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
+import scala.jdk.CollectionConverters._
 
 final case class InstanceResourceConstaintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
@@ -52,7 +51,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F],
   F: Async[F],
-  logger: Logger[F])
+  logger: StructuredLogger[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F] {
   override def createRuntime(
@@ -253,9 +252,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
 
   override def getRuntimeStatus(
     params: GetRuntimeStatusParams
-  )(implicit ev: Ask[F, TraceId]): F[RuntimeStatus] =
+  )(implicit ev: Ask[F, AppContext]): F[RuntimeStatus] =
     for {
-      zoneName <- Async[F].fromEither(
+      zoneName <- F.fromEither(
         params.zoneName.toRight(new Exception("Missing zone name for getting GCE runtime status"))
       )
       status <- googleComputeService
@@ -264,7 +263,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     } yield status
 
   override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: Option[RuntimeConfig.DataprocConfig])(
-    implicit ev: Ask[F, TraceId]
+    implicit ev: Ask[F, AppContext]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       metadata <- getShutdownScript(runtime, blocker)
@@ -305,7 +304,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     } yield ()
 
   override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
-    implicit ev: Ask[F, TraceId]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     googleComputeService.setMachineType(runtime.googleProject,
                                         config.gceConfig.zoneName,
@@ -314,7 +313,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
-  )(implicit ev: Ask[F, TraceId]): F[Option[Operation]] =
+  )(implicit ev: Ask[F, AppContext]): F[Option[Operation]] =
     if (params.runtime.asyncRuntimeFields.isDefined) {
       for {
         metadata <- getShutdownScript(params.runtime, blocker)
@@ -329,10 +328,10 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       } yield op
     } else F.pure(None)
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
-    Async[F].unit
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    F.unit
 
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     UpdateDiskSizeParams.gcePrism
       .getOption(params)
       .traverse_(p =>
@@ -340,8 +339,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           .resizeDisk(p.googleProject, config.gceConfig.zoneName, p.diskName, p.diskSize.gb)
       )
 
-  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
-    Async[F].unit
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    F.unit
 
   private[leonardo] def getResourceConstraints(
     googleProject: GoogleProject,
@@ -352,8 +351,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       // Resolve the machine type in Google to get the total available memory
       machineType <- googleComputeService.getMachineType(googleProject, zoneName, machineTypeName)
       total <- machineType.fold(
-        Async[F].raiseError[MemorySize](InstanceResourceConstaintsException(googleProject, machineTypeName))
-      )(mt => Async[F].pure(MemorySize.fromMb(mt.getMemoryMb.toDouble)))
+        F.raiseError[MemorySize](InstanceResourceConstaintsException(googleProject, machineTypeName))
+      )(mt => F.pure(MemorySize.fromMb(mt.getMemoryMb.toDouble)))
       // result = total - os allocated - welder allocated
       gceAllocated = config.gceConfig.gceReservedMemory.map(_.bytes).getOrElse(0L)
       welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)

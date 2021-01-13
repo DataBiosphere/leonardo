@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import _root_.io.chrisdavenport.log4cats.Logger
+import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.OptionT
@@ -34,8 +34,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.InvalidDataprocMa
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
@@ -58,7 +58,7 @@ final case class ClusterResourceConstaintsException(clusterProjectAndName: Runti
       s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType}"
     )
 
-class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
+class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
   config: DataprocInterpreterConfig,
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
@@ -70,9 +70,11 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   googleProjectDAO: GoogleProjectDAO,
   welderDao: WelderDAO[F],
   blocker: Blocker
-)(implicit val executionContext: ExecutionContext,
+)(implicit val F: Async[F],
+  executionContext: ExecutionContext,
   contextShift: ContextShift[IO], // needed for IO.fromFuture(...)
   metrics: OpenTelemetryMetrics[F],
+  logger: StructuredLogger[F],
   dbRef: DbReference[F])
     extends BaseRuntimeInterpreter[F](config, welderDao)
     with RuntimeAlgebra[F]
@@ -155,9 +157,9 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       machineConfig <- params.runtimeConfig match {
         case _: RuntimeConfigInCreateRuntimeMessage.GceConfig |
             _: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
-          Async[F].raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
+          F.raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
         case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
-          Async[F].pure(dataprocInCreateRuntimeMsgToDataprocRuntime(x))
+          F.pure(dataprocInCreateRuntimeMsgToDataprocRuntime(x))
       }
 
       gceClusterConfig = {
@@ -260,13 +262,13 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
         params.runtimeProjectAndName.runtimeName,
         initBucketName,
         params.serviceAccountInfo
-      ) >> Async[F].raiseError[CreateGoogleRuntimeResponse](throwable)
+      ) >> F.raiseError[CreateGoogleRuntimeResponse](throwable)
     }
   }
 
   override def getRuntimeStatus(
     params: GetRuntimeStatusParams
-  )(implicit ev: Ask[F, TraceId]): F[RuntimeStatus] =
+  )(implicit ev: Ask[F, AppContext]): F[RuntimeStatus] =
     for {
       clusterOpt <- googleDataprocService.getCluster(params.googleProject,
                                                      config.dataprocConfig.regionName,
@@ -279,7 +281,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
-  )(implicit ev: Ask[F, TraceId]): F[Option[com.google.cloud.compute.v1.Operation]] =
+  )(implicit ev: Ask[F, AppContext]): F[Option[com.google.cloud.compute.v1.Operation]] =
     if (params.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
       for {
         metadata <- getShutdownScript(params.runtime, blocker)
@@ -290,16 +292,16 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
                                                  config.dataprocConfig.regionName,
                                                  DataprocClusterName(params.runtime.runtimeName.asString))
       } yield None
-    } else Async[F].pure(None)
+    } else F.pure(None)
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
       _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
     } yield ()
 
   override protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
-    implicit ev: Ask[F, TraceId]
+    implicit ev: Ask[F, AppContext]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
       metadata <- getShutdownScript(runtime, blocker)
@@ -325,8 +327,8 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
                                    false)
 
       dataprocConfig <- params.runtimeConfig match {
-        case c: RuntimeConfig.DataprocConfig => Async[F].pure(c)
-        case _                               => Async[F].raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
+        case c: RuntimeConfig.DataprocConfig => F.pure(c)
+        case _                               => F.raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
       }
 
       _ <- googleDataprocService.startCluster(
@@ -338,7 +340,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
       )
     } yield ()
 
-  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     (for {
       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
       _ <- createClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
@@ -358,17 +360,20 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
         // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
         // resize the cluster we need to revoke it manually here
         for {
+          ctx <- ev.ask
           _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
           // Remove member from the Google Group that has the IAM role to pull the Dataproc image
           _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
-          _ <- Logger[F].error(e)(s"Could not successfully update cluster ${params.runtime.projectNameString}")
-          _ <- Async[F].raiseError[Unit](InvalidDataprocMachineConfigException(e.getMessage))
+          _ <- logger.error(ctx.loggingCtx, e)(
+            s"Could not successfully update cluster ${params.runtime.projectNameString}"
+          )
+          _ <- F.raiseError[Unit](InvalidDataprocMachineConfigException(e.getMessage))
         } yield ()
     }
 
   //updates machine type in gdDAO
   override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
-    implicit ev: Ask[F, TraceId]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     runtime.dataprocInstances
       .find(_.dataprocRole == Master)
@@ -382,7 +387,7 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   // Note: we don't support changing the machine type for worker instances. While this is possible
   // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
   // and rebuilding the cluster if new worker machine/disk sizes are needed.
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     UpdateDiskSizeParams.dataprocPrism
       .getOption(params)
       .traverse_ { p =>
@@ -399,8 +404,8 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
   def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: WorkbenchEmail): F[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, createCluster = false)
 
-  def setupDataprocImageGoogleGroup(): F[Unit] =
-    createDataprocImageUserGoogleGroupIfItDoesntExist() >>
+  def setupDataprocImageGoogleGroup(implicit ev: Ask[F, AppContext]): F[Unit] =
+    createDataprocImageUserGoogleGroupIfItDoesntExist >>
       addIamRoleToDataprocImageGroup
 
   /**
@@ -408,20 +413,21 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
    * This group has compute.imageUser role on the custom Dataproc image project,
    * which allows the user's cluster to pull the image.
    */
-  def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean): F[Unit] =
+  def updateDataprocImageGroupMembership(googleProject: GoogleProject,
+                                         createCluster: Boolean)(implicit ev: Ask[F, AppContext]): F[Unit] =
     parseImageProject(config.dataprocConfig.customDataprocImage).traverse_ { imageProject =>
       for {
         count <- inTransaction(clusterQuery.countActiveByProject(googleProject))
         // Note: Don't remove the account if there are existing active clusters in the same project,
         // because it could potentially break other clusters. We only check this for the 'remove' case.
         _ <- if (count > 0 && !createCluster) {
-          Async[F].unit
+          F.unit
         } else {
           for {
-            projectNumberOptIO <- Async[F].liftIO(
+            projectNumberOptIO <- F.liftIO(
               IO.fromFuture(IO(googleProjectDAO.getProjectNumber(googleProject.value)))
             )
-            projectNumber <- Async[F].liftIO(
+            projectNumber <- F.liftIO(
               IO.fromEither(projectNumberOptIO.toRight(ClusterIamSetupException(imageProject)))
             )
             // Note that the Dataproc service account is used to retrieve the image, and not the user's
@@ -453,76 +459,90 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
     clusterName: RuntimeName,
     initBucketName: GcsBucketName,
     serviceAccountInfo: WorkbenchEmail
-  )(implicit ev: Ask[F, TraceId]): F[Unit] = {
-    // Clean up resources in Google
-    val deleteBucket = bucketHelper.deleteInitBucket(googleProject, initBucketName).attempt.flatMap {
-      case Left(e) =>
-        Logger[F].error(e)(
-          s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.asString}"
-        )
-      case _ =>
-        Logger[F].info(
-          s"Successfully deleted init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.asString}"
-        )
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    ev.ask.flatMap { ctx =>
+      // Clean up resources in Google
+      val deleteBucket = bucketHelper.deleteInitBucket(googleProject, initBucketName).attempt.flatMap {
+        case Left(e) =>
+          logger.error(ctx.loggingCtx, e)(
+            s"Failed to delete init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.asString}"
+          )
+        case _ =>
+          logger.info(ctx.loggingCtx)(
+            s"Successfully deleted init bucket ${initBucketName.value} for ${googleProject.value} / ${clusterName.asString}"
+          )
+      }
+
+      // Don't delete the staging bucket so the user can see error logs.
+
+      val deleteCluster = {
+        googleDataprocService
+          .deleteCluster(googleProject, config.dataprocConfig.regionName, DataprocClusterName(clusterName.asString))
+          .attempt
+          .flatMap {
+            case Left(e) =>
+              logger.error(ctx.loggingCtx, e)(
+                s"Failed to delete cluster ${googleProject.value} / ${clusterName.asString}"
+              )
+            case _ =>
+              logger.info(ctx.loggingCtx)(
+                s"Successfully deleted cluster ${googleProject.value} / ${clusterName.asString}"
+              )
+          }
+      }
+
+      val removeIamRoles = removeClusterIamRoles(googleProject, serviceAccountInfo).attempt.flatMap {
+        case Left(e) =>
+          logger.error(ctx.loggingCtx, e)(
+            s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.asString}"
+          )
+        case _ =>
+          logger.info(ctx.loggingCtx)(
+            s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.asString}"
+          )
+      }
+
+      List(deleteBucket, deleteCluster, removeIamRoles).parSequence_
     }
-
-    // Don't delete the staging bucket so the user can see error logs.
-
-    val deleteCluster = {
-      googleDataprocService
-        .deleteCluster(googleProject, config.dataprocConfig.regionName, DataprocClusterName(clusterName.asString))
-        .attempt
-        .flatMap {
-          case Left(e) =>
-            Logger[F].error(e)(s"Failed to delete cluster ${googleProject.value} / ${clusterName.asString}")
-          case _ => Logger[F].info(s"Successfully deleted cluster ${googleProject.value} / ${clusterName.asString}")
-        }
-    }
-
-    val removeIamRoles = removeClusterIamRoles(googleProject, serviceAccountInfo).attempt.flatMap {
-      case Left(e) =>
-        Logger[F].error(e)(s"Failed to remove IAM roles for ${googleProject.value} / ${clusterName.asString}")
-      case _ => Logger[F].info(s"Successfully removed IAM roles for ${googleProject.value} / ${clusterName.asString}")
-    }
-
-    List(deleteBucket, deleteCluster, removeIamRoles).parSequence_
-  }
 
   private[leonardo] def getClusterResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
                                                      machineType: MachineTypeName)(
-    implicit ev: Ask[F, TraceId]
+    implicit ev: Ask[F, AppContext]
   ): F[RuntimeResourceConstraints] = {
     val totalMemory = for {
+      ctx <- OptionT.liftF(ev.ask)
       // Find a zone in which to query the machine type: either the configured zone or
       // an arbitrary zone in the configured region.
       zoneUri <- {
         val configuredZone = OptionT.fromOption[F](config.dataprocConfig.zoneName)
         val zoneList = for {
           zones <- googleComputeService.getZones(runtimeProjectAndName.googleProject, config.dataprocConfig.regionName)
-          _ <- Logger[F].debug(s"List of zones in project ${runtimeProjectAndName.googleProject}: ${zones}")
+          _ <- logger.debug(ctx.loggingCtx)(
+            s"List of zones in project ${runtimeProjectAndName.googleProject}: ${zones}"
+          )
           zoneNames = zones.map(z => ZoneName(z.getName))
         } yield zoneNames
 
         configuredZone orElse OptionT(zoneList.map(_.headOption))
       }
-      _ <- OptionT.liftF(Logger[F].debug(s"Using zone ${zoneUri} to resolve machine type"))
+      _ <- OptionT.liftF(logger.debug(ctx.loggingCtx)(s"Using zone ${zoneUri} to resolve machine type"))
 
       // Resolve the master machine type in Google to get the total memory.
       machineType <- OptionT.pure[F](machineType)
       resolvedMachineType <- OptionT(
         googleComputeService.getMachineType(runtimeProjectAndName.googleProject, zoneUri, machineType)
       )
-      _ <- OptionT.liftF(Logger[F].debug(s"Resolved machine type: ${resolvedMachineType.toString}"))
+      _ <- OptionT.liftF(logger.debug(ctx.loggingCtx)(s"Resolved machine type: ${resolvedMachineType.toString}"))
     } yield MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
 
     totalMemory.value.flatMap {
-      case None        => Async[F].raiseError(ClusterResourceConstaintsException(runtimeProjectAndName, machineType))
+      case None        => F.raiseError(ClusterResourceConstaintsException(runtimeProjectAndName, machineType))
       case Some(total) =>
         // total - dataproc allocated - welder allocated
         val dataprocAllocated = config.dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
         val welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
         val result = MemorySize(total.bytes - dataprocAllocated - welderAllocated)
-        Async[F].pure(RuntimeResourceConstraints(result))
+        F.pure(RuntimeResourceConstraints(result))
     }
   }
 
@@ -536,11 +556,11 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
                                     createCluster: Boolean): F[Unit] = {
     def retryIam(project: GoogleProject, email: WorkbenchEmail, roles: Set[String]): F[Unit] = {
       val action = if (createCluster) {
-        Async[F].liftIO(
+        F.liftIO(
           IO.fromFuture(IO(googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void))
         )
       } else {
-        Async[F].liftIO(
+        F.liftIO(
           IO.fromFuture(IO(googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void))
         )
       }
@@ -551,38 +571,38 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
     // it's ok to re-add the roles.
     dbRef.inTransaction(clusterQuery.countActiveByClusterServiceAccount(serviceAccountInfo)).flatMap { count =>
       if (count > 0 && !createCluster) {
-        Async[F].unit
+        F.unit
       } else {
         retryIam(googleProject, serviceAccountInfo, Set("roles/dataproc.worker"))
       }
     }
   }
 
-  private def createDataprocImageUserGoogleGroupIfItDoesntExist(): F[Unit] =
+  private def createDataprocImageUserGoogleGroupIfItDoesntExist(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
-      _ <- Logger[F].debug(
+      ctx <- ev.ask
+      _ <- logger.debug(ctx.loggingCtx)(
         s"Checking if Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists..."
       )
 
-      groupOpt <- Async[F].liftIO(
+      groupOpt <- F.liftIO(
         IO.fromFuture[Option[Group]](
           IO(googleDirectoryDAO.getGoogleGroup(config.groupsConfig.dataprocImageProjectGroupEmail))
         )
       )
       _ <- groupOpt.fold(
-        Logger[F].debug(
+        logger.debug(ctx.loggingCtx)(
           s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' does not exist. Attempting to create it..."
         ) >> createDataprocImageUserGoogleGroup()
       )(group =>
-        Logger[F].debug(
+        logger.debug(ctx.loggingCtx)(
           s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
         )
       )
     } yield ()
 
   private def createDataprocImageUserGoogleGroup(): F[Unit] =
-    Async[F]
-      .liftIO(
+    F.liftIO(
         IO.fromFuture(
           IO(
             googleDirectoryDAO
@@ -595,25 +615,26 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
         )
       )
       .handleErrorWith {
-        case t if when409(t) => Async[F].unit
+        case t if when409(t) => F.unit
         case t =>
-          Async[F].raiseError(
+          F.raiseError(
             GoogleGroupCreationException(config.groupsConfig.dataprocImageProjectGroupEmail, t.getMessage)
           )
       }
 
-  private val addIamRoleToDataprocImageGroup: F[Unit] = {
+  private def addIamRoleToDataprocImageGroup(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val computeImageUserRole = Set("roles/compute.imageUser")
 
     parseImageProject(config.dataprocConfig.customDataprocImage).fold(
-      Async[F].raiseError[Unit](ImageProjectNotFoundException)
+      F.raiseError[Unit](ImageProjectNotFoundException)
     ) { imageProject =>
       for {
-        _ <- Logger[F].debug(
+        ctx <- ev.ask
+        _ <- logger.debug(ctx.loggingCtx)(
           s"Attempting to grant 'compute.imageUser' permissions to '${config.groupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
         )
         _ <- retry(
-          Async[F].liftIO(
+          F.liftIO(
             IO(
               googleIamDAO.addIamRoles(imageProject,
                                        config.groupsConfig.dataprocImageProjectGroupEmail,
@@ -627,31 +648,32 @@ class DataprocInterpreter[F[_]: Timer: Async: Parallel: ContextShift: Logger](
     }
   }
 
-  private def updateGroupMembership(groupEmail: WorkbenchEmail,
-                                    memberEmail: WorkbenchEmail,
-                                    addToGroup: Boolean): F[Unit] = {
+  private def updateGroupMembership(groupEmail: WorkbenchEmail, memberEmail: WorkbenchEmail, addToGroup: Boolean)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Unit] = {
     val checkIsMember = retry(
-      Async[F].liftIO(IO.fromFuture(IO(googleDirectoryDAO.isGroupMember(groupEmail, memberEmail)))),
+      F.liftIO(IO.fromFuture(IO(googleDirectoryDAO.isGroupMember(groupEmail, memberEmail)))),
       when409
     )
     val addMemberToGroup = retry(
-      Async[F].liftIO(IO.fromFuture(IO(googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail)))),
+      F.liftIO(IO.fromFuture(IO(googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail)))),
       when409
     )
     val removeMemberFromGroup = retry(
-      Async[F].liftIO(IO.fromFuture(IO(googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail)))),
+      F.liftIO(IO.fromFuture(IO(googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail)))),
       when409
     )
 
     for {
+      ctx <- ev.ask
       isMember <- checkIsMember
       _ <- (isMember, addToGroup) match {
         case (false, true) =>
-          Logger[F].debug(s"Adding '$memberEmail' to group '$groupEmail'...") >> addMemberToGroup
+          logger.debug(ctx.loggingCtx)(s"Adding '$memberEmail' to group '$groupEmail'...") >> addMemberToGroup
         case (true, false) =>
-          Logger[F].debug(s"Removing '$memberEmail' from group '$groupEmail'...") >> removeMemberFromGroup
+          logger.debug(ctx.loggingCtx)(s"Removing '$memberEmail' from group '$groupEmail'...") >> removeMemberFromGroup
         case _ =>
-          Async[F].unit
+          F.unit
       }
     } yield ()
   }

@@ -6,6 +6,7 @@ import java.time.Instant
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{AccessConfig, Instance, NetworkInterface, Operation}
+import com.google.cloud.dataproc.v1.ClusterStatus.State
 import com.google.cloud.dataproc.v1._
 import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.mock.{
@@ -27,14 +28,13 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, cluster
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState.Check
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import com.google.cloud.dataproc.v1.ClusterStatus.State
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.scalatest.EitherValues
+import org.scalatest.flatspec.AnyFlatSpec
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
-import org.scalatest.flatspec.AnyFlatSpec
 
 class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with LeonardoTestSuite with EitherValues {
   "creatingRuntime" should "check again if cluster doesn't exist yet" in isolatedDbTest {
@@ -631,14 +631,14 @@ class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
   ): IO[CreateGoogleRuntimeResponse] = ???
 
   override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: Ask[IO, TraceId]
+    implicit ev: Ask[IO, AppContext]
   ): IO[RuntimeStatus] = ???
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
-    implicit ev: Ask[IO, TraceId]
+    implicit ev: Ask[IO, AppContext]
   ): IO[Option[Operation]] = IO.pure(None)
 
-  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+  override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     IO.unit
 
   override def stopRuntime(
@@ -648,12 +648,12 @@ class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
 
   override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 
-  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     ???
 
-  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 
-  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
+  override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 }
 
 object FakeDataproInterp extends BaseFakeDataproInterp

@@ -5,31 +5,34 @@ import java.text.SimpleDateFormat
 import java.time.Instant
 
 import cats.effect.{Async, Blocker, ContextShift}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Operation
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
-import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 
-abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: Logger](
+abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
   config: RuntimeInterpreterConfig,
   welderDao: WelderDAO[F]
-)(implicit dbRef: DbReference[F], metrics: OpenTelemetryMetrics[F], executionContext: ExecutionContext)
+)(implicit F: Async[F],
+  dbRef: DbReference[F],
+  metrics: OpenTelemetryMetrics[F],
+  logger: StructuredLogger[F],
+  executionContext: ExecutionContext)
     extends RuntimeAlgebra[F] {
 
   protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
-    implicit ev: Ask[F, TraceId]
+    implicit ev: Ask[F, AppContext]
   ): F[Option[Operation]]
 
   protected def startGoogleRuntime(params: StartGoogleRuntime)(
@@ -37,7 +40,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
   ): F[Unit]
 
   protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
-    implicit ev: Ask[F, TraceId]
+    implicit ev: Ask[F, AppContext]
   ): F[Unit]
 
   final override def stopRuntime(
@@ -50,11 +53,11 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
         welderDao
           .flushCache(params.runtime.googleProject, params.runtime.runtimeName)
           .handleErrorWith(e =>
-            Logger[F].error(e)(
+            logger.error(ctx.loggingCtx, e)(
               s"Failed to flush welder cache for ${params.runtime.projectNameString}"
             )
           )
-      } else Async[F].unit
+      } else F.unit
 
       _ <- clusterQuery.updateClusterHostIp(params.runtime.id, None, ctx.now).transaction
 
@@ -115,9 +118,10 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
       isClusterBeforeCutoffDate = runtime.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(runtime: Runtime, now: Instant): F[Runtime] =
+  private def updateWelder(runtime: Runtime, now: Instant)(implicit ev: Ask[F, AppContext]): F[Runtime] =
     for {
-      _ <- Logger[F].info(s"Will deploy welder to runtime ${runtime.projectNameString}")
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(s"Will deploy welder to runtime ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/upgrade")
 
       newWelderImageUrl <- Async[F].fromEither(
@@ -143,9 +147,10 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: Async: ContextShift: L
                                 runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
     } yield newRuntime
 
-  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, TraceId]): F[Unit] =
+  override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
-      _ <- Logger[F].info(
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(
         s"New machine config present. Changing machine type to ${params.machineType} for cluster ${params.runtime.projectNameString}..."
       )
       // Update the machine type in Google

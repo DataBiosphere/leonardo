@@ -1,10 +1,11 @@
-package org.broadinstitute.dsde.workbench.leonardo.runtimes
+package org.broadinstitute.dsde.workbench.leonardo
+package runtimes
 
 import java.util.UUID
 
 import cats.effect.IO
-import cats.implicits._
 import cats.mtl.Ask
+import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
@@ -16,17 +17,6 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  ClusterCopy,
-  ContainerImage,
-  ContainerRegistry,
-  DataprocClusterStatus,
-  DiskSize,
-  GPAllocFixtureSpec,
-  LeonardoApiClient,
-  LeonardoConfig,
-  LeonardoTestUtils
-}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.http4s.client.Client
 import org.http4s.headers.Authorization

@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -23,14 +23,14 @@ trait RuntimeAlgebra[F[_]] {
   def createRuntime(params: CreateRuntimeParams)(
     implicit ev: Ask[F, AppContext]
   ): F[CreateGoogleRuntimeResponse]
-  def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: Ask[F, TraceId]): F[RuntimeStatus]
-  def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: Ask[F, TraceId]): F[Option[Operation]]
-  def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, TraceId]): F[Unit]
+  def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: Ask[F, AppContext]): F[RuntimeStatus]
+  def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
+  def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit]
   def stopRuntime(params: StopRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
   def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
-  def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, TraceId]): F[Unit]
-  def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, TraceId]): F[Unit]
-  def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, TraceId]): F[Unit]
+  def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]
 }
 
 // Parameters

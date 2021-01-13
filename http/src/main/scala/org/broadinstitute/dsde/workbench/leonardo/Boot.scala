@@ -2,12 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 
 import java.nio.file.Paths
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import cats.Parallel
-import cats.effect.concurrent.Semaphore
 import cats.effect._
+import cats.effect.concurrent.Semaphore
+import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
@@ -20,6 +23,15 @@ import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
+import org.broadinstitute.dsde.workbench.google.{
+  GoogleStorageDAO,
+  HttpGoogleDirectoryDAO,
+  HttpGoogleIamDAO,
+  HttpGoogleProjectDAO,
+  HttpGoogleStorageDAO
+}
+import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
+import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   credentialResource,
   ComputePollOperation,
@@ -33,15 +45,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleSubscriber
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleStorageDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleProjectDAO,
-  HttpGoogleStorageDAO
-}
-import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
-import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.leonardo.auth.sam.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
@@ -53,17 +56,19 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, Standard
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoKubernetesServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
-import NonLeoMessageSubscriber.nonLeoMessageDecoder
-import scala.jdk.CollectionConverters._
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
@@ -200,8 +205,13 @@ object Boot extends IOApp {
         contentSecurityPolicy
       )
       val httpServer = for {
+        start <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
+        implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
+          AppContext(TraceId(s"Boot_${start}"), Instant.ofEpochMilli(start))
+        )
+
         _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
-          dataprocInterp.setupDataprocImageGoogleGroup()
+          dataprocInterp.setupDataprocImageGoogleGroup
         } else IO.unit
         _ <- IO.fromFuture {
           IO {

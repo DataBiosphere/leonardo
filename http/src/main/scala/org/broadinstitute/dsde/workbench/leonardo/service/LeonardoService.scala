@@ -375,7 +375,7 @@ class LeonardoService(
                                    existingRuntimeConfig: RuntimeConfig,
                                    targetMachineType: Option[MachineTypeName],
                                    allowStop: Boolean,
-                                   now: Instant)(implicit ev: Ask[IO, TraceId]): IO[UpdateResult] = {
+                                   now: Instant)(implicit ev: Ask[IO, AppContext]): IO[UpdateResult] = {
     val updatedMasterMachineTypeOpt =
       getUpdatedValueIfChanged(Some(existingRuntimeConfig.machineType), targetMachineType)
 
