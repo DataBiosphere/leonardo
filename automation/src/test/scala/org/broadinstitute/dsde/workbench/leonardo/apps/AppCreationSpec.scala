@@ -152,7 +152,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ <- testTimer.sleep(30 seconds)
           monitorStartResult <- streamUntilDoneOrTimeout(
             getApp,
-            120,
+            180,
             10 seconds,
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish starting after 20 minutes"
           )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
@@ -174,7 +174,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           listApps = LeonardoApiClient.listApps(googleProject, true)
           monitorDeleteResult <- streamUntilDoneOrTimeout(
             listApps,
-            180,
+            120,
             10 seconds,
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes"
           )(implicitly, implicitly, appDeleted(appName))

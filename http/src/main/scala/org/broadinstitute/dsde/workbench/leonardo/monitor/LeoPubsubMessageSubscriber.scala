@@ -970,7 +970,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           }
         else F.unit
 
-        _ <- logger.info("Moving to disk and nodepool deletion...")
+        _ <- deleteNodepool
 
         // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
         getDisk = googleDiskService.getDisk(msg.project,
@@ -983,9 +983,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           "The disk failed to detach within the time limit, cannot proceed with delete disk"
         )
 
-        _ <- logger.info(s"Disk detach result: $diskDetachResult")
-
-        _ <- deleteNodepool
         _ <- deleteDisksInParallel
       } yield ()
 
