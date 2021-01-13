@@ -159,7 +159,11 @@ class RuntimeDataprocSpec
 
       // check cluster instances in Dataproc
       instances = GoogleDataprocInterpreter.getAllInstanceNames(cluster)
-      _ <- IO(instances.size shouldBe 3)
+      _ <- IO(instances.size should be((expectedNumWorkers, expectedPreemptibles) match {
+        case (0, 0) => 1
+        case (_, 0) => 2
+        case _      => 3
+      }))
       _ <- instances.toList.traverse {
         case (k, v) =>
           IO(
