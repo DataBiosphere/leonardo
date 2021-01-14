@@ -16,8 +16,6 @@ HELP_TEXT="$(cat <<EOF
    -d | --docker : (default: no action) provide either "build" or "push" to
            build or push a docker image.  "push" will also perform build.
    -gr | --gcr-registry: The GCR registry to push to
-   -n | --notebook-repo: (default: --project) the repo to push the notebooks
-           image. Can be a dockerhub or GCR repo.
    -t | --tag: (default: git banch name) the docker tag used for the images.
    -k | --service-account-key-file: (optional) path to a service account key json
            file. If set, the script will call "gcloud auth activate-service-account".
@@ -86,11 +84,6 @@ while [ "$1" != "" ]; do
             echo "project == $1"
             DOCKER_PROJECT=$1
             ;;
-        -n | --notebook-repo)
-            shift
-            echo "notebook-repo == $1"
-            NOTEBOOK_REPO=$1
-            ;;
         -k | --service-account-key-file)
             shift
             echo "service-account-key-file == $1"
@@ -147,7 +140,7 @@ function make_jar()
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
-                          hseeberger/scala-sbt:graalvm-ce-20.0.0-java8_1.4.0_2.12.12 \
+                          hseeberger/scala-sbt:graalvm-ce-20.3.0-java8_1.4.6_2.13.4 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db
