@@ -15,7 +15,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
-  "create and delete an app" ignore { _ =>
+  "create and delete an app" in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
 
@@ -81,10 +81,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
     }
   }
 
-  // TODO this test fails intermittently because the final delete fails to delete the Galaxy app.
-  // It looks like the Galaxy pre-delete job is erroring out. Need to determine why stop/start can
-  // sometimes cause this.
-  "stop and start an app" ignore { _ =>
+  "stop and start an app" in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
 
