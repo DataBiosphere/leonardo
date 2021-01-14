@@ -112,7 +112,8 @@ retry 5 apt-get install -y -q \
     curl \
     gnupg2 \
     software-properties-common \
-    libffi-dev
+    libffi-dev \
+    libsqlite3-dev
 
 log 'Adding Docker package sources...'
 

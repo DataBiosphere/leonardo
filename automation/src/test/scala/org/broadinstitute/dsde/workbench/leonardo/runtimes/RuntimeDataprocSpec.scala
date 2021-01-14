@@ -2,13 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
 import java.util.UUID
-
 import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
+  GcsBlobName,
   GoogleDataprocInterpreter,
   GoogleDataprocService,
   MachineTypeName,
@@ -18,18 +18,21 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreat
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+
+import java.nio.charset.Charset
 
 @DoNotDiscover
 class RuntimeDataprocSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with NotebookTestUtils {
+    with NotebookTestUtils
+    with GPAllocBeforeAndAfterAll {
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
@@ -89,27 +92,44 @@ class RuntimeDataprocSpec
   "should stop/start a Dataproc cluster with workers and preemptible workers" in { project =>
     val runtimeName = randomClusterName
 
-    // 2 workers and 5 preemptible workers
-    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
-      runtimeConfig = Some(
-        RuntimeConfigRequest.DataprocConfig(
-          Some(2),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
-          None,
-          Some(5),
-          Map.empty
-        )
-      ),
-      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
-    )
-
     val res = dependencies.use { dep =>
       implicit val client = dep.httpClient
+      val bucketName = GcsBucketName("leo-test-bucket")
+      val startScriptObjectName = GcsBlobName("test-script.sh")
       for {
+        // Set up test bucket for startup script
+        _ <- google2StorageResource.use { storage =>
+          for {
+            _ <- storage.insertBucket(project, bucketName).compile.drain
+            startScriptString = "#!/usr/bin/env bash\n\n" +
+              "echo 'hello world'"
+            _ <- (fs2.Stream
+              .emits(startScriptString.getBytes(Charset.forName("UTF-8")))
+              .covary[IO]
+              .through(storage.streamUploadBlob(bucketName, startScriptObjectName)))
+              .compile
+              .drain
+          } yield ()
+        }
         // create runtime
+        startScriptUri = UserScriptPath.Gcs(GcsPath(bucketName, GcsObjectName(startScriptObjectName.value)))
+        // 2 workers and 5 preemptible workers
+        createRuntimeRequest = defaultCreateRuntime2Request.copy(
+          jupyterStartUserScriptUri = Some(startScriptUri),
+          runtimeConfig = Some(
+            RuntimeConfigRequest.DataprocConfig(
+              Some(2),
+              Some(MachineTypeName("n1-standard-4")),
+              Some(DiskSize(100)),
+              Some(MachineTypeName("n1-standard-4")),
+              Some(DiskSize(100)),
+              None,
+              Some(5),
+              Map.empty
+            )
+          ),
+          toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
+        )
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
