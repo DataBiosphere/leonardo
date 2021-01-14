@@ -145,6 +145,7 @@ object Dependencies {
     enumeratum,
     akkaSlf4j,
     akkaHttp,
+    akkaHttpSprayJson,
     akkaTestKit,
     akkaHttpTestKit,
     akkaStream,
