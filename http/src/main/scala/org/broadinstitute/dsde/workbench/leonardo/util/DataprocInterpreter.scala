@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates.
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.google2.{
-  streamUntilDoneOrTimeout,
   CreateClusterConfig,
   DataprocClusterName,
   DiskName,
@@ -676,12 +675,6 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         case _ =>
           F.unit
       }
-      _ <- streamUntilDoneOrTimeout(
-        checkIsMember,
-        60,
-        5 seconds,
-        s"Timed out waiting for $memberEmail to be added to group $groupEmail"
-      )(implicitly, implicitly, _ == addToGroup)
     } yield ()
   }
 
