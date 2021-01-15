@@ -28,6 +28,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 class RuntimeDataprocSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
+    with GPAllocUtils
     with LeonardoTestUtils
     with NotebookTestUtils {
   implicit val authTokenForOldApiClient = ronAuthToken
@@ -39,106 +40,110 @@ class RuntimeDataprocSpec
     httpClient <- LeonardoApiClient.client
   } yield RuntimeDataprocSpecDependencies(httpClient, dataprocService)
 
-  "should create a Dataproc cluster with workers and preemptible workers" in { project =>
-    val runtimeName = randomClusterName
+  "should create a Dataproc cluster with workers and preemptible workers" in { _ =>
+    withNewProject { project =>
+      val runtimeName = randomClusterName
 
-    // 2 workers and 5 preemptible workers
-    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
-      runtimeConfig = Some(
-        RuntimeConfigRequest.DataprocConfig(
-          Some(2),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
-          None,
-          Some(5),
-          Map.empty
-        )
-      ),
-      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
-    )
+      // 2 workers and 5 preemptible workers
+      val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+        runtimeConfig = Some(
+          RuntimeConfigRequest.DataprocConfig(
+            Some(2),
+            Some(MachineTypeName("n1-standard-4")),
+            Some(DiskSize(100)),
+            Some(MachineTypeName("n1-standard-4")),
+            Some(DiskSize(100)),
+            None,
+            Some(5),
+            Map.empty
+          )
+        ),
+        toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
+      )
 
-    val res = dependencies.use { dep =>
-      implicit val client = dep.httpClient
-      for {
-        // create runtime
-        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
-        runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
+      dependencies.use { dep =>
+        implicit val client = dep.httpClient
+        for {
+          // create runtime
+          getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
+          runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
-        // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
+          // check cluster status in Dataproc
+          _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
 
-        // check output of yarn node -list command
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list | grep Total""")
-              output.get should include("Total Nodes:7")
+          // check output of yarn node -list command
+          _ <- IO(
+            withWebDriver { implicit driver =>
+              withNewNotebook(runtime, Python3) { notebookPage =>
+                val output = notebookPage.executeCell("""!yarn node -list | grep Total""")
+                output.get should include("Total Nodes:7")
+              }
             }
-          }
-        )
-      } yield ()
-    }
+          )
 
-    res.unsafeRunSync()
+          _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
+        } yield ()
+      }
+    }
   }
 
-  "should stop/start a Dataproc cluster with workers and preemptible workers" in { project =>
-    val runtimeName = randomClusterName
+  "should stop/start a Dataproc cluster with workers and preemptible workers" in { _ =>
+    withNewProject { project =>
+      val runtimeName = randomClusterName
 
-    // 2 workers and 5 preemptible workers
-    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
-      runtimeConfig = Some(
-        RuntimeConfigRequest.DataprocConfig(
-          Some(2),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100)),
-          None,
-          Some(5),
-          Map.empty
-        )
-      ),
-      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
-    )
+      // 2 workers and 5 preemptible workers
+      val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+        runtimeConfig = Some(
+          RuntimeConfigRequest.DataprocConfig(
+            Some(2),
+            Some(MachineTypeName("n1-standard-4")),
+            Some(DiskSize(100)),
+            Some(MachineTypeName("n1-standard-4")),
+            Some(DiskSize(100)),
+            None,
+            Some(5),
+            Map.empty
+          )
+        ),
+        toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
+      )
 
-    val res = dependencies.use { dep =>
-      implicit val client = dep.httpClient
-      for {
-        // create runtime
-        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
-        runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
+      dependencies.use { dep =>
+        implicit val client = dep.httpClient
+        for {
+          // create runtime
+          getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
+          runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
-        // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
+          // check cluster status in Dataproc
+          _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
 
-        // stop the cluster
-        _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
+          // stop the cluster
+          _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
-        // preemptibles should be removed in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0)
+          // preemptibles should be removed in Dataproc
+          _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0)
 
-        // start the cluster
-        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
+          // start the cluster
+          _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
-        // preemptibles should be added in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
+          // preemptibles should be added in Dataproc
+          _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
 
-        // check output of yarn node -list command
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list | grep Total""")
-              output.get should include("Total Nodes:7")
+          // check output of yarn node -list command
+          _ <- IO(
+            withWebDriver { implicit driver =>
+              withNewNotebook(runtime, Python3) { notebookPage =>
+                val output = notebookPage.executeCell("""!yarn node -list | grep Total""")
+                output.get should include("Total Nodes:7")
+              }
             }
-          }
-        )
-      } yield ()
-    }
+          )
 
-    res.unsafeRunSync()
+          _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
+        } yield ()
+      }
+    }
   }
 
   private def verifyDataproc(project: GoogleProject,
