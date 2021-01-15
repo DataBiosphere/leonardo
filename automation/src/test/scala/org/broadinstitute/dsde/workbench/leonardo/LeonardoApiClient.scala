@@ -7,7 +7,7 @@ import cats.effect.{IO, Resource, Timer}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -58,6 +58,33 @@ object LeonardoApiClient {
     None,
     None,
     None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    None,
+    Set.empty,
+    Map.empty
+  )
+
+  val defaultCreateDataprocRuntimeRequest = CreateRuntime2Request(
+    Map("foo" -> UUID.randomUUID().toString),
+    None,
+    None,
+    Some(
+      RuntimeConfigRequest.DataprocConfig(
+        Some(0),
+        Some(MachineTypeName("n1-standard-4")),
+        Some(DiskSize(100)),
+        None,
+        None,
+        None,
+        None,
+        Map.empty
+      )
+    ),
     None,
     None,
     None,
