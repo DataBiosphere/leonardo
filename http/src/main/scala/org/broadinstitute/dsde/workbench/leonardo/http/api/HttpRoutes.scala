@@ -117,7 +117,7 @@ class HttpRoutes(
 }
 
 object HttpRoutes {
-  implicit val statusCodeEncoder: Encoder[StatusCode] = Encoder.encodeString.contramap(_.value)
+  implicit val statusCodeEncoder: Encoder[StatusCode] = Encoder.encodeString.contramap(_.intValue().toString)
   implicit val classEncoder: Encoder[Class[_]] = Encoder.encodeString.contramap(_.toString)
   implicit val errorReportEncoder: Encoder[ErrorReport] = Encoder.forProduct4(
     "source",

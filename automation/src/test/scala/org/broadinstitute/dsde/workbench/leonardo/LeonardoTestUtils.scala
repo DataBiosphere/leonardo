@@ -428,7 +428,7 @@ trait LeonardoTestUtils
         Notebook.getTree(googleProject, runtimeName)
       }
 
-      caught.message should include("\"statusCode\":422")
+      caught.message should include("\"statusCode\":\"422\"")
       caught.message should include(
         s"""Proxy host ${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding."""
       )

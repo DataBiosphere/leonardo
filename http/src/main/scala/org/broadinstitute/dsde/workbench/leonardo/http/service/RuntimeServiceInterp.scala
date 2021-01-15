@@ -535,6 +535,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // - If present, we will use the client-supplied image.
       // - Otherwise we will pull the latest from the specified welderRegistry.
       // - If welderRegistry is undefined, we take the default GCR image from config.
+      // - If the tool is RStudio do not include a welder image
       welderImage = toolImage.imageType match {
         case RuntimeImageType.RStudio => None
         case _ =>

@@ -147,7 +147,6 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       // build cluster configuration
       initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
       initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
-      credentialsFileName = s"/etc/${RuntimeTemplateValues.serviceAccountCredentialsFilename}"
 
       // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
       // we will use the new custom dataproc image
