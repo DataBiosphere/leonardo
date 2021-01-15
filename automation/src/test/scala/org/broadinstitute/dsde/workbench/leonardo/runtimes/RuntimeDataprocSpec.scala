@@ -75,7 +75,7 @@ class RuntimeDataprocSpec
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(runtime, Python3) { notebookPage =>
-                val output = notebookPage.executeCell("""!yarn node -list | grep Total""")
+                val output = notebookPage.executeCell("""!yarn node -list""")
                 output.get should include("Total Nodes:7")
               }
             }
@@ -134,7 +134,7 @@ class RuntimeDataprocSpec
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(runtime, Python3) { notebookPage =>
-                val output = notebookPage.executeCell("""!yarn node -list | grep Total""")
+                val output = notebookPage.executeCell("""!yarn node -list""")
                 output.get should include("Total Nodes:7")
               }
             }
