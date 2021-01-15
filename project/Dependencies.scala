@@ -13,7 +13,7 @@ object Dependencies {
   val http4sVersion = "0.21.15"
   val guavaV = "30.1-jre"
   val monocleV = "2.1.0"
-  val opencensusV = "0.28.2"
+  val opencensusV = "0.28.3"
 
   private val workbenchLibsHash = "4d379e3"
   val serviceTestV = s"0.18-${workbenchLibsHash}"
