@@ -22,6 +22,7 @@ import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 import cats.syntax.all._
 import com.rms.miu.slickcats.DBIOInstances._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
 
@@ -119,13 +120,14 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     n.isDefault
   )
 
-  def claimNodepool(clusterId: KubernetesClusterLeoId)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+  def claimNodepool(clusterId: KubernetesClusterLeoId,
+                    userEmail: WorkbenchEmail)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
     for {
       unclaimedNodepoolOpt <- findActiveByClusterIdQuery(clusterId)
         .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
         .result
         .headOption
-      _ <- unclaimedNodepoolOpt.traverse(rec => updateStatus(rec.id, NodepoolStatus.Running))
+      _ <- unclaimedNodepoolOpt.traverse(rec => updateStatusAndCreator(rec.id, NodepoolStatus.Running, userEmail))
       claimedNodepoolOpt <- unclaimedNodepoolOpt.flatTraverse(n => getMinimalById(n.id))
     } yield claimedNodepoolOpt
 
@@ -133,6 +135,11 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     findByNodepoolIdQuery(id)
       .map(_.status)
       .update(status)
+
+  def updateStatusAndCreator(id: NodepoolLeoId, status: NodepoolStatus, creator: WorkbenchEmail): DBIO[Int] =
+    findByNodepoolIdQuery(id)
+      .map(n => (n.status, n.creator))
+      .update((status, creator))
 
   def updateStatuses(ids: List[NodepoolLeoId], status: NodepoolStatus)(implicit ec: ExecutionContext): DBIO[Unit] =
     for {
@@ -164,6 +171,15 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     for {
       nodepools <- findByNodepoolIdQuery(id).result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
+
+  def getMinimalByUser(creator: WorkbenchEmail,
+                       project: GoogleProject)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+    for {
+      clusters <- kubernetesClusterQuery.joinMinimalClusterAndUnmarshal(
+        kubernetesClusterQuery.findActiveByNameQuery(project),
+        nodepoolQuery.filter(_.destroyedDate === dummyDate).filterNot(_.isDefault).filter(_.creator === creator)
+      )
+    } yield clusters.flatMap(_.nodepools).headOption
 
   def getDefaultNodepoolForCluster(
     clusterId: KubernetesClusterLeoId

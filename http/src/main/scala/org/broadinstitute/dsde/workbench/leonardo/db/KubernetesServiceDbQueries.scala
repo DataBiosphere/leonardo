@@ -140,13 +140,6 @@ object KubernetesServiceDbQueries {
               )
             )
           else DBIO.successful(())
-          _ <- if (cluster.nodepools.head.apps.length != 1)
-            DBIO.failed(
-              GetAppAssertion(
-                "(GoogleProject, AppName) uniqueness has been violated, num apps returned != 1 by getActiveFullApp"
-              )
-            )
-          else DBIO.successful(())
           appResult <- DBIO.successful(
             Some(
               GetAppResult(

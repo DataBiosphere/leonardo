@@ -8,7 +8,7 @@ import akka.testkit.TestKit
 import cats.effect.IO
 import cats.syntax.all._
 import cats.mtl.Ask
-import com.google.cloud.compute.v1.Operation
+import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.container.v1
 import com.google.protobuf.Timestamp
@@ -29,6 +29,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   Event,
   GKEModels,
+  GoogleDiskService,
   KubernetesModels,
   MachineTypeName,
   MockGoogleDiskService,
@@ -64,7 +65,7 @@ import CommonTestData._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.util.Left
+import scala.util.{Left, Random}
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -936,7 +937,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1010,7 +1011,7 @@ class LeoPubsubMessageSubscriberSpec
                              None,
                              Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1057,7 +1058,7 @@ class LeoPubsubMessageSubscriberSpec
                              None,
                              Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1103,7 +1104,7 @@ class LeoPubsubMessageSubscriberSpec
                              Some(disk.id),
                              Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1212,7 +1213,9 @@ class LeoPubsubMessageSubscriberSpec
                              None,
                              Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                        makeGKEInterp = makeGKEInterp,
+                                        diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1249,7 +1252,7 @@ class LeoPubsubMessageSubscriberSpec
                              Some(DiskId(-1)),
                              Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1489,7 +1492,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                        makeGKEInterp = makeGKEInterp,
+                                        diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1570,7 +1575,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                        makeGKEInterp = makeGKEInterp,
+                                        diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1803,7 +1810,7 @@ class LeoPubsubMessageSubscriberSpec
                              None,
                              Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       // send message twice
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
@@ -1872,7 +1879,8 @@ class LeoPubsubMessageSubscriberSpec
                         asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
                           InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
                         computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
-                        makeGKEInterp: IO[GKEInterpreter[IO]] = makeGKEInterp): LeoPubsubMessageSubscriber[IO] = {
+                        makeGKEInterp: IO[GKEInterpreter[IO]] = makeGKEInterp,
+                        diskInterp: GoogleDiskService[IO] = MockGoogleDiskService): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
@@ -1883,11 +1891,18 @@ class LeoPubsubMessageSubscriberSpec
                                        Config.leoPubsubMessageSubscriberConfig.persistentDiskMonitorConfig),
       googleSubscriber,
       asyncTaskQueue,
-      MockGoogleDiskService,
+      diskInterp,
       computePollOperation,
       MockAuthProvider,
       makeGKEInterp.unsafeRunSync(),
       org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting
     )
   }
+
+  def makeDetachingDiskInterp(): GoogleDiskService[IO] =
+    new MockGoogleDiskService {
+      override def getDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[Disk]] = IO(Some(Disk.newBuilder().setLastDetachTimestamp(Random.nextInt().toString).build()))
+    }
 }

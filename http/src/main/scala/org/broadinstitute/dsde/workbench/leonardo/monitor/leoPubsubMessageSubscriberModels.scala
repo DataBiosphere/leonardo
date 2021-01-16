@@ -3,6 +3,7 @@ package monitor
 
 import ca.mrvisser.sealerate
 import cats.syntax.all._
+import com.google.cloud.compute.v1.Disk
 import enumeratum.{Enum, EnumEntry}
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
@@ -308,6 +309,7 @@ object ClusterNodepoolActionType {
   final case object CreateNodepool extends ClusterNodepoolActionType {
     val asString: String = "createNodepool"
   }
+
   def values: Set[ClusterNodepoolActionType] = sealerate.values[ClusterNodepoolActionType]
   def stringToObject: Map[String, ClusterNodepoolActionType] = values.map(v => v.asString -> v).toMap
 }
@@ -835,3 +837,5 @@ final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
                                                   persistentDiskMonitorConfig: PersistentDiskMonitorConfig)
+
+final case class DiskDetachStatus(disk: Option[Disk], originalDetachTimestampOpt: Option[String])

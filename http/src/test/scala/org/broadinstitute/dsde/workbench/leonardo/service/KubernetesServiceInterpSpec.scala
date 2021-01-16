@@ -95,6 +95,44 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
+  it should "create an app in a users existing nodepool" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
+
+    kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    val appName2 = AppName("app2")
+    val createDiskConfig2 = PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty)
+    val appReq2 =
+      createAppRequest.copy(diskConfig = Some(createDiskConfig2), customEnvironmentVariables = customEnvVars)
+    kubeServiceInterp.createApp(userInfo, project, appName2, appReq2).unsafeRunSync()
+
+    val clusters = dbFutureValue {
+      KubernetesServiceDbQueries.listFullApps(Some(project))
+    }
+
+    clusters.flatMap(_.nodepools).length shouldBe 1
+    clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 2
+
+    clusters.flatMap(_.nodepools).flatMap(_.apps).map(_.appName).sortBy(_.value) shouldBe List(appName, appName2)
+      .sortBy(_.value)
+    val app1 = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
+    }.get
+
+    val app2 = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName2)
+    }.get
+
+    app1.nodepool.id shouldBe app2.nodepool.id
+  }
+
   it should "queue the proper message when creating an app and a new disk" in isolatedDbTest {
 
     val appName = AppName("app1")
@@ -527,7 +565,12 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
     val appName = AppName("app1")
-    kubeServiceInterp.createApp(userInfo, savedCluster1.googleProject, appName, appReq).unsafeRunSync()
+    kubeServiceInterp
+      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user100@example.com")),
+                 savedCluster1.googleProject,
+                 appName,
+                 appReq)
+      .unsafeRunSync()
     val cluster = dbFutureValue {
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
     }.get
@@ -573,7 +616,12 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
       createAppRequest.copy(diskConfig = Some(createDiskConfig1), customEnvironmentVariables = customEnvVars)
 
     val appName1 = AppName("app1")
-    kubeServiceInterp.createApp(userInfo, savedCluster1.googleProject, appName1, appReq1).unsafeRunSync()
+    kubeServiceInterp
+      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user100@example.com")),
+                 savedCluster1.googleProject,
+                 appName1,
+                 appReq1)
+      .unsafeRunSync()
     val clusterAfterApp1 = dbFutureValue {
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
     }.get
@@ -601,7 +649,12 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
 
     val appName2 = AppName("app2")
     val appReq2 = appReq1.copy(diskConfig = Some(createDiskConfig1.copy(name = DiskName("newdisk"))))
-    kubeServiceInterp.createApp(userInfo, savedCluster1.googleProject, appName2, appReq2).unsafeRunSync()
+    kubeServiceInterp
+      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user101@example.com")),
+                 savedCluster1.googleProject,
+                 appName2,
+                 appReq2)
+      .unsafeRunSync()
     val clusterAfterApp2 = dbFutureValue {
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
     }.get
@@ -647,7 +700,12 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
     val appName = AppName("app1")
-    kubeServiceInterp.createApp(userInfo, savedCluster1.googleProject, appName, appReq).unsafeRunSync()
+    kubeServiceInterp
+      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user100@example.com")),
+                 savedCluster1.googleProject,
+                 appName,
+                 appReq)
+      .unsafeRunSync()
     val cluster = dbFutureValue {
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
     }.get
@@ -673,7 +731,12 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     val appName2 = AppName("app2")
     val appReq2 = appReq.copy(diskConfig = Some(createDiskConfig.copy(name = DiskName("newdisk"))))
 
-    kubeServiceInterp.createApp(userInfo, savedCluster1.googleProject, appName2, appReq2).unsafeRunSync()
+    kubeServiceInterp
+      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user101@example.com")),
+                 savedCluster1.googleProject,
+                 appName2,
+                 appReq2)
+      .unsafeRunSync()
 
     val clusterAfterApp2 = dbFutureValue {
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
