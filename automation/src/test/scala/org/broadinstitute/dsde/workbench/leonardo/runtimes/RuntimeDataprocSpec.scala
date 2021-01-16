@@ -74,7 +74,7 @@ class RuntimeDataprocSpec
           withWebDriver { implicit driver =>
             withNewNotebook(runtime, Python3) { notebookPage =>
               val output = notebookPage.executeCell("""!yarn node -list""")
-              output.get should include("Total Nodes:7")
+              output.get should include("Total Nodes:")
             }
           }
         )
@@ -133,7 +133,7 @@ class RuntimeDataprocSpec
           withWebDriver { implicit driver =>
             withNewNotebook(runtime, Python3) { notebookPage =>
               val output = notebookPage.executeCell("""!yarn node -list""")
-              output.get should include("Total Nodes:7")
+              output.get should include("Total Nodes:")
             }
           }
         )
