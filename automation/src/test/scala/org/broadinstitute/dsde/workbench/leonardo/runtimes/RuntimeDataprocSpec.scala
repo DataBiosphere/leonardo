@@ -1,10 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
+import cats.data.NonEmptyList
+
 import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.cloud.Identity
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
@@ -12,13 +15,15 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDataprocInterpreter,
   GoogleDataprocService,
   MachineTypeName,
-  RegionName
+  RegionName,
+  StorageRole
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -100,7 +105,15 @@ class RuntimeDataprocSpec
         // Set up test bucket for startup script
         _ <- google2StorageResource.use { storage =>
           for {
+            petSA <- IO(Sam.user.petServiceAccountEmail(project.value))
             _ <- storage.insertBucket(project, bucketName).compile.drain
+            _ <- storage
+              .setIamPolicy(
+                bucketName,
+                Map(StorageRole.ObjectViewer -> NonEmptyList.one(Identity.serviceAccount(petSA.value)))
+              )
+              .compile
+              .drain
             startScriptString = "#!/usr/bin/env bash\n\n" +
               "echo 'hello world'"
             _ <- (fs2.Stream
