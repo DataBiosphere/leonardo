@@ -669,9 +669,9 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       isMember <- checkIsMember
       _ <- (isMember, addToGroup) match {
         case (false, true) =>
-          logger.debug(ctx.loggingCtx)(s"Adding '$memberEmail' to group '$groupEmail'...") >> addMemberToGroup
+          logger.info(ctx.loggingCtx)(s"Adding '$memberEmail' to group '$groupEmail'...") >> addMemberToGroup
         case (true, false) =>
-          logger.debug(ctx.loggingCtx)(s"Removing '$memberEmail' from group '$groupEmail'...") >> removeMemberFromGroup
+          logger.info(ctx.loggingCtx)(s"Removing '$memberEmail' from group '$groupEmail'...") >> removeMemberFromGroup
         case _ =>
           F.unit
       }

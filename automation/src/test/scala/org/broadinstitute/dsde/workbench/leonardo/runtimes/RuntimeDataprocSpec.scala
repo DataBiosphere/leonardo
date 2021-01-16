@@ -73,11 +73,13 @@ class RuntimeDataprocSpec
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list | grep Total""")
-              output.get should include("Total Nodes:7")
+              val output = notebookPage.executeCell("""!yarn node -list""")
+              output.get should include("Total Nodes:")
             }
           }
         )
+
+        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
     }
 
@@ -130,11 +132,13 @@ class RuntimeDataprocSpec
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list | grep Total""")
-              output.get should include("Total Nodes:7")
+              val output = notebookPage.executeCell("""!yarn node -list""")
+              output.get should include("Total Nodes:")
             }
           }
         )
+
+        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
     }
 
