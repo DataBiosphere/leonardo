@@ -90,7 +90,6 @@ object LeonardoApiClient {
     None,
     None,
     None,
-    None,
     Set.empty,
     Map.empty
   )
