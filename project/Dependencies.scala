@@ -159,7 +159,7 @@ object Dependencies {
     workbenchGoogleTest,
     workbenchErrorReporting,
     workbenchErrorReportingTest,
-    "com.rms.miu" %% "slick-cats" % "0.10.2",
+    "com.rms.miu" %% "slick-cats" % "0.10.4",
     googleCloudNio,
     mysql,
     liquibase,
