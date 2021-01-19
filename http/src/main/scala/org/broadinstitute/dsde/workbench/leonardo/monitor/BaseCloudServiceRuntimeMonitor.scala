@@ -6,7 +6,7 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
@@ -40,7 +40,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   implicit val toolsDoneCheckable: DoneCheckable[List[(RuntimeImageType, Boolean)]] = x => x.forall(_._2)
 
   def runtimeAlg: RuntimeAlgebra[F]
-  def logger: Logger[F]
+  def logger: StructuredLogger[F]
   def googleStorage: GoogleStorageService[F]
 
   def monitorConfig: MonitorConfig
@@ -64,20 +64,21 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def handler(monitorContext: MonitorContext, monitorState: MonitorState): F[CheckResult] =
     for {
       now <- nowInstant
+      ctx = AppContext(monitorContext.traceId, now)
       implicit0(ct: Ask[F, AppContext]) = Ask.const[F, AppContext](
-        AppContext(monitorContext.traceId, now)
+        ctx
       )
       currentStatus <- clusterQuery.getClusterStatus(monitorContext.runtimeId).transaction
       res <- currentStatus match {
         case None =>
           logger
-            .error(s"${monitorContext} disappeared from database in the middle of status transition!")
+            .error(ctx.loggingCtx)(s"disappeared from database in the middle of status transition!")
             .as(((), None))
         case Some(status) if (status != monitorContext.action) =>
           val tags = Map("original_status" -> monitorContext.action.toString, "interrupted_by" -> status.toString)
           openTelemetry.incrementCounter("earlyTerminationOfMonitoring", 1, tags) >> logger
-            .warn(
-              s"${monitorContext} | status transitioned from ${monitorContext.action} -> ${status}. This could be caused by a new status transition call!"
+            .warn(ctx.loggingCtx)(
+              s"status transitioned from ${monitorContext.action} -> ${status}. This could be caused by a new status transition call!"
             )
             .as(((), None))
         case Some(_) =>
@@ -138,12 +139,12 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         )
         _ <- curStatus match {
           case RuntimeStatus.Deleted =>
-            logger.info(
-              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in Deleted status. | trace id: ${ctx.traceId}"
+            logger.info(ctx.loggingCtx)(
+              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in Deleted status."
             )
           case _ =>
-            logger.info(
-              s"failedRuntime: moving runtime with id  ${runtimeAndRuntimeConfig.runtime.id} to Error status. | trace id: ${ctx.traceId}"
+            logger.info(ctx.loggingCtx)(
+              s"failedRuntime: moving runtime with id  ${runtimeAndRuntimeConfig.runtime.id} to Error status."
             ) >> clusterQuery
               .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now)
               .transaction
@@ -197,8 +198,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         )
       else F.unit
       timeElapsed = (now.toEpochMilli - monitorContext.start.toEpochMilli).milliseconds
-      _ <- logger.info(
-        s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is ready for use after ${timeElapsed.toSeconds} seconds!"
+      _ <- logger.info(monitorContext.loggingContext)(
+        s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is ready for use after ${timeElapsed.toSeconds} seconds!"
       )
     } yield ((), None)
 
@@ -211,14 +212,15 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   ): F[CheckResult] =
     for {
       now <- nowInstant[F]
+      ctx = AppContext(monitorContext.traceId, now)
       implicit0(traceId: Ask[F, AppContext]) = Ask.const[F, AppContext](
-        AppContext(monitorContext.traceId, now)
+        ctx
       )
       timeElapsed = (now.toEpochMilli - monitorContext.start.toEpochMilli).millis
       res <- monitorConfig.monitorStatusTimeouts.get(runtimeAndRuntimeConfig.runtime.status) match {
         case Some(timeLimit) if timeElapsed > timeLimit =>
           for {
-            _ <- logger.info(
+            _ <- logger.info(ctx.loggingCtx)(
               s"Detected that ${runtimeAndRuntimeConfig.runtime.projectNameString} has been stuck in status ${runtimeAndRuntimeConfig.runtime.status} too long."
             )
             r <- // Take care not to Error out a cluster if it timed out in Starting status
@@ -250,8 +252,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           } yield r
         case _ =>
           logger
-            .info(
-              s"${monitorContext} | Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in final state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
+            .info(monitorContext.loggingContext)(
+              s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in final state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
                 .getOrElse("")}"
             )
             .as(((), Some(Check(runtimeAndRuntimeConfig))))
@@ -269,8 +271,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig(monitorContext.runtimeId)
       next <- runtimeAndRuntimeConfig.runtime.status match {
         case status if status.isMonitored =>
-          logger.info(
-            s"${monitorContext} | Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
+          logger.info(monitorContext.loggingContext)(
+            s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
           ) >> handleCheck(monitorContext, runtimeAndRuntimeConfig)
         case _ =>
           F.pure(((), None): CheckResult)
@@ -328,7 +330,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         RuntimeStatus.Stopped,
         runtimeAndRuntimeConfig.runtimeConfig.cloudService
       )
-      _ <- logger.info(
+      _ <- logger.info(ctx.loggingCtx)(
         s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been stopped after ${stoppingDuration.toSeconds} seconds."
       )
     } yield ((), None)
@@ -506,31 +508,35 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   protected def deleteInitBucket(googleProject: GoogleProject,
                                  runtimeName: RuntimeName)(implicit ev: Ask[F, AppContext]): F[Unit] =
-    clusterQuery.getInitBucket(googleProject, runtimeName).transaction.flatMap {
-      case None =>
-        logger.warn(
-          s"Could not lookup init bucket for runtime ${googleProject.value}/${runtimeName.asString}: cluster not in db"
-        )
-      case Some(bucketPath) =>
-        for {
-          ctx <- ev.ask
-          r <- googleStorage
-            .deleteBucket(googleProject, bucketPath.bucketName, isRecursive = true)
-            .compile
-            .lastOrError
-            .attempt
-          _ <- r match {
-            case Left(e) =>
-              logger.error(e)(
-                s"${ctx} | Fail to delete init bucket $bucketPath for runtime ${googleProject.value}/${runtimeName.asString}"
-              )
-            case Right(_) =>
-              logger.debug(
-                s"${ctx} |Successfully deleted init bucket $bucketPath for runtime ${googleProject.value}/${runtimeName.asString} or bucket doesn't exist"
-              )
-          }
-        } yield ()
-    }
+    for {
+      ctx <- ev.ask
+      bucketPathOpt <- clusterQuery.getInitBucket(googleProject, runtimeName).transaction
+      _ <- bucketPathOpt match {
+        case None =>
+          logger.warn(ctx.loggingCtx)(
+            s"Could not lookup init bucket for runtime ${googleProject.value}/${runtimeName.asString}: cluster not in db"
+          )
+        case Some(bucketPath) =>
+          for {
+            ctx <- ev.ask
+            r <- googleStorage
+              .deleteBucket(googleProject, bucketPath.bucketName, isRecursive = true)
+              .compile
+              .lastOrError
+              .attempt
+            _ <- r match {
+              case Left(e) =>
+                logger.error(ctx.loggingCtx, e)(
+                  s"Fail to delete init bucket $bucketPath for runtime ${googleProject.value}/${runtimeName.asString}"
+                )
+              case Right(_) =>
+                logger.debug(ctx.loggingCtx)(
+                  s"Successfully deleted init bucket $bucketPath for runtime ${googleProject.value}/${runtimeName.asString} or bucket doesn't exist"
+                )
+            }
+          } yield ()
+      }
+    } yield ()
 
   private def persistInstances(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                dataprocInstances: Set[DataprocInstance]): F[Unit] =

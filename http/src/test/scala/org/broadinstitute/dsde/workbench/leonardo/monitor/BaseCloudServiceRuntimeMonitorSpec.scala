@@ -2,13 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-
 import cats.Parallel
 import cats.effect.{Async, IO, Timer}
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{GoogleStorageService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
@@ -146,7 +145,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
       override def runtimeAlg: RuntimeAlgebra[IO] = MockRuntimeAlgebra
 
-      override def logger: Logger[IO] = loggerIO
+      override def logger: StructuredLogger[IO] = loggerIO
 
       override def googleStorage: GoogleStorageService[IO] = ???
 
