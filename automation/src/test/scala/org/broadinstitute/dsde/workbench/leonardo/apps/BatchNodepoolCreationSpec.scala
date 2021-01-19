@@ -115,6 +115,7 @@ class BatchNodepoolCreationSpec
 
           // Wait until both are deleted
           // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
+          // See https://broadworkbench.atlassian.net/browse/IA-2471
           listApps = LeonardoApiClient.listApps(googleProject, true)
           implicit0(deletedDoneCheckable: DoneCheckable[List[ListAppResponse]]) = appsDeleted(Set(appName1, appName2))
           monitorDeleteResult <- streamFUntilDone(

@@ -67,6 +67,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
           // Verify the app eventually becomes Deleted
           // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
+          // See https://broadworkbench.atlassian.net/browse/IA-2471
           listApps = LeonardoApiClient.listApps(googleProject, true)
           implicit0(deletedDoneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
           monitorDeleteResult <- streamFUntilDone(
@@ -179,6 +180,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
           // Verify the app eventually becomes Deleted
           // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
+          // See https://broadworkbench.atlassian.net/browse/IA-2471
           listApps = LeonardoApiClient.listApps(googleProject, true)
           implicit0(doneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
           monitorDeleteResult <- streamFUntilDone(listApps, 120, 10 seconds).compile.lastOrError
