@@ -19,9 +19,9 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
+  FakeGoogleDataprocService,
   MockComputePollOperation,
   MockGKEService
-//  MockKubernetesService => WbLibsMockKubernetesService
 }
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
@@ -80,7 +80,6 @@ class LeoPubsubMessageSubscriberSpec
                                memberEmail: WorkbenchEmail): scala.concurrent.Future[Boolean] =
       scala.concurrent.Future.successful(true)
   }
-  val gdDAO = new MockGoogleDataprocDAO
   val storageDAO = new MockGoogleStorageDAO
   // Kubernetes doesn't actually create a new Service Account when calling googleIamDAO
   val iamDAOKubernetes = new MockGoogleIamDAO {
@@ -113,7 +112,7 @@ class LeoPubsubMessageSubscriberSpec
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
-                                                   gdDAO,
+                                                   FakeGoogleDataprocService,
                                                    FakeGoogleComputeService,
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
