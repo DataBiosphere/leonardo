@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
-import cats.effect.IO
+import cats.effect.{IO, Sync}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.gpallocProjectKey
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{
@@ -231,15 +231,27 @@ class RuntimePatchSpec extends FixtureAnyFreeSpec with LeonardoTestUtils with Le
         ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
         getRuntimeResult <- ioa
         _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
-        monitorStoppingResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(ioa, 20, 10 seconds)(
+        monitorStoppingResult <- testTimer.sleep(30 seconds) >> streamUntilDoneOrTimeout(
+          ioa,
+          30,
+          10 seconds,
+          s"Stopping ${googleProject}/${runtimeName} timed out"
+        )(
+          implicitly[Sync[IO]],
           testTimer,
           stoppingDoneCheckable
-        ).compile.lastOrError
+        )
         _ = monitorStoppingResult.status shouldBe ClusterStatus.Starting
-        monitringStartingResult <- testTimer.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
+        monitringStartingResult <- testTimer.sleep(50 seconds) >> streamUntilDoneOrTimeout(
+          ioa,
+          30,
+          10 seconds,
+          s"starting ${googleProject}/${runtimeName} timed out"
+        )(
+          implicitly[Sync[IO]],
           testTimer,
           startingDoneCheckable
-        ).compile.lastOrError
+        )
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
         _ <- IO(
           withWebDriver { implicit driver =>
