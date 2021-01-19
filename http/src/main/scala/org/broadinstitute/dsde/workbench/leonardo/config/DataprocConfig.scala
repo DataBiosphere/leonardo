@@ -1,5 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.config
-
+package org.broadinstitute.dsde.workbench.leonardo
+package config
 import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.{MemorySize, RuntimeConfig}

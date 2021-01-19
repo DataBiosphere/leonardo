@@ -1,5 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.config
-
+package org.broadinstitute.dsde.workbench.leonardo
+package config
 sealed trait LeoExecutionModeConfig extends Product with Serializable
 object LeoExecutionModeConfig {
   final case object BackLeoOnly extends LeoExecutionModeConfig

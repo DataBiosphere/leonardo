@@ -64,7 +64,6 @@ object LeonardoApiClient {
     None,
     None,
     None,
-    None,
     Set.empty,
     Map.empty
   )
@@ -85,7 +84,6 @@ object LeonardoApiClient {
         Map.empty
       )
     ),
-    None,
     None,
     None,
     None,

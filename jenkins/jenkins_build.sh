@@ -11,7 +11,7 @@ if [ "$skip_docker_build" = false ]; then
        | jq .data > dspci-wb-gcr-service-account.json
 
   ./docker/build.sh jar -d push -gr "gcr.io/broad-dsp-gcr-public" \
-      -n "us.gcr.io/broad-dsp-gcr-public" -k "dspci-wb-gcr-service-account.json"
+      -k "dspci-wb-gcr-service-account.json"
 
   # clean up
   rm -f dspci-wb-gcr-service-account.json

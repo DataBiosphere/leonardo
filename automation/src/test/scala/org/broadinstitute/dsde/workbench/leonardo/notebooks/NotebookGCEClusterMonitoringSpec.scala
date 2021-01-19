@@ -7,7 +7,6 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudio
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
-import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -56,72 +55,6 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
             notebookPage.executeCell("sum(range(1,10))") shouldBe Some("45")
           }
         }
-      }
-    }
-
-    "should update GCR welder on a cluster" taggedAs Retryable in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-      val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
-
-      // Create a cluster with older version of welder
-
-      withNewRuntime(
-        billingProject,
-        request =
-          LeonardoApiClient.defaultCreateRuntime2Request.copy(labels = Map(deployWelderLabel -> "true"),
-                                                              welderDockerImage =
-                                                                Some(LeonardoConfig.Leonardo.oldGcrWelderDockerImage))
-      ) { runtime =>
-        // Verify welder is running with old version
-        val statusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
-        statusResponse.isRight shouldBe true
-        val oldWelderHash = LeonardoConfig.Leonardo.oldWelderHash
-        statusResponse.toOption.get.gitHeadCommit should startWith(oldWelderHash)
-
-        // Stop the runtime
-        stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-
-        // Start the runtime
-        startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-
-        // Verify welder is updated and running
-        val curWelderHash = LeonardoConfig.Leonardo.curWelderHash
-        val newStatusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
-        newStatusResponse.isRight shouldBe true
-        newStatusResponse.toOption.get.gitHeadCommit should startWith(curWelderHash)
-      }
-    }
-
-    "should update DockerHub welder on a cluster" taggedAs Retryable in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-      val deployWelderLabel = "saturnVersion" // matches deployWelderLabel in Leo reference.conf
-
-      // Create a cluster with older version of welder
-
-      withNewRuntime(
-        billingProject,
-        request = LeonardoApiClient.defaultCreateRuntime2Request.copy(
-          labels = Map(deployWelderLabel -> "true"),
-          welderDockerImage = Some(LeonardoConfig.Leonardo.oldDockerHubWelderDockerImage)
-        )
-      ) { runtime =>
-        // Verify welder is running with old version
-        val statusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
-        statusResponse.isRight shouldBe true
-        val oldWelderHash = LeonardoConfig.Leonardo.oldWelderHash
-        statusResponse.toOption.get.gitHeadCommit should startWith(oldWelderHash)
-
-        // Stop the runtime
-        stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-
-        // Start the runtime
-        startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-
-        // Verify welder is updated and running
-        val curWelderHash = LeonardoConfig.Leonardo.curWelderHash
-        val newStatusResponse = Welder.getWelderStatus(runtime).attempt.unsafeRunSync()
-        newStatusResponse.isRight shouldBe true
-        newStatusResponse.toOption.get.gitHeadCommit should startWith(curWelderHash)
       }
     }
 

@@ -173,7 +173,6 @@ object RuntimeFixtureSpec {
       autopauseThreshold = None,
       defaultClientId = None,
       welderRegistry = None,
-      welderDockerImage = None,
       scopes = Set.empty,
       customEnvironmentVariables = Map.empty
     )
