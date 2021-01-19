@@ -5,6 +5,10 @@
 import os
 
 c = get_config()
+
+if os.environ.get('JUPYTER_DEBUG_LOGGING') == 'true':
+  c.Application.log_level = 'DEBUG'
+
 c.NotebookApp.ip = '0.0.0.0'
 c.NotebookApp.port = 8000
 c.NotebookApp.open_browser = False
