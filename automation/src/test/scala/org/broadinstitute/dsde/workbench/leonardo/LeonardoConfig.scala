@@ -17,14 +17,6 @@ object LeonardoConfig extends CommonConfig {
     val gatkImageUrl: String = leonardo.getString("gatkImageUrl")
     val aouImageUrl: String = leonardo.getString("aouImageUrl")
     val baseImageUrl: String = leonardo.getString("baseImageUrl")
-    val oldWelderHash: String = leonardo.getString("oldWelderHash")
-    val curWelderHash: String = leonardo.getString("curWelderHash")
-    val oldGcrWelderDockerImage: ContainerImage =
-      ContainerImage(leonardo.getString("gcrWelderUri") + ":" + oldWelderHash, ContainerRegistry.GCR)
-    val oldDockerHubWelderDockerImage: ContainerImage =
-      ContainerImage(leonardo.getString("dockerHubWelderUri") + ":" + oldWelderHash, ContainerRegistry.DockerHub)
-    val curGcrWelderDockerImage: String = leonardo.getString("gcrWelderUri") + ":" + curWelderHash
-    val curDockerHubWelderDockerImage: String = leonardo.getString("dockerHubWelderUri") + ":" + curWelderHash
     val bioconductorImageUrl: String = leonardo.getString("bioconductorImageUrl")
     val rstudioBioconductorImage =
       ContainerImage(leonardo.getString("rstudioBioconductorImageUrl"), ContainerRegistry.GCR)
