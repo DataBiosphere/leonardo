@@ -8,13 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, BatchNo
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
-import org.broadinstitute.dsde.workbench.leonardo.runtimes.{
-  RuntimeAutopauseSpec,
-  RuntimeCreationDiskSpec,
-  RuntimeDataprocSpec,
-  RuntimePatchSpec,
-  RuntimeStatusTransitionsSpec
-}
+import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
 import org.http4s.AuthScheme
@@ -188,6 +182,8 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
 
 final class LeonardoSuite
     extends Suites(
+      new BatchNodepoolCreationSpec,
+      new AppCreationSpec,
       new RuntimeCreationDiskSpec,
       new LabSpec,
       new LeoPubsubSpec,
@@ -212,15 +208,6 @@ final class LeonardoTerraDockerSuite
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
       new RStudioSpec
-    )
-    with TestSuite
-    with GPAllocBeforeAndAfterAll
-    with ParallelTestExecution
-
-final class LeonardoAppSuite
-    extends Suites(
-      new BatchNodepoolCreationSpec,
-      new AppCreationSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
