@@ -17,12 +17,16 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, 
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.scalatest.DoNotDiscover
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class RuntimePatchSpec extends GPAllocFixtureSpec with LeonardoTestUtils with NotebookTestUtils {
+class RuntimePatchSpec
+    extends GPAllocFixtureSpec
+    with ParallelTestExecution
+    with LeonardoTestUtils
+    with NotebookTestUtils {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
