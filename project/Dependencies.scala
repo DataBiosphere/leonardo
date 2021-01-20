@@ -3,8 +3,8 @@ import sbt._
 object Dependencies {
   val scalaV = "2.13"
 
-  val akkaV = "2.6.10"
-  val akkaHttpV = "10.2.2"
+  val akkaV = "2.6.11"
+  val akkaHttpV = "10.2.3"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.2"
@@ -13,9 +13,9 @@ object Dependencies {
   val http4sVersion = "0.21.15"
   val guavaV = "30.1-jre"
   val monocleV = "2.1.0"
-  val opencensusV = "0.28.2"
+  val opencensusV = "0.28.3"
 
-  private val workbenchLibsHash = "4d379e3"
+  private val workbenchLibsHash = "f0578d6"
   val serviceTestV = s"0.18-${workbenchLibsHash}"
   val workbenchModelV = s"0.14-${workbenchLibsHash}"
   val workbenchGoogleV = s"0.21-${workbenchLibsHash}"
@@ -56,7 +56,7 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.38.0"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.40.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.6.1"
 
@@ -68,7 +68,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore, excludeGoogleApiClient)
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.34.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.35.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
   val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 
@@ -105,10 +105,10 @@ object Dependencies {
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
-  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
+  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.23"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.2.2"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.3" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.5" % Test // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
@@ -159,7 +159,7 @@ object Dependencies {
     workbenchGoogleTest,
     workbenchErrorReporting,
     workbenchErrorReportingTest,
-    "com.rms.miu" %% "slick-cats" % "0.10.2",
+    "com.rms.miu" %% "slick-cats" % "0.10.4",
     googleCloudNio,
     mysql,
     liquibase,
