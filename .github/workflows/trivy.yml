@@ -1,0 +1,17 @@
+name: dsp-appsec-trivy
+on: [pull_request]
+
+jobs:
+  appsec-trivy:
+    # Parse Dockerfile and build, scan image if a "blessed" base image is not used
+    name: DSP AppSec Trivy check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      # The Dockerfile copies this, so it needs
+      # to exist for the build to succeed
+      # (even though it's not scanned)
+      - run: touch leonardo.jar
+
+      - uses: broadinstitute/dsp-appsec-trivy-action@v1
