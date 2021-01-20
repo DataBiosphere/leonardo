@@ -17,10 +17,31 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{MockGKEService, FakeGoogleDataprocService, FakeGoogleComputeService, MockComputePollOperation}
-import org.broadinstitute.dsde.workbench.google2.{Event, DiskName, MachineTypeName, GKEModels, ZoneName, GoogleDiskService, MockGoogleDiskService, OperationName, ComputePollOperation, KubernetesModels}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGoogleDataprocService,
+  MockComputePollOperation,
+  MockGKEService
+}
+import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  DiskName,
+  Event,
+  GKEModels,
+  GoogleDiskService,
+  KubernetesModels,
+  MachineTypeName,
+  MockGoogleDiskService,
+  OperationName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeNodepool, makeService, makeKubeCluster, makeApp}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
+  makeApp,
+  makeKubeCluster,
+  makeNodepool,
+  makeService
+}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGalaxyDAO, WelderDAO}
@@ -31,7 +52,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, TraceId}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.mockito.Mockito.{verify, _}
 import org.scalatest.concurrent._
@@ -874,7 +895,7 @@ class LeoPubsubMessageSubscriberSpec
     verify(mockAckConsumer, times(1)).ack()
   }
 
-  it should "error on create if app doesn't exist id1" in isolatedDbTest {
+  it should "error on create if app doesn't exist" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val disk1 = makePersistentDisk(Some(DiskName("disk1"))).save().unsafeRunSync()
@@ -1067,7 +1088,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(disk.id), Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1148,7 +1169,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(DiskId(-1)), Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1388,7 +1409,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                        makeGKEInterp = makeGKEInterp,
+                                        diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1469,7 +1492,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                        makeGKEInterp = makeGKEInterp,
+                                        diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1697,7 +1722,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       // send message twice
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
