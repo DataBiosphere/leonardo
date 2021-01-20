@@ -36,8 +36,7 @@ class RuntimeDataprocSpec
     extends GPAllocFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
-    with NotebookTestUtils
-    with GPAllocBeforeAndAfterAll {
+    with NotebookTestUtils {
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))

@@ -21,14 +21,13 @@ import org.scalatest.DoNotDiscover
 
 import scala.concurrent.duration._
 
-// extending fixture.Freespec just so we can use `taggedAs`. Not really need fixture for anything
 @DoNotDiscover
-class RuntimePatchSpec extends GPAllocFixtureSpec with LeonardoTestUtils with LeonardoTestSuite with NotebookTestUtils {
+class RuntimePatchSpec extends GPAllocFixtureSpec with LeonardoTestUtils with NotebookTestUtils {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
   //this is an end to end test of the pub/sub infrastructure
-  "Patch endpoint should perform a stop/start tranition for GCE VM" taggedAs Tags.SmokeTest in { googleProject =>
+  "Patch endpoint should perform a stop/start transition for GCE VM" taggedAs Tags.SmokeTest in { googleProject =>
     // create a new GCE runtime
     val runtimeName = randomClusterName
 
@@ -104,7 +103,7 @@ class RuntimePatchSpec extends GPAllocFixtureSpec with LeonardoTestUtils with Le
   }
 
   //this is an end to end test of the pub/sub infrastructure
-  "Patch endpoint should perform a stop/start tranition for GCE VM with PD" taggedAs Tags.SmokeTest in {
+  "Patch endpoint should perform a stop/start transition for GCE VM with PD" taggedAs Tags.SmokeTest in {
     googleProject =>
       // create a new GCE runtime
       val runtimeName = randomClusterName
@@ -175,7 +174,7 @@ class RuntimePatchSpec extends GPAllocFixtureSpec with LeonardoTestUtils with Le
       res.unsafeRunSync
   }
 
-  "Patch endpoint should perform a stop/start tranition for Dataproc cluster" taggedAs Tags.SmokeTest in {
+  "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs Tags.SmokeTest in {
     googleProject =>
       val newMasterMachineType = MachineTypeName("n1-standard-2")
       val newDiskSize = DiskSize(60)
