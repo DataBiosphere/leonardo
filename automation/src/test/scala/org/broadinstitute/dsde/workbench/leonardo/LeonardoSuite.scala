@@ -197,8 +197,6 @@ final class LeonardoSuite
       new NotebookGCEClusterMonitoringSpec,
       new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec,
-      new BatchNodepoolCreationSpec,
-      new AppCreationSpec,
       new RuntimeDataprocSpec
     )
     with TestSuite
@@ -214,6 +212,15 @@ final class LeonardoTerraDockerSuite
       new NotebookPyKernelSpec,
       new NotebookRKernelSpec,
       new RStudioSpec
+    )
+    with TestSuite
+    with GPAllocBeforeAndAfterAll
+    with ParallelTestExecution
+
+final class LeonardoAppSuite
+    extends Suites(
+      new BatchNodepoolCreationSpec,
+      new AppCreationSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
