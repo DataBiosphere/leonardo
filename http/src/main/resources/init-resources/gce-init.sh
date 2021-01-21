@@ -480,7 +480,6 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   if [ $EXIT_CODE -ne 0 ]; then
     echo "RStudio user package installation directory creation failed, creating /packages directory"
     docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c "mkdir -p ${RSTUDIO_USER_HOME}/packages && chmod a+rwx ${RSTUDIO_USER_HOME}/packages"
-    exit $EXIT_CODE
   fi
 fi
 
