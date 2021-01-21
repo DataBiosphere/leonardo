@@ -113,6 +113,8 @@ IS_GCE_FORMATTED=$(isGceFormatted)
 JUPYTER_HOME=/etc/jupyter
 JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
 JUPYTER_USER_HOME=/home/jupyter-user
+RSTUDIO_SCRIPTS=/etc/rstudio/scripts
+RSTUDIO_USER_HOME=/home/rstudio
 KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
@@ -146,9 +148,6 @@ if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
 fi
 mount -o discard,defaults /dev/${DISK_DEVICE_ID} /work
-# Directory to store user installed packages so they persist
-mkdir -p /work/packages
-chmod a+rwx /work/packages
 # Ensure persistent disk re-mounts if runtime stops and restarts
 cp /etc/fstab /etc/fstab.backup
 echo UUID=`blkid -s UUID -o value /dev/${DISK_DEVICE_ID}` /work ext4 discard,defaults,nofail 0 2 | tee -a /etc/fstab
@@ -294,6 +293,10 @@ STEP_TIMINGS+=($(date +%s))
 # Jupyter-specific setup, only do if Jupyter is installed
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   log 'Installing Jupydocker kernelspecs...'
+
+  # user package installation directory
+  mkdir -p /work/packages
+  chmod a+rwx /work/packages
 
   # Used to pip install packacges
   # TODO: update this if we upgrade python version
@@ -468,6 +471,16 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # done start Jupyter
   STEP_TIMINGS+=($(date +%s))
+fi
+
+# RStudio specific setup; only do if RStudio is installed
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  EXIT_CODE=0
+  retry 3 docker exec ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/set_up_package_dir.sh || EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "RStudio user package installation directory creation failed, creating /packages directory"
+    docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c "mkdir -p ${RSTUDIO_USER_HOME}/packages && chmod a+rwx ${RSTUDIO_USER_HOME}/packages"
+  fi
 fi
 
 # Remove any unneeded cached images to save disk space.
