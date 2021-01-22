@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import com.typesafe.scalalogging.LazyLogging
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
@@ -24,7 +25,7 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
+class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
   cs: ContextShift[IO],
   metrics: OpenTelemetryMetrics[IO]
@@ -37,22 +38,71 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
 
           corsSupport.corsHandler {
 
-            // "apps" proxy routes
-            pathPrefix("google" / "v1" / "apps") {
-              pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
-                (googleProject, appName, serviceName) =>
-                  (extractRequest & extractUserInfo) { (request, userInfo) =>
-                    logRequestResultForMetrics(userInfo) {
-                      complete {
-                        proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
+            refererHandler {
+              // "apps" proxy routes
+              pathPrefix("google" / "v1" / "apps") {
+                pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
+                  (googleProject, appName, serviceName) =>
+                    (extractRequest & extractUserInfo) { (request, userInfo) =>
+                      logRequestResultForMetrics(userInfo) {
+                        complete {
+                          proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
+                        }
+                      }
+                    }
+                }
+              } ~
+                // "runtimes" proxy routes
+                pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
+                  // Note the setCookie route exists at the top-level /proxy/setCookie as well
+                  path("setCookie") {
+                    extractUserInfoFromHeader { userInfoOpt =>
+                      get {
+                        val cookieDirective = userInfoOpt match {
+                          case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
+                          case None           => CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName)
+                        }
+                        cookieDirective {
+                          complete {
+                            setCookieHandler(userInfoOpt)
+                          }
+                        }
+                      }
+                    }
+                  } ~
+                    pathPrefix("jupyter" / "terminals") {
+                      pathSuffix(terminalNameSegment) { terminalName =>
+                        (extractRequest & extractUserInfo) { (request, userInfo) =>
+                          logRequestResultForMetrics(userInfo) {
+                            complete {
+                              openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
+                            }
+                          }
+                        }
+                      }
+                    } ~
+                    (extractRequest & extractUserInfo) { (request, userInfo) =>
+                      logRequestResultForMetrics(userInfo) {
+                        // Proxy logic handled by the ProxyService class
+                        // Note ProxyService calls the LeoAuthProvider internally
+                        complete {
+                          proxyRuntimeHandler(userInfo, googleProject, runtimeName, request)
+                        }
+                      }
+                    }
+                } ~
+                // Top-level routes
+                path("invalidateToken") {
+                  get {
+                    extractUserInfoOpt { userInfoOpt =>
+                      CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
+                        complete {
+                          invalidateTokenHandler(userInfoOpt)
+                        }
                       }
                     }
                   }
-              }
-            } ~
-              // "runtimes" proxy routes
-              pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
-                // Note the setCookie route exists at the top-level /proxy/setCookie as well
+                } ~
                 path("setCookie") {
                   extractUserInfoFromHeader { userInfoOpt =>
                     get {
@@ -67,55 +117,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
                       }
                     }
                   }
-                } ~
-                  pathPrefix("jupyter" / "terminals") {
-                    pathSuffix(terminalNameSegment) { terminalName =>
-                      (extractRequest & extractUserInfo) { (request, userInfo) =>
-                        logRequestResultForMetrics(userInfo) {
-                          complete {
-                            openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
-                          }
-                        }
-                      }
-                    }
-                  } ~
-                  (extractRequest & extractUserInfo) { (request, userInfo) =>
-                    logRequestResultForMetrics(userInfo) {
-                      // Proxy logic handled by the ProxyService class
-                      // Note ProxyService calls the LeoAuthProvider internally
-                      complete {
-                        proxyRuntimeHandler(userInfo, googleProject, runtimeName, request)
-                      }
-                    }
-                  }
-              } ~
-              // Top-level routes
-              path("invalidateToken") {
-                get {
-                  extractUserInfoOpt { userInfoOpt =>
-                    CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
-                      complete {
-                        invalidateTokenHandler(userInfoOpt)
-                      }
-                    }
-                  }
                 }
-              } ~
-              path("setCookie") {
-                extractUserInfoFromHeader { userInfoOpt =>
-                  get {
-                    val cookieDirective = userInfoOpt match {
-                      case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
-                      case None           => CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName)
-                    }
-                    cookieDirective {
-                      complete {
-                        setCookieHandler(userInfoOpt)
-                      }
-                    }
-                  }
-                }
-              }
+            }
           }
         }
       }
@@ -248,4 +251,25 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)
+
+  private[api] def refererHandler: Directive0 =
+    if (refererConfig.enabled) {
+      optionalHeaderValueByType(Upgrade) flatMap {
+        case Some(upgrade) if upgrade.hasWebSocket => pass
+        case _                                     => checkReferer
+      }
+    } else {
+      pass
+    }
+
+  private[api] def checkReferer: Directive0 =
+    optionalHeaderValueByType(Referer) flatMap {
+      case Some(referer) => {
+        if (refererConfig.validHosts.contains(referer.uri.authority.toString())) pass
+        else failWith(AuthenticationError())
+      }
+      case None => {
+        failWith(AuthenticationError())
+      }
+    }
 }

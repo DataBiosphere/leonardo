@@ -258,6 +258,14 @@ object Config {
       )
     }
 
+  implicit private val refererConfigReader: ValueReader[RefererConfig] =
+    ValueReader.relative { config =>
+      RefererConfig(
+        config.as[Set[String]]("validHosts"),
+        config.as[Boolean]("enabled")
+      )
+    }
+
   implicit private val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
     SwaggerConfig(
       config.getString("googleClientId"),
@@ -440,6 +448,7 @@ object Config {
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
+  val refererConfig = config.as[RefererConfig]("refererConfig")
 
   implicit private val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
     config =>

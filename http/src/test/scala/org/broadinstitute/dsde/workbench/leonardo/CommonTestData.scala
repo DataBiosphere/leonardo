@@ -116,6 +116,7 @@ object CommonTestData {
   val proxyUrlBase = proxyConfig.proxyUrlBase
   val clusterBucketConfig = Config.clusterBucketConfig
   val contentSecurityPolicy = Config.contentSecurityPolicy
+  val refererConfig = Config.refererConfig
   val leoKubernetesConfig = Config.leoKubernetesConfig
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
@@ -138,6 +139,8 @@ object CommonTestData {
   val tokenName = "LeoToken"
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
+
+  val validRefererUri = "http://example.com/this/is/a/test"
 
   val networkName = NetworkName("default")
   val subNetworkName = SubnetworkName("default")
