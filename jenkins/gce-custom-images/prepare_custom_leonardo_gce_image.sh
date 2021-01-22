@@ -30,7 +30,7 @@ terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.0.20"
 
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:4d380f2"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
-anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.9"
+anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.10"
 
 # Not replaced by Jenkins. If you change this you must also change Leo reference.conf!
 cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.1"
