@@ -21,7 +21,7 @@ services:
       - /usr/lib/hadoop-mapreduce:/usr/lib/hadoop-mapreduce
       - /usr/lib/hadoop-yarn:/usr/lib/hadoop-yarn
       - /usr/lib/hive:/usr/lib/hive
-      - /usr/lig/pig:/usr/lib/pig
+      - /usr/lib/pig:/usr/lib/pig
       - /etc/hadoop:/etc/hadoop
       - /usr/lib/spark:/usr/lib/spark
       - /etc/spark:/etc/spark
