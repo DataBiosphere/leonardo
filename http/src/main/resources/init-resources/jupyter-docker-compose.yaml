@@ -30,6 +30,7 @@ services:
       - /usr/bin/hadoop:/usr/bin/hadoop
       - /usr/bin/spark-submit:/usr/bin/spark-submit
       - /usr/bin/yarn:/usr/bin/yarn
+      - /usr/bin/pig:/usr/bin/pig
       - /hadoop:/hadoop
       - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
       - /usr/local/share/google/dataproc:/usr/local/share/google/dataproc
