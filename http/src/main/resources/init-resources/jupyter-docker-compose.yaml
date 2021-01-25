@@ -21,6 +21,7 @@ services:
       - /usr/lib/hadoop-mapreduce:/usr/lib/hadoop-mapreduce
       - /usr/lib/hadoop-yarn:/usr/lib/hadoop-yarn
       - /usr/lib/hive:/usr/lib/hive
+      - /usr/lib/pig:/usr/lib/pig
       - /etc/hadoop:/etc/hadoop
       - /usr/lib/spark:/usr/lib/spark
       - /etc/spark:/etc/spark
@@ -30,6 +31,7 @@ services:
       - /usr/bin/hadoop:/usr/bin/hadoop
       - /usr/bin/spark-submit:/usr/bin/spark-submit
       - /usr/bin/yarn:/usr/bin/yarn
+      - /usr/bin/pig:/usr/bin/pig
       - /hadoop:/hadoop
       - /hadoop_gcs_connector_metadata_cache:/hadoop_gcs_connector_metadata_cache
       - /usr/local/share/google/dataproc:/usr/local/share/google/dataproc
