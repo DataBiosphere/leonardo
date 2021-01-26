@@ -63,7 +63,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
                            imageConfig,
                            autoFreezeConfig,
-                           Config.zombieRuntimeMonitorConfig,
                            dataprocConfig,
                            Config.gceConfig),
       Config.persistentDiskConfig,
