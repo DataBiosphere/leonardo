@@ -129,6 +129,29 @@ object CommonTestData {
     properties = Map.empty
   )
 
+  val testClusterRequest = CreateRuntimeRequest(
+    Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
+    None,
+    None,
+    None,
+    false,
+    Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
+    Some(true),
+    Some(30),
+    Some("ThisIsADefaultClientID")
+  )
+  val testClusterRequestWithExtensionAndScript = CreateRuntimeRequest(
+    Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
+    Some(jupyterUserScriptUri),
+    Some(jupyterStartUserScriptUri),
+    None,
+    false,
+    Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
+    None,
+    Some(30),
+    Some("ThisIsADefaultClientID")
+  )
+
   val mockSamDAO = new MockSamDAO
   val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 
@@ -219,7 +242,6 @@ object CommonTestData {
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
-      stopAfterCreation = false,
       allowStop = false,
       runtimeImages = Set(jupyterImage, welderImage),
       scopes = defaultScopes,
@@ -253,7 +275,6 @@ object CommonTestData {
       Some(UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://bucket-name/extension"))),
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = Some("clientId"),
-    stopAfterCreation = false,
     allowStop = false,
     runtimeImages = Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage),
     scopes = defaultScopes,
@@ -279,7 +300,6 @@ object CommonTestData {
       Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = Some("clientId"),
-    stopAfterCreation = false,
     initBucket = Some(initBucketName.value),
     serviceAccountInfo = serviceAccount,
     stagingBucket = Some(stagingBucketName.value),

@@ -115,7 +115,7 @@ object AutomationTestJsonCodec {
     Decoder.decodeString.map(s => ClusterStatus.withNameIgnoreCase(s))
 
   implicit val clusterDecoder: Decoder[ClusterCopy] =
-    Decoder.forProduct13[ClusterCopy,
+    Decoder.forProduct12[ClusterCopy,
                          RuntimeName,
                          GoogleProject,
                          WorkbenchEmail,
@@ -126,7 +126,6 @@ object AutomationTestJsonCodec {
                          Option[GcsBucketName],
                          Option[List[RuntimeError]],
                          Instant,
-                         Boolean,
                          Int,
                          Boolean](
       "clusterName",
@@ -139,11 +138,10 @@ object AutomationTestJsonCodec {
       "stagingBucket",
       "errors",
       "dateAccessed",
-      "stopAfterCreation",
       "autopauseThreshold",
       "patchInProgress"
-    ) { (cn, gp, sa, mc, status, c, l, sb, e, da, sc, at, pip) =>
-      ClusterCopy(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, sc, at, pip)
+    ) { (cn, gp, sa, mc, status, c, l, sb, e, da, at, pip) =>
+      ClusterCopy(cn, gp, sa, mc, status, c, l, sb, e.getOrElse(List.empty), da, at, pip)
     }
 
   implicit val listRuntimeResponseCopyDecoder: Decoder[ListRuntimeResponseCopy] = Decoder.forProduct9(

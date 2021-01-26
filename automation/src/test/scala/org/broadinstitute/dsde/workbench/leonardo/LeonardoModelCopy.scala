@@ -21,7 +21,6 @@ case class ClusterCopy(clusterName: RuntimeName,
                        stagingBucket: Option[GcsBucketName],
                        errors: List[RuntimeError],
                        dateAccessed: Instant,
-                       stopAfterCreation: Boolean,
                        autopauseThreshold: Int,
                        patchInProgress: Boolean) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
@@ -40,7 +39,6 @@ object ClusterCopy {
       getRuntimeResponse.asyncRuntimeFields.map(_.stagingBucket),
       getRuntimeResponse.errors,
       getRuntimeResponse.auditInfo.dateAccessed,
-      false,
       getRuntimeResponse.autopauseThreshold,
       false
     )
@@ -78,7 +76,6 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           jupyterStartUserScriptUri: Option[String] = None,
                           machineConfig: Option[RuntimeConfigRequestCopy] = None,
                           properties: Map[String, String] = Map(),
-                          stopAfterCreation: Option[Boolean] = None,
                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig] = None,
                           autopause: Option[Boolean] = None,
                           autopauseThreshold: Option[Int] = None,

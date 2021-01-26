@@ -589,6 +589,56 @@ object HttpRoutesSpec {
     )
   )
 
+  implicit val getClusterResponseDecoder: Decoder[GetRuntimeResponse] = Decoder.instance { x =>
+    for {
+      id <- x.downField("id").as[Long]
+      clusterName <- x.downField("runtimeName").as[RuntimeName]
+      googleProject <- x.downField("googleProject").as[GoogleProject]
+      serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
+      asyncRuntimeFields <- x.downField("asyncRuntimeFields").as[Option[AsyncRuntimeFields]]
+      auditInfo <- x.downField("auditInfo").as[AuditInfo]
+      kernelFoundBusyDate <- x.downField("kernelFoundBusyDate").as[Option[Instant]]
+      runtimeConfig <- x.downField("runtimeConfig").as[RuntimeConfig]
+      clusterUrl <- x.downField("proxyUrl").as[URL]
+      status <- x.downField("status").as[RuntimeStatus]
+      labels <- x.downField("labels").as[LabelMap]
+      jupyterUserScriptUri <- x.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
+      jupyterStartUserScriptUri <- x.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
+      errors <- x.downField("errors").as[List[RuntimeError]]
+      userJupyterExtensionConfig <- x.downField("userJupyterExtensionConfig").as[Option[UserJupyterExtensionConfig]]
+      autopauseThreshold <- x.downField("autopauseThreshold").as[Int]
+      defaultClientId <- x.downField("defaultClientId").as[Option[String]]
+      clusterImages <- x.downField("runtimeImages").as[Set[RuntimeImage]]
+      scopes <- x.downField("scopes").as[Set[String]]
+    } yield GetRuntimeResponse(
+      id,
+      RuntimeSamResourceId(""),
+      clusterName,
+      googleProject,
+      serviceAccount,
+      asyncRuntimeFields,
+      auditInfo,
+      kernelFoundBusyDate,
+      runtimeConfig,
+      clusterUrl,
+      status,
+      labels,
+      jupyterUserScriptUri,
+      jupyterStartUserScriptUri,
+      errors,
+      Set.empty, // Dataproc instances
+      userJupyterExtensionConfig,
+      autopauseThreshold,
+      defaultClientId,
+      clusterImages,
+      scopes,
+      true,
+      false,
+      Map.empty,
+      None
+    )
+  }
+
   implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse2] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]

@@ -42,7 +42,6 @@ final case class ClusterRecord(id: Long,
                                stagingBucket: Option[String],
                                autopauseThreshold: Int,
                                defaultClientId: Option[String],
-                               stopAfterCreation: Boolean,
                                welderEnabled: Boolean,
                                customClusterEnvironmentVariables: Map[String, String],
                                runtimeConfigId: RuntimeConfigId,
@@ -71,7 +70,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def autopauseThreshold = column[Int]("autopauseThreshold")
   def kernelFoundBusyDate = column[Option[Instant]]("kernelFoundBusyDate", O.SqlType("TIMESTAMP(6)"))
   def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
-  def stopAfterCreation = column[Boolean]("stopAfterCreation")
   def welderEnabled = column[Boolean]("welderEnabled")
   def runtimeConfigId = column[RuntimeConfigId]("runtimeConfigId")
   def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
@@ -102,7 +100,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       stagingBucket,
       autopauseThreshold,
       defaultClientId,
-      stopAfterCreation,
       welderEnabled,
       customClusterEnvironmentVariables,
       runtimeConfigId,
@@ -125,7 +122,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             stagingBucket,
             autopauseThreshold,
             defaultClientId,
-            stopAfterCreation,
             welderEnabled,
             customClusterEnvironmentVariables,
             runtimeConfigId,
@@ -153,7 +149,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           stagingBucket,
           autopauseThreshold,
           defaultClientId,
-          stopAfterCreation,
           welderEnabled,
           customClusterEnvironmentVariables.getOrElse(Map.empty),
           runtimeConfigId,
@@ -185,7 +180,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.stagingBucket,
           c.autopauseThreshold,
           c.defaultClientId,
-          c.stopAfterCreation,
           c.welderEnabled,
           if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables),
           c.runtimeConfigId,
@@ -618,7 +612,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.asyncRuntimeFields.map(_.stagingBucket.value),
       runtime.autopauseThreshold,
       runtime.defaultClientId,
-      runtime.stopAfterCreation,
       runtime.welderEnabled,
       runtime.customEnvironmentVariables,
       runtime.runtimeConfigId,
@@ -769,7 +762,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
       clusterRecord.autopauseThreshold,
       clusterRecord.defaultClientId,
-      clusterRecord.stopAfterCreation,
       false,
       clusterImages,
       scopeQuery.unmarshallScopes(scopes),
