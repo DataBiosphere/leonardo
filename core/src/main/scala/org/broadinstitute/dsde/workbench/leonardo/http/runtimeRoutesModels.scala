@@ -153,3 +153,14 @@ object GetRuntimeResponse {
     diskConfig
   )
 }
+
+final case class ListRuntimeResponse2(id: Long,
+                                      samResource: RuntimeSamResourceId,
+                                      clusterName: RuntimeName,
+                                      googleProject: GoogleProject,
+                                      auditInfo: AuditInfo,
+                                      runtimeConfig: RuntimeConfig,
+                                      proxyUrl: URL,
+                                      status: RuntimeStatus,
+                                      labels: LabelMap,
+                                      patchInProgress: Boolean)

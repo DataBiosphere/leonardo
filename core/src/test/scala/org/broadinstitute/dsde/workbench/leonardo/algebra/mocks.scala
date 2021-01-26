@@ -1,0 +1,116 @@
+package org.broadinstitute.dsde.workbench.leonardo
+package algebra
+
+import cats.effect.IO
+import cats.mtl.Ask
+import com.google.auth.Credentials
+import com.google.cloud.storage.Blob
+import com.google.cloud.storage.Storage.BucketSourceOption
+import fs2.Stream
+import org.broadinstitute.dsde.workbench.RetryConfig
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.PodName
+import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
+import org.broadinstitute.dsde.workbench.google2.{
+  Event,
+  GKEModels,
+  GcsBlobName,
+  GetMetadataResponse,
+  GoogleSubscriber,
+  KubernetesModels
+}
+import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+
+object FakeGoogleStorageService extends BaseFakeGoogleStorage {
+  override def getObjectMetadata(bucketName: GcsBucketName,
+                                 blobName: GcsBlobName,
+                                 traceId: Option[TraceId],
+                                 retryConfig: RetryConfig): fs2.Stream[IO, GetMetadataResponse] =
+    fs2.Stream.empty.covary[IO]
+
+  override def getBlob(bucketName: GcsBucketName,
+                       blobName: GcsBlobName,
+                       credentials: scala.Option[Credentials],
+                       traceId: Option[TraceId],
+                       retryConfig: RetryConfig): fs2.Stream[IO, Blob] =
+    bucketName match {
+      case GcsBucketName("nonExistent") => fs2.Stream.empty
+      case GcsBucketName("failure") =>
+        super.createBlob(bucketName, blobName, Array.empty[Byte], "text/plain", Map("passed" -> "false")) >> super
+          .getBlob(bucketName, blobName)
+      case GcsBucketName("success") =>
+        super.createBlob(bucketName, blobName, Array.empty[Byte], "text/plain", Map("passed" -> "true")) >> super
+          .getBlob(bucketName, blobName)
+      case GcsBucketName("staging_bucket") =>
+        if (blobName.value == "failed_userstartupscript_output.txt")
+          super.createBlob(bucketName, blobName, Array.empty[Byte], "text/plain", Map("passed" -> "false")) >> super
+            .getBlob(bucketName, blobName)
+        else
+          super.createBlob(bucketName, blobName, Array.empty[Byte], "text/plain", Map("passed" -> "true")) >> super
+            .getBlob(bucketName, blobName)
+      case _ => super.getBlob(bucketName, blobName, None, traceId)
+    }
+}
+
+object NoDeleteGoogleStorage extends BaseFakeGoogleStorage {
+  override def deleteBucket(googleProject: GoogleProject,
+                            bucketName: GcsBucketName,
+                            isRecursive: Boolean,
+                            bucketSourceOptions: List[BucketSourceOption],
+                            traceId: Option[TraceId],
+                            retryConfig: RetryConfig): fs2.Stream[IO, Boolean] =
+    throw new Exception("this shouldn't get called")
+}
+
+class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
+  def messages: Stream[IO, Event[A]] = Stream.empty
+  // If you use `start`, make sure to hook up `messages` somewhere as well on the same instance for consuming the messages; Otherwise, messages will be left nacked
+  def start: IO[Unit] = IO.unit
+  def stop: IO[Unit] = IO.unit
+}
+
+class MockKubernetesService(podStatus: PodStatus = PodStatus.Running)
+    extends org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService {
+
+  override def listPodStatus(clusterId: GKEModels.KubernetesClusterId, namespace: KubernetesModels.KubernetesNamespace)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[List[KubernetesModels.KubernetesPodStatus]] =
+    IO(List(KubernetesPodStatus.apply(PodName("test"), podStatus)))
+
+}
+
+class MockGKEService extends GKEAlgebra[IO] {
+
+  /** Creates a GKE cluster but doesn't wait for its completion. */
+  override def createCluster(params: CreateClusterParams)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[Option[CreateClusterResult]] = IO.pure(None)
+
+  /**
+   * Polls a creating GKE cluster for its completion and also does other cluster-wide set-up like
+   * install nginx ingress controller.
+   */
+  override def pollCluster(params: PollClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Creates a GKE nodepool but doesn't wait for its completion. */
+  override def createAndPollNodepool(params: CreateNodepoolParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Creates an app and polls it for completion. */
+  override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Deletes a cluster and polls for completion */
+  override def deleteAndPollCluster(params: DeleteClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Deletes a nodepool and polls for completion */
+  override def deleteAndPollNodepool(params: DeleteNodepoolParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Deletes an app and polls for completion */
+  override def deleteAndPollApp(params: DeleteAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Stops an app and polls for completion */
+  override def stopAndPollApp(params: StopAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+
+  /** Starts an app and polls for completion */
+  override def startAndPollApp(params: StartAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+}

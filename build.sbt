@@ -5,13 +5,19 @@ lazy val root = project.in(file("."))
   .settings(
     name := "leonardo",
     skip in publish := true
-  ).aggregate(core, http, automation)
+  ).aggregate(core, http, automation, subscriber)
 
 lazy val core = project.in(file("core"))
   .settings(coreSettings)
 
 lazy val http = project.in(file("http"))
   .settings(httpSettings)
+  .dependsOn(core % "test->test;compile->compile")
+  .dependsOn(subscriber % "test->test;compile->compile")
+  .withTestSettings
+
+lazy val subscriber = project.in(file("subscriber"))
+  .settings(subscriberSettings)
   .dependsOn(core % "test->test;compile->compile")
   .withTestSettings
 

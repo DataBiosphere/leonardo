@@ -3,7 +3,6 @@ package http
 package api
 
 import java.io.ByteArrayInputStream
-
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -18,11 +17,11 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleStorageInterpreter,
   MockComputePollOperation
 }
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{leonaroBaseUrl => _, _}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockJupyterDAO, MockWelderDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.MockDiskServiceInterp
@@ -32,6 +31,9 @@ import org.scalactic.source.Position
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Seconds, Span}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{serviceAccountProvider, whitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.algebra.{MockSamDAO, VPCInterpreter}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 
 import scala.concurrent.duration._
 import scala.util.matching.Regex
@@ -44,8 +46,8 @@ trait TestLeoRoutes {
     val mockGoogleDirectoryDAOPatience = PatienceConfig(timeout = scaled(Span(30, Seconds)))
     val dao = new MockGoogleDirectoryDAO()
     dao
-      .createGroup(Config.googleGroupsConfig.dataprocImageProjectGroupName,
-                   Config.googleGroupsConfig.dataprocImageProjectGroupEmail,
+      .createGroup(googleGroupsConfig.dataprocImageProjectGroupName,
+                   googleGroupsConfig.dataprocImageProjectGroupEmail,
                    Option(dao.lockedDownGroupSettings))
       .futureValue(mockGoogleDirectoryDAOPatience, Position.here)
     dao
@@ -67,15 +69,15 @@ trait TestLeoRoutes {
   }
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val bucketHelperConfig =
-    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
+    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, securityFilesConfig, clusterResourcesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                          FakeGoogleResourceService,
                                          FakeGoogleComputeService,
                                          new MockComputePollOperation)
-  val dataprocInterp =
-    new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
+  def dataprocInterp(implicit dbRef: DbReference[IO]) =
+    new DataprocInterpreter[IO](dataprocInterpreterConfig,
                                 bucketHelper,
                                 vpcInterp,
                                 FakeGoogleDataprocService,
@@ -86,38 +88,41 @@ trait TestLeoRoutes {
                                 FakeGoogleResourceService,
                                 MockWelderDAO,
                                 blocker)
-  val gceInterp =
-    new GceInterpreter[IO](Config.gceInterpreterConfig,
+  def gceInterp(implicit dbRef: DbReference[IO]) =
+    new GceInterpreter[IO](gceInterpreterConfig,
                            bucketHelper,
                            vpcInterp,
                            FakeGoogleComputeService,
                            MockGoogleDiskService,
                            MockWelderDAO,
                            blocker)
-  val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
+  def runtimeInstances(implicit dbRef: DbReference[IO]) = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
-  val leoKubernetesService: LeoKubernetesServiceInterp[IO] = new LeoKubernetesServiceInterp[IO](
-    whitelistAuthProvider,
-    serviceAccountProvider,
-    Config.leoKubernetesConfig,
-    QueueFactory.makePublisherQueue()
-  )
+  def leoKubernetesService(implicit dbRef: DbReference[IO]): LeoKubernetesServiceInterp[IO] =
+    new LeoKubernetesServiceInterp[IO](
+      whitelistAuthProvider,
+      serviceAccountProvider,
+      Config.leoKubernetesConfig,
+      QueueFactory.makePublisherQueue()
+    )
 
-  val runtimeDnsCache = new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, blocker)
-  val kubernetesDnsCache = new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, blocker)
+  def runtimeDnsCache(implicit dbRef: DbReference[IO]) =
+    new RuntimeDnsCache[IO](proxyConfig, dbRef, Config.runtimeDnsCacheConfig, blocker)
+  def kubernetesDnsCache(implicit dbRef: DbReference[IO]) =
+    new KubernetesDnsCache[IO](proxyConfig, dbRef, Config.kubernetesDnsCacheConfig, blocker)
 
-  val proxyService =
+  def proxyService(implicit dbRef: DbReference[IO]) =
     new MockProxyService(proxyConfig,
                          MockJupyterDAO,
                          whitelistAuthProvider,
                          runtimeDnsCache,
                          kubernetesDnsCache,
                          MockGoogleOAuth2Service)
-  val statusService =
-    new StatusService(mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
+  def statusService(implicit dbRef: DbReference[IO]) =
+    new StatusService(new MockSamDAO, dbRef, pollInterval = 1 second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
   val corsSupport = new CorsSupport(contentSecurityPolicy)
-  val statusRoutes = new StatusRoutes(statusService)
+  def statusRoutes(statusService: StatusService) = new StatusRoutes(statusService)
   val userInfoDirectives = new MockUserInfoDirectives {
     override val userInfo: UserInfo = defaultUserInfo
   }
@@ -125,8 +130,8 @@ trait TestLeoRoutes {
     override val userInfo: UserInfo = timedUserInfo
   }
 
-  val runtimeService = new RuntimeServiceInterp(
-    RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
+  def runtimeService(implicit dbRef: DbReference[IO]) = new RuntimeServiceInterp(
+    RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase.asString,
                          imageConfig,
                          autoFreezeConfig,
                          dataprocConfig,
@@ -141,7 +146,7 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue()
   )
 
-  val httpRoutes = new HttpRoutes(
+  def httpRoutes(proxyService: ProxyService = null)(implicit dbRef: DbReference[IO]) = new HttpRoutes(
     swaggerConfig,
     statusService,
     proxyService,
@@ -151,14 +156,15 @@ trait TestLeoRoutes {
     userInfoDirectives,
     contentSecurityPolicy
   )
-  val timedHttpRoutes = new HttpRoutes(swaggerConfig,
-                                       statusService,
-                                       proxyService,
-                                       runtimeService,
-                                       MockDiskServiceInterp,
-                                       leoKubernetesService,
-                                       timedUserInfoDirectives,
-                                       contentSecurityPolicy)
+  def timedHttpRoutes(implicit dbRef: DbReference[IO]) =
+    new HttpRoutes(swaggerConfig,
+                   statusService,
+                   proxyService,
+                   runtimeService,
+                   MockDiskServiceInterp,
+                   leoKubernetesService,
+                   timedUserInfoDirectives,
+                   contentSecurityPolicy)
 
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r

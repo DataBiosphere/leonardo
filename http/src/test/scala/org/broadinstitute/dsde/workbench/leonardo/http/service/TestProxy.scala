@@ -15,7 +15,6 @@ import akka.http.scaladsl.testkit.RouteTest
 import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
 import org.scalatest.concurrent.ScalaFutures
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._

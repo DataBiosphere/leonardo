@@ -3,7 +3,6 @@ package monitor
 
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
@@ -18,8 +17,8 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, userScriptStartupOutputUriMetadataKey}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, DbReference, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.http.{userScriptStartupOutputUriMetadataKey, MockAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model
@@ -28,6 +27,8 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectN
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterServiceAccountFromProject
+import org.broadinstitute.dsde.workbench.leonardo.algebra.FakeGoogleStorageService
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
@@ -60,7 +61,7 @@ class GceRuntimeMonitorSpec
     )
     .build()
 
-  "validateUserScript" should "validate user script properly" in {
+  "validateUserScript" should "validate user script properly" in isolatedDbTest { implicit dbRef =>
     val monitor = gceRuntimeMonitor()
     val sucessUserScript = GcsPath(GcsBucketName("success"), GcsObjectName("object_output"))
     val failureUserScript = GcsPath(GcsBucketName("failure"), GcsObjectName("object_output"))
@@ -101,7 +102,7 @@ class GceRuntimeMonitorSpec
     res.unsafeRunSync
   }
 
-  "validateUserStartupScript" should "validate user startup script properly" in {
+  "validateUserStartupScript" should "validate user startup script properly" in isolatedDbTest { implicit dbRef =>
     val monitor = gceRuntimeMonitor()
     val sucessUserScript = GcsPath(GcsBucketName("success"), GcsObjectName("object_output"))
     val failureUserScript = GcsPath(GcsBucketName("failure"), GcsObjectName("object_output"))
@@ -142,7 +143,7 @@ class GceRuntimeMonitorSpec
     res.unsafeRunSync
   }
 
-  it should "check whether user script has failed correctly" in {
+  it should "check whether user script has failed correctly" in isolatedDbTest { implicit dbRef =>
     val monitor = gceRuntimeMonitor()
     monitor
       .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("failure"), GcsObjectName("")))
@@ -160,7 +161,7 @@ class GceRuntimeMonitorSpec
   }
 
   // process, Creating
-  "process" should "fail Creating if user script failed" in isolatedDbTest {
+  "process" should "fail Creating if user script failed" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("failure"))),
@@ -193,7 +194,7 @@ class GceRuntimeMonitorSpec
   }
 
   // process, Creating
-  it should "fail Creating if user startup script failed" in isolatedDbTest {
+  it should "fail Creating if user startup script failed" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
@@ -247,82 +248,84 @@ class GceRuntimeMonitorSpec
 
   // process, Creating
   it should "will check again if instance still exists when trying to Creating one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Creating
-    )
+    implicit dbRef =>
+      val runtime = makeCluster(1).copy(
+        serviceAccount = clusterServiceAccountFromProject(project).get,
+        asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+        status = RuntimeStatus.Creating
+      )
 
-    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
-      ): IO[Option[Instance]] = {
-        val beforeInstance = None
-        val runningInstance = readyInstance
+      def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
+        override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+          implicit ev: Ask[IO, TraceId]
+        ): IO[Option[Instance]] = {
+          val beforeInstance = None
+          val runningInstance = readyInstance
 
-        for {
-          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if (now - start < 5000)
-            IO.pure(beforeInstance)
-          else IO.pure(Some(runningInstance))
-        } yield res
+          for {
+            now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
+            res <- if (now - start < 5000)
+              IO.pure(beforeInstance)
+            else IO.pure(Some(runningInstance))
+          } yield res
+        }
       }
-    }
 
-    val res = for {
-      start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
-      savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
-      afterMonitor <- nowInstant
-      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
-    } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
-      status shouldBe Some(RuntimeStatus.Running)
-    }
+      val res = for {
+        start <- nowInstant[IO]
+        monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
+        savedRuntime <- IO(runtime.save())
+        _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
+        afterMonitor <- nowInstant
+        status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
+      } yield {
+        (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
+        status shouldBe Some(RuntimeStatus.Running)
+      }
 
-    res.unsafeRunSync()
+      res.unsafeRunSync()
   }
 
   // process, Starting
   it should "will check again if instance still exists when trying to Starting one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Starting
-    )
+    implicit dbRef =>
+      val runtime = makeCluster(1).copy(
+        serviceAccount = clusterServiceAccountFromProject(project).get,
+        asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+        status = RuntimeStatus.Starting
+      )
 
-    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
-      ): IO[Option[Instance]] = {
-        val beforeInstance = Instance.newBuilder().setStatus("TERMINATED").build()
+      def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
+        override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+          implicit ev: Ask[IO, TraceId]
+        ): IO[Option[Instance]] = {
+          val beforeInstance = Instance.newBuilder().setStatus("TERMINATED").build()
 
-        for {
-          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
-          res <- if (now - start < 5000)
-            IO.pure(Some(beforeInstance))
-          else IO.pure(Some(readyInstance))
-        } yield res
+          for {
+            now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
+            res <- if (now - start < 5000)
+              IO.pure(Some(beforeInstance))
+            else IO.pure(Some(readyInstance))
+          } yield res
+        }
       }
-    }
 
-    val res = for {
-      start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
-      savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
-      afterMonitor <- nowInstant
-      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
-    } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
-      status shouldBe Some(RuntimeStatus.Running)
-    }
+      val res = for {
+        start <- nowInstant[IO]
+        monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
+        savedRuntime <- IO(runtime.save())
+        _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
+        afterMonitor <- nowInstant
+        status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
+      } yield {
+        (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
+        status shouldBe Some(RuntimeStatus.Running)
+      }
 
-    res.unsafeRunSync()
+      res.unsafeRunSync()
   }
 
-  it should "fail Starting if user startup script failed" in isolatedDbTest {
+  it should "fail Starting if user startup script failed" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
@@ -375,7 +378,7 @@ class GceRuntimeMonitorSpec
   }
 
   // process
-  it should "exit monitor if status is not monitored" in isolatedDbTest {
+  it should "exit monitor if status is not monitored" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -398,7 +401,7 @@ class GceRuntimeMonitorSpec
   }
 
   // process, Stopping
-  it should "error when trying to Stop an instance that doesn't exist in GCP" in isolatedDbTest {
+  it should "error when trying to Stop an instance that doesn't exist in GCP" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -422,63 +425,65 @@ class GceRuntimeMonitorSpec
 
   // process, Stopping
   it should "update runtime status appropriately when successfully stopped an instance" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Stopping
-    )
+    implicit dbRef =>
+      val runtime = makeCluster(1).copy(
+        serviceAccount = clusterServiceAccountFromProject(project).get,
+        asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+        status = RuntimeStatus.Stopping
+      )
 
-    val computeService = new FakeGoogleComputeService {
-      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-        implicit ev: Ask[IO, TraceId]
-      ): IO[Option[Instance]] = {
-        val instance = Instance.newBuilder().setStatus("Terminated").build()
-        IO.pure(Some(instance))
+      val computeService = new FakeGoogleComputeService {
+        override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+          implicit ev: Ask[IO, TraceId]
+        ): IO[Option[Instance]] = {
+          val instance = Instance.newBuilder().setStatus("Terminated").build()
+          IO.pure(Some(instance))
+        }
       }
-    }
-    val monitor = gceRuntimeMonitor(googleComputeService = computeService)
-    val savedRuntime = runtime.save()
-    val res = for {
-      now <- nowInstant[IO]
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
-      afterMonitor <- nowInstant
-      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
-    } yield {
-      (afterMonitor.toEpochMilli - now.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
-      status shouldBe (Some(RuntimeStatus.Stopped))
-    }
+      val monitor = gceRuntimeMonitor(googleComputeService = computeService)
+      val savedRuntime = runtime.save()
+      val res = for {
+        now <- nowInstant[IO]
+        _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
+        afterMonitor <- nowInstant
+        status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
+      } yield {
+        (afterMonitor.toEpochMilli - now.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after initial check
+        status shouldBe (Some(RuntimeStatus.Stopped))
+      }
 
-    res.unsafeRunSync()
+      res.unsafeRunSync()
   }
 
   // process, Stopping
   it should "will check again if instance is not terminated yet when trying to stop one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Stopping
-    )
-
-    val res = for {
-      start <- nowInstant[IO]
-      monitor = gceRuntimeMonitor(
-        googleComputeService =
-          computeService(start.toEpochMilli, Some(GceInstanceStatus.Running), Some(GceInstanceStatus.Terminated))
+    implicit dbRef =>
+      val runtime = makeCluster(1).copy(
+        serviceAccount = clusterServiceAccountFromProject(project).get,
+        asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+        status = RuntimeStatus.Stopping
       )
-      savedRuntime <- IO(runtime.save())
-      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
-      afterMonitor <- nowInstant
-      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
-    } yield {
-      (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
-      status shouldBe Some(RuntimeStatus.Stopped)
-    }
 
-    res.unsafeRunSync()
+      val res = for {
+        start <- nowInstant[IO]
+        monitor = gceRuntimeMonitor(
+          googleComputeService =
+            computeService(start.toEpochMilli, Some(GceInstanceStatus.Running), Some(GceInstanceStatus.Terminated))
+        )
+        savedRuntime <- IO(runtime.save())
+        _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
+        afterMonitor <- nowInstant
+        status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
+      } yield {
+        (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
+        status shouldBe Some(RuntimeStatus.Stopped)
+      }
+
+      res.unsafeRunSync()
   }
 
   // process, Deleting
-  it should "delete runtime successfully when instance doesn't exist in GCP" in isolatedDbTest {
+  it should "delete runtime successfully when instance doesn't exist in GCP" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -501,7 +506,7 @@ class GceRuntimeMonitorSpec
   }
 
   // process, Deleting
-  it should "will check again if instance still exists when trying to delete one" in isolatedDbTest {
+  it should "will check again if instance still exists when trying to delete one" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -540,7 +545,7 @@ class GceRuntimeMonitorSpec
   }
 
   //pollCheck, Deleting
-  "pollCheck" should "raise error if we get invalid monitoring status" in {
+  "pollCheck" should "raise error if we get invalid monitoring status" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -566,7 +571,7 @@ class GceRuntimeMonitorSpec
     res.unsafeRunSync()
   }
 
-  it should "set runtime to PreDeleting if Stopping is interrupted by Deleting" in isolatedDbTest {
+  it should "set runtime to PreDeleting if Stopping is interrupted by Deleting" in isolatedDbTest { implicit dbRef =>
     val op = Operation.newBuilder().setId("op").setName("opName").setTargetId("target").setStatus("PENDING").build()
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopping).saveWithRuntimeConfig(gceRuntimeConfig))
@@ -595,7 +600,7 @@ class GceRuntimeMonitorSpec
     res.unsafeRunSync()
   }
 
-  it should "monitor Deleting successfully" in {
+  it should "monitor Deleting successfully" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(2).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(2)),
@@ -641,7 +646,7 @@ class GceRuntimeMonitorSpec
   }
 
   //pollCheck Deleting
-  it should "fail if reaches pollCheckMaxAttempts" in isolatedDbTest {
+  it should "fail if reaches pollCheckMaxAttempts" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(2).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(2)),
@@ -684,7 +689,7 @@ class GceRuntimeMonitorSpec
     googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
     computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
-  ): GceRuntimeMonitor[IO] = {
+  )(implicit dbRef: DbReference[IO]): GceRuntimeMonitor[IO] = {
     val config =
       Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollingInterval = 1 seconds, pollCheckMaxAttempts = 5)
     new GceRuntimeMonitor[IO](

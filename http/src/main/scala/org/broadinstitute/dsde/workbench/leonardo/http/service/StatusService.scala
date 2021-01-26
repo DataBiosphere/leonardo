@@ -2,69 +2,96 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.util.UUID
-
-import akka.actor.ActorSystem
-import akka.pattern.ask
-import akka.util.Timeout
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Timer}
 import cats.mtl.Ask
 import cats.syntax.all._
+import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
-import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
+import org.broadinstitute.dsde.workbench.leonardo.algebra.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.util.health.HealthMonitor.GetCurrentStatus
+import org.broadinstitute.dsde.workbench.util.health.HealthMonitor.UnknownStatus
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse, SubsystemStatus}
 
+import scala.collection.mutable
+import java.util.UUID
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
 
 class StatusService(
   samDAO: SamDAO[IO],
   dbRef: DbReference[IO],
-  applicationConfig: ApplicationConfig,
   initialDelay: FiniteDuration = Duration.Zero,
   pollInterval: FiniteDuration = 1 minute
-)(implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO], cs: ContextShift[IO]) {
-  implicit val askTimeout = Timeout(5.seconds)
-  import dbRef._
+)(implicit timer: Timer[IO], logger: Logger[IO], cs: ContextShift[IO]) {
+  val defaultStaleThreshold = 15 minutes
 
-  private val healthMonitor =
-    system.actorOf(HealthMonitor.props(Set(Sam, Database))(() => checkStatus()))
-  system.scheduler.scheduleWithFixedDelay(initialDelay, pollInterval, healthMonitor, HealthMonitor.CheckAll)
+  val subsystems = List(Sam, Database)
 
-  def getStatus(): Future[StatusCheckResponse] =
-    (healthMonitor ? GetCurrentStatus).asInstanceOf[Future[StatusCheckResponse]]
+  val data: mutable.Map[Subsystem, (SubsystemStatus, Long)] = {
+    val now = System.currentTimeMillis
+    val builder = mutable.Map.newBuilder[Subsystem, (SubsystemStatus, Long)]
+    builder.addAll(subsystems.map(s => (s -> (UnknownStatus -> now))))
+    builder.result()
+  }
 
-  private def checkStatus(): Map[Subsystem, Future[SubsystemStatus]] =
-    Map(
-      Sam -> checkSam.unsafeToFuture(),
-      Database -> checkDatabase
-    ).map(logFailures.tupled)
+  val process: Stream[IO, Unit] = Stream.sleep[IO](initialDelay) ++
+    (Stream.sleep[IO](pollInterval) ++ Stream.eval(
+      checkAll()
+        .handleErrorWith(e => logger.error(e)("Unexpected error occurred during status checking monitoring"))
+    )).repeat
+
+  private def checkAll(): IO[Unit] =
+    subsystems.traverse { system =>
+      for {
+        status <- system match {
+          case Sam      => logFailures(Sam, checkSam)
+          case Database => logFailures(Database, checkDatabase)
+          case x =>
+            throw new RuntimeException(
+              s"this should never happen. Leonardo should only check Sam, and Database for status checks (${x} is invalid subsystem)"
+            )
+        }
+        now <- nowInstant
+        _ <- IO(data.addOne(system -> (status -> now.toEpochMilli)))
+      } yield ()
+
+    }.void
+
+  def getStatus(): IO[StatusCheckResponse] =
+    for {
+      now <- nowInstant
+    } yield {
+      val processed = data.view.mapValues {
+        case (_, t) if now.toEpochMilli - t > defaultStaleThreshold.toMillis => UnknownStatus
+        case (status, _)                                                     => status
+      }.toMap //toMap is needed for scala 2.13
+      // overall status is ok iff all subsystems are ok
+      val overall = processed.forall(_._2.ok)
+      StatusCheckResponse(overall, processed)
+    }
 
   // Logs warnings if a subsystem status check fails
-  def logFailures: (Subsystem, Future[SubsystemStatus]) => (Subsystem, Future[SubsystemStatus]) =
-    (subsystem, statusFuture) =>
-      subsystem -> statusFuture.attempt.flatMap {
-        case Right(status) if !status.ok =>
-          logger.warn(s"Subsystem [$subsystem] reported error status: $status").unsafeToFuture() >> Future.successful(
-            status
-          )
+  def logFailures(subsystem: Subsystem, subsysmteStatus: IO[SubsystemStatus]): IO[SubsystemStatus] =
+    subsysmteStatus.attempt.flatMap {
+      case Right(status) if !status.ok =>
+        logger.warn(s"Subsystem [$subsystem] reported error status: $status") >> IO.pure(
+          status
+        )
 
-        case Right(s) =>
-          logger.debug(s"Subsystem [$subsystem] is OK").unsafeToFuture() >> Future.successful(s)
-        case Left(e) =>
-          logger.warn(s"Failure checking status for subsystem [$subsystem]: ${e.getMessage}").unsafeToFuture() >> Future
-            .failed(e)
-      }
+      case Right(s) =>
+        logger.debug(s"Subsystem [$subsystem] is OK") >> IO.pure(s)
+      case Left(e) =>
+        logger
+          .warn(e)(s"Failure checking status for subsystem [$subsystem]: ${e.getMessage}") >> IO.raiseError(e)
+    }
 
-  private def checkDatabase: Future[SubsystemStatus] = {
-    logger.debug("Checking database connection").unsafeToFuture()
-    inTransaction(dataAccess.sqlDBStatus()).map(_ => HealthMonitor.OkStatus).unsafeToFuture()
-  }
+  private def checkDatabase: IO[SubsystemStatus] =
+    logger.debug("Checking database connection") >>
+      dbRef.dataAccess
+        .sqlDBStatus()
+        .transaction(dbRef)
+        .as(HealthMonitor.OkStatus)
 
   private def checkSam: IO[SubsystemStatus] = {
     implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))

@@ -21,9 +21,9 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -31,6 +31,9 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.serviceAccountProvider
+import org.broadinstitute.dsde.workbench.leonardo.algebra.{FakeGoogleStorageService, VPCInterpreter}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -53,7 +56,7 @@ class DataprocInterpreterSpec
   val testClusterClusterProjectAndName = RuntimeProjectAndName(testCluster.googleProject, testCluster.runtimeName)
 
   val bucketHelperConfig =
-    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
+    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, securityFilesConfig, clusterResourcesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
 
@@ -67,29 +70,30 @@ class DataprocInterpreterSpec
                                          FakeGoogleComputeService,
                                          new MockComputePollOperation)
 
-  val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
-                                                   bucketHelper,
-                                                   vpcInterp,
-                                                   FakeGoogleDataprocService,
-                                                   FakeGoogleComputeService,
-                                                   MockGoogleDiskService,
-                                                   mockGoogleDirectoryDAO,
-                                                   mockGoogleIamDAO,
-                                                   mockGoogleResourceService,
-                                                   MockWelderDAO,
-                                                   blocker)
+  def dataprocInterp(implicit dbRef: DbReference[IO]) =
+    new DataprocInterpreter[IO](dataprocInterpreterConfig,
+                                bucketHelper,
+                                vpcInterp,
+                                FakeGoogleDataprocService,
+                                FakeGoogleComputeService,
+                                MockGoogleDiskService,
+                                mockGoogleDirectoryDAO,
+                                mockGoogleIamDAO,
+                                mockGoogleResourceService,
+                                MockWelderDAO,
+                                blocker)
 
   override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
     mockGoogleDirectoryDAO
       .createGroup(
-        Config.googleGroupsConfig.dataprocImageProjectGroupName,
-        Config.googleGroupsConfig.dataprocImageProjectGroupEmail,
+        googleGroupsConfig.dataprocImageProjectGroupName,
+        googleGroupsConfig.dataprocImageProjectGroupEmail,
         Option(mockGoogleDirectoryDAO.lockedDownGroupSettings)
       )
       .futureValue
 
-  "DataprocInterpreter" should "create a google cluster" in isolatedDbTest {
+  "DataprocInterpreter" should "create a google cluster" in isolatedDbTest { implicit dbRef =>
     val clusterCreationRes =
       dataprocInterp
         .createRuntime(
@@ -118,7 +122,7 @@ class DataprocInterpreterSpec
     clusterCreationRes.serviceAccountKey shouldBe None
   }
 
-  it should "be able to determine appropriate custom dataproc image" in isolatedDbTest {
+  it should "be able to determine appropriate custom dataproc image" in isolatedDbTest { implicit dbRef =>
     val cluster = LeoLenses.runtimeToRuntimeImages
       .modify(_ =>
         Set(
@@ -160,10 +164,10 @@ class DataprocInterpreterSpec
     resForLegacyImage.customImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
   }
 
-  it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
+  it should "retry 409 errors when adding IAM roles" in isolatedDbTest { implicit dbRef =>
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)
-    val erroredDataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
+    val erroredDataprocInterp = new DataprocInterpreter[IO](dataprocInterpreterConfig,
                                                             bucketHelper,
                                                             vpcInterp,
                                                             FakeGoogleDataprocService,
@@ -193,7 +197,7 @@ class DataprocInterpreterSpec
     erroredIamDAO.invocationCount should be > 2
   }
 
-  it should "calculate cluster resource constraints" in isolatedDbTest {
+  it should "calculate cluster resource constraints" in isolatedDbTest { implicit dbRef =>
     val runtimeConfig = RuntimeConfig.DataprocConfig(0,
                                                      MachineTypeName("n1-standard-4"),
                                                      DiskSize(500),

@@ -7,11 +7,12 @@ import cats.effect.IO
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.serviceAccountProvider
+import org.broadinstitute.dsde.workbench.leonardo.algebra.MockSamDAO
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._

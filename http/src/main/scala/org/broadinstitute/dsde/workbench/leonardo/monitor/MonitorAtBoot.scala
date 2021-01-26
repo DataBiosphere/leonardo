@@ -233,12 +233,5 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
     }
 }
 
-final case class RuntimeToMonitor(
-  id: Long,
-  cloudService: CloudService,
-  status: RuntimeStatus,
-  patchInProgress: Boolean
-)
-
 final case class MonitorAtBootException(msg: String, traceId: TraceId)
     extends Exception(s"MonitorAtBoot: $msg | trace id: ${traceId.asString}")

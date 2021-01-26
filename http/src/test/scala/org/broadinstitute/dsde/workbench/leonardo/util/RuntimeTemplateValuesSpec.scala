@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -11,11 +12,11 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       CommonTestData.testCluster,
       Some(CommonTestData.initBucketName),
       None,
-      CommonTestData.imageConfig,
-      CommonTestData.welderConfig,
-      CommonTestData.proxyConfig,
-      CommonTestData.clusterFilesConfig,
-      CommonTestData.clusterResourcesConfig,
+      Config.imageConfig,
+      Config.welderConfig,
+      Config.proxyConfig,
+      Config.securityFilesConfig,
+      Config.clusterResourcesConfig,
       Some(CommonTestData.clusterResourceConstraints),
       RuntimeOperation.Restarting,
       Some(WelderAction.UpdateWelder),

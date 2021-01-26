@@ -1,9 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import enumeratum.{Enum, EnumEntry}
+import monocle.Lens
+import monocle.macros.GenLens
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
+import java.time.Instant
 
 final case class PersistentDisk(id: DiskId,
                                 googleProject: GoogleProject,
@@ -20,6 +24,10 @@ final case class PersistentDisk(id: DiskId,
                                 formattedBy: Option[FormattedBy],
                                 labels: LabelMap) {
   def projectNameString: String = s"${googleProject.value}/${name.value}"
+}
+
+object PersistentDisk {
+  val destroyedDateLens: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
 }
 
 final case class DiskId(value: Long) extends AnyVal

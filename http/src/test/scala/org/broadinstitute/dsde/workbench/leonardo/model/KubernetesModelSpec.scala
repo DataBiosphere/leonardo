@@ -13,7 +13,7 @@ class KubernetesModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
   "App" should "generate valid proxy urls" in {
     val services = (1 to 3).map(makeService).toList
     val app = LeoLenses.appToServices.modify(_ => services)(testApp)
-    app.getProxyUrls(project, proxyUrlBase) shouldBe Map(
+    app.getProxyUrls(project, proxyUrlBase.asString) shouldBe Map(
       ServiceName("service1") -> new URL(
         s"https://leo/proxy/google/v1/apps/${project.value}/${app.appName.value}/service1"
       ),

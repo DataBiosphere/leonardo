@@ -13,7 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.http.MockRuntimeAlgebra
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
@@ -27,21 +27,22 @@ import scala.concurrent.duration._
 
 class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with TestComponent with LeonardoTestSuite {
   it should "terminate monitoring process if cluster status is changed in the middle of it" in isolatedDbTest {
-    val runtimeMonitor = baseRuntimeMonitor(true)
+    implicit dbRef =>
+      val runtimeMonitor = baseRuntimeMonitor(true)
 
-    val res = for {
-      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
-      s1 = runtimeMonitor.process(runtime.id, RuntimeStatus.Creating)
-      s2 = Stream.sleep(2 seconds) ++ Stream.eval(
-        clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleting, Instant.now()).transaction
-      )
-      // run s1 and s2 concurrently. s1 will run indefinitely if s2 doesn't happen. So by validating the combined Stream terminate, we verify s1 is terminated due to unexpected status change for the runtime
-      _ <- Stream(s1, s2).parJoin(2).compile.drain.timeout(10 seconds)
-    } yield succeed
-    res.unsafeRunSync()
+      val res = for {
+        runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
+        s1 = runtimeMonitor.process(runtime.id, RuntimeStatus.Creating)
+        s2 = Stream.sleep(2 seconds) ++ Stream.eval(
+          clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleting, Instant.now()).transaction
+        )
+        // run s1 and s2 concurrently. s1 will run indefinitely if s2 doesn't happen. So by validating the combined Stream terminate, we verify s1 is terminated due to unexpected status change for the runtime
+        _ <- Stream(s1, s2).parJoin(2).compile.drain.timeout(10 seconds)
+      } yield succeed
+      res.unsafeRunSync()
   }
 
-  "handleCheckTools" should "move to Running status if all tools are ready" in isolatedDbTest {
+  "handleCheckTools" should "move to Running status if all tools are ready" in isolatedDbTest { implicit dbRef =>
     val runtimeMonitor = baseRuntimeMonitor(true)
 
     val res = for {
@@ -66,7 +67,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     res.unsafeRunSync()
   }
 
-  it should "move to failed status if tools are not ready" in isolatedDbTest {
+  it should "move to failed status if tools are not ready" in isolatedDbTest { implicit dbRef =>
     val runtimeMonitor = baseRuntimeMonitor(false)
 
     val res = for {
@@ -90,38 +91,41 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
   }
 
   it should "not move to failed status if tools are not ready and runtime is Deleted" in isolatedDbTest {
-    val runtimeMonitor = baseRuntimeMonitor(false)
+    implicit dbRef =>
+      val runtimeMonitor = baseRuntimeMonitor(false)
 
-    val res = for {
-      start <- nowInstant
-      tid <- traceId.ask[TraceId]
-      implicit0(ec: ExecutionContext) = global
-      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
-      monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
+      val res = for {
+        start <- nowInstant
+        tid <- traceId.ask[TraceId]
+        implicit0(ec: ExecutionContext) = global
+        runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
+        runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
+        monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
 
-      runCheckTools = Stream.eval(
-        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
-      )
-      deleteRuntime = Stream.sleep(2 seconds) ++ Stream.eval(
-        clusterQuery.completeDeletion(runtime.id, start).transaction
-      )
-      // run above tasks concurrently and wait for both to terminate
-      _ <- Stream(runCheckTools, deleteRuntime).parJoin(2).compile.drain.timeout(15 seconds)
+        runCheckTools = Stream.eval(
+          runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
+        )
+        deleteRuntime = Stream.sleep(2 seconds) ++ Stream.eval(
+          clusterQuery.completeDeletion(runtime.id, start).transaction
+        )
+        // run above tasks concurrently and wait for both to terminate
+        _ <- Stream(runCheckTools, deleteRuntime).parJoin(2).compile.drain.timeout(15 seconds)
 
-      end <- nowInstant
-      elapsed = end.toEpochMilli - start.toEpochMilli
-      status <- clusterQuery.getClusterStatus(runtime.id).transaction
-    } yield {
-      // handleCheckTools should have timed out after 10 seconds and the runtime should remain in Deleted status
-      elapsed should be >= 10000L
-      status shouldBe Some(RuntimeStatus.Deleted)
-    }
+        end <- nowInstant
+        elapsed = end.toEpochMilli - start.toEpochMilli
+        status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      } yield {
+        // handleCheckTools should have timed out after 10 seconds and the runtime should remain in Deleted status
+        elapsed should be >= 10000L
+        status shouldBe Some(RuntimeStatus.Deleted)
+      }
 
-    res.unsafeRunSync()
+      res.unsafeRunSync()
   }
 
-  def baseRuntimeMonitor(isWelderReady: Boolean): BaseCloudServiceRuntimeMonitor[IO] =
+  def baseRuntimeMonitor(
+    isWelderReady: Boolean
+  )(implicit testDbRef: DbReference[IO]): BaseCloudServiceRuntimeMonitor[IO] =
     new BaseCloudServiceRuntimeMonitor[IO] {
       implicit override def F: Async[IO] = IO.ioConcurrentEffect(cs)
 

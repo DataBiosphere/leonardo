@@ -3,7 +3,6 @@ package monitor
 
 import java.time.Instant
 import java.util.concurrent.TimeoutException
-
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
@@ -13,7 +12,7 @@ import cats.mtl.Ask
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.{DoneCheckable}
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
@@ -30,15 +29,26 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.algebra.{
+  AppNotFoundException,
+  CreateAppParams,
+  CreateClusterParams,
+  CreateNodepoolParams,
+  DeleteAppParams,
+  DeleteClusterParams,
+  GKEInterpreter,
+  PollClusterParams,
+  StartAppParams,
+  StopAppParams
+}
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.http.{cloudServiceSyntax, _}
-import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoException}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchException}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -1088,7 +1098,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       case Some(diskId) =>
         for {
           ctx <- ev.ask
-          _ <- logger.info(s"Beginning disk creation for app ${msg.appName} | trace id: ${ctx.traceId}")
+          _ <- logger.info(ctx.loggingCtx)(s"Beginning disk creation for app ${msg.appName}")
           diskOpt <- persistentDiskQuery.getById(diskId).transaction
           disk <- F.fromOption(
             diskOpt,
@@ -1104,7 +1114,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- logger.error(e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")
       errorMessage = e match {
         case leoEx: LeoException =>
-          Some(ErrorReport.loggableString(leoEx.toErrorReport))
+          Some(leoEx.getMessage)
         case ee: com.google.api.gax.rpc.AbortedException
             if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
           None //this could happen when pubsub redelivers an event unexpectedly

@@ -106,6 +106,12 @@ object Settings {
     //we don't really use it for anything but we might when we publish our model
   ) ++ commonAssemblySettings ++ versionSettings
 
+  val subscriberSettings = commonSettings ++ commonTestSettings ++ List(
+    libraryDependencies ++= subscriberDependencies
+    //the version is applied in versionSettings and is set to 0.1-githash.
+    //we don't really use it for anything but we might when we publish our model
+  ) ++ commonAssemblySettings ++ versionSettings
+
   val automationSettings = commonSettings ++ List(
     libraryDependencies ++= automationDependencies,
     dependencyOverrides += Dependencies.guava,
@@ -139,7 +145,7 @@ object Settings {
      * In not-forked mode: test classes are run in parallel in different threads, in same sbt jvm.
      * In forked mode: each test class runs tests in sequential order, in a separated jvm.
      */
-    Test / parallelExecution := true,
+    Test / parallelExecution := false,
 
     /**
       * disable sbt's log buffering

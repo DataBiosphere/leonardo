@@ -7,8 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{galaxyChar
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageSubscriberConfig,
-  PersistentDiskMonitorConfig,
-  PollMonitorConfig
+  PersistentDiskMonitorConfig
 }
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers

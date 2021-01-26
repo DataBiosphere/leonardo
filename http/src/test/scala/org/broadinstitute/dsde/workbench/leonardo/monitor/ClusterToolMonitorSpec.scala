@@ -6,10 +6,11 @@ import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao._
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeContainerServiceType, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.clusterToolMonitorConfig
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
@@ -48,25 +49,25 @@ class ClusterToolMonitorSpec
                                            welderEnabled = true,
                                            runtimeImages = Set(rstudioImage, welderImage))
 
-  it should "report all services are up normally" in isolatedDbTest {
+  it should "report all services are up normally" in isolatedDbTest { implicit dbRef =>
     welderEnabledCluster.save()
     welderDisabledCluster.save()
     notRunningCluster.save()
     rstudioCluster.save()
 
     withServiceActor() { (_, mockNewRelic) =>
-      Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
+      Thread.sleep(clusterToolMonitorConfig.pollPeriod.toMillis * 3)
       RuntimeContainerServiceType.values.foreach { service =>
         verify(mockNewRelic, never()).incrementCounter(service.toString + "Down", 1)
       }
     }
   }
 
-  it should "report services are down for a Jupyter image" in isolatedDbTest {
+  it should "report services are down for a Jupyter image" in isolatedDbTest { implicit dbRef =>
     welderEnabledCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) { (_, metrics) =>
-      eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
+      eventually(timeout(clusterToolMonitorConfig.pollPeriod * 4)) {
         //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
         //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
         verify(metrics, times(3)).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
@@ -82,12 +83,12 @@ class ClusterToolMonitorSpec
     }
   }
 
-  it should "report services are down for a RStudio image" in isolatedDbTest {
+  it should "report services are down for a RStudio image" in isolatedDbTest { implicit dbRef =>
     rstudioCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), rstudioDAO = new MockRStudioDAO(false)) {
       (_, mockNewRelic) =>
-        eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
+        eventually(timeout(clusterToolMonitorConfig.pollPeriod * 4)) {
           //the second parameter is needed because of something scala does under the covers that mockito does not like to handle the fact we omit the predefined param count from our incrementCounterIO call.
           //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
           verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.eq("RStudioServiceDown"),
@@ -103,18 +104,18 @@ class ClusterToolMonitorSpec
     }
   }
 
-  it should "report welder as OK when it is disabled while jupyter is down" in isolatedDbTest {
+  it should "report welder as OK when it is disabled while jupyter is down" in isolatedDbTest { implicit dbRef =>
     welderDisabledCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
       (_, mockNewRelic) =>
-        eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
+        eventually(timeout(clusterToolMonitorConfig.pollPeriod * 4)) {
           verify(mockNewRelic, times(3)).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
                                                           ArgumentMatchers.anyLong(),
                                                           ArgumentMatchers.any[Map[String, String]])
         }
 
-        val res = testTimer.sleep(clusterToolConfig.pollPeriod) >> IO(
+        val res = testTimer.sleep(clusterToolMonitorConfig.pollPeriod) >> IO(
           verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
                                                          ArgumentMatchers.anyLong(),
                                                          ArgumentMatchers.any[Map[String, String]])
@@ -123,12 +124,12 @@ class ClusterToolMonitorSpec
     }
   }
 
-  it should "not check a non-active cluster" in isolatedDbTest {
+  it should "not check a non-active cluster" in isolatedDbTest { implicit dbRef =>
     notRunningCluster.save()
 
     withServiceActor(welderDAO = new MockWelderDAO(false), jupyterDAO = new MockJupyterDAO(false)) {
       (_, mockNewRelic) =>
-        Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
+        Thread.sleep(clusterToolMonitorConfig.pollPeriod.toMillis * 3)
         verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
                                                        ArgumentMatchers.anyLong(),
                                                        ArgumentMatchers.any[Map[String, String]])
@@ -143,11 +144,11 @@ class ClusterToolMonitorSpec
     welderDAO: WelderDAO[IO] = new MockWelderDAO(),
     jupyterDAO: JupyterDAO[IO] = new MockJupyterDAO(),
     rstudioDAO: RStudioDAO[IO] = new MockRStudioDAO()
-  )(testCode: (ActorRef, OpenTelemetryMetrics[IO]) => T): T = {
+  )(testCode: (ActorRef, OpenTelemetryMetrics[IO]) => T)(implicit dbRef: DbReference[IO]): T = {
     implicit def clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDAO, welderDAO, rstudioDAO)
 
     val actor = system.actorOf(
-      ClusterToolMonitor.props(clusterToolConfig, testDbRef, metrics)
+      ClusterToolMonitor.props(clusterToolMonitorConfig, dbRef, metrics)
     )
     val testResult = Try(testCode(actor, metrics))
 

@@ -4,7 +4,6 @@ package service
 
 import java.time.Instant
 import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
@@ -18,14 +17,14 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.algebra.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
+import org.broadinstitute.dsde.workbench.leonardo.algebra.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.Release
@@ -174,7 +173,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
       else
         log.info(s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404") >> F
           .raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
-    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
+    } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase.asString)
 
   override def listApp(
     userInfo: UserInfo,
@@ -210,7 +209,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
               )
             }
             .filterNot(_.nodepools.isEmpty)
-            .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase))
+            .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase.asString))
             .toVector
       }
     } yield res
@@ -558,11 +557,6 @@ object LeoKubernetesServiceInterp {
                                  galaxyAppConfig: GalaxyAppConfig,
                                  diskConfig: PersistentDiskConfig)
 }
-case class AppNotFoundException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
-    extends LeoException(
-      s"App ${googleProject.value}/${appName.value} not found. Trace ID: ${traceId.asString}",
-      StatusCodes.NotFound
-    )
 
 case class AppAlreadyExistsException(googleProject: GoogleProject,
                                      appName: AppName,

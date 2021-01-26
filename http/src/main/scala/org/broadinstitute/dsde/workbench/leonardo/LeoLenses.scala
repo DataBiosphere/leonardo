@@ -9,16 +9,12 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 
-import java.time.Instant
-
 object LeoLenses {
   val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)
 
   val runtimeToAuditInfo: Lens[Runtime, AuditInfo] = GenLens[Runtime](_.auditInfo)
 
   val runtimeToCreator: Lens[Runtime, WorkbenchEmail] = GenLens[Runtime](_.auditInfo.creator)
-
-  val runtimeToRuntimeConfigId: Lens[Runtime, RuntimeConfigId] = GenLens[Runtime](_.runtimeConfigId)
 
   val runtimeAndRuntimeConfigToRuntime: Lens[RuntimeAndRuntimeConfig, Runtime] =
     GenLens[RuntimeAndRuntimeConfig](_.runtime)
@@ -33,8 +29,6 @@ object LeoLenses {
 
   val statusRuntimeAndRuntimeConfig: Lens[RuntimeAndRuntimeConfig, RuntimeStatus] =
     GenLens[RuntimeAndRuntimeConfig](x => x.runtime.status)
-
-  val diskToDestroyedDate: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
 
   val diskToCreator: Lens[PersistentDisk, WorkbenchEmail] = GenLens[PersistentDisk](_.auditInfo.creator)
 

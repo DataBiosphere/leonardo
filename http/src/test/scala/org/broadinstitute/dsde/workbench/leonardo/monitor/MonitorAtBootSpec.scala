@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   NodepoolStatus,
   RuntimeStatus
 }
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, TestComponent}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.scalatest.Assertions
@@ -48,7 +48,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       }
     )
 
-  it should "recover RuntimeStatus.Stopping properly" in isolatedDbTest {
+  it should "recover RuntimeStatus.Stopping properly" in isolatedDbTest { implicit dbRef =>
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -61,7 +61,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()
   }
 
-  it should "recover RuntimeStatus.Deleting properly" in isolatedDbTest {
+  it should "recover RuntimeStatus.Deleting properly" in isolatedDbTest { implicit dbRef =>
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -74,7 +74,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()
   }
 
-  it should "recover RuntimeStatus.Starting properly" in isolatedDbTest {
+  it should "recover RuntimeStatus.Starting properly" in isolatedDbTest { implicit dbRef =>
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -87,7 +87,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()
   }
 
-  it should "recover RuntimeStatus.Creating properly" in isolatedDbTest {
+  it should "recover RuntimeStatus.Creating properly" in isolatedDbTest { implicit dbRef =>
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -108,36 +108,37 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
   }
 
   it should "recover AppStatus.Provisioning properly with cluster and nodepool creation" in isolatedDbTest {
-    val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
-      monitorAtBoot = createMonitorAtBoot(queue)
-      cluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Provisioning).save())
-      nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Provisioning).save())
-      defaultNodepool = cluster.nodepools.find(_.isDefault).get
-      disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
-      app = makeApp(1, nodepool.id).copy(status = AppStatus.Provisioning)
-      appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
-      savedApp <- IO(appWithDisk.save())
-      _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
-    } yield {
-      val expected = CreateAppMessage(
-        cluster.googleProject,
-        Some(CreateClusterAndNodepool(cluster.id, defaultNodepool.id, nodepool.id)),
-        savedApp.id,
-        savedApp.appName,
-        Some(disk.id),
-        Map.empty,
-        AppType.Galaxy,
-        savedApp.appResources.namespace.name,
-        None
-      )
-      (msg eqv Some(expected)) shouldBe true
-    }
-    res.unsafeRunSync()
+    implicit dbRef =>
+      val res = for {
+        queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+        monitorAtBoot = createMonitorAtBoot(queue)
+        cluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Provisioning).save())
+        nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Provisioning).save())
+        defaultNodepool = cluster.nodepools.find(_.isDefault).get
+        disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
+        app = makeApp(1, nodepool.id).copy(status = AppStatus.Provisioning)
+        appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
+        savedApp <- IO(appWithDisk.save())
+        _ <- monitorAtBoot.process.take(1).compile.drain
+        msg <- queue.tryDequeue1
+      } yield {
+        val expected = CreateAppMessage(
+          cluster.googleProject,
+          Some(CreateClusterAndNodepool(cluster.id, defaultNodepool.id, nodepool.id)),
+          savedApp.id,
+          savedApp.appName,
+          Some(disk.id),
+          Map.empty,
+          AppType.Galaxy,
+          savedApp.appResources.namespace.name,
+          None
+        )
+        (msg eqv Some(expected)) shouldBe true
+      }
+      res.unsafeRunSync()
   }
 
-  it should "recover AppStatus.Provisioning properly with nodepool creation" in isolatedDbTest {
+  it should "recover AppStatus.Provisioning properly with nodepool creation" in isolatedDbTest { implicit dbRef =>
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -166,7 +167,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()
   }
 
-  it should "recover AppStatus.Provisioning properly" in isolatedDbTest {
+  it should "recover AppStatus.Provisioning properly" in isolatedDbTest { implicit dbRef =>
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -195,7 +196,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()
   }
 
-  it should "recover AppStatus.Deleting properly" in isolatedDbTest {
+  it should "recover AppStatus.Deleting properly" in isolatedDbTest { implicit dbRef =>
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -220,7 +221,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     res.unsafeRunSync()
   }
 
-  it should "ignore non-monitored apps" in isolatedDbTest {
+  it should "ignore non-monitored apps" in isolatedDbTest { implicit dbRef =>
     val res = for {
       queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
@@ -240,6 +241,6 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
 
   def createMonitorAtBoot(
     queue: InspectableQueue[IO, LeoPubsubMessage] = InspectableQueue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync
-  ): MonitorAtBoot[IO] =
+  )(implicit dbRef: DbReference[IO]): MonitorAtBoot[IO] =
     new MonitorAtBoot[IO](queue, org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting)
 }

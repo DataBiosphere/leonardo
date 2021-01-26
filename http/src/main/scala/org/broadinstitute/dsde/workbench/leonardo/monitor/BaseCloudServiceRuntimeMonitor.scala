@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.monitor
+package org.broadinstitute.dsde.workbench.leonardo
+package monitor
 
 import cats.Parallel
 import cats.effect.{Async, Sync, Timer}
@@ -10,10 +11,9 @@ import io.chrisdavenport.log4cats.StructuredLogger
 import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
-import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
+import org.broadinstitute.dsde.workbench.leonardo.http.leonardoBaseUrl
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.{
   getRuntimeUI,

@@ -1,10 +1,10 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
-import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
+import org.broadinstitute.dsde.workbench.leonardo.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client

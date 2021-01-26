@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.http
+package org.broadinstitute.dsde.workbench.leonardo
+package http
 package api
 
 import akka.actor.ActorSystem
@@ -21,10 +22,9 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   RuntimeService,
   StatusService
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes.errorReportEncoder
-import org.broadinstitute.dsde.workbench.model.ErrorReport
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -74,6 +74,8 @@ class HttpRoutes(
   }
 
   implicit val myExceptionHandler = {
+    implicit val errorReportSource = ErrorReportSource("leonardo")
+
     ExceptionHandler {
       case leoException: LeoException =>
         logger.error(s"request failed due to: ${leoException.getMessage}", leoException)

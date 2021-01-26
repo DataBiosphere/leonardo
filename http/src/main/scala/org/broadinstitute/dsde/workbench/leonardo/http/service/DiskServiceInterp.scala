@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.UpdateDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
+import org.broadinstitute.dsde.workbench.leonardo.algebra.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -286,10 +286,6 @@ case class DiskCannotBeDeletedException(googleProject: GoogleProject,
       s"${traceId} | Persistent disk ${googleProject.value}/${diskName.value} cannot be deleted in ${status} status",
       StatusCodes.Conflict
     )
-
-case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskName, traceId: TraceId)
-    extends LeoException(s"${traceId} | Persistent disk ${googleProject.value}/${diskName.value} not found",
-                         StatusCodes.NotFound)
 
 case class DiskNotFoundByIdException(diskId: DiskId, traceId: TraceId)
     extends LeoException(s"${traceId} | Persistent disk ${diskId.value} not found", StatusCodes.NotFound)

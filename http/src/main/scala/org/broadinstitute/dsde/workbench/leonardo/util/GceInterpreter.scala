@@ -16,11 +16,16 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.algebra.{
+  SetUpProjectFirewallsParams,
+  SetUpProjectNetworkParams,
+  VPCAlgebra,
+  VPCInterpreter
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, userScriptStartupOutputUriMetadataKey}
-import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.http.{userScriptStartupOutputUriMetadataKey, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.GceInterpreter._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
@@ -363,7 +368,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                                      subnetwork: SubnetworkName): NetworkInterface =
     NetworkInterface
       .newBuilder()
-      .setSubnetwork(buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, subnetwork))
+      .setSubnetwork(
+        VPCInterpreter.buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, subnetwork)
+      )
       .addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build)
       .build
 }

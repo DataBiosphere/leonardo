@@ -2,10 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.URL
 import java.time.Instant
-
 import cats.syntax.all._
 import enumeratum.{Enum, EnumEntry}
-import monocle.Prism
+import monocle.macros.GenLens
+import monocle.{Lens, Prism}
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
@@ -67,6 +67,8 @@ object Runtime {
       urlBase + googleProject.value + "/" + runtimeName.asString + "/" + tool.proxySegment
     )
   }
+
+  val runtimeConfigId: Lens[Runtime, RuntimeConfigId] = GenLens[Runtime](_.runtimeConfigId)
 }
 
 /** Runtime status enum */

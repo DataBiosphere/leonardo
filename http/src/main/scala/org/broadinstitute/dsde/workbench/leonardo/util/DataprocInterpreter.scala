@@ -28,11 +28,15 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
+import org.broadinstitute.dsde.workbench.leonardo.algebra.{
+  SetUpProjectFirewallsParams,
+  SetUpProjectNetworkParams,
+  VPCAlgebra
+}
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
+import org.broadinstitute.dsde.workbench.leonardo.http.{dataprocInCreateRuntimeMsgToDataprocRuntime, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.model.InvalidDataprocMachineConfigException
-import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail

@@ -1,0 +1,23 @@
+package org.broadinstitute.dsde.workbench.leonardo.db
+
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
+import org.broadinstitute.dsde.workbench.leonardo.Equalities._
+
+import scala.concurrent.ExecutionContext.Implicits.global
+import org.scalatest.flatspec.AnyFlatSpecLike
+
+class ServiceComponentSpec extends AnyFlatSpecLike with TestComponent {
+
+  it should "save a record" in isolatedDbTest { implicit dbRef =>
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).save()
+
+    val service1 = makeService(1)
+    val serviceToSave = service1.copy(config = service1.config)
+    val savedService1 = dbFutureValue(serviceQuery.saveForApp(savedApp1.id, serviceToSave))
+
+    serviceToSave shouldEqual savedService1
+  }
+
+}

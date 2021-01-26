@@ -1,15 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import java.text.SimpleDateFormat
-import java.time.Instant
-
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.cloud.compute.v1.Instance
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, NetworkName, RegionName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.model.IP
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import java.text.SimpleDateFormat
+import java.time.Instant
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
@@ -56,13 +54,4 @@ package object google {
 
   def buildMachineTypeUri(zone: ZoneName, machineTypeName: MachineTypeName): String =
     s"zones/${zone.value}/machineTypes/${machineTypeName.value}"
-
-  // Note networks are global, subnets are regional
-  // See: https://cloud.google.com/vpc/docs/vpc
-
-  def buildNetworkUri(googleProject: GoogleProject, vpcNetwork: NetworkName): String =
-    s"projects/${googleProject.value}/global/networks/${vpcNetwork.value}"
-
-  def buildSubnetworkUri(googleProject: GoogleProject, regionName: RegionName, vpcSubnet: SubnetworkName): String =
-    s"projects/${googleProject.value}/regions/${regionName.value}/subnetworks/${vpcSubnet.value}"
 }

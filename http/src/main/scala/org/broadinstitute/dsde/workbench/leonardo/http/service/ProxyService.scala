@@ -23,22 +23,26 @@ import io.chrisdavenport.log4cats.StructuredLogger
 
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
-import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
+import org.broadinstitute.dsde.workbench.leonardo.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, TerminalName}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  DbReference,
+  KubernetesServiceDbQueries,
+  RuntimeNotFoundException
+}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import akka.http.scaladsl.unmarshalling.Unmarshal
+import org.broadinstitute.dsde.workbench.leonardo.algebra.AppNotFoundException
 
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
@@ -153,6 +157,7 @@ class ProxyService(
         def load(key: SamResourceCacheKey): Option[String] = {
           val io = key match {
             case RuntimeCacheKey(googleProject, name) =>
+              println(s"loading ${name}")
               clusterQuery.getActiveClusterInternalIdByName(googleProject, name).map(_.map(_.resourceId)).transaction
             case AppCacheKey(googleProject, name) =>
               KubernetesServiceDbQueries

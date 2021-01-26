@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{AccessConfig, Instance, NetworkInterface, Operation}
@@ -24,20 +23,22 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterErrorQuery, clusterQuery, DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorState.Check
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterServiceAccountFromProject
+import org.broadinstitute.dsde.workbench.leonardo.algebra.FakeGoogleStorageService
+import org.broadinstitute.dsde.workbench.leonardo.http.MockAuthProvider
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
 class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with LeonardoTestSuite with EitherValues {
-  "creatingRuntime" should "check again if cluster doesn't exist yet" in isolatedDbTest {
+  "creatingRuntime" should "check again if cluster doesn't exist yet" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -48,7 +49,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 
     val res = for {
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor()(successToolDao)
+      monitor = dataprocRuntimeMonitor()(successToolDao, dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(None, monitorContext, runtimeAndRuntimeConfig)
     } yield {
@@ -58,7 +59,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "will check again status is either Creating or Unknown" in isolatedDbTest {
+  it should "will check again status is either Creating or Unknown" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -72,7 +73,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor()(successToolDao)
+      monitor = dataprocRuntimeMonitor()(successToolDao, dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r1 <- monitor.creatingRuntime(Some(cluster1), monitorContext, runtimeAndRuntimeConfig)
       r2 <- monitor.creatingRuntime(Some(cluster2), monitorContext, runtimeAndRuntimeConfig)
@@ -84,7 +85,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "will check again status is Running but not all instances are running" in isolatedDbTest {
+  it should "will check again status is Running but not all instances are running" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -97,7 +98,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning))(successToolDao)
+      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning))(successToolDao, dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
@@ -107,7 +108,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "will error if can't find zone for master instance" in isolatedDbTest {
+  it should "will error if can't find zone for master instance" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -120,7 +121,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
+      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao,
+                                                                                                      dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -132,7 +134,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "will persist error if cluster is in Error state" in isolatedDbTest {
+  it should "will persist error if cluster is in Error state" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -145,7 +147,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
+      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao,
+                                                                                                      dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -157,7 +160,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "will error if cluster is in unexpected state when trying to create" in isolatedDbTest {
+  it should "will error if cluster is in unexpected state when trying to create" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -170,7 +173,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
+      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao,
+                                                                                                      dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -183,32 +187,34 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   it should "will try to persist user script error if cluster is in Error state but no error shown from dataproc" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Starting
-    )
+    implicit dbRef =>
+      val runtime = makeCluster(1).copy(
+        serviceAccount = clusterServiceAccountFromProject(project).get,
+        asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+        status = RuntimeStatus.Starting
+      )
 
-    val cluster = getCluster(State.ERROR)
+      val cluster = getCluster(State.ERROR)
 
-    val res = for {
-      ctx <- appContext.ask[AppContext]
-      monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
-      savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-      error <- clusterErrorQuery.get(savedRuntime.id).transaction
-    } yield {
-      r._2 shouldBe None
-      error.head.errorCode shouldBe None
-      error.head.errorMessage shouldBe ("Error not available")
-    }
+      val res = for {
+        ctx <- appContext.ask[AppContext]
+        monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
+        savedRuntime <- IO(runtime.save())
+        monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao,
+                                                                                                        dbRef)
+        runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
+        r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+        error <- clusterErrorQuery.get(savedRuntime.id).transaction
+      } yield {
+        r._2 shouldBe None
+        error.head.errorCode shouldBe None
+        error.head.errorMessage shouldBe ("Error not available")
+      }
 
-    res.unsafeRunSync()
+      res.unsafeRunSync()
   }
 
-  it should "will persist error if cluster is in Error state when Creating" in isolatedDbTest {
+  it should "will persist error if cluster is in Error state when Creating" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -228,7 +234,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))),
-                                       dataprocService = dataproc)(failureToolDao)
+                                       dataprocService = dataproc)(failureToolDao, dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -242,56 +248,60 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   "startingRuntime" should "will check again if not all instances are Running when trying to start" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Starting
-    )
-
-    val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
-
-    val res = for {
-      ctx <- appContext.ask[AppContext]
-      monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
-      savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning, Some(IP("fakeIp"))))(
-        failureToolDao
+    implicit dbRef =>
+      val runtime = makeCluster(1).copy(
+        serviceAccount = clusterServiceAccountFromProject(project).get,
+        asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+        status = RuntimeStatus.Starting
       )
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
-    }
 
-    res.unsafeRunSync()
+      val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
+
+      val res = for {
+        ctx <- appContext.ask[AppContext]
+        monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
+        savedRuntime <- IO(runtime.save())
+        monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning, Some(IP("fakeIp"))))(
+          failureToolDao,
+          dbRef
+        )
+        runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
+        r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+      } yield {
+        r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
+      }
+
+      res.unsafeRunSync()
   }
 
   it should "will check again if master instance doesn't have IP when trying to start" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Starting
-    )
-
-    val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
-
-    val res = for {
-      ctx <- appContext.ask[AppContext]
-      monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
-      savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning, None))(
-        failureToolDao
+    implicit dbRef =>
+      val runtime = makeCluster(1).copy(
+        serviceAccount = clusterServiceAccountFromProject(project).get,
+        asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+        status = RuntimeStatus.Starting
       )
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
-    } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
-    }
 
-    res.unsafeRunSync()
+      val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
+
+      val res = for {
+        ctx <- appContext.ask[AppContext]
+        monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
+        savedRuntime <- IO(runtime.save())
+        monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning, None))(
+          failureToolDao,
+          dbRef
+        )
+        runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
+        r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+      } yield {
+        r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
+      }
+
+      res.unsafeRunSync()
   }
 
-  it should "will persist error if cluster is in Error state when Starting" in isolatedDbTest {
+  it should "will persist error if cluster is in Error state when Starting" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -304,7 +314,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
+      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao,
+                                                                                                      dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -317,7 +328,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  "stoppingRuntime" should "check again if there's still instance Running" in isolatedDbTest {
+  "stoppingRuntime" should "check again if there's still instance Running" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -330,7 +341,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
+      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao,
+                                                                                                      dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.stoppingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
@@ -340,7 +352,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  "stoppingRuntime" should "update DB when all instances are stopped" in isolatedDbTest {
+  "stoppingRuntime" should "update DB when all instances are stopped" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -353,7 +365,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Terminated, Some(IP("fakeIp"))))(failureToolDao)
+      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Terminated, Some(IP("fakeIp"))))(failureToolDao,
+                                                                                                         dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.stoppingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       updatedStatus <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -365,7 +378,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "terminate monitoring stopping if cluster doesn't exist" in isolatedDbTest {
+  it should "terminate monitoring stopping if cluster doesn't exist" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -376,7 +389,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
+      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao,
+                                                                                                      dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.stoppingRuntime(None, monitorContext, runtimeAndRuntimeConfig).attempt
     } yield {
@@ -391,33 +405,34 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   }
 
   "updatingRuntime" should "terminate monitoring stopping if cluster doesn't exist" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Stopping
-    )
-
-    val res = for {
-      ctx <- appContext.ask[AppContext]
-      monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
-      savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor()(successToolDao)
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.updatingRuntime(None, monitorContext, runtimeAndRuntimeConfig).attempt
-      error <- clusterErrorQuery.get(savedRuntime.id).transaction
-    } yield {
-      r shouldBe Left(
-        InvalidMonitorRequest(
-          s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist"
-        )
+    implicit dbRef =>
+      val runtime = makeCluster(1).copy(
+        serviceAccount = clusterServiceAccountFromProject(project).get,
+        asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+        status = RuntimeStatus.Stopping
       )
-      error.head.errorMessage shouldBe (s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist")
-    }
 
-    res.unsafeRunSync()
+      val res = for {
+        ctx <- appContext.ask[AppContext]
+        monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+        savedRuntime <- IO(runtime.save())
+        monitor = dataprocRuntimeMonitor()(successToolDao, dbRef)
+        runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
+        r <- monitor.updatingRuntime(None, monitorContext, runtimeAndRuntimeConfig).attempt
+        error <- clusterErrorQuery.get(savedRuntime.id).transaction
+      } yield {
+        r shouldBe Left(
+          InvalidMonitorRequest(
+            s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist"
+          )
+        )
+        error.head.errorMessage shouldBe (s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist")
+      }
+
+      res.unsafeRunSync()
   }
 
-  it should "check again if cluster is still being updated" in isolatedDbTest {
+  it should "check again if cluster is still being updated" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -430,7 +445,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Updating)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor()(successToolDao)
+      monitor = dataprocRuntimeMonitor()(successToolDao, dbRef)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
@@ -440,7 +455,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "check again if not all instances are Running" in isolatedDbTest {
+  it should "check again if not all instances are Running" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -454,7 +469,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning, Some(IP("fakeIp"))))(
-        successToolDao
+        successToolDao,
+        dbRef
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
@@ -465,7 +481,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "check again if instance IP is not available yet" in isolatedDbTest {
+  it should "check again if instance IP is not available yet" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -479,7 +495,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Updating)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, None))(
-        successToolDao
+        successToolDao,
+        dbRef
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
@@ -490,7 +507,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "complete update" in isolatedDbTest {
+  it should "complete update" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -504,7 +521,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Updating)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(
-        successToolDao
+        successToolDao,
+        dbRef
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
@@ -517,7 +535,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  "deleteRuntime" should "check again if cluster still exists" in isolatedDbTest {
+  "deleteRuntime" should "check again if cluster still exists" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -529,7 +547,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Deleting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(
-        successToolDao
+        successToolDao,
+        dbRef
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.deletedRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
@@ -540,7 +559,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
     res.unsafeRunSync()
   }
 
-  it should "delete runtime if runtime no longer exists in google" in isolatedDbTest {
+  it should "delete runtime if runtime no longer exists in google" in isolatedDbTest { implicit dbRef =>
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
@@ -551,7 +570,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Deleting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(
-        successToolDao
+        successToolDao,
+        dbRef
       )
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.deletedRuntime(None, monitorContext, runtimeAndRuntimeConfig)
@@ -570,7 +590,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
   def dataprocRuntimeMonitor(
     googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
     dataprocService: GoogleDataprocService[IO] = FakeGoogleDataprocService
-  )(implicit ev: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType]): DataprocRuntimeMonitor[IO] =
+  )(implicit ev: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
+    dbRef: DbReference[IO]): DataprocRuntimeMonitor[IO] =
     new DataprocRuntimeMonitor[IO](
       Config.dataprocMonitorConfig,
       googleComputeService,

@@ -123,7 +123,6 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     dockerDAO =>
       val image = ContainerImage("ghcr.io/github/super-linter:latest", GHCR) // not a supported tool
       val res = for {
-        ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image).attempt
       } yield {
         response.isLeft shouldBe true

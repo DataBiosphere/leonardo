@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import java.net.URL
 import scala.concurrent.duration._
 
 class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
@@ -546,14 +545,3 @@ object RuntimeRoutes {
   )
 
 }
-
-final case class ListRuntimeResponse2(id: Long,
-                                      samResource: RuntimeSamResourceId,
-                                      clusterName: RuntimeName,
-                                      googleProject: GoogleProject,
-                                      auditInfo: AuditInfo,
-                                      runtimeConfig: RuntimeConfig,
-                                      proxyUrl: URL,
-                                      status: RuntimeStatus,
-                                      labels: LabelMap,
-                                      patchInProgress: Boolean)

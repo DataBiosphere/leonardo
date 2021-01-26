@@ -2,13 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-
 import cats.data.Chain
 import cats.effect.IO
 import cats.effect.concurrent.Deferred
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import fs2.Stream
@@ -16,7 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
 
 class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
@@ -42,7 +40,7 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     messagesToUpdate(messages) should contain theSameElementsAs (expectedResult)
   }
 
-  it should "update date accessed" in isolatedDbTest {
+  it should "update date accessed" in isolatedDbTest { implicit dbRef =>
     val runtime1 = makeCluster(1).save()
     val runtime2 = makeCluster(2).save()
 
@@ -66,7 +64,7 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
 
   private def monitor(
     queue: InspectableQueue[IO, UpdateDateAccessMessage]
-  )(waitDuration: FiniteDuration): IO[Unit] = {
+  )(waitDuration: FiniteDuration)(implicit dbRef: DbReference[IO]): IO[Unit] = {
     val monitor = new DateAccessedUpdater[IO](Config.dateAccessUpdaterConfig, queue)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
       val signal = Stream.sleep(waitDuration).evalMap(_ => signalToStop.complete(()))

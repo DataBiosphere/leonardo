@@ -1,9 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
 
-import java.nio.file.{Path, Paths}
-
-import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
+import com.google.pubsub.v1.ProjectTopicName
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
@@ -14,39 +12,37 @@ import org.broadinstitute.dsde.workbench.google2.{
   KubernetesName,
   Location,
   MachineTypeName,
-  MaxRetries,
   NetworkName,
   PublisherConfig,
   RegionName,
   SubnetworkName,
   SubscriberConfig,
-  SubscriberDeadLetterPolicy,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
+import org.broadinstitute.dsde.workbench.leonardo.algebra._
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.db.LiquibaseConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoKubernetesServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DateAccessedUpdaterConfig,
   LeoPubsubMessageSubscriberConfig,
-  PersistentDiskMonitorConfig,
-  PollMonitorConfig
+  PersistentDiskMonitorConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VPCInterpreterConfig}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
+import java.nio.file.{Path, Paths}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -233,10 +229,13 @@ object Config {
     SamConfig(config.getString("server"))
   }
 
+  implicit private val leonardoBaseUrlReader: ValueReader[LeonardoBaseUrl] =
+    stringValueReader.map(s => LeonardoBaseUrl(s))
+
   implicit private val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
     ProxyConfig(
       config.getString("proxyDomain"),
-      config.getString("proxyUrlBase"),
+      config.as[LeonardoBaseUrl]("proxyUrlBase"),
       config.getInt("proxyPort"),
       toScalaDuration(config.getDuration("dnsPollPeriod")),
       toScalaDuration(config.getDuration("tokenCacheExpiryTime")),
@@ -359,7 +358,7 @@ object Config {
       config.getOrElse("petTokenCacheEnabled", true),
       config.getAs[FiniteDuration]("petTokenCacheExpiryTime").getOrElse(60 minutes),
       config.getAs[Int]("petTokenCacheMaxSize").getOrElse(1000),
-      serviceAccountProviderConfig
+      serviceAccountProviderConfig.leoServiceAccountJsonFile
     )
   }
 
@@ -440,19 +439,6 @@ object Config {
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
-
-  implicit private val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
-    config =>
-      ZombieRuntimeMonitorConfig(
-        config.getBoolean("enableZombieRuntimeMonitor"),
-        toScalaDuration(config.getDuration("pollPeriod")),
-        config.getString("deletionConfirmationLabelKey"),
-        toScalaDuration(config.getDuration("creationHangTolerance")),
-        config.getInt("concurrency"),
-        gceConfig.zoneName,
-        dataprocConfig.regionName
-      )
-  }
 
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val runtimeDnsCacheConfig = config.as[CacheConfig]("runtimeDnsCache")
@@ -666,34 +652,6 @@ object Config {
     Some("attributes:leonardo")
   )
 
-  val nonLeoMessageSubscriberConfig: SubscriberConfig = SubscriberConfig(
-    applicationConfig.leoServiceAccountJsonFile.toString,
-    topic,
-    Some(
-      ProjectSubscriptionName.of(applicationConfig.leoGoogleProject.value,
-                                 config.as[String]("pubsub.non-leo-message-subscriber.subscription-name"))
-    ),
-    config.as[FiniteDuration]("pubsub.ackDeadLine"),
-    Some(
-      SubscriberDeadLetterPolicy(
-        TopicName.of(applicationConfig.leoGoogleProject.value,
-                     config.as[String]("pubsub.non-leo-message-subscriber.dead-letter-topic")),
-        MaxRetries(5)
-      )
-    ),
-    None,
-    Some("NOT attributes:leonardo")
-  )
-
-  private val nonLeoMessageSubscriberCryptominingTopic =
-    config.as[String]("pubsub.non-leo-message-subscriber.terra-cryptomining-topic")
-
-  val cryptominingTopicPublisherConfig: PublisherConfig =
-    PublisherConfig(
-      applicationConfig.leoServiceAccountJsonFile.toString,
-      ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, nonLeoMessageSubscriberCryptominingTopic)
-    )
-
   val publisherConfig: PublisherConfig =
     PublisherConfig(applicationConfig.leoServiceAccountJsonFile.toString, topic)
 
@@ -750,5 +708,6 @@ object Config {
                          gkeMonitorConfig,
                          gkeClusterConfig,
                          proxyConfig,
-                         gkeGalaxyDiskConfig)
+                         gkeGalaxyDiskConfig,
+                         vpcConfig)
 }

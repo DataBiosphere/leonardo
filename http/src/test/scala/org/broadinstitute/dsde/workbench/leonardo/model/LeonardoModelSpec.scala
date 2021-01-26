@@ -211,37 +211,45 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
     // No images or labels -> default to Jupyter
     Runtime
-      .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map.empty)
+      .getProxyUrl(proxyUrlBase.asString, project, name0, Set.empty, Map.empty)
       .toString shouldBe expectedBase + "jupyter"
 
     // images only
     Runtime
-      .getProxyUrl(proxyUrlBase, project, name0, Set(jupyterImage), Map.empty)
+      .getProxyUrl(proxyUrlBase.asString, project, name0, Set(jupyterImage), Map.empty)
       .toString shouldBe expectedBase + "jupyter"
     Runtime
-      .getProxyUrl(proxyUrlBase, project, name0, Set(welderImage, customDataprocImage, jupyterImage), Map.empty)
+      .getProxyUrl(proxyUrlBase.asString,
+                   project,
+                   name0,
+                   Set(welderImage, customDataprocImage, jupyterImage),
+                   Map.empty)
       .toString shouldBe expectedBase + "jupyter"
     Runtime
-      .getProxyUrl(proxyUrlBase, project, name0, Set(rstudioImage), Map.empty)
+      .getProxyUrl(proxyUrlBase.asString, project, name0, Set(rstudioImage), Map.empty)
       .toString shouldBe expectedBase + "rstudio"
     Runtime
-      .getProxyUrl(proxyUrlBase, project, name0, Set(welderImage, customDataprocImage, rstudioImage), Map.empty)
+      .getProxyUrl(proxyUrlBase.asString,
+                   project,
+                   name0,
+                   Set(welderImage, customDataprocImage, rstudioImage),
+                   Map.empty)
       .toString shouldBe expectedBase + "rstudio"
 
     // labels only
     Runtime
-      .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("tool" -> "Jupyter", "foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase.asString, project, name0, Set.empty, Map("tool" -> "Jupyter", "foo" -> "bar"))
       .toString shouldBe expectedBase + "jupyter"
     Runtime
-      .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("tool" -> "RStudio", "foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase.asString, project, name0, Set.empty, Map("tool" -> "RStudio", "foo" -> "bar"))
       .toString shouldBe expectedBase + "rstudio"
     Runtime
-      .getProxyUrl(proxyUrlBase, project, name0, Set.empty, Map("foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase.asString, project, name0, Set.empty, Map("foo" -> "bar"))
       .toString shouldBe expectedBase + "jupyter"
 
     // images and labels -> images take precedence
     Runtime
-      .getProxyUrl(proxyUrlBase,
+      .getProxyUrl(proxyUrlBase.asString,
                    project,
                    name0,
                    Set(welderImage, customDataprocImage, rstudioImage),

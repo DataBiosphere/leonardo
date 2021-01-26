@@ -82,7 +82,6 @@ object Dependencies {
   val workbenchModel: ModuleID =        "org.broadinstitute.dsde.workbench" %% "workbench-model"    % workbenchModelV excludeAll (excludeGoogleError, excludeGuava)
   val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeGuava)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (
-    excludeWorkbenchModel,
     excludeWorkbenchMetrics,
     excludeIoGrpc,
     excludeFindbugsJsr,
@@ -107,6 +106,7 @@ object Dependencies {
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.2.2"
+
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.5" % Test // brought in for FakeStorageInterpreter
 
@@ -117,9 +117,15 @@ object Dependencies {
 
   val coreDependencies = List(
     scalaTest,
-    slick,
     guava,
     workbenchModel,
+    scalaLogging,
+    // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
+    // brings in an older version of `pureconfig`
+    "com.github.pureconfig" %% "pureconfig" % "0.14.0" % Provided,
+
+    workbenchGoogle,
+    workbenchGoogleTest,
     workbenchGoogle2,
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
@@ -134,41 +140,69 @@ object Dependencies {
     http4sCirce,
     http4sBlazeClient,
     http4sDsl,
-    scalaTestScalaCheck
+    "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test,
+    scalaTestScalaCheck,
+
+    liquibase,
+    mysql,
+    slick,
+    hikariCP,
+    "com.rms.miu" %% "slick-cats" % "0.10.4",
+
+    akkaHttp, // this is needed in `core` for some models (maybe potentially remove those?)
+    akkaSlf4j,
+    akkaStream
   )
 
   val httpDependencies = Seq(
     logbackClassic,
-    scalaLogging,
     swaggerUi,
     ficus,
     enumeratum,
-    akkaSlf4j,
-    akkaHttp,
     akkaHttpSprayJson,
     akkaTestKit,
     akkaHttpTestKit,
+    "de.heikoseeberger" %% "akka-http-circe" % "1.35.3" excludeAll(excludeAkkaHttp, excludeAkkaStream),
+    googleDataproc,
+    googleRpc,
+    googleErrorReporting, // forcing an older version of google-cloud-errorreporting because latest version brings in higher version of gax-grpc, which isn't compatible with other google dependencies
+
+    workbenchErrorReporting,
+    workbenchErrorReportingTest,
+    googleCloudNio,
+
+    "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
+    // Dependent on the trace exporters you want to use add one or more of the following
+    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
+
+    scalaTestSelenium,
+    scalaTestMockito
+  )
+
+  val subscriberDependencies = Seq(
+    logbackClassic,
+
+    scalaLogging,
+    swaggerUi,
+    enumeratum,
+    akkaSlf4j,
+    akkaHttpSprayJson,
     akkaStream,
     "de.heikoseeberger" %% "akka-http-circe" % "1.35.3" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleDataproc,
     googleRpc,
     googleErrorReporting, // forcing an older versin of google-cloud-errorreporting because latest version brings in higher version of gax-grpc, which isn't compatible with other google dependencies
 
-    hikariCP,
     workbenchGoogle,
     workbenchGoogleTest,
     workbenchErrorReporting,
     workbenchErrorReportingTest,
-    "com.rms.miu" %% "slick-cats" % "0.10.4",
     googleCloudNio,
-    mysql,
-    liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
 
     // Dependent on the trace exporters you want to use add one or more of the following
     "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
     "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test,
-    scalaTestSelenium,
     scalaTestMockito
   )
 

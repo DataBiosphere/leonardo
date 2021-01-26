@@ -15,7 +15,7 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import com.typesafe.scalalogging.LazyLogging
-import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+import _root_.io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
@@ -31,10 +31,9 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport)(
 ) extends LazyLogging {
   val route: Route =
     traceRequestForService(serviceData) { span =>
-      extractAppContext(Some(span)) { implicit ctx =>
+      extractAppContext(None) { implicit ctx =>
         // Note that the "notebooks" path prefix is deprecated
         pathPrefix("proxy" | "notebooks") {
-
           corsSupport.corsHandler {
 
             // "apps" proxy routes

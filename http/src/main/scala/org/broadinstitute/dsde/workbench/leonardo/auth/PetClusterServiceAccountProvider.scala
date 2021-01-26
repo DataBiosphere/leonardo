@@ -4,7 +4,7 @@ package auth
 import cats.syntax.all._
 import cats.Monad
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
+import org.broadinstitute.dsde.workbench.leonardo.algebra.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}

@@ -31,16 +31,14 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetect
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import com.rms.miu.slickcats.DBIOInstances._
-import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
+import org.broadinstitute.dsde.workbench.leonardo.algebra.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,
   LeoPubsubMessage,
-  RuntimeConfigInCreateRuntimeMessage,
-  RuntimePatchDetails
+  RuntimeConfigInCreateRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject

@@ -2,15 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.temporal.ChronoUnit
-
 import cats.effect.IO
 import cats.effect.concurrent.Deferred
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.autoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -19,7 +18,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 
 class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
-  it should "auto freeze the cluster when kernel is idle" in isolatedDbTest {
+  it should "auto freeze the cluster when kernel is idle" in isolatedDbTest { implicit dbRef =>
     val jupyterDAO = new MockJupyterDAO {
       override def isAllKernelsIdle(googleProject: GoogleProject, clusterName: RuntimeName): IO[Boolean] =
         IO.pure(true)
@@ -46,7 +45,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     res.unsafeRunSync()
   }
 
-  it should "not auto freeze the cluster if jupyter kernel is still running" in isolatedDbTest {
+  it should "not auto freeze the cluster if jupyter kernel is still running" in isolatedDbTest { implicit dbRef =>
     val jupyterDAO = new MockJupyterDAO {
       override def isAllKernelsIdle(googleProject: GoogleProject, clusterName: RuntimeName): IO[Boolean] =
         IO.pure(false)
@@ -73,7 +72,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     res.unsafeRunSync()
   }
 
-  it should "auto freeze the cluster if we fail to get jupyter kernel status" in isolatedDbTest {
+  it should "auto freeze the cluster if we fail to get jupyter kernel status" in isolatedDbTest { implicit dbRef =>
     val jupyterDAO = new MockJupyterDAO {
       override def isAllKernelsIdle(googleProject: GoogleProject, clusterName: RuntimeName): IO[Boolean] =
         IO.raiseError(new Exception)
@@ -100,7 +99,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     res.unsafeRunSync()
   }
 
-  it should "auto freeze the cluster if the max kernel busy time is exceeded" in isolatedDbTest {
+  it should "auto freeze the cluster if the max kernel busy time is exceeded" in isolatedDbTest { implicit dbRef =>
     val jupyterDAO = new MockJupyterDAO {
       override def isAllKernelsIdle(googleProject: GoogleProject, clusterName: RuntimeName): IO[Boolean] =
         IO.pure(true)
@@ -134,7 +133,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
   private def monitor(
     jupyterDAO: JupyterDAO[IO] = MockJupyterDAO,
     publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
-  )(waitDuration: FiniteDuration): IO[Unit] = {
+  )(waitDuration: FiniteDuration)(implicit dbRef: DbReference[IO]): IO[Unit] = {
     val monitor = AutopauseMonitor[IO](autoFreezeConfig, jupyterDAO, publisherQueue)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
       val signal = Stream.sleep(waitDuration).evalMap(_ => signalToStop.complete(()))

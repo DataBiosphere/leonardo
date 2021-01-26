@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
-import java.util.UUID
-
 import cats.effect.{Sync, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.model.TraceId
+
+import java.time.Instant
+import java.util.UUID
 
 final case class AppContext(traceId: TraceId, now: Instant, span: Option[Span] = None) {
   override def toString: String = s"${traceId.asString}"
@@ -32,3 +32,5 @@ object AppContext {
     )
 
 }
+
+final case class LeonardoBaseUrl(asString: String) extends AnyVal

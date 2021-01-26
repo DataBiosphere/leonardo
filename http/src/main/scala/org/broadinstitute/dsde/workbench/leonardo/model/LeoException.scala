@@ -1,24 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package model
 
-import org.broadinstitute.dsde.workbench.model.TraceId
+import akka.http.scaladsl.model.StatusCodes
+import org.broadinstitute.dsde.workbench.leonardo.http.LeoException
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, WorkbenchEmail, WorkbenchException}
-import org.broadinstitute.dsde.workbench.leonardo.http.errorReportSource
-
 import scala.util.control.NoStackTrace
-
-class LeoException(val message: String = null,
-                   val statusCode: StatusCode = StatusCodes.InternalServerError,
-                   val cause: Throwable = null)
-    extends WorkbenchException(message, cause) {
-  override def getMessage: String = if (message != null) message else super.getMessage
-
-  def toErrorReport: ErrorReport =
-    ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass))
-}
 
 final case class AuthenticationError(email: Option[WorkbenchEmail] = None)
     extends LeoException(s"${email.map(e => s"'${e.value}'").getOrElse("Your account")} is not authenticated",
@@ -31,10 +19,6 @@ case class ForbiddenError(email: WorkbenchEmail)
         "If you have proper permissions to use the workspace, make sure you are also added to the billing account",
       StatusCodes.Forbidden
     )
-
-case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: RuntimeName, msg: String)
-    extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found. Details: ${msg}",
-                         StatusCodes.NotFound)
 
 case class RuntimeNotFoundByIdException(id: Long, msg: String)
     extends LeoException(s"Runtime with id ${id} not found. Details: ${msg}", StatusCodes.NotFound)

@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.http.service
 
 import java.time.Instant
-
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.DiskName
@@ -47,20 +46,24 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{serviceAccountProvider, whitelistAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.algebra.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.leoKubernetesConfig
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
 final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
 
   //used when we care about queue state
-  def makeInterp(queue: InspectableQueue[IO, LeoPubsubMessage]) =
+  def makeInterp(queue: InspectableQueue[IO, LeoPubsubMessage])(implicit dbRef: DbReference[IO]) =
     new LeoKubernetesServiceInterp[IO](whitelistAuthProvider, serviceAccountProvider, leoKubernetesConfig, queue)
-  val kubeServiceInterp = new LeoKubernetesServiceInterp[IO](whitelistAuthProvider,
-                                                             serviceAccountProvider,
-                                                             leoKubernetesConfig,
-                                                             QueueFactory.makePublisherQueue())
+  def kubeServiceInterp(implicit dbRef: DbReference[IO]) =
+    new LeoKubernetesServiceInterp[IO](whitelistAuthProvider,
+                                       serviceAccountProvider,
+                                       leoKubernetesConfig,
+                                       QueueFactory.makePublisherQueue())
 
-  it should "create an app and a new disk" in isolatedDbTest {
+  it should "create an app and a new disk" in isolatedDbTest { implicit dbRef =>
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -95,7 +98,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
-  it should "create an app in a users existing nodepool" in isolatedDbTest {
+  it should "create an app in a users existing nodepool" in isolatedDbTest { implicit dbRef =>
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -133,8 +136,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     app1.nodepool.id shouldBe app2.nodepool.id
   }
 
-  it should "queue the proper message when creating an app and a new disk" in isolatedDbTest {
-
+  it should "queue the proper message when creating an app and a new disk" in isolatedDbTest { implicit dbRef =>
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -169,7 +171,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     )
   }
 
-  it should "create an app with an existing disk" in isolatedDbTest {
+  it should "create an app with an existing disk" in isolatedDbTest { implicit dbRef =>
     val disk = makePersistentDisk(None).copy(googleProject = project).save().unsafeRunSync()
 
     val appName = AppName("app1")
@@ -192,7 +194,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     appResult.map(_.app.appName) shouldEqual Some(appName)
   }
 
-  it should "error on creation of a galaxy app without a disk" in isolatedDbTest {
+  it should "error on creation of a galaxy app without a disk" in isolatedDbTest { implicit dbRef =>
     val appName = AppName("app1")
     val appReq = createAppRequest.copy(diskConfig = None, appType = AppType.Galaxy)
 
@@ -201,7 +203,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     }
   }
 
-  it should "error on creation if a disk is attached to another app" in isolatedDbTest {
+  it should "error on creation if a disk is attached to another app" in isolatedDbTest { implicit dbRef =>
     val disk = makePersistentDisk(None).copy(googleProject = project).save().unsafeRunSync()
     val appName1 = AppName("app1")
     val appName2 = AppName("app2")
@@ -224,7 +226,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     }
   }
 
-  it should "error on creation if an app with that name exists" in isolatedDbTest {
+  it should "error on creation if an app with that name exists" in isolatedDbTest { implicit dbRef =>
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
@@ -236,7 +238,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     }
   }
 
-  it should "delete an app and update status appropriately" in isolatedDbTest {
+  it should "delete an app and update status appropriately" in isolatedDbTest { implicit dbRef =>
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val appName = AppName("app1")
@@ -281,7 +283,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     deleteAppMessage.diskId shouldBe None
   }
 
-  it should "error on delete if app is in a status that cannot be deleted" in isolatedDbTest {
+  it should "error on delete if app is in a status that cannot be deleted" in isolatedDbTest { implicit dbRef =>
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
@@ -302,7 +304,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     }
   }
 
-  it should "delete an app in Error status" in isolatedDbTest {
+  it should "delete an app in Error status" in isolatedDbTest { implicit dbRef =>
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val appName = AppName("app1")
@@ -351,7 +353,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     publisherQueue.tryDequeue1.unsafeRunSync() shouldBe None
   }
 
-  it should "list apps" in isolatedDbTest {
+  it should "list apps" in isolatedDbTest { implicit dbRef =>
     val appName1 = AppName("app1")
     val appName2 = AppName("app2")
     val appName3 = AppName("app3")
@@ -393,7 +395,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     listProject3Apps.length shouldBe 0
   }
 
-  it should "list apps with labels" in isolatedDbTest {
+  it should "list apps with labels" in isolatedDbTest { implicit dbRef =>
     val appName1 = AppName("app1")
     val appName2 = AppName("app2")
     val appName3 = AppName("app3")
@@ -437,7 +439,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     listPartialLabelApp2.map(_.appName) should contain(appName2)
   }
 
-  it should "list apps belonging to different users" in isolatedDbTest {
+  it should "list apps belonging to different users" in isolatedDbTest { implicit dbRef =>
     // Make apps belonging to different users than the calling user
     val res = for {
       savedCluster <- IO(makeKubeCluster(1).save())
@@ -459,7 +461,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     res.unsafeRunSync()
   }
 
-  it should "get app" in isolatedDbTest {
+  it should "get app" in isolatedDbTest { implicit dbRef =>
     val appName1 = AppName("app1")
     val appName2 = AppName("app2")
     val appName3 = AppName("app3")
@@ -494,13 +496,13 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     getApp3.diskName shouldBe Some(diskName3)
   }
 
-  it should "error on get app if an app does not exist" in isolatedDbTest {
+  it should "error on get app if an app does not exist" in isolatedDbTest { implicit dbRef =>
     the[AppNotFoundException] thrownBy {
       kubeServiceInterp.getApp(userInfo, project, AppName("schrodingersApp")).unsafeRunSync()
     }
   }
 
-  it should "successfully batch create nodepools" in isolatedDbTest {
+  it should "successfully batch create nodepools" in isolatedDbTest { implicit dbRef =>
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     kubeServiceInterp.batchNodepoolCreate(userInfo, project, batchNodepoolCreateRequest).unsafeRunSync()
@@ -519,7 +521,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     cluster.nodepools.map(_.status).distinct shouldBe List(NodepoolStatus.Precreating)
   }
 
-  it should "fail to batch create nodepools if cluster exists in project" in isolatedDbTest {
+  it should "fail to batch create nodepools if cluster exists in project" in isolatedDbTest { implicit dbRef =>
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -545,7 +547,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     }
   }
 
-  it should "claim a nodepool if some are unclaimed" in isolatedDbTest {
+  it should "claim a nodepool if some are unclaimed" in isolatedDbTest { implicit dbRef =>
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val savedCluster1 = makeKubeCluster(1).save()
@@ -593,7 +595,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     createAppMessage.clusterNodepoolAction shouldBe None
   }
 
-  it should "be able to claim multiple nodepools" in isolatedDbTest {
+  it should "be able to claim multiple nodepools" in isolatedDbTest { implicit dbRef =>
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val savedCluster1 = makeKubeCluster(1).save()
@@ -680,7 +682,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     createAppMessage2.clusterNodepoolAction shouldBe None
   }
 
-  it should "be able to create a nodepool after a pool is completely claimed" in isolatedDbTest {
+  it should "be able to create a nodepool after a pool is completely claimed" in isolatedDbTest { implicit dbRef =>
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
@@ -761,7 +763,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     createAppMessage2.clusterNodepoolAction shouldBe Some(CreateNodepool(appResult2.nodepool.id))
   }
 
-  it should "stop an app" in isolatedDbTest {
+  it should "stop an app" in isolatedDbTest { implicit dbRef =>
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       kubeServiceInterp = makeInterp(publisherQueue)
@@ -793,7 +795,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     res.unsafeRunSync()
   }
 
-  it should "start an app" in isolatedDbTest {
+  it should "start an app" in isolatedDbTest { implicit dbRef =>
     val res = for {
       publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
       kubeServiceInterp = makeInterp(publisherQueue)
@@ -827,7 +829,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
 
   private def withLeoPublisher(
     publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
-  )(validations: IO[Assertion]): IO[Assertion] = {
+  )(validations: IO[Assertion])(implicit dbRef: DbReference[IO]): IO[Assertion] = {
     val leoPublisher = new LeoPublisher[IO](publisherQueue, new FakeGooglePublisher)
     withInfiniteStream(leoPublisher.process, validations)
   }

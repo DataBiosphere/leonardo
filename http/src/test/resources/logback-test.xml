@@ -1,0 +1,53 @@
+<configuration>
+
+    <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <fieldNames>
+                <level>severity</level>
+            </fieldNames>
+        </encoder>
+    </appender>
+
+    <appender name="file" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>log/leonardo.log</file>
+        <append>true</append>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <!-- daily rollover -->
+            <fileNamePattern>leonardo.%d{yyyy-MM-dd}.log</fileNamePattern>
+            <!-- keep 2 days' worth of history on disk -->
+            <maxHistory>2</maxHistory>
+        </rollingPolicy>
+        <!-- encoders are assigned the type
+             ch.qos.logback.classic.encoder.PatternLayoutEncoder by default -->
+        <encoder>
+            <pattern>[%level] [%d{HH:mm:ss.SSS}] [%thread] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <logger name="org.broadinstitute.dsde" level="info" additivity="false">
+        <appender-ref ref="console"/>
+    </logger>
+
+    <logger name="akka" level="info" additivity="false">
+        <appender-ref ref="console"/>
+    </logger>
+
+    <!-- see https://github.com/slick/slick/blob/master/common-test-resources/logback.xml for more Slick logging -->
+
+    <logger name="com.zaxxer.hikari.HikariDataSource" level="ERROR">
+        <appender-ref ref="console"/>
+    </logger>
+
+<!--    <logger name="slick.jdbc.JdbcBackend.benchmark" level="DEBUG" additivity="false">-->
+<!--        <appender-ref ref="file"/>-->
+<!--        <appender-ref ref="console"/>-->
+<!--    </logger>-->
+
+    <root level="info">
+        <appender-ref ref="file"/>
+        <appender-ref ref="console"/>
+    </root>
+
+</configuration>
+
+

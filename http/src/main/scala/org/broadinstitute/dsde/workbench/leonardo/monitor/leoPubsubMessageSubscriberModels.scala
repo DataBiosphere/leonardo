@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, trac
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
   RuntimeConfigRequest
@@ -336,8 +337,6 @@ object DiskUpdate {
       extends DiskUpdate
   final case class Dataproc(override val newDiskSize: DiskSize, masterInstance: DataprocInstance) extends DiskUpdate
 }
-
-final case class RuntimePatchDetails(runtimeId: Long, runtimeStatus: RuntimeStatus) extends Product with Serializable
 
 final case class PubsubException(message: String) extends WorkbenchException(message)
 
@@ -819,10 +818,6 @@ object PubsubHandleMessageError {
 }
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
-
-final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration) {
-  def totalDuration: FiniteDuration = interval * maxAttempts
-}
 
 final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
                                              delete: PollMonitorConfig,

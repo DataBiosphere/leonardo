@@ -4,7 +4,6 @@ package http
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import cats.Parallel
@@ -20,6 +19,7 @@ import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import io.chrisdavenport.log4cats.StructuredLogger
 import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
@@ -45,19 +45,27 @@ import org.broadinstitute.dsde.workbench.google.{
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
+import org.broadinstitute.dsde.workbench.leonardo.algebra.{
+  GKEInterpreter,
+  GalaxyDAO,
+  HttpGalaxyDAO,
+  HttpSamDAO,
+  VPCInterpreter
+}
 import org.broadinstitute.dsde.workbench.leonardo.auth.{PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
-import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LeoExecutionModeConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, DbReferenceInitializer}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoKubernetesServiceInterp, DiskServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
+import org.broadinstitute.dsde.workbench.leonardo.subscriber.{NonLeoMessage, NonLeoMessageSubscriber}
+import org.broadinstitute.dsde.workbench.leonardo.subscriber.NonLeoMessageSubscriber.nonLeoMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -141,9 +149,9 @@ object Boot extends IOApp {
         googleDependencies.googleOauth2DAO,
         appDependencies.blocker
       )
-      val statusService = new StatusService(appDependencies.samDAO, appDependencies.dbReference, applicationConfig)
+      val statusService = new StatusService(appDependencies.samDAO, appDependencies.dbReference)
       val runtimeServiceConfig = RuntimeServiceConfig(
-        proxyConfig.proxyUrlBase,
+        proxyConfig.proxyUrlBase.asString,
         imageConfig,
         autoFreezeConfig,
         dataprocConfig,
@@ -255,6 +263,14 @@ object Boot extends IOApp {
             appDependencies.nodepoolLock
           )
 
+          val nonLeoMessageSubscriber =
+            new NonLeoMessageSubscriber[IO](gkeAlg,
+                                            googleDependencies.googleComputeService,
+                                            appDependencies.samDAO,
+                                            appDependencies.nonLeoMessageGoogleSubscriber,
+                                            googleDependencies.cryptoMiningUserPublisher,
+                                            appDependencies.asyncTasksQueue)
+
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](
               leoPubsubMessageSubscriberConfig,
@@ -273,17 +289,8 @@ object Boot extends IOApp {
             appDependencies.publisherQueue
           )
 
-          val nonLeoMessageSubscriber =
-            new NonLeoMessageSubscriber[IO](gkeAlg,
-                                            googleDependencies.googleComputeService,
-                                            appDependencies.samDAO,
-                                            appDependencies.nonLeoMessageGoogleSubscriber,
-                                            googleDependencies.cryptoMiningUserPublisher,
-                                            appDependencies.asyncTasksQueue)
-
           List(
             nonLeoMessageSubscriber.process,
-            Stream.eval(appDependencies.nonLeoMessageGoogleSubscriber.start),
             asyncTasks.process,
             pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
@@ -310,7 +317,8 @@ object Boot extends IOApp {
 
         List(
           appDependencies.leoPublisher.process, //start the publisher queue .dequeue
-          Stream.eval[IO, Unit](httpServer) //start http server
+          Stream.eval[IO, Unit](httpServer), //start http server
+          statusService.process
         ) ++ extraProcesses
       }
 
@@ -327,6 +335,7 @@ object Boot extends IOApp {
     pathToCredentialJson: String
   )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {
+      newConfig <- Resource.liftF(F.fromEither(NewConfig.appConfig))
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
       semaphore <- Resource.liftF(Semaphore[F](255L))
       blocker = Blocker.liftExecutionContext(blockingEc)
@@ -348,7 +357,8 @@ object Boot extends IOApp {
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
       samDao = HttpSamDAO[F](clientWithRetryWithCustomSSL, httpSamDaoConfig, blocker)
       concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
-      implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
+      implicit0(dbRef: DbReference[F]) <- new DbReferenceInitializer[F]
+        .init(liquibaseConfig, Config.config, concurrentDbAccessPermits, blocker)
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
       welderDao = new HttpWelderDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
@@ -376,7 +386,7 @@ object Boot extends IOApp {
       googleResourceService <- GoogleResourceService.resource[F](Paths.get(pathToCredentialJson), blocker, semaphore)
 
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
-      cryptoMiningUserPublisher <- GooglePublisher.resource[F](cryptominingTopicPublisherConfig)
+      cryptoMiningUserPublisher <- GooglePublisher.resource[F](newConfig.cryptominingPublisherConfig)
 
       publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
       dataAccessedUpdater <- Resource.liftF(
@@ -393,11 +403,6 @@ object Boot extends IOApp {
 
       subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
-
-      nonLeoMessageSubscriberQueue <- Resource.liftF(
-        InspectableQueue.bounded[F, Event[NonLeoMessage]](pubsubConfig.queueSize)
-      )
-      nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig, nonLeoMessageSubscriberQueue)
 
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
       // (e.g. if the subnet isn't ready when creating an instance).
@@ -429,7 +434,11 @@ object Boot extends IOApp {
                                         gkeClusterConfig.nodepoolLockCacheMaxSize,
                                         blocker)
       )
-
+      nonLeoMessageSubscriberQueue <- Resource.liftF(
+        InspectableQueue.bounded[F, Event[NonLeoMessage]](200)
+      )
+      nonLeoMessageSubscriber <- GoogleSubscriber.resource(newConfig.nonLeonardoMessageSubscriber,
+                                                           nonLeoMessageSubscriberQueue)
       googleDependencies = GoogleDependencies(
         petGoogleStorageDAO,
         googleComputeService,

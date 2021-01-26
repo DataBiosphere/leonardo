@@ -13,7 +13,8 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.config.Config._
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
@@ -31,6 +32,10 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{
+  clusterServiceAccountFromProject,
+  notebookServiceAccountFromProject
+}
 
 import java.net.URL
 import scala.concurrent.duration._
@@ -46,7 +51,7 @@ class HttpRoutesSpec
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
 
-  val routes = new HttpRoutes(
+  def routes(implicit dbRef: DbReference[IO]) = new HttpRoutes(
     swaggerConfig,
     statusService,
     proxyService,
@@ -57,7 +62,7 @@ class HttpRoutesSpec
     contentSecurityPolicy
   )
 
-  "RuntimeRoutes" should "create runtime" in {
+  "RuntimeRoutes" should "create runtime" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, defaultCreateRuntimeRequest.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -65,7 +70,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "create a runtime with default parameters" in {
+  it should "create a runtime with default parameters" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -73,9 +78,9 @@ class HttpRoutesSpec
     }
   }
 
-  it should s"reject create a cluster if cluster name is invalid" in {
+  it should s"reject create a cluster if cluster name is invalid" in isolatedDbTest { implicit dbRef =>
     val invalidClusterName = "MyCluster"
-    Post(s"/api/google/v1/runtimes/googleProject1/$invalidClusterName", defaultCreateRuntimeRequest.asJson.spaces2) ~> httpRoutes.route ~> check {
+    Post(s"/api/google/v1/runtimes/googleProject1/$invalidClusterName", defaultCreateRuntimeRequest.asJson.spaces2) ~> httpRoutes().route ~> check {
       val expectedResponse =
         """Invalid name MyCluster. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names"""
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String shouldBe expectedResponse
@@ -84,7 +89,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "get a runtime" in {
+  it should "get a runtime" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/runtimes/googleProject/runtime1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[GetRuntimeResponse].id shouldBe CommonTestData.testCluster.id
@@ -92,13 +97,13 @@ class HttpRoutesSpec
     }
   }
 
-  it should "return 404 when getting a non-existent runtime" in {
-    Get("/api/google/v1/runtimes/googleProject/runtime-non-existent") ~> httpRoutes.route ~> check {
+  it should "return 404 when getting a non-existent runtime" in isolatedDbTest { implicit dbRef =>
+    Get("/api/google/v1/runtimes/googleProject/runtime-non-existent") ~> httpRoutes().route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
-  it should "list runtimes with a project" in {
+  it should "list runtimes with a project" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/runtimes/googleProject") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
@@ -106,7 +111,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list runtimes without a project" in {
+  it should "list runtimes without a project" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/runtimes") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       val response = responseAs[Vector[ListRuntimeResponse2]]
@@ -118,7 +123,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list runtimes with labels" in isolatedDbTest {
+  it should "list runtimes with labels" in isolatedDbTest { implicit dbRef =>
     def runtimesWithLabels(i: Int) =
       defaultCreateRuntimeRequest
         .copy(jupyterStartUserScriptUri = None)
@@ -136,12 +141,12 @@ class HttpRoutesSpec
       )
 
     for (i <- 1 to 10) {
-      Post(s"/api/google/v1/runtimes/${googleProject}/${clusterName}-$i", runtimesWithLabels(i).asJson) ~> httpRoutes.route ~> check {
+      Post(s"/api/google/v1/runtimes/${googleProject}/${clusterName}-$i", runtimesWithLabels(i).asJson) ~> httpRoutes().route ~> check {
         status shouldEqual StatusCodes.Accepted
       }
     }
 
-    Get("/api/google/v1/runtimes?label6=value6") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes?label6=value6") ~> httpRoutes().route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -163,7 +168,7 @@ class HttpRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get("/api/google/v1/runtimes?_labels=label4%3Dvalue4") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes?_labels=label4%3Dvalue4") ~> httpRoutes().route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -185,12 +190,12 @@ class HttpRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get("/api/google/v1/runtimes?_labels=bad") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes?_labels=bad") ~> httpRoutes().route ~> check {
       status shouldEqual StatusCodes.BadRequest
     }
   }
 
-  it should "list runtimes with parameters" in {
+  it should "list runtimes with parameters" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/runtimes?project=foo&creator=bar") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListRuntimeResponse2]].map(_.id) shouldBe Vector(CommonTestData.testCluster.id)
@@ -198,14 +203,14 @@ class HttpRoutesSpec
     }
   }
 
-  it should "delete a runtime" in {
+  it should "delete a runtime" in isolatedDbTest { implicit dbRef =>
     Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "delete a runtime and disk if deleteDisk is true" in {
+  it should "delete a runtime and disk if deleteDisk is true" in isolatedDbTest { implicit dbRef =>
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
         implicit as: Ask[IO, AppContext]
@@ -222,13 +227,13 @@ class HttpRoutesSpec
     }
   }
 
-  it should "return 404 when deleting a non-existent runtime" in {
-    Delete("/api/google/v1/runtimes/googleProject/runtime-non-existent") ~> httpRoutes.route ~> check {
+  it should "return 404 when deleting a non-existent runtime" in isolatedDbTest { implicit dbRef =>
+    Delete("/api/google/v1/runtimes/googleProject/runtime-non-existent") ~> httpRoutes().route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
-  it should "keep disk when deleting runtime if deleteDisk is false" in {
+  it should "keep disk when deleting runtime if deleteDisk is false" in isolatedDbTest { implicit dbRef =>
     val runtimeService = new BaseMockRuntimeServiceInterp {
       override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
         implicit as: Ask[IO, AppContext]
@@ -245,67 +250,69 @@ class HttpRoutesSpec
     }
   }
 
-  it should "not delete disk when deleting a runtime with PD enabled if deleteDisk is not set" in {
-    val runtimeService = new BaseMockRuntimeServiceInterp {
-      override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
-        implicit as: Ask[IO, AppContext]
-      ): IO[Unit] = IO {
-        val expectedDeleteRuntime =
-          DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
-        deleteRuntimeRequest shouldBe expectedDeleteRuntime
+  it should "not delete disk when deleting a runtime with PD enabled if deleteDisk is not set" in isolatedDbTest {
+    implicit dbRef =>
+      val runtimeService = new BaseMockRuntimeServiceInterp {
+        override def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
+          implicit as: Ask[IO, AppContext]
+        ): IO[Unit] = IO {
+          val expectedDeleteRuntime =
+            DeleteRuntimeRequest(timedUserInfo, GoogleProject("googleProject1"), RuntimeName("runtime1"), false)
+          deleteRuntimeRequest shouldBe expectedDeleteRuntime
+        }
       }
-    }
-    val routes = fakeRoutes(runtimeService)
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-      validateRawCookie(header("Set-Cookie"))
-    }
+      val routes = fakeRoutes(runtimeService)
+      Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+        validateRawCookie(header("Set-Cookie"))
+      }
   }
 
-  it should "not delete disk when deleting a kubernetes app with PD enabled if deleteDisk is not set" in {
-    val kubernetesService = new MockKubernetesServiceInterp {
-      override def deleteApp(request: DeleteAppRequest)(
-        implicit as: Ask[IO, AppContext]
-      ): IO[Unit] = IO {
-        val expectedDeleteApp =
-          DeleteAppRequest(timedUserInfo, GoogleProject("googleProject1"), AppName("app1"), false)
-        request shouldBe expectedDeleteApp
+  it should "not delete disk when deleting a kubernetes app with PD enabled if deleteDisk is not set" in isolatedDbTest {
+    implicit dbRef =>
+      val kubernetesService = new MockKubernetesServiceInterp {
+        override def deleteApp(request: DeleteAppRequest)(
+          implicit as: Ask[IO, AppContext]
+        ): IO[Unit] = IO {
+          val expectedDeleteApp =
+            DeleteAppRequest(timedUserInfo, GoogleProject("googleProject1"), AppName("app1"), false)
+          request shouldBe expectedDeleteApp
+        }
       }
-    }
-    val routes = fakeRoutes(kubernetesService)
-    Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-      validateRawCookie(header("Set-Cookie"))
-    }
+      val routes = fakeRoutes(kubernetesService)
+      Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+        validateRawCookie(header("Set-Cookie"))
+      }
   }
 
-  it should "stop a runtime" in {
+  it should "stop a runtime" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/runtimes/googleProject1/runtime1/stop") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "return 404 when stopping a non-existent runtime" in {
-    Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/stop") ~> httpRoutes.route ~> check {
+  it should "return 404 when stopping a non-existent runtime" in isolatedDbTest { implicit dbRef =>
+    Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/stop") ~> httpRoutes().route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
-  it should "start a runtime" in {
+  it should "start a runtime" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/runtimes/googleProject1/runtime1/start") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "return 404 when startting a non-existent runtime" in {
-    Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/start") ~> httpRoutes.route ~> check {
+  it should "return 404 when startting a non-existent runtime" in isolatedDbTest { implicit dbRef =>
+    Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/start") ~> httpRoutes().route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
   }
 
-  it should "update a runtime" in {
+  it should "update a runtime" in isolatedDbTest { implicit dbRef =>
     val request = UpdateRuntimeRequest(
       Some(UpdateRuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-micro-2")), Some(DiskSize(50)))),
       true,
@@ -321,7 +328,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "update a runtime with default parameters" in {
+  it should "update a runtime with default parameters" in isolatedDbTest { implicit dbRef =>
     Patch("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -329,7 +336,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "not handle patch with invalid runtime config" in {
+  it should "not handle patch with invalid runtime config" in isolatedDbTest { implicit dbRef =>
     val negative =
       UpdateRuntimeRequest(Some(UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(-100)))),
                            false,
@@ -358,7 +365,7 @@ class HttpRoutesSpec
     }
   }
 
-  "DiskRoutes" should "create a disk" in {
+  "DiskRoutes" should "create a disk" in isolatedDbTest { implicit dbRef =>
     val diskCreateRequest = CreateDiskRequest(
       Map("foo" -> "bar"),
       Some(DiskSize(500)),
@@ -372,7 +379,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "create a disk with default parameters" in {
+  it should "create a disk with default parameters" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/disks/googleProject1/disk1")
       .withEntity(ContentTypes.`application/json`, "{}") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -380,7 +387,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "get a disk" in {
+  it should "get a disk" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/disks/googleProject/disk1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[GetPersistentDiskResponse].name shouldBe CommonTestData.diskName
@@ -388,7 +395,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list all disks" in {
+  it should "list all disks" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/disks") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
@@ -396,7 +403,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list all disks within a project" in {
+  it should "list all disks within a project" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/disks/googleProject") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
@@ -404,7 +411,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list disks with parameters" in {
+  it should "list disks with parameters" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/disks?project=foo&creator=bar") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[Vector[ListPersistentDiskResponse]].map(_.name) shouldBe Vector(CommonTestData.diskName)
@@ -412,14 +419,14 @@ class HttpRoutesSpec
     }
   }
 
-  it should "delete a disk" in {
+  it should "delete a disk" in isolatedDbTest { implicit dbRef =>
     Delete("/api/google/v1/disks/googleProject1/disk1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "update a disk" in {
+  it should "update a disk" in isolatedDbTest { implicit dbRef =>
     val request = UpdateDiskRequest(
       Map("foo" -> "bar"),
       DiskSize(1024)
@@ -430,7 +437,7 @@ class HttpRoutesSpec
     }
   }
 
-  "HttpRoutes" should "not handle unrecognized routes" in {
+  "HttpRoutes" should "not handle unrecognized routes" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/runtime/googleProject1/runtime1/unhandled") ~> routes.route ~> check {
       status shouldBe StatusCodes.NotFound
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
@@ -463,7 +470,7 @@ class HttpRoutesSpec
     }
   }
 
-  "Kubernetes Routes" should "create an app" in {
+  "Kubernetes Routes" should "create an app" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/apps/googleProject1/app1")
       .withEntity(ContentTypes.`application/json`, createAppRequest.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -471,7 +478,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list apps with project" in {
+  it should "list apps with project" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/apps/googleProject1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
@@ -479,21 +486,21 @@ class HttpRoutesSpec
     }
   }
 
-  it should "list apps with no project" in {
+  it should "list apps with no project" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/apps/") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "list apps with labels" in {
+  it should "list apps with labels" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/apps?project=foo&creator=bar&includeDeleted=true") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "get app" in {
+  it should "get app" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       validateRawCookie(header("Set-Cookie"))
@@ -501,7 +508,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "batch nodepool create" in {
+  it should "batch nodepool create" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/apps/googleProject1/batchNodepoolCreate")
       .withEntity(ContentTypes.`application/json`, batchNodepoolCreateRequest.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -509,20 +516,20 @@ class HttpRoutesSpec
     }
   }
 
-  it should "delete app" in {
+  it should "delete app" in isolatedDbTest { implicit dbRef =>
     Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "validate app name" in {
+  it should "validate app name" in isolatedDbTest { implicit dbRef =>
     Get("/api/google/v1/apps/googleProject1/1badApp") ~> routes.route ~> check {
       status.intValue shouldBe 400
     }
   }
 
-  it should "validate create app request" in {
+  it should "validate create app request" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/apps/googleProject1/app1")
       .withEntity(
         ContentTypes.`application/json`,
@@ -532,28 +539,28 @@ class HttpRoutesSpec
           )
           .asJson
           .spaces2
-      ) ~> httpRoutes.route ~> check {
+      ) ~> httpRoutes().route ~> check {
       status shouldBe StatusCodes.BadRequest
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "The request content was malformed:\nDecodingFailure at .kubernetesRuntimeConfig.numNodes: Minimum number of nodes is 1"
     }
   }
 
-  it should "stop an app" in {
+  it should "stop an app" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/apps/googleProject1/app1/stop") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  it should "start an app" in {
+  it should "start an app" in isolatedDbTest { implicit dbRef =>
     Post("/api/google/v1/apps/googleProject1/app1/start") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
   }
 
-  def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes =
+  def fakeRoutes(runtimeService: RuntimeService[IO])(implicit dbRef: DbReference[IO]): HttpRoutes =
     new HttpRoutes(
       swaggerConfig,
       statusService,
@@ -565,7 +572,7 @@ class HttpRoutesSpec
       contentSecurityPolicy
     )
 
-  def fakeRoutes(kubernetesService: KubernetesService[IO]): HttpRoutes =
+  def fakeRoutes(kubernetesService: KubernetesService[IO])(implicit dbRef: DbReference[IO]): HttpRoutes =
     new HttpRoutes(
       swaggerConfig,
       statusService,

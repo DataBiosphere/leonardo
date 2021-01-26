@@ -3,7 +3,6 @@ package auth
 
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-
 import cats.data.NonEmptyList
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Sync, Timer}
@@ -14,9 +13,8 @@ import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
+import org.broadinstitute.dsde.workbench.leonardo.algebra.{SamDAO, SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
