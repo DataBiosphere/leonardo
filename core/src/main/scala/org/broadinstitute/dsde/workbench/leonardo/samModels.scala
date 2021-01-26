@@ -91,6 +91,10 @@ object RuntimeAction {
   final case object ReadPolicies extends RuntimeAction {
     val asString = "read_policies"
   }
+  final case object SetParent extends RuntimeAction {
+    val asString = "set_parent"
+  }
+
   val allActions = sealerate.values[RuntimeAction]
   val stringToAction: Map[String, RuntimeAction] =
     sealerate.collect[RuntimeAction].map(a => (a.asString, a)).toMap
@@ -115,6 +119,10 @@ object PersistentDiskAction {
   final case object ReadPolicies extends PersistentDiskAction {
     val asString = "read_policies"
   }
+  final case object SetParent extends PersistentDiskAction {
+    val asString = "set_parent"
+  }
+
   val allActions = sealerate.values[PersistentDiskAction]
   val stringToAction: Map[String, PersistentDiskAction] =
     sealerate.collect[PersistentDiskAction].map(a => (a.asString, a)).toMap
@@ -145,6 +153,10 @@ object AppAction {
   final case object ReadPolicies extends AppAction {
     val asString = "read_policies"
   }
+  final case object SetParent extends AppAction {
+    val asString = "set_parent"
+  }
+
   val allActions = sealerate.values[AppAction]
   val stringToAction: Map[String, AppAction] =
     sealerate.collect[AppAction].map(a => (a.asString, a)).toMap

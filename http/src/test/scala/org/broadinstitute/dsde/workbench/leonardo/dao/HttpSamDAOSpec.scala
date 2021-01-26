@@ -11,10 +11,10 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderCo
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
+import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
-import org.http4s.{HttpApp, Response, Status, Uri}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 
