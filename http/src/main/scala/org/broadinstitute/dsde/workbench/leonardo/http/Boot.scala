@@ -146,7 +146,6 @@ object Boot extends IOApp {
         proxyConfig.proxyUrlBase,
         imageConfig,
         autoFreezeConfig,
-        zombieRuntimeMonitorConfig,
         dataprocConfig,
         gceConfig
       )
@@ -167,9 +166,6 @@ object Boot extends IOApp {
         appDependencies.serviceAccountProvider,
         appDependencies.publisherQueue
       )
-
-      val zombieClusterMonitor =
-        ZombieRuntimeMonitor[IO](zombieRuntimeMonitorConfig)
 
       val leoKubernetesService: LeoKubernetesServiceInterp[IO] =
         new LeoKubernetesServiceInterp(appDependencies.authProvider,
@@ -291,7 +287,6 @@ object Boot extends IOApp {
             asyncTasks.process,
             pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
-            zombieClusterMonitor.process, // mark runtimes that are no long active in google as zombie periodically
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitor.process // check database to autopause runtimes periodically
           )

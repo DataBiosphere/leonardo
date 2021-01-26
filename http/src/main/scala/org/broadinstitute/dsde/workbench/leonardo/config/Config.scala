@@ -454,7 +454,6 @@ object Config {
       )
   }
 
-  val zombieRuntimeMonitorConfig = config.as[ZombieRuntimeMonitorConfig]("zombieRuntimeMonitor")
   val clusterToolMonitorConfig = config.as[ClusterToolConfig](path = "clusterToolMonitor")
   val runtimeDnsCacheConfig = config.as[CacheConfig]("runtimeDnsCache")
   val kubernetesDnsCacheConfig = config.as[CacheConfig]("kubernetesDnsCache")

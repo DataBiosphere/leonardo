@@ -134,7 +134,6 @@ trait TestLeoRoutes {
     RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
                          imageConfig,
                          autoFreezeConfig,
-                         Config.zombieRuntimeMonitorConfig,
                          dataprocConfig,
                          Config.gceConfig),
     Config.persistentDiskConfig,

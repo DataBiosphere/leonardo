@@ -352,12 +352,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           runtime.googleProject
         )
       }
-      _ <- labelQuery
-        .save(runtime.id,
-              LabelResourceType.Runtime,
-              config.zombieRuntimeMonitorConfig.deletionConfirmationLabelKey,
-              "false")
-        .transaction
     } yield ()
 
   def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
@@ -985,7 +979,6 @@ final case class PersistentDiskRequestResult(disk: PersistentDisk, creationNeede
 final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       imageConfig: ImageConfig,
                                       autoFreezeConfig: AutoFreezeConfig,
-                                      zombieRuntimeMonitorConfig: ZombieRuntimeMonitorConfig,
                                       dataprocConfig: DataprocConfig,
                                       gceConfig: GceConfig)
 
