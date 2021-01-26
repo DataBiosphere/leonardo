@@ -400,11 +400,13 @@ object HttpSamDAO {
   implicit val projectActionDecoder: Decoder[ProjectAction] =
     Decoder.decodeString.map(x => ProjectAction.stringToAction.getOrElse(x, ProjectAction.Other(x)))
   implicit val runtimeActionDecoder: Decoder[RuntimeAction] =
-    Decoder.decodeString.map(x => RuntimeAction.stringToAction.getOrElse(x, RuntimeAction.Other(x)))
+    Decoder.decodeString.emap(x => RuntimeAction.stringToAction.get(x).toRight(s"Unknown runtime action: $x"))
   implicit val persistentDiskActionDecoder: Decoder[PersistentDiskAction] =
-    Decoder.decodeString.map(x => PersistentDiskAction.stringToAction.getOrElse(x, PersistentDiskAction.Other(x)))
+    Decoder.decodeString.emap(x =>
+      PersistentDiskAction.stringToAction.get(x).toRight(s"Unknown persistent disk action: $x")
+    )
   implicit val appActionDecoder: Decoder[AppAction] =
-    Decoder.decodeString.map(x => AppAction.stringToAction.getOrElse(x, AppAction.Other(x)))
+    Decoder.decodeString.emap(x => AppAction.stringToAction.get(x).toRight(s"Unknown app action: $x"))
   implicit val samRoleDecoder: Decoder[SamRole] =
     Decoder.decodeString.map(x => SamRole.stringToRole.getOrElse(x, SamRole.Other(x)))
   implicit val samPolicyDataDecoder: Decoder[SamPolicyData] = Decoder.instance { x =>

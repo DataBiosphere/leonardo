@@ -94,9 +94,8 @@ object RuntimeAction {
   final case object SetParent extends RuntimeAction {
     val asString = "set_parent"
   }
-  final case class Other(asString: String) extends RuntimeAction
 
-  val allActions = sealerate.collect[RuntimeAction]
+  val allActions = sealerate.values[RuntimeAction]
   val stringToAction: Map[String, RuntimeAction] =
     sealerate.collect[RuntimeAction].map(a => (a.asString, a)).toMap
 }
@@ -123,9 +122,8 @@ object PersistentDiskAction {
   final case object SetParent extends PersistentDiskAction {
     val asString = "set_parent"
   }
-  final case class Other(asString: String) extends PersistentDiskAction
 
-  val allActions = sealerate.collect[PersistentDiskAction]
+  val allActions = sealerate.values[PersistentDiskAction]
   val stringToAction: Map[String, PersistentDiskAction] =
     sealerate.collect[PersistentDiskAction].map(a => (a.asString, a)).toMap
 }
@@ -158,9 +156,8 @@ object AppAction {
   final case object SetParent extends AppAction {
     val asString = "set_parent"
   }
-  final case class Other(asString: String) extends AppAction
 
-  val allActions = sealerate.collect[AppAction]
+  val allActions = sealerate.values[AppAction]
   val stringToAction: Map[String, AppAction] =
     sealerate.collect[AppAction].map(a => (a.asString, a)).toMap
 }

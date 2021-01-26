@@ -11,11 +11,10 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderCo
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus}
+import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
-import org.http4s.headers.Authorization
-import org.http4s._
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -132,105 +131,6 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       result <- samDao.getStatus.attempt
     } yield {
       result shouldBe Left(FakeException("retried 5 times"))
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "tolerate unknown runtime actions" in {
-    val response =
-      """
-        |[
-        |  "stop_start",
-        |  "read_policies",
-        |  "modify",
-        |  "connect",
-        |  "status",
-        |  "delete",
-        |  "set_parent",
-        |  "foo_bar"
-        |]
-        |""".stripMargin
-
-    val sam = Client.fromHttpApp[IO](
-      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
-    )
-
-    val samDao = new HttpSamDAO(sam, config, blocker)
-
-    val res = for {
-      actions <- samDao.getListOfResourcePermissions(
-        RuntimeSamResourceId("my_runtime"),
-        Authorization(Credentials.Token(AuthScheme.Bearer, CommonTestData.userInfo.accessToken.token))
-      )
-    } yield {
-      actions.toSet shouldBe (RuntimeAction.allActions + RuntimeAction.Other("foo_bar"))
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "tolerate unknown persistent-disk actions" in {
-    val response =
-      """
-        |[
-        |  "read_policies",
-        |  "modify",
-        |  "attach",
-        |  "delete",
-        |  "read",
-        |  "set_parent",
-        |  "foo_bar"
-        |]
-        |""".stripMargin
-
-    val sam = Client.fromHttpApp[IO](
-      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
-    )
-
-    val samDao = new HttpSamDAO(sam, config, blocker)
-
-    val res = for {
-      actions <- samDao.getListOfResourcePermissions(
-        PersistentDiskSamResourceId("my_disk"),
-        Authorization(Credentials.Token(AuthScheme.Bearer, CommonTestData.userInfo.accessToken.token))
-      )
-    } yield {
-      actions.toSet shouldBe (PersistentDiskAction.allActions + PersistentDiskAction.Other("foo_bar"))
-    }
-
-    res.unsafeRunSync()
-  }
-
-  it should "tolerate unknown app actions" in {
-    val response =
-      """
-        |[
-        |  "start",
-        |  "read_policies",
-        |  "update",
-        |  "connect",
-        |  "status",
-        |  "stop",
-        |  "delete",
-        |  "set_parent",
-        |  "foo_bar"
-        |]
-        |""".stripMargin
-
-    val sam = Client.fromHttpApp[IO](
-      HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
-    )
-
-    val samDao = new HttpSamDAO(sam, config, blocker)
-
-    val res = for {
-      actions <- samDao.getListOfResourcePermissions(
-        AppSamResourceId("my_app"),
-        Authorization(Credentials.Token(AuthScheme.Bearer, CommonTestData.userInfo.accessToken.token))
-      )
-    } yield {
-      actions.toSet shouldBe (AppAction.allActions + AppAction.Other("foo_bar"))
     }
 
     res.unsafeRunSync()
