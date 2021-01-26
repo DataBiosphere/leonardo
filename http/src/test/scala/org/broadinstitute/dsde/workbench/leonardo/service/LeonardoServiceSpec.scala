@@ -165,7 +165,6 @@ class LeonardoServiceSpec
     clusterCreateResponse.userJupyterExtensionConfig shouldBe testClusterRequest.userJupyterExtensionConfig
     clusterCreateResponse.autopauseThreshold shouldBe testClusterRequest.autopauseThreshold.getOrElse(0)
     clusterCreateResponse.defaultClientId shouldBe testClusterRequest.defaultClientId
-    clusterCreateResponse.stopAfterCreation shouldBe testClusterRequest.stopAfterCreation.getOrElse(false)
     clusterCreateResponse.clusterImages.map(_.imageType) shouldBe Set(Jupyter, Proxy)
     clusterCreateResponse.scopes shouldBe dataprocConfig.defaultScopes
     clusterCreateResponse.welderEnabled shouldBe false
@@ -201,19 +200,16 @@ class LeonardoServiceSpec
     // create the cluster
     val clusterRequest1 = testClusterRequest.copy(
       runtimeConfig = Some(singleNodeDefaultMachineConfigRequest),
-      stopAfterCreation = Some(true),
       welderRegistry = Some(ContainerRegistry.GCR),
       enableWelder = Some(true)
     )
     val clusterRequest2 = testClusterRequest.copy(
       runtimeConfig = Some(singleNodeDefaultMachineConfigRequest),
-      stopAfterCreation = Some(true),
       welderRegistry = Some(ContainerRegistry.DockerHub),
       enableWelder = Some(true)
     )
     val clusterRequest3 = testClusterRequest.copy(
       runtimeConfig = Some(singleNodeDefaultMachineConfigRequest),
-      stopAfterCreation = Some(true),
       enableWelder = Some(true)
     )
 
@@ -247,7 +243,6 @@ class LeonardoServiceSpec
     // create the cluster
     val clusterRequest = testClusterRequest.copy(
       runtimeConfig = Some(singleNodeDefaultMachineConfigRequest),
-      stopAfterCreation = Some(true),
       welderDockerImage = Some(customWelderImage),
       enableWelder = Some(true)
     )

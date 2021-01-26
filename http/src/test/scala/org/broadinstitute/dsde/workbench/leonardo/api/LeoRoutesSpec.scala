@@ -54,7 +54,6 @@ class LeoRoutesSpec
       Some(jupyterUserScriptUri),
       Some(jupyterStartUserScriptUri),
       None,
-      None,
       false,
       Some(UserJupyterExtensionConfig(Map("abc" -> "def"))),
       None
@@ -315,22 +314,21 @@ class LeoRoutesSpec
     }
   }
 
-  Seq(true, false).foreach { stopAfterCreation =>
-    it should s"create a cluster with stopAfterCreation = $stopAfterCreation" in isolatedDbTest {
-      val request = CreateRuntimeRequest(
-        Map.empty,
-        Some(jupyterUserScriptUri),
-        Some(jupyterStartUserScriptUri),
-        stopAfterCreation = Some(stopAfterCreation),
-        userJupyterExtensionConfig = Some(userJupyterExtensionConfig)
-      )
-      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}", request.asJson) ~> timedLeoRoutes.route ~> check {
-        status shouldEqual StatusCodes.Accepted
-        //validateCookie { header[`Set-Cookie`] }
-        validateRawCookie(header("Set-Cookie"))
-      }
-    }
-  }
+//  Seq(true, false).foreach { stopAfterCreation =>
+//    it should s"create a cluster with stopAfterCreation = $stopAfterCreation" in isolatedDbTest {
+//      val request = CreateRuntimeRequest(
+//        Map.empty,
+//        Some(jupyterUserScriptUri),
+//        Some(jupyterStartUserScriptUri),
+//        userJupyterExtensionConfig = Some(userJupyterExtensionConfig)
+//      )
+//      Put(s"/cluster/v2/${googleProject.value}/${clusterName.asString}", request.asJson) ~> timedLeoRoutes.route ~> check {
+//        status shouldEqual StatusCodes.Accepted
+//        //validateCookie { header[`Set-Cookie`] }
+//        validateRawCookie(header("Set-Cookie"))
+//      }
+//    }
+//  }
 
   it should s"reject create a cluster if cluster name is invalid" in isolatedDbTest {
     val invalidClusterName = "MyCluster"
@@ -338,7 +336,6 @@ class LeoRoutesSpec
       Map.empty,
       Some(jupyterUserScriptUri),
       Some(jupyterStartUserScriptUri),
-      stopAfterCreation = None,
       userJupyterExtensionConfig = Some(userJupyterExtensionConfig)
     )
     Put(s"/api/cluster/v2/${googleProject.value}/$invalidClusterName", request.asJson) ~> httpRoutes.route ~> check {

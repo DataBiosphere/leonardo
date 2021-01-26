@@ -193,7 +193,6 @@ class LeoRoutesJsonCodecSpec extends AnyFlatSpec with Matchers {
         |  "dateAccessed": "2018-08-07T10:12:35Z",
         |  "autopauseThreshold": 30,
         |  "defaultClientId": "defaultClientId",
-        |  "stopAfterCreation": true,
         |  "clusterImages": [
         |    { "imageType": "Jupyter",
         |      "imageUrl": "jupyter/jupyter-base:latest",
@@ -226,7 +225,6 @@ class LeoRoutesJsonCodecSpec extends AnyFlatSpec with Matchers {
           Map.empty
         )
       ),
-      Some(true),
       false,
       Some(
         UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://extension_bucket/extension_path"))
@@ -316,7 +314,6 @@ class LeoRoutesJsonCodecSpec extends AnyFlatSpec with Matchers {
       None,
       30,
       Some("clientId"),
-      false,
       Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
       defaultScopes,
       true,

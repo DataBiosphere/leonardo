@@ -84,7 +84,6 @@ object LeoRoutesJsonCodec {
       jupyterStartUserScriptUri <- c.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
       // TODO: handle GCE here
       machineConfig <- c.downField("machineConfig").as[Option[RuntimeConfigRequest.DataprocConfig]]
-      stopAfterCreation <- c.downField("stopAfterCreation").as[Option[Boolean]]
       userJupyterExtensionConfig <- c.downField("userJupyterExtensionConfig").as[Option[UserJupyterExtensionConfig]]
       autopause <- c.downField("autopause").as[Option[Boolean]]
       autopauseThreshold <- c.downField("autopauseThreshold").as[Option[Int]]
@@ -116,7 +115,6 @@ object LeoRoutesJsonCodec {
         jupyterUserScriptUri,
         jupyterStartUserScriptUri,
         machineConfig,
-        stopAfterCreation,
         allowStop.getOrElse(false),
         if (updatedUserJupyterExtensionConfig.asLabels.isEmpty) None else Some(updatedUserJupyterExtensionConfig),
         autopause,

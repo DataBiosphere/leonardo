@@ -113,7 +113,6 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
       "autopauseThreshold" -> obj.autopauseThreshold.toJson,
       "defaultClientId" -> obj.defaultClientId.toJson,
-      "stopAfterCreation" -> obj.stopAfterCreation.toJson,
       "welderEnabled" -> obj.welderEnabled.toJson,
       "patchInProgress" -> obj.patchInProgress.toJson,
       "scopes" -> List
@@ -193,7 +192,6 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
       "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
       "autopauseThreshold" -> obj.autopauseThreshold.toJson,
       "defaultClientId" -> obj.defaultClientId.toJson,
-      "stopAfterCreation" -> obj.stopAfterCreation.toJson,
       "clusterImages" -> obj.clusterImages.toJson,
       "scopes" -> obj.scopes.toJson,
       "welderEnabled" -> obj.welderEnabled.toJson,
@@ -234,7 +232,6 @@ object LeoRoutesSprayJsonCodec extends DefaultJsonProtocol {
         "dateAccessed" -> obj.auditInfo.dateAccessed.toJson,
         "autopauseThreshold" -> obj.autopauseThreshold.toJson,
         "defaultClientId" -> obj.defaultClientId.toJson,
-        "stopAfterCreation" -> obj.stopAfterCreation.toJson,
         "clusterImages" -> obj.clusterImages.toJson,
         "scopes" -> obj.scopes.toJson,
         "welderEnabled" -> obj.welderEnabled.toJson,

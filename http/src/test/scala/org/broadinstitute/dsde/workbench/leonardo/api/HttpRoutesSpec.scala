@@ -530,7 +530,6 @@ object HttpRoutesSpec {
       userJupyterExtensionConfig,
       autopauseThreshold,
       defaultClientId,
-      false,
       clusterImages,
       scopes,
       true,

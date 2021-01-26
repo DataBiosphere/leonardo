@@ -104,7 +104,6 @@ object LeonardoServiceDbQueries {
             Set.empty, //TODO: remove instances from ListResponse
             clusterRec.autopauseThreshold,
             clusterRec.defaultClientId,
-            clusterRec.stopAfterCreation,
             clusterRec.welderEnabled,
             patchInProgress
           )

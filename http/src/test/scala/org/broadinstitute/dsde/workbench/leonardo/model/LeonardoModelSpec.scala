@@ -19,7 +19,6 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       Some(makeAsyncRuntimeFields(1).copy(googleId = GoogleId("4ba97751-026a-4555-961b-89ae6ce78df4"))),
     auditInfo = auditInfo.copy(createdDate = exampleTime, dateAccessed = exampleTime),
     userJupyterExtensionConfig = Some(userJupyterExtensionConfig),
-    stopAfterCreation = true,
     allowStop = false,
     runtimeImages = Set(jupyterImage.copy(timestamp = exampleTime), welderImage.copy(timestamp = exampleTime)),
     welderEnabled = true
@@ -54,7 +53,6 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
         |  "machineConfig": null,
         |  "rstudioDockerImage": null,
         |  "scopes": null,
-        |  "stopAfterCreation": null,
         |  "userJupyterExtensionConfig": null
         |}
       """.stripMargin

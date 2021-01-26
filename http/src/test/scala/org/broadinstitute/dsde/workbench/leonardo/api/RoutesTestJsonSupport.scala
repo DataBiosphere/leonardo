@@ -47,7 +47,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       dateAccessed <- x.downField("dateAccessed").as[Instant]
       autopauseThreshold <- x.downField("autopauseThreshold").as[Int]
       defaultClientId <- x.downField("defaultClientId").as[Option[String]]
-      stopAfterCreation <- x.downField("stopAfterCreation").as[Boolean]
       welderEnabled <- x.downField("welderEnabled").as[Boolean]
       patchInProgress <- x.downField("patchInProgress").as[Boolean]
     } yield ListRuntimeResponse(
@@ -67,7 +66,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       Set.empty, //TODO: do this when this field is needed
       autopauseThreshold,
       defaultClientId,
-      stopAfterCreation,
       welderEnabled,
       patchInProgress
     )
@@ -103,7 +101,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       dateAccessed <- x.downField("dateAccessed").as[Instant]
       autopauseThreshold <- x.downField("autopauseThreshold").as[Int]
       defaultClientId <- x.downField("defaultClientId").as[Option[String]]
-      stopAfterCreation <- x.downField("stopAfterCreation").as[Boolean]
       clusterImages <- x.downField("clusterImages").as[Set[RuntimeImage]]
       scopes <- x.downField("scopes").as[Set[String]]
       welderEnabled <- x.downField("welderEnabled").as[Boolean]
@@ -128,7 +125,6 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
       userJupyterExtensionConfig,
       autopauseThreshold,
       defaultClientId,
-      stopAfterCreation,
       clusterImages,
       scopes,
       welderEnabled,
@@ -138,12 +134,11 @@ object RoutesTestJsonSupport extends DefaultJsonProtocol {
     )
   }
 
-  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct17(
+  implicit val clusterRequestEncoder: Encoder[CreateRuntimeRequest] = Encoder.forProduct16(
     "labels",
     "jupyterUserScriptUri",
     "jupyterStartUserScriptUri",
     "runtimeConfig",
-    "stopAfterCreation",
     "allowStop",
     "userJupyterExtensionConfig",
     "autopause",

@@ -226,7 +226,6 @@ object TestUtils extends Matchers {
     c.userJupyterExtensionConfig shouldBe createCluster.userJupyterExtensionConfig
     c.autopauseThreshold shouldBe createCluster.autopauseThreshold
     c.defaultClientId shouldBe createCluster.defaultClientId
-    c.stopAfterCreation shouldBe createCluster.stopAfterCreation
     c.runtimeImages shouldBe createCluster.clusterImages
     c.scopes shouldBe createCluster.scopes
     c.welderEnabled shouldBe createCluster.welderEnabled

@@ -61,7 +61,6 @@ object LeoLenses {
       x.dataprocInstances,
       x.autopauseThreshold,
       x.defaultClientId,
-      x.stopAfterCreation,
       x.welderEnabled,
       x.patchInProgress
     )
@@ -84,7 +83,6 @@ object LeoLenses {
         dataprocInstances = x.dataprocInstances,
         autopauseThreshold = x.autopauseThreshold,
         defaultClientId = x.defaultClientId,
-        stopAfterCreation = x.stopAfterCreation,
         welderEnabled = x.welderEnabled,
         patchInProgress = x.patchInProgress
       )
