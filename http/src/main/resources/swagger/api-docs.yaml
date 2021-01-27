@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "0.3.0"
+  version: "1.0.0"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -2142,16 +2142,6 @@ components:
             found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
         machineConfig:
           $ref: "#/components/schemas/MachineConfig"
-        stopAfterCreation:
-          description: >
-            If true, Leo will immediately stop the cluster once it's created,
-            with the end result being a
-
-            a cluster in Stopped state. Otherwise, the end result will be a cluster in Running state.
-
-            Defaults to false.
-          type: boolean
-          default: false
         allowStop:
           type: boolean
           description: If true, leo will allow updates that require a stop for this

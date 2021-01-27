@@ -389,7 +389,6 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       30,
       Some("clientId"),
-      false,
       Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
       defaultScopes,
       true,

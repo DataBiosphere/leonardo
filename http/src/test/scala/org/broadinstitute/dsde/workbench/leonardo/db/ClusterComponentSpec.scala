@@ -25,8 +25,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     lazy val cluster1UUID = GoogleId(UUID.randomUUID().toString)
     val cluster1 = makeCluster(1).copy(
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(googleId = cluster1UUID)),
-      dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2),
-      stopAfterCreation = true
+      dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
     )
 
     val cluster1WithErr = makeCluster(1).copy(
@@ -83,9 +82,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     )
 
     dbFutureValue(clusterErrorQuery.save(savedCluster1.id, err1))
-    val cluster1WithErrAssignedId = cluster1WithErr.copy(id = savedCluster1.id,
-                                                         stopAfterCreation = true,
-                                                         runtimeConfigId = savedCluster1.runtimeConfigId)
+    val cluster1WithErrAssignedId =
+      cluster1WithErr.copy(id = savedCluster1.id, runtimeConfigId = savedCluster1.runtimeConfigId)
 
     dbFutureValue(clusterQuery.getClusterById(savedCluster1.id)) shouldEqual Some(cluster1WithErrAssignedId)
     dbFutureValue(clusterQuery.getClusterById(savedCluster2.id)) shouldEqual Some(savedCluster2)

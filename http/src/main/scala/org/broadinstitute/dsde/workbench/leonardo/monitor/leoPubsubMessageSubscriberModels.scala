@@ -165,7 +165,6 @@ object LeoPubsubMessage {
                                         welderEnabled: Boolean,
                                         customEnvironmentVariables: Map[String, String],
                                         runtimeConfig: RuntimeConfigInCreateRuntimeMessage,
-                                        stopAfterCreation: Boolean = false,
                                         traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateRuntime
@@ -190,7 +189,6 @@ object LeoPubsubMessage {
         runtime.welderEnabled,
         runtime.customEnvironmentVariables,
         runtimeConfig,
-        runtime.stopAfterCreation,
         traceId
       )
   }
@@ -502,7 +500,7 @@ object LeoPubsubCodec {
   }
 
   implicit val createRuntimeMessageEncoder: Encoder[CreateRuntimeMessage] =
-    Encoder.forProduct17(
+    Encoder.forProduct16(
       "messageType",
       "id",
       "clusterProjectAndName",
@@ -518,7 +516,6 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
-      "stopAfterCreation",
       "traceId"
     )(x =>
       (x.messageType,
@@ -536,7 +533,6 @@ object LeoPubsubCodec {
        x.welderEnabled,
        x.customEnvironmentVariables,
        x.runtimeConfig,
-       x.stopAfterCreation,
        x.traceId)
     )
 
@@ -591,7 +587,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createRuntimeMessageDecoder: Decoder[CreateRuntimeMessage] =
-    Decoder.forProduct16(
+    Decoder.forProduct15(
       "id",
       "clusterProjectAndName",
       "serviceAccountInfo",
@@ -606,7 +602,6 @@ object LeoPubsubCodec {
       "welderEnabled",
       "customClusterEnvironmentVariables",
       "runtimeConfig",
-      "stopAfterCreation",
       "traceId"
     )(CreateRuntimeMessage.apply)
 

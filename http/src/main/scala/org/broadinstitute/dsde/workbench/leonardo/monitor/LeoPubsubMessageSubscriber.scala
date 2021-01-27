@@ -161,23 +161,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       )).transaction
       taskToRun = for {
         _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Creating).compile.drain
-        _ <- if (msg.stopAfterCreation) { //TODO: once we remove legacy /api/clusters route or we remove `stopAfterCreation` support, we can remove this block
-          for {
-            _ <- clusterQuery
-              .updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now)
-              .transaction
-            runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
-            runtime <- F.fromEither(runtimeOpt.toRight(new Exception(s"can't find ${msg.runtimeId} in DB")))
-            dataprocConfig = msg.runtimeConfig match {
-              case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
-                Some(dataprocInCreateRuntimeMsgToDataprocRuntime(x))
-              case _ => none[RuntimeConfig.DataprocConfig]
-            }
-            _ <- msg.runtimeConfig.cloudService.interpreter
-              .stopRuntime(StopRuntimeParams(runtime, dataprocConfig, ctx.now))
-            _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Stopping).compile.drain
-          } yield ()
-        } else F.unit
       } yield ()
       _ <- asyncTasks.enqueue1(
         Task(
