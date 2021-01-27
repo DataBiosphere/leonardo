@@ -174,7 +174,6 @@ object RuntimeRoutesTestJsonCodec {
       userJupyterExtensionConfig,
       autopauseThreshold,
       defaultClientId,
-      false,
       clusterImages,
       scopes,
       true,

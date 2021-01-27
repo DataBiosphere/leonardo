@@ -305,7 +305,6 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
           Map.empty
         )
       ),
-      false,
       Some(
         UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://extension_bucket/extension_path"))
       ),
