@@ -154,6 +154,10 @@ log "Using $python_version packaged in the base (Debian 9) image..."
 log "Installing python requests module..."
 pip3 install requests
 
+# For some reason existing gcloud logs are world writable, which causes the image hardening
+# script to fail. This makes them writable only by owner.
+chmod -R 644 /root/.config/gcloud/logs
+
 log "Downloading Ansible playbook files and the image hardening script..."
 daisy_sources_path=$(curl --silent -H "$vm_metadata_google_header" "$daisy_sources_metadata_url")
 gsutil cp "${daisy_sources_path}/${cis_hardening_playbook_requirements_file}" .
