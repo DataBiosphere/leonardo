@@ -269,7 +269,6 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           deleteMessage = DeleteAppMessage(
             appResult.app.id,
             appResult.app.appName,
-            appResult.nodepool.id,
             appResult.cluster.googleProject,
             diskOpt,
             Some(ctx.traceId)

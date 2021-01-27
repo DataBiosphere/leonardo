@@ -277,7 +277,6 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
     message.messageType shouldBe LeoPubsubMessageType.DeleteApp
     val deleteAppMessage = message.asInstanceOf[DeleteAppMessage]
     deleteAppMessage.appId shouldBe app.id
-    deleteAppMessage.nodepoolId shouldBe nodepool.id
     deleteAppMessage.project shouldBe project
     deleteAppMessage.diskId shouldBe None
   }
