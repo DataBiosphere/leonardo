@@ -129,29 +129,6 @@ object CommonTestData {
     properties = Map.empty
   )
 
-  val testClusterRequest = CreateRuntimeRequest(
-    Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-    None,
-    None,
-    None,
-    false,
-    Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
-    Some(true),
-    Some(30),
-    Some("ThisIsADefaultClientID")
-  )
-  val testClusterRequestWithExtensionAndScript = CreateRuntimeRequest(
-    Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-    Some(jupyterUserScriptUri),
-    Some(jupyterStartUserScriptUri),
-    None,
-    false,
-    Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
-    None,
-    Some(30),
-    Some("ThisIsADefaultClientID")
-  )
-
   val mockSamDAO = new MockSamDAO
   val mockGoogle2StorageDAO = new BaseFakeGoogleStorage
 

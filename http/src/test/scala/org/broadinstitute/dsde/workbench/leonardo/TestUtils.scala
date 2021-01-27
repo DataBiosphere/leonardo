@@ -207,29 +207,5 @@ object TestUtils extends Matchers {
                  userJupyterExtensionConfig = None)
   }
 
-  def compareClusterAndCreateClusterAPIResponse(c: Runtime, createCluster: CreateRuntimeResponse): Assertion = {
-    c.id shouldBe createCluster.id
-    c.samResource shouldBe createCluster.samResource
-    c.runtimeName shouldBe createCluster.clusterName
-    c.googleProject shouldBe createCluster.googleProject
-    c.serviceAccount shouldBe createCluster.serviceAccountInfo
-    c.asyncRuntimeFields shouldBe createCluster.asyncRuntimeFields
-    c.auditInfo shouldBe createCluster.auditInfo
-    c.proxyUrl shouldBe createCluster.clusterUrl
-    c.status shouldBe createCluster.status
-    c.labels shouldBe createCluster.labels
-    c.jupyterUserScriptUri shouldBe createCluster.jupyterUserScriptUri
-    c.jupyterStartUserScriptUri shouldBe createCluster.jupyterStartUserScriptUri
-    c.errors shouldBe createCluster.errors
-    c.dataprocInstances shouldBe createCluster.dataprocInstances
-    c.userJupyterExtensionConfig shouldBe createCluster.userJupyterExtensionConfig
-    c.autopauseThreshold shouldBe createCluster.autopauseThreshold
-    c.defaultClientId shouldBe createCluster.defaultClientId
-    c.runtimeImages shouldBe createCluster.clusterImages
-    c.scopes shouldBe createCluster.scopes
-    c.welderEnabled shouldBe createCluster.welderEnabled
-    c.customEnvironmentVariables shouldBe createCluster.customClusterEnvironmentVariables
-  }
-
   def sslContext(implicit as: ActorSystem): SSLContext = SslContextReader.getSSLContext[IO]().unsafeRunSync()
 }
