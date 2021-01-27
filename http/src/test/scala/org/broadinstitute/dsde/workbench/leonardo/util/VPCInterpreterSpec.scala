@@ -23,7 +23,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   "VPCInterpreter" should "get a subnet from a project label" in {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubProjectDAO(
+                                  stubResourceService(
                                     Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
                                         vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                   ),
@@ -37,7 +37,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   it should "fail if both labels are not present" in {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubProjectDAO(
+                                  stubResourceService(
                                     Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_network")
                                   ),
                                   FakeGoogleComputeService,
@@ -48,7 +48,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     )
 
     val test2 = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                   stubProjectDAO(
+                                   stubResourceService(
                                      Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                    ),
                                    FakeGoogleComputeService,
@@ -61,7 +61,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   it should "create a new subnet if there are no project labels" in {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubProjectDAO(Map.empty),
+                                  stubResourceService(Map.empty),
                                   FakeGoogleComputeService,
                                   new MockComputePollOperation)
 
@@ -73,7 +73,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
   it should "create firewall rules in the project network" in {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubProjectDAO(Map.empty),
+                                  stubResourceService(Map.empty),
                                   computeService,
                                   new MockComputePollOperation)
 
@@ -97,14 +97,14 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       computeService.firewallMap.putIfAbsent(fw, Firewall.newBuilder().setName(fw.value).build)
     }
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubProjectDAO(Map.empty),
+                                  stubResourceService(Map.empty),
                                   computeService,
                                   new MockComputePollOperation)
     test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
   }
 
-  private def stubProjectDAO(labels: Map[String, String]): FakeGoogleResourceService =
+  private def stubResourceService(labels: Map[String, String]): FakeGoogleResourceService =
     new FakeGoogleResourceService {
       override def getLabels(project: GoogleProject)(
         implicit ev: Ask[IO, TraceId]
