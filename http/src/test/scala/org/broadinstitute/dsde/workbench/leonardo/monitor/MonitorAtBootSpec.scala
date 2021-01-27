@@ -211,7 +211,6 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       val expected = DeleteAppMessage(
         savedApp.id,
         savedApp.appName,
-        nodepool.id,
         cluster.googleProject,
         None,
         None

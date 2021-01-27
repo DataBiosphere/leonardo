@@ -200,11 +200,10 @@ object KubernetesServiceDbQueries {
       _ <- appQuery.updateStatus(appId, AppStatus.Predeleting)
     } yield ()
 
-  def markPendingDeletion(nodepoolId: NodepoolLeoId, appId: AppId, diskId: Option[DiskId], now: Instant)(
+  def markPendingAppDeletion(appId: AppId, diskId: Option[DiskId], now: Instant)(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
     for {
-      _ <- nodepoolQuery.markPendingDeletion(nodepoolId)
       _ <- appQuery.markPendingDeletion(appId)
       _ <- diskId.fold[DBIO[Int]](DBIO.successful(0))(diskId => persistentDiskQuery.markPendingDeletion(diskId, now))
     } yield ()
