@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGoogleDataprocService,
+  FakeGoogleResourceService,
   MockComputePollOperation
 }
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
@@ -45,7 +46,6 @@ class DataprocInterpreterSpec
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
-  val mockGoogleProjectDAO = new MockGoogleProjectDAO
 
   val testCluster = makeCluster(1)
     .copy(status = Creating, asyncRuntimeFields = None)
@@ -56,7 +56,7 @@ class DataprocInterpreterSpec
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                                         mockGoogleProjectDAO,
+                                         FakeGoogleResourceService,
                                          FakeGoogleComputeService,
                                          new MockComputePollOperation)
 
@@ -68,7 +68,7 @@ class DataprocInterpreterSpec
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
                                                    mockGoogleIamDAO,
-                                                   mockGoogleProjectDAO,
+                                                   FakeGoogleResourceService,
                                                    MockWelderDAO,
                                                    blocker)
 
@@ -164,7 +164,7 @@ class DataprocInterpreterSpec
                                                             MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             erroredIamDAO,
-                                                            mockGoogleProjectDAO,
+                                                            FakeGoogleResourceService,
                                                             MockWelderDAO,
                                                             blocker)
 

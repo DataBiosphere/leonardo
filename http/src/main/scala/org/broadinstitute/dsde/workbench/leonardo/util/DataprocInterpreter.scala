@@ -23,6 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDataprocService,
   GoogleDiskService,
+  GoogleResourceService,
   MachineTypeName,
   ZoneName
 }
@@ -67,7 +68,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
   googleDiskService: GoogleDiskService[F],
   googleDirectoryDAO: GoogleDirectoryDAO,
   googleIamDAO: GoogleIamDAO,
-  googleProjectDAO: GoogleProjectDAO,
+  googleResourceService: GoogleResourceService[F],
   welderDao: WelderDAO[F],
   blocker: Blocker
 )(implicit val F: Async[F],
@@ -424,12 +425,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           F.unit
         } else {
           for {
-            projectNumberOptIO <- F.liftIO(
-              IO.fromFuture(IO(googleProjectDAO.getProjectNumber(googleProject.value)))
-            )
-            projectNumber <- F.liftIO(
-              IO.fromEither(projectNumberOptIO.toRight(ClusterIamSetupException(imageProject)))
-            )
+            projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
+            projectNumber <- F.fromEither(projectNumberOpt.toRight(ClusterIamSetupException(imageProject)))
             // Note that the Dataproc service account is used to retrieve the image, and not the user's
             // pet service account. There is one Dataproc service account per Google project. For more details:
             // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts

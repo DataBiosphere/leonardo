@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGoogleDataprocService,
+  FakeGoogleResourceService,
   MockComputePollOperation,
   MockGKEService
 }
@@ -90,7 +91,7 @@ class LeoPubsubMessageSubscriberSpec
                                                      rolesToAdd: Set[String]): Future[Unit] = Future.successful(())
   }
   val iamDAO = new MockGoogleIamDAO
-  val projectDAO = new MockGoogleProjectDAO
+  val resourceService = FakeGoogleResourceService
   val authProvider = mock[LeoAuthProvider[IO]]
   val currentTime = Instant.now
   val timestamp = Timestamp.newBuilder().setSeconds(now.toSeconds).build()
@@ -106,7 +107,7 @@ class LeoPubsubMessageSubscriberSpec
 
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                           projectDAO,
+                           resourceService,
                            FakeGoogleComputeService,
                            new MockComputePollOperation)
 
@@ -118,7 +119,7 @@ class LeoPubsubMessageSubscriberSpec
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
                                                    iamDAO,
-                                                   projectDAO,
+                                                   resourceService,
                                                    mockWelderDAO,
                                                    blocker)
   val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,

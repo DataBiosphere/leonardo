@@ -5,9 +5,11 @@ import cats.effect.IO
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{Firewall, Network, Operation}
-import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google.mock.MockGoogleProjectDAO
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGoogleResourceService,
+  MockComputePollOperation
+}
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -15,7 +17,6 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.jdk.CollectionConverters._
-import scala.concurrent.Future
 import org.scalatest.flatspec.AnyFlatSpecLike
 
 class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
@@ -103,9 +104,11 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
   }
 
-  private def stubProjectDAO(labels: Map[String, String]): GoogleProjectDAO =
-    new MockGoogleProjectDAO {
-      override def getLabels(projectName: String): Future[Map[String, String]] = Future.successful(labels)
+  private def stubProjectDAO(labels: Map[String, String]): FakeGoogleResourceService =
+    new FakeGoogleResourceService {
+      override def getLabels(project: GoogleProject)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[Map[String, String]]] = IO(Some(labels))
     }
 
   class MockGoogleComputeServiceWithFirewalls extends FakeGoogleComputeService {

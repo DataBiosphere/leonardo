@@ -9,16 +9,12 @@ import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
-import org.broadinstitute.dsde.workbench.google.mock.{
-  MockGoogleDirectoryDAO,
-  MockGoogleIamDAO,
-  MockGoogleProjectDAO,
-  MockGoogleStorageDAO
-}
+import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGoogleDataprocService,
+  FakeGoogleResourceService,
   FakeGoogleStorageInterpreter,
   MockComputePollOperation
 }
@@ -56,7 +52,6 @@ trait TestLeoRoutes {
   }
 
   val mockGoogleIamDAO = new MockGoogleIamDAO
-  val mockGoogleProjectDAO = new MockGoogleProjectDAO
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO
     petMock.buckets += jupyterUserScriptBucketName -> Set(
@@ -76,7 +71,7 @@ trait TestLeoRoutes {
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                                         mockGoogleProjectDAO,
+                                         FakeGoogleResourceService,
                                          FakeGoogleComputeService,
                                          new MockComputePollOperation)
   val dataprocInterp =
@@ -88,7 +83,7 @@ trait TestLeoRoutes {
                                 MockGoogleDiskService,
                                 mockGoogleDirectoryDAO,
                                 mockGoogleIamDAO,
-                                mockGoogleProjectDAO,
+                                FakeGoogleResourceService,
                                 MockWelderDAO,
                                 blocker)
   val gceInterp =
