@@ -91,7 +91,10 @@ class LeoPubsubMessageSubscriberSpec
                                                      rolesToAdd: Set[String]): Future[Unit] = Future.successful(())
   }
   val iamDAO = new MockGoogleIamDAO
-  val resourceService = FakeGoogleResourceService
+  val resourceService = new FakeGoogleResourceService {
+    override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
+      IO(Some(1L))
+  }
   val authProvider = mock[LeoAuthProvider[IO]]
   val currentTime = Instant.now
   val timestamp = Timestamp.newBuilder().setSeconds(now.toSeconds).build()

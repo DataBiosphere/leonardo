@@ -426,6 +426,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         } else {
           for {
             projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
+
+            //TODO: This can also be from a 404?
             projectNumber <- F.fromEither(projectNumberOpt.toRight(ClusterIamSetupException(imageProject)))
             // Note that the Dataproc service account is used to retrieve the image, and not the user's
             // pet service account. There is one Dataproc service account per Google project. For more details:
