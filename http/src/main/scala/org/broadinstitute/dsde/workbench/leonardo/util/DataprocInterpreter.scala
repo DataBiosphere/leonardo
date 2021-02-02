@@ -50,8 +50,11 @@ final case class ClusterIamSetupException(googleProject: GoogleProject)
 final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: String)
     extends LeoException(s"Failed to create the Google group '${googleGroup}': $msg", StatusCodes.InternalServerError)
 
+final case class GoogleProjectNotFoundException(project: GoogleProject)
+    extends LeoException(s"Google did not have any record of project: $project.", StatusCodes.NotFound)
+
 final case object ImageProjectNotFoundException
-    extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
+    extends LeoException("Custom Dataproc image project not found.", StatusCodes.NotFound)
 
 final case class ClusterResourceConstaintsException(clusterProjectAndName: RuntimeProjectAndName,
                                                     machineType: MachineTypeName)
@@ -427,8 +430,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           for {
             projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
 
-            //TODO: This can also be from a 404?
-            projectNumber <- F.fromEither(projectNumberOpt.toRight(ClusterIamSetupException(imageProject)))
+            projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
             // Note that the Dataproc service account is used to retrieve the image, and not the user's
             // pet service account. There is one Dataproc service account per Google project. For more details:
             // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
