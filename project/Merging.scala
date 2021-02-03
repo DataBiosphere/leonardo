@@ -11,6 +11,7 @@ object Merging {
     case "module-info.class" =>
       MergeStrategy.discard // JDK 8 does not use the file module-info.class so it is safe to discard the file.
     case "reference.conf" => MergeStrategy.concat
+    case "logback.xml"    => MergeStrategy.first
     case x                => oldStrategy(x)
   }
 }
