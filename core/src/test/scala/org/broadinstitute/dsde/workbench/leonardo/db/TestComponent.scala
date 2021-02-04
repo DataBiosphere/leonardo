@@ -7,8 +7,6 @@ import cats.syntax.all._
 import com.typesafe.config.ConfigFactory
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.leonaroBaseUrl
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
-import org.scalatest.concurrent.ScalaFutures
-import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, TestSuite}
 import slick.dbio.DBIO
 
@@ -16,16 +14,13 @@ import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
-trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtils with BeforeAndAfterAll {
+trait TestComponent extends LeonardoTestSuite with GcsPathUtils with BeforeAndAfterAll {
   this: TestSuite =>
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
-  implicit override val patienceConfig = PatienceConfig(timeout = scaled(Span(30, Seconds)))
-
   val defaultServiceAccountKeyId = ServiceAccountKeyId("123")
 
-  val liquiBaseConfig =
-    LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true)
+  val initWithLiquibaseProp = "initLiquibase"
 
   // Not using beforeAll because the dbRef is needed before beforeAll is called
 //  implicit protected lazy val testDbRef: DbRef[IO] = initDbRef.unsafeRunSync()
@@ -43,7 +38,12 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     val res = for {
       concurrentPermits <- Semaphore[IO](200)
       blocker = Blocker.liftExecutionContext(global)
-      r <- (new DbReferenceInitializer[IO]).init(liquiBaseConfig, config, concurrentPermits, blocker).use { dbRef =>
+      liquibaseConfig <- if (sys.props.get(initWithLiquibaseProp).isEmpty)
+        IO(sys.props.put(initWithLiquibaseProp, "done"))
+          .as(LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true))
+      else
+        IO.pure(LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", false))
+      r <- (new DbReferenceInitializer[IO]).init(liquibaseConfig, config, concurrentPermits, blocker).use { dbRef =>
         dbRef.dataAccess.truncateAll.transaction(dbRef) >> IO(testCode(dbRef))
       }
     } yield r

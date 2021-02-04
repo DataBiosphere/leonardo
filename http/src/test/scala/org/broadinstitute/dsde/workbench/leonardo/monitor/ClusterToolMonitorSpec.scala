@@ -15,12 +15,14 @@ import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
 import org.scalatest.BeforeAndAfterAll
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.util.Try
 import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.time.{Seconds, Span}
 
 //TODO: running this spec results in lots of match `scala.MatchError: null`, investigate why that is
 class ClusterToolMonitorSpec
@@ -28,9 +30,12 @@ class ClusterToolMonitorSpec
     with AnyFlatSpecLike
     with LazyLogging
     with BeforeAndAfterAll
+    with ScalaFutures
     with TestComponent
     with GcsPathUtils
     with MockitoSugar { testKit =>
+
+  implicit override val patienceConfig = PatienceConfig(timeout = scaled(Span(30, Seconds)))
 
   override def afterAll(): Unit = {
     TestKit.shutdownActorSystem(system)

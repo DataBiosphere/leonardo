@@ -36,12 +36,14 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.dataDec
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.whitelistAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.{contentSecurityPolicy, swaggerConfig}
+import org.scalatest.concurrent.ScalaFutures
 
 import scala.collection.immutable
 import scala.concurrent.duration._
 
 class ProxyRoutesSpec
     extends AnyFlatSpec
+    with ScalaFutures
     with BeforeAndAfterAll
     with BeforeAndAfter
     with ScalatestRouteTest

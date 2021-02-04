@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.StatusService
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse, SubsystemStatus}
+import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -26,6 +27,7 @@ import scala.concurrent.duration._
 class StatusRoutesSpec
     extends AnyFlatSpec
     with Matchers
+    with ScalaFutures
     with ScalatestRouteTest
     with LeonardoTestSuite
     with TestComponent

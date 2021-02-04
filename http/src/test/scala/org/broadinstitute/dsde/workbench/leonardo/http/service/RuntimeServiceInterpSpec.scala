@@ -748,8 +748,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
-      .unsafeToFuture
-      .futureValue
+      .unsafeRunSync()
       .toSet shouldBe Set(listRuntimeResponse1)
     runtimeService.listRuntimes(userInfo, None, Map("_labels" -> "a=b")).unsafeRunSync().toSet shouldBe Set(
       listRuntimeResponse2

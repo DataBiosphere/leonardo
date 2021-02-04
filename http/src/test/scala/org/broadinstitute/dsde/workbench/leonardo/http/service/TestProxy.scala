@@ -16,14 +16,13 @@ import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
 import akka.stream.scaladsl.{Flow, Sink, Source}
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
-import org.scalatest.concurrent.ScalaFutures
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 
 import scala.collection.immutable
 import scala.concurrent.duration._
-import scala.concurrent.Future
+import scala.concurrent.{Await, Future}
 
-trait TestProxy { this: ScalaFutures =>
+trait TestProxy {
   val googleProject: String
   val clusterName: String
   val appName: String
@@ -55,7 +54,8 @@ trait TestProxy { this: ScalaFutures =>
     sslContext.init(keyManagerFactory.getKeyManagers, tmf.getTrustManagers, new SecureRandom)
     val https: HttpsConnectionContext = ConnectionContext.https(sslContext)
 
-    serverBinding = Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.proxyPort, https).futureValue
+    serverBinding =
+      Await.result(Http().bindAndHandle(backendRoute, "0.0.0.0", proxyConfig.proxyPort, https), 30 seconds)
   }
 
   def shutdownProxyServer() = {
