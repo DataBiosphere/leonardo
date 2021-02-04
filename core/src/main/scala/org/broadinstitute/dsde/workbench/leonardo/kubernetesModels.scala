@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
+import org.http4s.Uri
 
 case class KubernetesCluster(id: KubernetesClusterLeoId,
                              googleProject: GoogleProject,
@@ -307,6 +308,9 @@ object AppType {
   case object Galaxy extends AppType {
     override def toString: String = "GALAXY"
   }
+  case object Custom extends AppType {
+    override def toString: String = "CUSTOM"
+  }
 
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
@@ -352,7 +356,9 @@ final case class App(id: AppId,
                      //this is populated async to app creation
                      appResources: AppResources,
                      errors: List[AppError],
-                     customEnvironmentVariables: Map[String, String]) {
+                     customEnvironmentVariables: Map[String, String],
+                     descriptorPath: Option[Uri],
+                     extraArgs: List[String]) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       (service.config.name,

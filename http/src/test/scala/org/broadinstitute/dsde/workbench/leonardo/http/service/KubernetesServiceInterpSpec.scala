@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   _
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.{DeleteAppRequest, PersistentDiskRequest}
-import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.CreateNodepool
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   BatchNodepoolCreateMessage,

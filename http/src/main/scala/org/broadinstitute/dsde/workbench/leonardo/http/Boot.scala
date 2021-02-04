@@ -249,9 +249,10 @@ object Boot extends IOApp {
             googleDependencies.gkeService,
             googleDependencies.kubeService,
             appDependencies.helmClient,
-            appDependencies.galaxyDAO,
+            appDependencies.appDAO,
             googleDependencies.credentials,
             googleDependencies.googleIamDAO,
+            appDependencies.appDescriptorDAO,
             appDependencies.blocker,
             appDependencies.nodepoolLock
           )
@@ -388,7 +389,8 @@ object Boot extends IOApp {
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
       helmClient = new HelmInterpreter[F](blocker, semaphore)
-      galaxyDAO = new HttpGalaxyDAO(kubernetesDnsCache, clientWithRetryAndLogging)
+      appDAO = new HttpAppDAO(kubernetesDnsCache, clientWithRetryAndLogging)
+      appDescriptorDAO = new HttpAppDescriptorDAO(clientWithRetryAndLogging)
 
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
 
@@ -471,8 +473,9 @@ object Boot extends IOApp {
       nonLeoMessageSubscriber,
       asyncTasksQueue,
       helmClient,
-      galaxyDAO,
-      nodepoolLock
+      appDAO,
+      nodepoolLock,
+      appDescriptorDAO
     )
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
@@ -519,6 +522,7 @@ final case class AppDependencies[F[_]](
   nonLeoMessageGoogleSubscriber: GoogleSubscriber[F, NonLeoMessage],
   asyncTasksQueue: InspectableQueue[F, Task[F]],
   helmClient: HelmAlgebra[F],
-  galaxyDAO: GalaxyDAO[F],
-  nodepoolLock: KeyLock[F, KubernetesClusterId]
+  appDAO: AppDAO[F],
+  nodepoolLock: KeyLock[F, KubernetesClusterId],
+  appDescriptorDAO: AppDescriptorDAO[F]
 )

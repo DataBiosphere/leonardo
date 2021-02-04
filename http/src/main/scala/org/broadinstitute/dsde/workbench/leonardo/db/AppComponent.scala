@@ -3,6 +3,7 @@ package db
 
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
+
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import slick.lifted.Tag
 import LeoProfile.api._
@@ -13,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unma
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.Release
+import org.http4s.Uri
 
 import scala.concurrent.ExecutionContext
 
@@ -32,7 +34,9 @@ final case class AppRecord(id: AppId,
                            dateAccessed: Instant,
                            namespaceId: NamespaceId,
                            diskId: Option[DiskId],
-                           customEnvironmentVariables: Option[Map[String, String]])
+                           customEnvironmentVariables: Option[Map[String, String]],
+                           descriptorPath: Option[Uri],
+                           extraArgs: List[String])
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   //unique (appName, destroyedDate)
@@ -53,6 +57,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def namespaceId = column[NamespaceId]("namespaceId", O.Length(254))
   def diskId = column[Option[DiskId]]("diskId", O.Length(254))
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
+  def descriptorPath = column[Option[Uri]]("descriptorPath", O.Length(1024))
+  def extraArgs = column[List[String]]("extraArgs")
 
   def * =
     (
@@ -72,7 +78,9 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       dateAccessed,
       namespaceId,
       diskId,
-      customEnvironmentVariables
+      customEnvironmentVariables,
+      descriptorPath,
+      extraArgs
     ) <> (AppRecord.tupled, AppRecord.unapply)
 }
 
@@ -107,7 +115,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         app.kubernetesServiceAccount
       ),
       errors,
-      app.customEnvironmentVariables.getOrElse(Map.empty)
+      app.customEnvironmentVariables.getOrElse(Map.empty),
+      app.descriptorPath,
+      app.extraArgs
     )
 
   def save(saveApp: SaveApp)(implicit ec: ExecutionContext): DBIO[App] = {
@@ -167,7 +177,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.auditInfo.dateAccessed,
         namespaceId,
         diskOpt.map(_.id),
-        if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables)
+        if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
+        saveApp.app.descriptorPath,
+        saveApp.app.extraArgs
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)

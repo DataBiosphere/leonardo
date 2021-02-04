@@ -104,4 +104,8 @@ object FormattedBy extends Enum[FormattedBy] {
   final case object Galaxy extends FormattedBy {
     override def asString: String = "GALAXY"
   }
+
+  final case object Custom extends FormattedBy {
+    override def asString: String = "CUSTOM"
+  }
 }

@@ -225,7 +225,7 @@ object persistentDiskQuery {
             isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(diskId)
             isAttached <- if (isAttachedToRuntime) DBIO.successful(true) else appQuery.isDiskAttached(diskId)
           } yield isAttached
-        case Some(FormattedBy.Galaxy) =>
+        case Some(FormattedBy.Galaxy | FormattedBy.Custom) =>
           appQuery.isDiskAttached(diskId)
         case Some(FormattedBy.GCE) =>
           RuntimeConfigQueries.isDiskAttached(diskId)

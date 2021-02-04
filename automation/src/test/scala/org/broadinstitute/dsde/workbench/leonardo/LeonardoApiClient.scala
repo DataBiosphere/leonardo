@@ -99,7 +99,9 @@ object LeonardoApiClient {
     AppType.Galaxy,
     None,
     Map.empty,
-    Map.empty
+    Map.empty,
+    None,
+    List.empty
   )
 
   val defaultBatchNodepoolRequest = BatchNodepoolCreateRequest(

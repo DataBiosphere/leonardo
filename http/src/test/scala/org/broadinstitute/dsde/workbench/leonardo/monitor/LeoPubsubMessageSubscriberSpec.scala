@@ -47,7 +47,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockGalaxyDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
@@ -1144,9 +1144,10 @@ class LeoPubsubMessageSubscriberSpec
                                         MockGKEService,
                                         mockKubernetesService,
                                         MockHelm,
-                                        MockGalaxyDAO,
+                                        MockAppDAO,
                                         credentials,
                                         iamDAOKubernetes,
+                                        MockAppDescriptorDAO,
                                         blocker,
                                         lock)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterpreter = gkeInter)
@@ -1418,9 +1419,10 @@ class LeoPubsubMessageSubscriberSpec
                                          MockGKEService,
                                          mockKubernetesService,
                                          helmClient,
-                                         MockGalaxyDAO,
+                                         MockAppDAO,
                                          credentials,
                                          iamDAOKubernetes,
+                                         MockAppDescriptorDAO,
                                          blocker,
                                          lock)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
@@ -1475,9 +1477,10 @@ class LeoPubsubMessageSubscriberSpec
                                    MockGKEService,
                                    mockKubernetesService,
                                    helmClient,
-                                   MockGalaxyDAO,
+                                   MockAppDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   MockAppDescriptorDAO,
                                    blocker,
                                    lock)
 
@@ -1582,9 +1585,10 @@ class LeoPubsubMessageSubscriberSpec
                                          mockGKEService,
                                          new MockKubernetesService(PodStatus.Succeeded),
                                          MockHelm,
-                                         MockGalaxyDAO,
+                                         MockAppDAO,
                                          credentials,
                                          iamDAO,
+                                         MockAppDescriptorDAO,
                                          blocker,
                                          lock)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterpreter = gkeInterp)
@@ -1846,9 +1850,10 @@ class LeoPubsubMessageSubscriberSpec
                            MockGKEService,
                            new MockKubernetesService(PodStatus.Succeeded, appRelease = appRelease),
                            MockHelm,
-                           MockGalaxyDAO,
+                           MockAppDAO,
                            credentials,
                            iamDAOKubernetes,
+                           MockAppDescriptorDAO,
                            blocker,
                            lock)
 

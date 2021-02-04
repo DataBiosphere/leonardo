@@ -16,7 +16,7 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.leonardo.AppType.{Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -118,7 +118,7 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
           googleProject,
           userInfo,
           petSA,
-          FormattedBy.Galaxy,
+          if (req.appType == AppType.Galaxy) FormattedBy.Galaxy else FormattedBy.Custom,
           authProvider,
           leoKubernetesConfig.diskConfig
         )
@@ -490,10 +490,11 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
         Left(IllegalLabelKeyException(includeDeletedKey))
       else
         Right(allLabels)
-      //galaxy apps need a disk
-      disk <- if (req.appType == AppType.Galaxy && diskOpt.isEmpty)
-        Left(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
-      else Right(diskOpt)
+
+      // TODO make this non optional in the request
+      // the original thought when developing was that galaxy needs a disk, but some apps may not
+      // all apps require a disk
+      disk <- diskOpt.toRight(AppRequiresDiskException(googleProject, appName, req.appType, ctx.traceId))
 
       // Generate namespace and app release names using a random 6-character string prefix.
       //
@@ -535,15 +536,20 @@ final class LeoKubernetesServiceInterp[F[_]: Parallel](
             NamespaceId(-1),
             namespaceName
           ),
-          disk,
+          Some(disk),
           req.appType match {
             case Galaxy =>
               galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))
+            case Custom =>
+              // Back Leo will populate services when it parses the descriptor
+              List.empty
           },
           Option.empty
         ),
         List.empty,
-        req.customEnvironmentVariables
+        req.customEnvironmentVariables,
+        req.descriptorPath,
+        req.extraArgs
       )
     )
   }

@@ -20,12 +20,15 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.http4s.Uri
 
 final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
                                   appType: AppType,
                                   diskConfig: Option[PersistentDiskRequest],
                                   labels: LabelMap = Map.empty,
-                                  customEnvironmentVariables: Map[String, String])
+                                  customEnvironmentVariables: Map[String, String],
+                                  descriptorPath: Option[Uri],
+                                  extraArgs: List[String])
 
 final case class DeleteAppRequest(userInfo: UserInfo,
                                   googleProject: GoogleProject,
