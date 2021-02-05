@@ -30,31 +30,33 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - name: Set up JDK 1.8
-      uses: actions/setup-java@v1
+    - name: Setup Java and Scala
+      uses: olafurpg/setup-scala@v10
       with:
         java-version: 1.8
+
+    - name: Cache sbt
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.sbt
+          ~/.ivy2/cache
+          ~/.coursier/cache/v1
+          ~/.cache/coursier/v1
+          ~/AppData/Local/Coursier/Cache/v1
+          ~/Library/Caches/Coursier/v1
 
     - name: Compile and check scalafmt
       run: sbt -J-Xss4M -J-Xms2G -J-Xmx2G -Denv.type=test clean "test:compile" scalafmtCheckAll
 
     - name: Run tests
       run: |
-         sbt -J-Xss4M -J-Xms2G -J-Xmx2G -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3311 "project http" coverage test coverageReport
-         sbt -J-Xss4M -J-Xms2G -J-Xmx2G -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3311 "project subscriber" coverage test coverageReport
+         sbt -J-Xss4M -J-Xms4G -J-Xmx4G -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3311 "project core" coverage test coverageReport
+         sbt -J-Xss4M -J-Xms4G -J-Xmx4G -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3311 "project http" coverage test coverageReport
+         sbt -J-Xss4M -J-Xms4G -J-Xmx4G -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3311 "project subscriber" coverage test coverageReport
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v1
       with:
         fail_ci_if_error: true
         token: ${{ secrets.CODECOV_TOKEN }}
-
-    - name: Setup Cache
-      uses: coursier/cache-action@v5
-    - name: Cache resources
-      run: |
-        rm -rf "$HOME/.ivy2/local" || true
-        find $HOME/Library/Caches/Coursier/v1        -name "ivydata-*.properties" -delete || true
-        find $HOME/.ivy2/cache                       -name "ivydata-*.properties" -delete || true
-        find $HOME/.cache/coursier/v1                -name "ivydata-*.properties" -delete || true
-        find $HOME/.sbt                              -name "*.lock"               -delete || true
