@@ -40,7 +40,6 @@ jobs:
 
     - name: Run tests
       run: |
-#         sbt -J-Xss4M -J-Xms2G -J-Xmx2G -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3311 "project core" coverage test coverageReport
          sbt -J-Xss4M -J-Xms2G -J-Xmx2G -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3311 "project http" coverage test coverageReport
          sbt -J-Xss4M -J-Xms2G -J-Xmx2G -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3311 "project subscriber" coverage test coverageReport
 
