@@ -13,4 +13,4 @@ class RShinyPage(implicit val webDriver: WebDriver) extends WebBrowserUtil {
 }
 
 case class RShinyLaunchException(command: String)
-    extends Exception(s"RShiny app failed to launch with command $command")
+    extends Exception(s"RShiny app failed to launch with command '$command''")

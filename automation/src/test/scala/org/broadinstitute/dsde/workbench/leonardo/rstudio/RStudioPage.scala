@@ -42,12 +42,13 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   // Opens an example app from the shiny package.
   // Valid examples are:
   //   "01_hello", "02_text", "03_reactivity", "04_mpg", "05_sliders", "06_tabsets",
-  //    "07_widgets", "08_html", "09_upload", "10_download", "11_timer"
+  //   "07_widgets", "08_html", "09_upload", "10_download", "11_timer"
   def withRShinyExample[T](exampleName: String)(testCode: RShinyPage => T): T =
     withRShiny(s"runExample($exampleName)")(testCode)
 
   // Opens a shiny app from a specified directory.
-  // For example: "/usr/local/lib/R/site-library/shiny/examples/01_hello"
+  // For example:
+  //   "/usr/local/lib/R/site-library/shiny/examples/01_hello"
   def withRShinyApp[T](appDir: String)(testCode: RShinyPage => T): T =
     withRShiny(s"runApp($appDir)")(testCode)
 
@@ -56,9 +57,7 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
     val winHandleBefore = webDriver.getWindowHandle
 
     // Enter commands to launch the shiny app
-    pressKeys("library(shiny)")
-    pressKeys(Keys.ENTER.toString)
-    pressKeys(launchCommand)
+    pressKeys(s"shiny::$launchCommand")
     pressKeys(Keys.ENTER.toString)
 
     // Switch to the pop-up window
