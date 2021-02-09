@@ -52,13 +52,16 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
     withRShiny(s"runApp($appDir)")(testCode)
 
   private def withRShiny[T](launchCommand: String)(testCode: RShinyPage => T): T = {
+    // Get the original window handle
     val winHandleBefore = webDriver.getWindowHandle
 
+    // Enter commands to launch the shiny app
     pressKeys("library(shiny)")
     pressKeys(Keys.ENTER.toString)
     pressKeys(launchCommand)
     pressKeys(Keys.ENTER.toString)
 
+    // Switch to the pop-up window
     webDriver.getWindowHandles.asScala.filterNot(_ == winHandleBefore).headOption match {
       case Some(newHandle) =>
         switch to window(newHandle)
@@ -66,8 +69,10 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
         throw RShinyLaunchException(launchCommand)
     }
 
+    // Do verifications
     val result = Try(testCode(new RShinyPage))
 
+    // Close the pop-up window and switch back to the original window
     close()
     switch to window(winHandleBefore)
 
