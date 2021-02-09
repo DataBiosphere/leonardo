@@ -44,13 +44,13 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   //   "01_hello", "02_text", "03_reactivity", "04_mpg", "05_sliders", "06_tabsets",
   //   "07_widgets", "08_html", "09_upload", "10_download", "11_timer"
   def withRShinyExample[T](exampleName: String)(testCode: RShinyPage => T): T =
-    withRShiny(s"runExample($exampleName)")(testCode)
+    withRShiny(s"""runExample("$exampleName")""")(testCode)
 
   // Opens a shiny app from a specified directory.
   // For example:
   //   "/usr/local/lib/R/site-library/shiny/examples/01_hello"
   def withRShinyApp[T](appDir: String)(testCode: RShinyPage => T): T =
-    withRShiny(s"runApp($appDir)")(testCode)
+    withRShiny(s"""runApp("$appDir")""")(testCode)
 
   private def withRShiny[T](launchCommand: String)(testCode: RShinyPage => T): T = {
     // Get the original window handle
