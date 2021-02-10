@@ -135,7 +135,6 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
           val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include("RcppArmadillo")
           installOutput.get should include("Installing package into")
           installOutput.get should include("/home/jupyter-user/notebooks/packages")
           installOutput.get should not include ("cannot find -lgfortran")
