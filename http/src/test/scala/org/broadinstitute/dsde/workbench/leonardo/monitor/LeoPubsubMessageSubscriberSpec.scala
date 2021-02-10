@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
@@ -61,6 +60,8 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 import CommonTestData._
+import cats.data.Kleisli
+import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, Release, Values}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -1347,13 +1348,6 @@ class LeoPubsubMessageSubscriberSpec
     var deleteCalled = false
 
     val mockKubernetesService = new MockKubernetesService(PodStatus.Succeeded) {
-      override def createServiceAccount(
-        clusterId: GKEModels.KubernetesClusterId,
-        serviceAccount: KubernetesModels.KubernetesServiceAccount,
-        namespaceName: KubernetesModels.KubernetesNamespace
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
-        IO.raiseError(new Exception("this is an intentional test exception"))
-
       override def deleteNamespace(
         clusterId: GKEModels.KubernetesClusterId,
         namespace: KubernetesModels.KubernetesNamespace
@@ -1363,13 +1357,23 @@ class LeoPubsubMessageSubscriberSpec
         }
     }
 
+    val helmClient = new MockHelm {
+      override def installChart(release: Release,
+                                chartName: ChartName,
+                                chartVersion: ChartVersion,
+                                values: Values): Kleisli[IO, AuthContext, Unit] =
+        if (chartName == Config.gkeInterpConfig.terraAppSetupChartConfig.chartName)
+          Kleisli.liftF(IO.raiseError(new Exception("this is an intentional test exception")))
+        else Kleisli.liftF(IO.unit)
+    }
+
     val makeGKEInterp = for {
       lock <- nodepoolLock
     } yield new GKEInterpreter[IO](Config.gkeInterpConfig,
                                    vpcInterp,
                                    MockGKEService,
                                    mockKubernetesService,
-                                   MockHelm,
+                                   helmClient,
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAOKubernetes,
@@ -1448,13 +1452,23 @@ class LeoPubsubMessageSubscriberSpec
         IO.raiseError(new Exception("this is an intentional test exception"))
     }
 
+    val helmClient = new MockHelm {
+      override def installChart(release: Release,
+                                chartName: ChartName,
+                                chartVersion: ChartVersion,
+                                values: Values): Kleisli[IO, AuthContext, Unit] =
+        if (chartName == Config.gkeInterpConfig.terraAppSetupChartConfig.chartName)
+          Kleisli.liftF(IO.raiseError(new Exception("this is an intentional test exception")))
+        else Kleisli.liftF(IO.unit)
+    }
+
     val makeGKEInterp = for {
       lock <- nodepoolLock
     } yield new GKEInterpreter[IO](Config.gkeInterpConfig,
                                    vpcInterp,
                                    MockGKEService,
                                    mockKubernetesService,
-                                   MockHelm,
+                                   helmClient,
                                    MockGalaxyDAO,
                                    credentials,
                                    iamDAOKubernetes,

@@ -554,24 +554,6 @@ object Config {
       config.as[AutoscalingMax]("autoscalingMax")
     )
   }
-  implicit private val secretKeyReader: ValueReader[SecretKey] = stringValueReader.map(SecretKey)
-  implicit private val secretFileReader: ValueReader[SecretFile] = ValueReader.relative { config =>
-    SecretFile(
-      config.as[SecretKey]("name"),
-      config.as[Path]("path")
-    )
-  }
-
-  implicit private val secretNameReader: ValueReader[SecretName] =
-    stringValueReader.map(s =>
-      KubernetesName
-        .withValidation(s, SecretName)
-        .getOrElse(throw new RuntimeException(s"Unable to parse the secret name $s into a valid kubernetes name"))
-    )
-
-  implicit private val secretConfigReader: ValueReader[SecretConfig] = ValueReader.relative { config =>
-    SecretConfig(config.as[SecretName]("name"), config.as[List[SecretFile]]("secretFiles"))
-  }
 
   implicit private val ingressConfigReader: ValueReader[KubernetesIngressConfig] = ValueReader.relative { config =>
     KubernetesIngressConfig(
@@ -580,8 +562,7 @@ object Config {
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("chartVersion"),
       config.as[ServiceName]("loadBalancerService"),
-      config.as[List[ValueConfig]]("values"),
-      config.as[List[SecretConfig]]("secrets")
+      config.as[List[ValueConfig]]("values")
     )
   }
 
@@ -745,11 +726,13 @@ object Config {
   val gkeMonitorConfig = config.as[AppMonitorConfig]("pubsub.kubernetes-monitor")
 
   val gkeInterpConfig =
-    GKEInterpreterConfig(securityFilesConfig,
-                         gkeIngressConfig,
-                         gkeGalaxyAppConfig,
-                         gkeMonitorConfig,
-                         gkeClusterConfig,
-                         proxyConfig,
-                         gkeGalaxyDiskConfig)
+    GKEInterpreterConfig(
+      org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader.appConfig.terraAppSetupChart,
+      gkeIngressConfig,
+      gkeGalaxyAppConfig,
+      gkeMonitorConfig,
+      gkeClusterConfig,
+      proxyConfig,
+      gkeGalaxyDiskConfig
+    )
 }
