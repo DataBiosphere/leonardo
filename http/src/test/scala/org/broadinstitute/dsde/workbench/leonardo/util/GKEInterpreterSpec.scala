@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockGalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{kubernetesClusterQuery, nodepoolQuery, TestComponent}
@@ -64,25 +64,6 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     googleNodepool.getAutoscaling.getEnabled shouldBe true
     googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
     googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
-  }
-
-  it should "create secrets properly" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-
-    val secrets = gkeInterp.getSecrets(savedApp1.appResources.namespace.name).unsafeRunSync()
-
-    //we don't check the byte arrays here for the files
-    secrets.size shouldBe 2
-    secrets.map(_.secrets.keys.size).sum shouldBe 3
-    secrets.flatMap(_.secrets.keys).sortBy(_.value) shouldBe List(SecretKey("ca.crt"),
-                                                                  SecretKey("tls.crt"),
-                                                                  SecretKey("tls.key")).sortBy(_.value)
-    val emptyFileSecrets = secrets.map(s => (s.name, s.namespaceName))
-    emptyFileSecrets should contain((SecretName("ca-secret"), savedApp1.appResources.namespace.name))
-    emptyFileSecrets should contain((SecretName("tls-secret"), savedApp1.appResources.namespace.name))
-    secrets.flatMap(_.secrets.values).map(s => s.isEmpty shouldBe false)
   }
 
   it should "get a helm auth context" in {
