@@ -2,26 +2,25 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.JupyterPage
+import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
 import org.openqa.selenium.{Keys, WebDriver}
 
 import scala.concurrent.duration.{FiniteDuration, _}
-import scala.jdk.CollectionConverters._
 import scala.util.Try
 
 class RStudioPage(override val url: String)(implicit override val authToken: AuthToken,
-                                            implicit override val webDriver: WebDriver)
-    extends JupyterPage
+                                            implicit val webDriver: WebDriver)
+    extends CookieAuthedPage[RStudioPage]
     with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): RStudioPage =
     super.open.asInstanceOf[RStudioPage]
 
-  override val renderedApp: Query = cssSelector("[id='rstudio_rstudio_logo']")
+  val renderedApp: Query = cssSelector("[id='rstudio_rstudio_logo']")
 
   val rstudioContainer: Query = cssSelector("[id='rstudio_container']")
 
-  override def awaitLoaded(): JupyterPage = {
+  override def awaitLoaded(): RStudioPage = {
     await enabled renderedApp
     this
   }
@@ -43,38 +42,18 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   // Valid examples are:
   //   "01_hello", "02_text", "03_reactivity", "04_mpg", "05_sliders", "06_tabsets",
   //   "07_widgets", "08_html", "09_upload", "10_download", "11_timer"
-  def withRShinyExample[T](exampleName: String)(testCode: RShinyPage => T): T =
-    withRShiny(s"""runExample("$exampleName")""")(testCode)
-
-  // Opens a shiny app from a specified directory.
-  // For example:
-  //   "/usr/local/lib/R/site-library/shiny/examples/01_hello"
-  def withRShinyApp[T](appDir: String)(testCode: RShinyPage => T): T =
-    withRShiny(s"""runApp("$appDir")""")(testCode)
-
-  private def withRShiny[T](launchCommand: String)(testCode: RShinyPage => T): T = {
-    // Get the original window handle
-    val winHandleBefore = webDriver.getWindowHandle
-
+  def withRShinyExample[T](exampleName: String)(testCode: RShinyPage => T): T = {
     // Enter commands to launch the shiny app
-    pressKeys(s"shiny::$launchCommand")
-    pressKeys(Keys.ENTER.toString)
-
-    // Switch to the pop-up window
-    webDriver.getWindowHandles.asScala.filterNot(_ == winHandleBefore).headOption match {
-      case Some(newHandle) =>
-        switch to window(newHandle)
-      case None =>
-        throw RShinyLaunchException(launchCommand)
+    switchToNewTab {
+      val launchCommand = s"""shiny::runExample("$exampleName", launch.browser = T)"""
+      pressKeys(launchCommand)
+      pressKeys(Keys.ENTER.toString)
+      await condition windowHandles.size == 2
     }
 
     // Do verifications
-    val result = Try(testCode(new RShinyPage))
-
-    // Close the pop-up window and switch back to the original window
-    close()
-    switch to window(winHandleBefore)
-
+    val rshinyPage = new RShinyPage(currentUrl).awaitLoaded
+    val result = Try(testCode(rshinyPage))
     result.get
   }
 }

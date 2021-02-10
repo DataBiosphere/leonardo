@@ -27,7 +27,7 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
       withWebDriver { implicit driver =>
         withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
           rstudioPage.withRShinyExample("01_hello")(rshinyPage =>
-            rshinyPage.hasHeaderText("Hello Shiny!") shouldBe true
+            rshinyPage.getExampleHeader shouldBe Some("Hello Shiny!")
           )
         }
       }
