@@ -560,8 +560,9 @@ object LeoKubernetesServiceInterp {
 }
 case class AppNotFoundException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
     extends LeoException(
-      s"App ${googleProject.value}/${appName.value} not found. Trace ID: ${traceId.asString}",
-      StatusCodes.NotFound
+      s"App ${googleProject.value}/${appName.value} not found.",
+      StatusCodes.NotFound,
+      traceId = Some(traceId)
     )
 
 case class AppAlreadyExistsException(googleProject: GoogleProject,
@@ -569,8 +570,9 @@ case class AppAlreadyExistsException(googleProject: GoogleProject,
                                      status: AppStatus,
                                      traceId: TraceId)
     extends LeoException(
-      s"App ${googleProject.value}/${appName.value} already exists in ${status.toString} status. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict
+      s"App ${googleProject.value}/${appName.value} already exists in ${status.toString} status.",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 case class AppCannotBeDeletedException(googleProject: GoogleProject,
@@ -578,14 +580,16 @@ case class AppCannotBeDeletedException(googleProject: GoogleProject,
                                        status: AppStatus,
                                        traceId: TraceId)
     extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict
+      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status.",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 case class NoDiskForAppException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
     extends LeoException(
-      s"Specified delete disk for app ${googleProject.value}/${appName.value}, but this app does not have a disk. Trace ID: ${traceId.asString}",
-      StatusCodes.BadRequest
+      s"Specified delete disk for app ${googleProject.value}/${appName.value}, but this app does not have a disk.",
+      StatusCodes.BadRequest,
+      traceId = Some(traceId)
     )
 
 case class AppCannotBeCreatedException(googleProject: GoogleProject,
@@ -593,20 +597,23 @@ case class AppCannotBeCreatedException(googleProject: GoogleProject,
                                        status: AppStatus,
                                        traceId: TraceId)
     extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict
+      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status.",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 case class AppRequiresDiskException(googleProject: GoogleProject, appName: AppName, appType: AppType, traceId: TraceId)
     extends LeoException(
       s"App ${googleProject.value}/${appName.value} cannot be created because the request does not contain a valid disk. Apps of type ${appType} require a disk. Trace ID: ${traceId.asString}",
-      StatusCodes.BadRequest
+      StatusCodes.BadRequest,
+      traceId = Some(traceId)
     )
 
 case class ClusterExistsException(googleProject: GoogleProject)
     extends LeoException(
       s"Cannot pre-create nodepools for project $googleProject because a cluster already exists",
-      StatusCodes.Conflict
+      StatusCodes.Conflict,
+      traceId = None
     )
 
 case class AppCannotBeStoppedException(googleProject: GoogleProject,
@@ -615,7 +622,8 @@ case class AppCannotBeStoppedException(googleProject: GoogleProject,
                                        traceId: TraceId)
     extends LeoException(
       s"App ${googleProject.value}/${appName.value} cannot be stopped in ${status} status. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 case class AppCannotBeStartedException(googleProject: GoogleProject,
@@ -624,5 +632,6 @@ case class AppCannotBeStartedException(googleProject: GoogleProject,
                                        traceId: TraceId)
     extends LeoException(
       s"App ${googleProject.value}/${appName.value} cannot be started in ${status} status. Trace ID: ${traceId.asString}",
-      StatusCodes.Conflict
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )

@@ -222,5 +222,6 @@ case class SaveApp(app: App)
 case class AppExistsForProjectException(appName: AppName, googleProject: GoogleProject)
     extends LeoException(
       s"An app with name ${appName} already exists for the project ${googleProject}.",
-      StatusCodes.Conflict
+      StatusCodes.Conflict,
+      traceId = None
     )

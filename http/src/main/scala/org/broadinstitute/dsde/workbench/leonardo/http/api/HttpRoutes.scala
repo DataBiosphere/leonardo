@@ -26,6 +26,7 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes.errorReportEncoder
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -85,7 +86,8 @@ class HttpRoutes(
                                                          Some(StatusCodes.InternalServerError),
                                                          Seq(),
                                                          Seq(),
-                                                         Some(e.getClass))
+                                                         Some(e.getClass),
+                                                         None)
         )
     }
   }
@@ -119,10 +121,11 @@ class HttpRoutes(
 object HttpRoutes {
   implicit val statusCodeEncoder: Encoder[StatusCode] = Encoder.encodeInt.contramap(_.intValue())
   implicit val classEncoder: Encoder[Class[_]] = Encoder.encodeString.contramap(_.toString)
-  implicit val errorReportEncoder: Encoder[ErrorReport] = Encoder.forProduct4(
+  implicit val errorReportEncoder: Encoder[ErrorReport] = Encoder.forProduct5(
     "source",
     "message",
     "statusCode",
-    "exceptionClass"
-  )(x => (x.source, x.message, x.statusCode, x.exceptionClass))
+    "exceptionClass",
+    "traceId"
+  )(x => (x.source, x.message, x.statusCode, x.exceptionClass, x.traceId))
 }

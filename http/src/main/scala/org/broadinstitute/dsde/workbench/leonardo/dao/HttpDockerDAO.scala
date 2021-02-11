@@ -232,7 +232,8 @@ final case class ContainerConfigResponse(config: ContainerConfig)
 
 // Exceptions
 final case class DockerImageException(traceId: TraceId, msg: String)
-    extends LeoException(message = s"${traceId} | Error occurred during Docker image auto-detection: $msg")
+    extends LeoException(message = s"Error occurred during Docker image auto-detection: $msg", traceId = Some(traceId))
 
 final case class ImageParseException(traceId: TraceId, image: ContainerImage)
-    extends LeoException(message = s"${traceId} | Unable to parse ${image.registry} image ${image.imageUrl}")
+    extends LeoException(message = s"Unable to parse ${image.registry} image ${image.imageUrl}",
+                         traceId = Some(traceId))

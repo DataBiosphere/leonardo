@@ -44,18 +44,21 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
 final case class ClusterIamSetupException(googleProject: GoogleProject)
-    extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}")
+    extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}", traceId = None)
 
 final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: String)
-    extends LeoException(s"Failed to create the Google group '${googleGroup}': $msg", StatusCodes.InternalServerError)
+    extends LeoException(s"Failed to create the Google group '${googleGroup}': $msg",
+                         StatusCodes.InternalServerError,
+                         traceId = None)
 
 final case object ImageProjectNotFoundException
-    extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound)
+    extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound, traceId = None)
 
 final case class ClusterResourceConstaintsException(clusterProjectAndName: RuntimeProjectAndName,
                                                     machineType: MachineTypeName)
     extends LeoException(
-      s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType}"
+      s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType}",
+      traceId = None
     )
 
 class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](

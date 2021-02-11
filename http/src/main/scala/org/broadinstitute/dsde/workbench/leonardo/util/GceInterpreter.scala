@@ -33,11 +33,12 @@ import scala.jdk.CollectionConverters._
 
 final case class InstanceResourceConstaintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
-      s"Unable to calculate memory constraints for instance in project ${project.value} with machine type ${machineType.value}"
+      s"Unable to calculate memory constraints for instance in project ${project.value} with machine type ${machineType.value}",
+      traceId = None
     )
 
 final case class MissingServiceAccountException(projectAndName: RuntimeProjectAndName)
-    extends LeoException(s"Cannot create instance ${projectAndName}: service account required")
+    extends LeoException(s"Cannot create instance ${projectAndName}: service account required", traceId = None)
 
 class GceInterpreter[F[_]: Parallel: ContextShift](
   config: GceInterpreterConfig,

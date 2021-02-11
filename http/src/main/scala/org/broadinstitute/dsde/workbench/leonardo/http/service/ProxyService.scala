@@ -55,25 +55,30 @@ object SamResourceCacheKey {
 
 final case class ProxyHostNotReadyException(context: HostContext, traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Proxy host ${context.description} is not ready yet. It may be updating, try again later",
-      StatusCodes.Locked
+      s"Proxy host ${context.description} is not ready yet. It may be updating, try again later",
+      StatusCodes.Locked,
+      traceId = Some(traceId)
     )
 
 final case class ProxyHostPausedException(context: HostContext, traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Proxy host ${context.description} is stopped. Start your runtime before proceeding.",
-      StatusCodes.UnprocessableEntity
+      s"Proxy host ${context.description} is stopped. Start your runtime before proceeding.",
+      StatusCodes.UnprocessableEntity,
+      traceId = Some(traceId)
     )
 
 case class ProxyHostNotFoundException(context: HostContext, traceId: TraceId)
-    extends LeoException(s"${traceId} | Proxy host ${context.description} not found", StatusCodes.NotFound)
+    extends LeoException(s"Proxy host ${context.description} not found", StatusCodes.NotFound, traceId = Some(traceId))
 
 final case class ProxyException(context: HostContext, traceId: TraceId)
-    extends LeoException(s"${traceId} | Unable to proxy connection to tool on ${context.description}",
-                         StatusCodes.InternalServerError)
+    extends LeoException(s"Unable to proxy connection to tool on ${context.description}",
+                         StatusCodes.InternalServerError,
+                         traceId = Some(traceId))
 
 final case object AccessTokenExpiredException
-    extends LeoException(s"Your access token is expired. Try logging in again", StatusCodes.Unauthorized)
+    extends LeoException(s"Your access token is expired. Try logging in again",
+                         StatusCodes.Unauthorized,
+                         traceId = None)
 
 class ProxyService(
   sslContext: SSLContext,
