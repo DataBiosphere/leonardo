@@ -41,9 +41,6 @@ RUN helm repo add center https://repo.chartcenter.io && \
 # Leonardo will install the chart from local version.
 RUN pushd /leonardo && \
     helm pull terra-app-setup-charts/terra-app-setup --untar && \
-    cp /etc/rootCA.pem terra-app-setup/ca.crt && \
-    cp /etc/jupyter-server.crt terra-app-setup/tls.crt && \
-    cp /etc/jupyter-server.key terra-app-setup/tls.key && \
     popd
 
 # Add Leonardo as a service (it will start when the container starts)
