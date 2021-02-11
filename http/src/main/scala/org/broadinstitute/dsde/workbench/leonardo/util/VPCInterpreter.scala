@@ -2,17 +2,17 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
-import cats.effect.{Async, ContextShift, IO, Timer}
+import cats.effect.{Async, ContextShift, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.google.GoogleProjectDAO
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryGoogleF,
   ComputePollOperation,
   FirewallRuleName,
   GoogleComputeService,
+  GoogleResourceService,
   NetworkName,
   SubnetworkName
 }
@@ -43,10 +43,10 @@ final case class FirewallNotReadyException(project: GoogleProject, firewall: Fir
 
 final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer](
   config: VPCInterpreterConfig,
-  googleProjectDAO: GoogleProjectDAO,
+  googleResourceService: GoogleResourceService[F],
   googleComputeService: GoogleComputeService[F],
   computePollOperation: ComputePollOperation[F]
-)(implicit cs: ContextShift[IO], F: Async[F])
+)(implicit F: Async[F])
     extends VPCAlgebra[F] {
 
   val defaultNetworkName = NetworkName("default")
@@ -63,9 +63,9 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
     for {
       // For high-security projects, the network and subnetwork are pre-created and specified by project label.
       // See https://github.com/broadinstitute/gcp-dm-templates/blob/44b13216e5284d1ce46f58514fe51404cdf8f393/firecloud_project.py#L355-L359
-      projectLabels <- F.liftIO(IO.fromFuture(IO(googleProjectDAO.getLabels(params.project.value))))
-      networkFromLabel = projectLabels.get(config.vpcConfig.highSecurityProjectNetworkLabel.value)
-      subnetworkFromLabel = projectLabels.get(config.vpcConfig.highSecurityProjectSubnetworkLabel.value)
+      projectLabels <- googleResourceService.getLabels(params.project)
+      networkFromLabel = projectLabels.flatMap(_.get(config.vpcConfig.highSecurityProjectNetworkLabel.value))
+      subnetworkFromLabel = projectLabels.flatMap(_.get(config.vpcConfig.highSecurityProjectSubnetworkLabel.value))
       (network, subnetwork) <- (networkFromLabel, subnetworkFromLabel) match {
         // If we found project labels, we're done
         case (Some(network), Some(subnet)) =>

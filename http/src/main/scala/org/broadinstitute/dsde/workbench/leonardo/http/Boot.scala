@@ -32,6 +32,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDataprocService,
   GoogleDiskService,
   GooglePublisher,
+  GoogleResourceService,
   GoogleStorageService,
   GoogleSubscriber
 }
@@ -40,7 +41,6 @@ import org.broadinstitute.dsde.workbench.google.{
   GoogleStorageDAO,
   HttpGoogleDirectoryDAO,
   HttpGoogleIamDAO,
-  HttpGoogleProjectDAO,
   HttpGoogleStorageDAO
 }
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
@@ -53,7 +53,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoKubernetesServiceInterp, _}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{LeoKubernetesServiceInterp, DiskServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
@@ -99,7 +99,7 @@ object Boot extends IOApp {
                                           appDependencies.blocker)
       val vpcInterp =
         new VPCInterpreter(vpcInterpreterConfig,
-                           googleDependencies.googleProjectDAO,
+                           googleDependencies.googleResourceService,
                            googleDependencies.googleComputeService,
                            googleDependencies.computePollOperation)
 
@@ -112,7 +112,7 @@ object Boot extends IOApp {
         googleDependencies.googleDiskService,
         googleDependencies.googleDirectoryDAO,
         googleDependencies.googleIamDAO,
-        googleDependencies.googleProjectDAO,
+        googleDependencies.googleResourceService,
         appDependencies.welderDAO,
         appDependencies.blocker
       )
@@ -373,7 +373,7 @@ object Boot extends IOApp {
       googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
                                                       jsonWithServiceAccountUser,
                                                       workbenchMetricsBaseName)
-      googleProjectDAO = new HttpGoogleProjectDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
+      googleResourceService <- GoogleResourceService.resource[F](Paths.get(pathToCredentialJson), blocker, semaphore)
 
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
       cryptoMiningUserPublisher <- GooglePublisher.resource[F](cryptominingTopicPublisherConfig)
@@ -435,7 +435,7 @@ object Boot extends IOApp {
         googleComputeService,
         computePollOperation,
         googleDiskService,
-        googleProjectDAO,
+        googleResourceService,
         googleDirectoryDAO,
         cryptoMiningUserPublisher,
         googleIamDAO,
@@ -482,7 +482,7 @@ final case class GoogleDependencies[F[_]](
   googleComputeService: GoogleComputeService[F],
   computePollOperation: ComputePollOperation[F],
   googleDiskService: GoogleDiskService[F],
-  googleProjectDAO: HttpGoogleProjectDAO,
+  googleResourceService: GoogleResourceService[F],
   googleDirectoryDAO: HttpGoogleDirectoryDAO,
   cryptoMiningUserPublisher: GooglePublisher[F],
   googleIamDAO: HttpGoogleIamDAO,
