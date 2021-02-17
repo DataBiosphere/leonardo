@@ -163,8 +163,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
         // tracking the number of times it has been invoked.
         val startScriptString = "#!/usr/bin/env bash\n\n" +
           "count=$(cat $JUPYTER_HOME/leo_test_start_count.txt || echo 0)\n" +
-          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt\n" +
-          "pip install mock"
+          "echo $(($count + 1)) > $JUPYTER_HOME/leo_test_start_count.txt\n"
+
         val startScriptObjectName = GcsObjectName("start-script.sh")
         val startScriptUri = UserScriptPath.Gcs(GcsPath(bucketName, startScriptObjectName))
 
@@ -182,7 +182,6 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
             withWebDriver { implicit driver =>
               withNewNotebook(runtime, Python3) { notebookPage =>
                 notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
-                notebookPage.executeCell("! pip show mock").get should include("/usr/local/lib/python3.7/dist-packages")
               }
 
               // Stop the cluster
@@ -193,8 +192,6 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
 
               withNewNotebook(runtime, Python3) { notebookPage =>
                 notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
-                notebookPage.executeCell("! pip show mock").get should include("/usr/local/lib/python3.7/dist-packages")
-                notebookPage.executeCell("""import mock""") shouldBe None
               }
             }
           }
