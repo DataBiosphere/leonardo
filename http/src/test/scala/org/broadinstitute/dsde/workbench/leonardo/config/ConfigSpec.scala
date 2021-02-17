@@ -112,6 +112,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
       ServiceAccountName("gxy-ksa"),
       true,
+      "replace-me",
       "https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/",
       "https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3"
     )

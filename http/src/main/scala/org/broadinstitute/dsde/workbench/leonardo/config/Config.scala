@@ -594,6 +594,7 @@ object Config {
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[Boolean]("uninstallKeepHistory"),
+      config.as[String]("postgres.password"),
       config.as[String]("orchUrl"),
       config.as[String]("drsUrl")
     )
