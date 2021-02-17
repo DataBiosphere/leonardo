@@ -58,8 +58,8 @@ final case class GoogleProjectNotFoundException(project: GoogleProject)
 final case object ImageProjectNotFoundException
     extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound, traceId = None)
 
-final case class ClusterResourceConstaintsException(clusterProjectAndName: RuntimeProjectAndName,
-                                                    machineType: MachineTypeName)
+final case class ClusterResourceConstraintsException(clusterProjectAndName: RuntimeProjectAndName,
+                                                     machineType: MachineTypeName)
     extends LeoException(
       s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType}",
       traceId = None
@@ -540,7 +540,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
     } yield MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
 
     totalMemory.value.flatMap {
-      case None        => F.raiseError(ClusterResourceConstaintsException(runtimeProjectAndName, machineType))
+      case None        => F.raiseError(ClusterResourceConstraintsException(runtimeProjectAndName, machineType))
       case Some(total) =>
         // total - dataproc allocated - welder allocated
         val dataprocAllocated = config.dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
