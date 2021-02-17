@@ -245,3 +245,5 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
       None
     )
 }
+
+final case class PvcId(asString: String) extends AnyVal
