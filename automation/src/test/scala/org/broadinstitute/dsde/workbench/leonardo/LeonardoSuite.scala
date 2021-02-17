@@ -182,18 +182,18 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
 
 final class LeonardoSuite
     extends Suites(
-      new BatchNodepoolCreationSpec,
-      new AppCreationSpec,
-      new RuntimeCreationDiskSpec,
-      new LabSpec,
-      new LeoPubsubSpec,
-      new RuntimeAutopauseSpec,
-      new RuntimePatchSpec,
-      new RuntimeStatusTransitionsSpec,
-      new NotebookGCEClusterMonitoringSpec,
-      new NotebookGCECustomizationSpec,
-      new NotebookGCEDataSyncingSpec,
-      new RuntimeDataprocSpec
+//      new BatchNodepoolCreationSpec,
+//      new AppCreationSpec,
+//      new RuntimeCreationDiskSpec,
+//      new LabSpec,
+//      new LeoPubsubSpec,
+//      new RuntimeAutopauseSpec,
+//      new RuntimePatchSpec,
+//      new RuntimeStatusTransitionsSpec,
+//      new NotebookGCEClusterMonitoringSpec,
+      new NotebookGCECustomizationSpec
+//      new NotebookGCEDataSyncingSpec,
+//      new RuntimeDataprocSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll
@@ -201,12 +201,12 @@ final class LeonardoSuite
 
 final class LeonardoTerraDockerSuite
     extends Suites(
-      new NotebookAouSpec,
-      new NotebookBioconductorKernelSpec,
-      new NotebookGATKSpec,
-      new NotebookHailSpec,
-      new NotebookPyKernelSpec,
-      new NotebookRKernelSpec,
+//      new NotebookAouSpec,
+//      new NotebookBioconductorKernelSpec,
+//      new NotebookGATKSpec,
+//      new NotebookHailSpec,
+//      new NotebookPyKernelSpec,
+//      new NotebookRKernelSpec,
       new RStudioSpec
     )
     with TestSuite
