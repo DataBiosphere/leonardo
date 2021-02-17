@@ -374,6 +374,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
+      pvcs <- kubeService.getPersistentVolumeClaims(gkeClusterId, KubernetesNamespace(app.appResources.namespace.name))
+      galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
+      cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
+      _ <- (galaxyPvc, cvmfsPvc).tupled.traverse {
+        case (gp, cp) =>
+          appQuery.updatePvcIds(params.appId, PvcId(gp.getMetadata.getUid), PvcId(cp.getMetadata.getUid)).transaction
+      }
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
