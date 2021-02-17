@@ -6,6 +6,7 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
+import cats.mtl.Ask
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
@@ -14,6 +15,7 @@ import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGoogleDataprocService,
+  FakeGoogleResourceService,
   MockComputePollOperation
 }
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
@@ -23,7 +25,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
@@ -45,7 +47,6 @@ class DataprocInterpreterSpec
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockGoogleDirectoryDAO = new MockGoogleDirectoryDAO
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
-  val mockGoogleProjectDAO = new MockGoogleProjectDAO
 
   val testCluster = makeCluster(1)
     .copy(status = Creating, asyncRuntimeFields = None)
@@ -55,8 +56,14 @@ class DataprocInterpreterSpec
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
+
+  val mockGoogleResourceService = new FakeGoogleResourceService {
+    override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
+      IO(Some(1L))
+  }
+
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                                         mockGoogleProjectDAO,
+                                         mockGoogleResourceService,
                                          FakeGoogleComputeService,
                                          new MockComputePollOperation)
 
@@ -68,7 +75,7 @@ class DataprocInterpreterSpec
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
                                                    mockGoogleIamDAO,
-                                                   mockGoogleProjectDAO,
+                                                   mockGoogleResourceService,
                                                    MockWelderDAO,
                                                    blocker)
 
@@ -164,7 +171,7 @@ class DataprocInterpreterSpec
                                                             MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             erroredIamDAO,
-                                                            mockGoogleProjectDAO,
+                                                            FakeGoogleResourceService,
                                                             MockWelderDAO,
                                                             blocker)
 

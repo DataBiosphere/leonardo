@@ -5,13 +5,14 @@ import java.nio.file.Files
 import java.util.Base64
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleIamDAO, MockGoogleProjectDAO}
+import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
+  FakeGoogleResourceService,
   MockComputePollOperation,
   MockGKEService,
   MockKubernetesService
@@ -30,14 +31,11 @@ import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with LeonardoTestSuite {
-
-  val projectDAO = new MockGoogleProjectDAO
-
   val googleIamDao = new MockGoogleIamDAO
 
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                           projectDAO,
+                           FakeGoogleResourceService,
                            FakeGoogleComputeService,
                            new MockComputePollOperation)
 

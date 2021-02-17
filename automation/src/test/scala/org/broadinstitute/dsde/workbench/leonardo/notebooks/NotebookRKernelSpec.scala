@@ -135,7 +135,6 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
           val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
           installOutput shouldBe 'defined
-          installOutput.get should include("RcppArmadillo")
           installOutput.get should include("Installing package into")
           installOutput.get should include("/home/jupyter-user/notebooks/packages")
           installOutput.get should not include ("cannot find -lgfortran")
@@ -156,6 +155,14 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           notebookPage.executeCell("Sys.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
           // workspace bucket is not wired up in tests
           notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"
+        }
+      }
+    }
+
+    "should have Seurat automatically installed" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
+          notebookPage.executeCell(""""Seurat" %in% installed.packages()""") shouldBe Some("TRUE")
         }
       }
     }

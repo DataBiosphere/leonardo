@@ -1,8 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.openqa.selenium.{Keys}
+import org.openqa.selenium.Keys
 import org.scalatest.DoNotDiscover
+
 @DoNotDiscover
 class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
 
@@ -13,13 +14,21 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
     "should launch RStudio" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
-//          // See this ticket for adding more comprehensive selenium tests for RStudio:
-//          // https://broadworkbench.atlassian.net/browse/IA-697
           rstudioPage.pressKeys("varA <- 1000")
           rstudioPage.pressKeys(Keys.ENTER.toString)
           await visible cssSelector("[title~='varA']")
           rstudioPage.variableExists("varA") shouldBe true
           rstudioPage.variableExists("1000") shouldBe true
+        }
+      }
+    }
+
+    "should launch an RShiny app" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
+          rstudioPage.withRShinyExample("01_hello")(rshinyPage =>
+            rshinyPage.getExampleHeader shouldBe Some("Hello Shiny!")
+          )
         }
       }
     }

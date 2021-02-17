@@ -23,6 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDataprocService,
   GoogleDiskService,
+  GoogleResourceService,
   MachineTypeName,
   ZoneName
 }
@@ -51,6 +52,9 @@ final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: 
                          StatusCodes.InternalServerError,
                          traceId = None)
 
+final case class GoogleProjectNotFoundException(project: GoogleProject)
+    extends LeoException(s"Google did not have any record of project: $project.", StatusCodes.NotFound)
+
 final case object ImageProjectNotFoundException
     extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound, traceId = None)
 
@@ -70,7 +74,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
   googleDiskService: GoogleDiskService[F],
   googleDirectoryDAO: GoogleDirectoryDAO,
   googleIamDAO: GoogleIamDAO,
-  googleProjectDAO: GoogleProjectDAO,
+  googleResourceService: GoogleResourceService[F],
   welderDao: WelderDAO[F],
   blocker: Blocker
 )(implicit val F: Async[F],
@@ -427,12 +431,9 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           F.unit
         } else {
           for {
-            projectNumberOptIO <- F.liftIO(
-              IO.fromFuture(IO(googleProjectDAO.getProjectNumber(googleProject.value)))
-            )
-            projectNumber <- F.liftIO(
-              IO.fromEither(projectNumberOptIO.toRight(ClusterIamSetupException(imageProject)))
-            )
+            projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
+
+            projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
             // Note that the Dataproc service account is used to retrieve the image, and not the user's
             // pet service account. There is one Dataproc service account per Google project. For more details:
             // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
