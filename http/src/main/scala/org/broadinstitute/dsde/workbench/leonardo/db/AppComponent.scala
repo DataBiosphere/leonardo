@@ -3,7 +3,6 @@ package db
 
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import slick.lifted.Tag
 import LeoProfile.api._
@@ -33,7 +32,9 @@ final case class AppRecord(id: AppId,
                            dateAccessed: Instant,
                            namespaceId: NamespaceId,
                            diskId: Option[DiskId],
-                           customEnvironmentVariables: Option[Map[String, String]])
+                           customEnvironmentVariables: Option[Map[String, String]],
+                           galaxyPvcId: Option[PvcId],
+                           cvmfsPvcId: Option[PvcId])
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   //unique (appName, destroyedDate)
@@ -54,6 +55,8 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def namespaceId = column[NamespaceId]("namespaceId", O.Length(254))
   def diskId = column[Option[DiskId]]("diskId", O.Length(254))
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
+  def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
+  def cvmfsPvcId = column[Option[PvcId]]("cvmfsPvcId", O.Length(254))
 
   def * =
     (
@@ -73,7 +76,9 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
       dateAccessed,
       namespaceId,
       diskId,
-      customEnvironmentVariables
+      customEnvironmentVariables,
+      galaxyPvcId,
+      cvmfsPvcId
     ) <> (AppRecord.tupled, AppRecord.unapply)
 }
 
@@ -168,7 +173,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
         saveApp.app.auditInfo.dateAccessed,
         namespaceId,
         diskOpt.map(_.id),
-        if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables)
+        if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
+        None,
+        None
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
@@ -180,6 +187,16 @@ object appQuery extends TableQuery(new AppTable(_)) {
     getByIdQuery(id)
       .map(_.status)
       .update(status)
+
+  def updatePvcIds(id: AppId, galaxyPvcId: PvcId, cvmfsPvcId: PvcId)(implicit ec: ExecutionContext): DBIO[Unit] =
+    for {
+      _ <- getByIdQuery(id)
+        .map(_.galaxyPvcId)
+        .update(Some(galaxyPvcId))
+      _ <- getByIdQuery(id)
+        .map(_.cvmfsPvcId)
+        .update(Some(cvmfsPvcId))
+    } yield ()
 
   def updateChart(id: AppId, chart: Chart): DBIO[Int] =
     getByIdQuery(id)
