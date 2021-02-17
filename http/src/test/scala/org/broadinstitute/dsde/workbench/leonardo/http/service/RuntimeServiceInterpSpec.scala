@@ -1241,8 +1241,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .attempt
     } yield {
       val expectedException = new LeoException(
-        s"${ctx.traceId.asString} | Bad request. Number of workers can only be updated if the dataproc cluster is Running. Cluster is in Starting currently",
-        StatusCodes.BadRequest
+        s"Bad request. Number of workers can only be updated if the dataproc cluster is Running. Cluster is in Starting currently",
+        StatusCodes.BadRequest,
+        traceId = Option(ctx.traceId)
       )
       res.swap.toOption
         .getOrElse(throw new Exception("this test failed"))

@@ -53,7 +53,7 @@ final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: 
                          traceId = None)
 
 final case class GoogleProjectNotFoundException(project: GoogleProject)
-    extends LeoException(s"Google did not have any record of project: $project.", StatusCodes.NotFound)
+    extends LeoException(s"Google did not have any record of project: $project.", StatusCodes.NotFound, traceId = None)
 
 final case object ImageProjectNotFoundException
     extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound, traceId = None)
