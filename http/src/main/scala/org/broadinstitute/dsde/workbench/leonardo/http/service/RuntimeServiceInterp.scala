@@ -721,8 +721,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           case s =>
             F.raiseError[Unit](
               new LeoException(
-                s"${context.traceId.asString} | Bad request. Number of workers can only be updated if the dataproc cluster is Running. Cluster is in ${s} currently",
-                StatusCodes.BadRequest
+                s"Bad request. Number of workers can only be updated if the dataproc cluster is Running. Cluster is in ${s} currently",
+                StatusCodes.BadRequest,
+                traceId = Some(context.traceId)
               )
             )
         }
@@ -985,27 +986,31 @@ final case class WrongCloudServiceException(runtimeCloudService: CloudService,
                                             updateCloudService: CloudService,
                                             traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
-      StatusCodes.Conflict
+      s"Bad request. This runtime is created with ${runtimeCloudService.asString}, and can not be updated to use ${updateCloudService.asString}",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 // thrown when a runtime has a GceWithPdConfig but has no PD attached, which should only happen for deleted runtimes
 final case class RuntimeDiskNotFound(googleProject: GoogleProject, runtimeName: RuntimeName, traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Persistent disk not found for runtime ${googleProject.value}/${runtimeName.asString}",
-      StatusCodes.NotFound
+      s"Persistent disk not found for runtime ${googleProject.value}/${runtimeName.asString}",
+      StatusCodes.NotFound,
+      traceId = Some(traceId)
     )
 
 final case class DiskNotSupportedException(traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Persistent disks are not supported on Google Cloud Dataproc",
-      StatusCodes.Conflict
+      s"Persistent disks are not supported on Google Cloud Dataproc",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 final case class DiskAlreadyAttachedException(googleProject: GoogleProject, name: DiskName, traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
-      StatusCodes.Conflict
+      s"Persistent disk ${googleProject.value}/${name.value} is already attached to another runtime",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 final case class DiskAlreadyFormattedByOtherApp(googleProject: GoogleProject,
@@ -1013,6 +1018,7 @@ final case class DiskAlreadyFormattedByOtherApp(googleProject: GoogleProject,
                                                 traceId: TraceId,
                                                 formattedBy: FormattedBy)
     extends LeoException(
-      s"${traceId} | Persistent disk ${googleProject.value}/${name.value} is already formatted by ${formattedBy.asString}",
-      StatusCodes.Conflict
+      s"Persistent disk ${googleProject.value}/${name.value} is already formatted by ${formattedBy.asString}",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )

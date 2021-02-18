@@ -25,18 +25,21 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import scala.jdk.CollectionConverters._
 
 final case class InvalidVPCSetupException(project: GoogleProject)
-    extends LeoException(s"Invalid VPC configuration in project ${project.value}")
+    extends LeoException(s"Invalid VPC configuration in project ${project.value}", traceId = None)
 
 final case class NetworkNotReadyException(project: GoogleProject, network: NetworkName)
-    extends LeoException(s"Network ${network.value} in project ${project.value} not ready within the specified time")
+    extends LeoException(s"Network ${network.value} in project ${project.value} not ready within the specified time",
+                         traceId = None)
 
 final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork: SubnetworkName)
     extends LeoException(
-      s"Subnetwork ${subnetwork.value} in project ${project.value} not ready within the specified time"
+      s"Subnetwork ${subnetwork.value} in project ${project.value} not ready within the specified time",
+      traceId = None
     )
 
 final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName)
-    extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time")
+    extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time",
+                         traceId = None)
 
 final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer](
   config: VPCInterpreterConfig,

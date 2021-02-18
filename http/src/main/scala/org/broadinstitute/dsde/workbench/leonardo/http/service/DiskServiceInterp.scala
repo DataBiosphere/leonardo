@@ -274,8 +274,9 @@ case class PersistentDiskAlreadyExistsException(googleProject: GoogleProject,
                                                 status: DiskStatus,
                                                 traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Persistent disk ${googleProject.value}/${diskName.value} already exists in ${status.toString} status",
-      StatusCodes.Conflict
+      s"Persistent disk ${googleProject.value}/${diskName.value} already exists in ${status.toString} status",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 case class DiskCannotBeDeletedException(googleProject: GoogleProject,
@@ -283,24 +284,27 @@ case class DiskCannotBeDeletedException(googleProject: GoogleProject,
                                         status: DiskStatus,
                                         traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Persistent disk ${googleProject.value}/${diskName.value} cannot be deleted in ${status} status",
-      StatusCodes.Conflict
+      s"Persistent disk ${googleProject.value}/${diskName.value} cannot be deleted in ${status} status",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskName, traceId: TraceId)
-    extends LeoException(s"${traceId} | Persistent disk ${googleProject.value}/${diskName.value} not found",
-                         StatusCodes.NotFound)
+    extends LeoException(s"Persistent disk ${googleProject.value}/${diskName.value} not found",
+                         StatusCodes.NotFound,
+                         traceId = Some(traceId))
 
 case class DiskNotFoundByIdException(diskId: DiskId, traceId: TraceId)
-    extends LeoException(s"${traceId} | Persistent disk ${diskId.value} not found", StatusCodes.NotFound)
+    extends LeoException(s"Persistent disk ${diskId.value} not found", StatusCodes.NotFound, traceId = Some(traceId))
 
 case class DiskCannotBeUpdatedException(projectNameString: String,
                                         status: DiskStatus,
                                         userHint: String = "",
                                         traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Persistent disk ${projectNameString} cannot be updated in ${status} status. ${userHint}",
-      StatusCodes.Conflict
+      s"Persistent disk ${projectNameString} cannot be updated in ${status} status. ${userHint}",
+      StatusCodes.Conflict,
+      traceId = Some(traceId)
     )
 
 case class DiskNotResizableException(googleProject: GoogleProject,
@@ -309,6 +313,7 @@ case class DiskNotResizableException(googleProject: GoogleProject,
                                      newDiskSize: DiskSize,
                                      traceId: TraceId)
     extends LeoException(
-      s"${traceId} | Invalid value for disk size. New disk size ${newDiskSize.asString}GB must be larger than existing size of ${currentDiskSize.asString}GB for persistent disk ${googleProject.value}/${diskName.value}",
-      StatusCodes.BadRequest
+      s"Invalid value for disk size. New disk size ${newDiskSize.asString}GB must be larger than existing size of ${currentDiskSize.asString}GB for persistent disk ${googleProject.value}/${diskName.value}",
+      StatusCodes.BadRequest,
+      traceId = Some(traceId)
     )
