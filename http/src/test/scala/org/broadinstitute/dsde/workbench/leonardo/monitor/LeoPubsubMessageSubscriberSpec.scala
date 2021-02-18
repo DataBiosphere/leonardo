@@ -586,7 +586,6 @@ class LeoPubsubMessageSubscriberSpec
     val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
-      now <- IO(Instant.now)
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
       tr <- traceId.ask[TraceId]
 
@@ -604,7 +603,6 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle create app message with a create cluster" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-
     val disk = makePersistentDisk(None).save().unsafeRunSync()
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
@@ -661,7 +659,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      lock <- nodepoolLock
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                        gkeInterpreter = makeGKEInterp(lock, List(savedApp1.release)))
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -755,7 +755,11 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      lock <- nodepoolLock
+      leoSubscriber = makeLeoSubscriber(
+        asyncTaskQueue = queue,
+        gkeInterpreter = makeGKEInterp(lock, List(savedApp1.release, savedApp2.release))
+      )
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg1)
       _ <- leoSubscriber.handleCreateAppMessage(msg2)
@@ -1108,25 +1112,6 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).save()
     val mockAckConsumer = mock[AckReplyConsumer]
 
-    val mockKubernetesService = new MockKubernetesService(PodStatus.Failed) {
-      override def deleteNamespace(
-        clusterId: GKEModels.KubernetesClusterId,
-        namespace: KubernetesModels.KubernetesNamespace
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
-    }
-    val makeGKEInterp = for {
-      lock <- nodepoolLock
-    } yield new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                   vpcInterp,
-                                   MockGKEService,
-                                   mockKubernetesService,
-                                   MockHelm,
-                                   MockGalaxyDAO,
-                                   credentials,
-                                   iamDAOKubernetes,
-                                   blocker,
-                                   lock)
-
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
       getApp = getAppOpt.get
@@ -1142,7 +1127,24 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
+      lock <- nodepoolLock
+      mockKubernetesService = new MockKubernetesService(PodStatus.Failed, appRelease = List(savedApp1.release)) {
+        override def deleteNamespace(
+          clusterId: GKEModels.KubernetesClusterId,
+          namespace: KubernetesModels.KubernetesNamespace
+        )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
+      }
+      gkeInter = new GKEInterpreter[IO](Config.gkeInterpConfig,
+                                        vpcInterp,
+                                        MockGKEService,
+                                        mockKubernetesService,
+                                        MockHelm,
+                                        MockGalaxyDAO,
+                                        credentials,
+                                        iamDAOKubernetes,
+                                        blocker,
+                                        lock)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterpreter = gkeInter)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1276,7 +1278,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      lock <- nodepoolLock
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                        gkeInterpreter = makeGKEInterp(lock, List(savedApp1.release)))
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1347,16 +1351,6 @@ class LeoPubsubMessageSubscriberSpec
     //we could use mockito for this functionality, but it would be overly complicated since we wish to override other functionality of the mock as well
     var deleteCalled = false
 
-    val mockKubernetesService = new MockKubernetesService(PodStatus.Succeeded) {
-      override def deleteNamespace(
-        clusterId: GKEModels.KubernetesClusterId,
-        namespace: KubernetesModels.KubernetesNamespace
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
-        IO {
-          deleteCalled = true
-        }
-    }
-
     val helmClient = new MockHelm {
       override def installChart(release: Release,
                                 chartName: ChartName,
@@ -1366,19 +1360,6 @@ class LeoPubsubMessageSubscriberSpec
           Kleisli.liftF(IO.raiseError(new Exception("this is an intentional test exception")))
         else Kleisli.liftF(IO.unit)
     }
-
-    val makeGKEInterp = for {
-      lock <- nodepoolLock
-    } yield new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                   vpcInterp,
-                                   MockGKEService,
-                                   mockKubernetesService,
-                                   helmClient,
-                                   MockGalaxyDAO,
-                                   credentials,
-                                   iamDAOKubernetes,
-                                   blocker,
-                                   lock)
 
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id).transaction
@@ -1417,9 +1398,29 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      lock <- nodepoolLock
+      mockKubernetesService = new MockKubernetesService(PodStatus.Succeeded, List(savedApp1.release)) {
+        override def deleteNamespace(
+          clusterId: GKEModels.KubernetesClusterId,
+          namespace: KubernetesModels.KubernetesNamespace
+        )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+          IO {
+            deleteCalled = true
+          }
+      }
+      gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
+                                         vpcInterp,
+                                         MockGKEService,
+                                         mockKubernetesService,
+                                         helmClient,
+                                         MockGalaxyDAO,
+                                         credentials,
+                                         iamDAOKubernetes,
+                                         blocker,
+                                         lock)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
-                                        makeGKEInterp = makeGKEInterp,
-                                        diskInterp = makeDetachingDiskInterp)
+                                        diskInterp = makeDetachingDiskInterp,
+                                        gkeInterpreter = gkeInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1510,9 +1511,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
-                                        makeGKEInterp = makeGKEInterp,
-                                        diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1543,19 +1542,6 @@ class LeoPubsubMessageSubscriberSpec
       ): IO[Option[com.google.api.services.container.model.Operation]] = IO.raiseError(new Exception("test exception"))
     }
 
-    val makeGKEInterp = for {
-      lock <- nodepoolLock
-    } yield new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                   vpcInterp,
-                                   mockGKEService,
-                                   new MockKubernetesService(PodStatus.Succeeded),
-                                   MockHelm,
-                                   MockGalaxyDAO,
-                                   credentials,
-                                   iamDAO,
-                                   blocker,
-                                   lock)
-
     val assertions = for {
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction
       getCluster = clusterOpt.get
@@ -1585,7 +1571,18 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, makeGKEInterp = makeGKEInterp)
+      lock <- nodepoolLock
+      gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
+                                         vpcInterp,
+                                         mockGKEService,
+                                         new MockKubernetesService(PodStatus.Succeeded),
+                                         MockHelm,
+                                         MockGalaxyDAO,
+                                         credentials,
+                                         iamDAO,
+                                         blocker,
+                                         lock)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterpreter = gkeInterp)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
     } yield ()
 
@@ -1711,7 +1708,9 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      lock <- nodepoolLock
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                        gkeInterpreter = makeGKEInterp(lock, List(savedApp1.release)))
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       // send message twice
       _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1791,26 +1790,26 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()
   }
 
-  def makeGKEInterp(): IO[GKEInterpreter[IO]] =
-    for {
-      lock <- nodepoolLock
-    } yield new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                   vpcInterp,
-                                   MockGKEService,
-                                   new MockKubernetesService(PodStatus.Succeeded),
-                                   MockHelm,
-                                   MockGalaxyDAO,
-                                   credentials,
-                                   iamDAOKubernetes,
-                                   blocker,
-                                   lock)
+  def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
+                    appRelease: List[Release] = List.empty): GKEInterpreter[IO] =
+    new GKEInterpreter[IO](Config.gkeInterpConfig,
+                           vpcInterp,
+                           MockGKEService,
+                           new MockKubernetesService(PodStatus.Succeeded, appRelease = appRelease),
+                           MockHelm,
+                           MockGalaxyDAO,
+                           credentials,
+                           iamDAOKubernetes,
+                           blocker,
+                           lock)
 
-  def makeLeoSubscriber(runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
-                        asyncTaskQueue: InspectableQueue[IO, Task[IO]] =
-                          InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
-                        computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
-                        makeGKEInterp: IO[GKEInterpreter[IO]] = makeGKEInterp,
-                        diskInterp: GoogleDiskService[IO] = MockGoogleDiskService): LeoPubsubMessageSubscriber[IO] = {
+  def makeLeoSubscriber(
+    runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
+    asyncTaskQueue: InspectableQueue[IO, Task[IO]] = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
+    computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
+    gkeInterpreter: GKEInterpreter[IO] = makeGKEInterp(nodepoolLock.unsafeRunSync(), appRelease = List.empty),
+    diskInterp: GoogleDiskService[IO] = MockGoogleDiskService
+  ): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
@@ -1824,7 +1823,7 @@ class LeoPubsubMessageSubscriberSpec
       diskInterp,
       computePollOperation,
       MockAuthProvider,
-      makeGKEInterp.unsafeRunSync(),
+      gkeInterpreter,
       org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting
     )
   }

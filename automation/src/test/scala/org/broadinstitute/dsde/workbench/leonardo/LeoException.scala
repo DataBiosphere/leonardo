@@ -11,5 +11,5 @@ abstract class LeoException(val message: String = null,
   implicit val errorReportSource = ErrorReportSource("test")
 
   def toErrorReport: ErrorReport =
-    ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass))
+    ErrorReport(Option(getMessage).getOrElse(""), Some(statusCode), Seq(), Seq(), Some(this.getClass), None)
 }
