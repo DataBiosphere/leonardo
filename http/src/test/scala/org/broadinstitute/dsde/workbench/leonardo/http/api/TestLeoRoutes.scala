@@ -3,7 +3,6 @@ package http
 package api
 
 import java.io.ByteArrayInputStream
-
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -29,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.MockDiskServiceIn
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
+import org.scalatest.concurrent.PatienceConfiguration.Interval
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Seconds, Span}
@@ -47,7 +47,7 @@ trait TestLeoRoutes {
       .createGroup(Config.googleGroupsConfig.dataprocImageProjectGroupName,
                    Config.googleGroupsConfig.dataprocImageProjectGroupEmail,
                    Option(dao.lockedDownGroupSettings))
-      .futureValue(mockGoogleDirectoryDAOPatience, Position.here)
+      .futureValue(Interval(Span(30, Seconds)))(mockGoogleDirectoryDAOPatience, Position.here)
     dao
   }
 
