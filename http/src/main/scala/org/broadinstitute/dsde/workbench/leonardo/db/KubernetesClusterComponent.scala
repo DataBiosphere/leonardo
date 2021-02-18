@@ -139,8 +139,7 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
     clusterQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq],
     nodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq]
   )(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
-    joinMinimalCluster(clusterQuery, nodepoolQuery).result
-      .map(recs => aggregateJoinedCluster(recs).toList)
+    joinMinimalCluster(clusterQuery, nodepoolQuery).result.map(recs => aggregateJoinedCluster(recs).toList)
 
   private[db] def joinMinimalCluster(clusterQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq],
                                      nodepoolQuery: Query[NodepoolTable, NodepoolRecord, Seq]) =
@@ -148,7 +147,9 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
       ((cluster, nodepoolOpt), namespaceOpt) <- clusterQuery joinLeft
         nodepoolQuery on (_.id === _.clusterId) joinLeft
         namespaceQuery on (_._1.id === _.clusterId)
-    } yield (cluster, nodepoolOpt, namespaceOpt)
+    } yield {
+      (cluster, nodepoolOpt, namespaceOpt)
+    }
 
   private[db] def aggregateJoinedCluster(
     records: Seq[(KubernetesClusterRecord, Option[NodepoolRecord], Option[NamespaceRecord])]
