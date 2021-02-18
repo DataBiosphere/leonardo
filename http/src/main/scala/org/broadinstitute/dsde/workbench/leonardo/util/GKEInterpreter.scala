@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.GalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmAlgebra, Release}
 
@@ -298,7 +299,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Create namespace and secrets
       _ <- logger.info(ctx.loggingCtx)(
-        s"Creating namespace ${namespaceName.value} and secrets for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
+        s"Begin App(${app.appName.value}) Creation. Creating namespace ${namespaceName.value} in cluster ${gkeClusterId.toString}"
       )
 
       _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
@@ -377,10 +378,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       pvcs <- kubeService.getPersistentVolumeClaims(gkeClusterId, KubernetesNamespace(app.appResources.namespace.name))
       galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
       cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
-      _ <- (galaxyPvc, cvmfsPvc).tupled.traverse {
-        case (gp, cp) =>
-          appQuery.updatePvcIds(params.appId, PvcId(gp.getMetadata.getUid), PvcId(cp.getMetadata.getUid)).transaction
-      }
+      _ <- (galaxyPvc, cvmfsPvc).tupled
+        .fold(F.raiseError[Unit](new LeoException("Fail to retrieve pvc ids", traceId = Some(ctx.traceId)))) {
+          case (gp, cp) =>
+            appQuery
+              .updatePvcIds(params.appId, PvcId(gp.getMetadata.getUid), PvcId(cp.getMetadata.getUid))
+              .transaction
+              .void
+        }
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
@@ -885,8 +890,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
       )
 
-      _ <- logger.info(s"Helm auth context for cluster ${dbCluster.getGkeClusterId.toString}: ${helmAuthContext
-        .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))} | trace id: ${ctx.traceId}")
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Helm auth context for cluster ${dbCluster.getGkeClusterId.toString}: ${helmAuthContext
+          .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))}"
+      )
 
     } yield helmAuthContext
 
