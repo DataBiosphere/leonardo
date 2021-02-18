@@ -32,7 +32,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClu
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmAlgebra, Release}
 
 import scala.concurrent.ExecutionContext
@@ -83,7 +83,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- if (nodepools.size != params.nodepoolsToCreate.size)
         F.raiseError[Unit](
           ClusterCreationException(
-            s"CreateCluster was called with nodepools that are not present in the database for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+            ctx.traceId,
+            s"CreateCluster was called with nodepools that are not present in the database for cluster ${dbCluster.getGkeClusterId.toString}"
           )
         )
       else F.unit
@@ -180,6 +181,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](
             ClusterCreationException(
+              ctx.traceId,
               s"Failed to poll cluster creation operation to completion for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
             )
           )
@@ -189,6 +191,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       googleCluster <- F.fromOption(
         googleClusterOpt,
         ClusterCreationException(
+          ctx.traceId,
           s"Cluster not found in Google: ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
@@ -312,9 +315,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
       googleCluster <- F.fromOption(
         googleClusterOpt,
-        ClusterCreationException(
-          s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}"
-        )
+        ClusterCreationException(ctx.traceId,
+                                 s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}")
       )
 
       nfsDisk <- F.fromOption(
@@ -375,7 +377,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
-      pvcs <- kubeService.getPersistentVolumeClaims(gkeClusterId, KubernetesNamespace(app.appResources.namespace.name))
+      pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId, KubernetesNamespace(app.appResources.namespace.name))
+
       galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
       cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
       _ <- (galaxyPvc, cvmfsPvc).tupled
@@ -759,6 +762,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       loadBalancerIp <- F.fromOption(
         loadBalancerIpOpt,
         ClusterCreationException(
+          ctx.traceId,
           s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
@@ -1054,7 +1058,7 @@ sealed trait AppProcessingException extends Exception {
   def getMessage: String
 }
 
-final case class ClusterCreationException(message: String) extends AppProcessingException {
+final case class ClusterCreationException(traceId: TraceId, message: String) extends AppProcessingException {
   override def getMessage: String = message
 }
 

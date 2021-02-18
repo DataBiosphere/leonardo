@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.data.NonEmptyList
 import cats.effect.IO
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.auth.Credentials
 import com.google.cloud.compute.v1.Operation
@@ -9,8 +10,10 @@ import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.BucketSourceOption
 import fs2.Stream
 import io.circe.{Decoder, Encoder}
+import io.kubernetes.client.openapi.models.{V1ObjectMeta, V1PersistentVolumeClaim}
 import org.broadinstitute.dsde.workbench.RetryConfig
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
+import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
+import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.PodName
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
@@ -30,6 +33,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.broadinstitute.dsp.Release
+import org.mockito.Mockito.when
+import org.scalatestplus.mockito.MockitoSugar.mock
 
 object FakeGoogleStorageService extends BaseFakeGoogleStorage {
   override def getObjectMetadata(bucketName: GcsBucketName,
@@ -157,14 +163,34 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 }
 
-class MockKubernetesService(podStatus: PodStatus = PodStatus.Running)
+class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease: List[Release] = List.empty)
     extends org.broadinstitute.dsde.workbench.google2.mock.MockKubernetesService {
-
   override def listPodStatus(clusterId: GKEModels.KubernetesClusterId, namespace: KubernetesModels.KubernetesNamespace)(
     implicit ev: Ask[IO, TraceId]
   ): IO[List[KubernetesModels.KubernetesPodStatus]] =
     IO(List(KubernetesPodStatus.apply(PodName("test"), podStatus)))
 
+  override def listPersistentVolumeClaims(clusterId: KubernetesClusterId, namespace: KubernetesNamespace)(
+    implicit
+    ev: Ask[IO, TraceId]
+  ): IO[List[V1PersistentVolumeClaim]] =
+    appRelease.flatTraverse { r =>
+      val nfsPvc = mock[io.kubernetes.client.openapi.models.V1PersistentVolumeClaim]
+      val nfcMetadata = mock[V1ObjectMeta]
+      when(nfcMetadata.getName).thenReturn(s"${r.asString}-galaxy-pvc")
+      when(nfcMetadata.getUid).thenReturn(s"nfs-pvc-id1")
+      when(nfsPvc.getMetadata()).thenReturn(nfcMetadata)
+
+      val cvmfsPvc = mock[io.kubernetes.client.openapi.models.V1PersistentVolumeClaim]
+      val cvmfsMetadata = mock[V1ObjectMeta]
+      when(cvmfsMetadata.getName).thenReturn(s"${r.asString}-cvmfs-alien-cache-pvc")
+      when(cvmfsMetadata.getUid).thenReturn(s"cvmfs-pvc-id1")
+      when(cvmfsPvc.getMetadata()).thenReturn(cvmfsMetadata)
+
+      IO.pure(
+        List(nfsPvc, cvmfsPvc)
+      )
+    }
 }
 
 class MockGKEService extends GKEAlgebra[IO] {
