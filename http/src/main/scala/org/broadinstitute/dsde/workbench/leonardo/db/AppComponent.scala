@@ -188,15 +188,10 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .map(_.status)
       .update(status)
 
-  def updatePvcIds(id: AppId, galaxyPvcId: PvcId, cvmfsPvcId: PvcId)(implicit ec: ExecutionContext): DBIO[Unit] =
-    for {
-      _ <- getByIdQuery(id)
-        .map(_.galaxyPvcId)
-        .update(Some(galaxyPvcId))
-      _ <- getByIdQuery(id)
-        .map(_.cvmfsPvcId)
-        .update(Some(cvmfsPvcId))
-    } yield ()
+  def updatePvcIds(id: AppId, galaxyPvcId: PvcId, cvmfsPvcId: PvcId): DBIO[Int] =
+    getByIdQuery(id)
+      .map(x => (x.galaxyPvcId, x.cvmfsPvcId))
+      .update((Some(galaxyPvcId), Some(cvmfsPvcId)))
 
   def updateChart(id: AppId, chart: Chart): DBIO[Int] =
     getByIdQuery(id)
