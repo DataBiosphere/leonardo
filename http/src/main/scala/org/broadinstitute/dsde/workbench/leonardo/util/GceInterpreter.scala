@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
-final case class InstanceResourceConstaintsException(project: GoogleProject, machineType: MachineTypeName)
+final case class InstanceResourceConstraintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
       s"Unable to calculate memory constraints for instance in project ${project.value} with machine type ${machineType.value}",
       traceId = None
@@ -352,7 +352,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       // Resolve the machine type in Google to get the total available memory
       machineType <- googleComputeService.getMachineType(googleProject, zoneName, machineTypeName)
       total <- machineType.fold(
-        F.raiseError[MemorySize](InstanceResourceConstaintsException(googleProject, machineTypeName))
+        F.raiseError[MemorySize](InstanceResourceConstraintsException(googleProject, machineTypeName))
       )(mt => F.pure(MemorySize.fromMb(mt.getMemoryMb.toDouble)))
       // result = total - os allocated - welder allocated
       gceAllocated = config.gceConfig.gceReservedMemory.map(_.bytes).getOrElse(0L)
