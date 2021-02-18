@@ -47,6 +47,7 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
     switchToNewTab {
       val launchCommand = s"""shiny::runExample("$exampleName", launch.browser = T)"""
       pressKeys(launchCommand)
+      Thread.sleep(4000)
       pressKeys(Keys.ENTER.toString)
       await condition windowHandles.size == 2
     }
