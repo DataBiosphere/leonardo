@@ -45,11 +45,8 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   def withRShinyExample[T](exampleName: String)(testCode: RShinyPage => T): T = {
     // Enter commands to launch the shiny app
     switchToNewTab {
-      Thread.sleep(10000)
-      //val launchCommand = s"""shiny::runExample("$exampleName", launch.browser = T)"""
-      val launchCommand = "shiny::runExample(" + '"' + "01_hello" + '"' + ", launch.browser = T)"
+      val launchCommand = "shiny::runExample(" + '"' + exampleName + '"' + ", launch.browser = T)"
       pressKeys(launchCommand)
-      Thread.sleep(10000)
       pressKeys(Keys.ENTER.toString)
       await condition windowHandles.size == 2
     }
