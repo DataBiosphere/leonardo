@@ -623,6 +623,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
+      galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(savedApp1.appResources.disk.get.id).transaction
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
@@ -642,6 +643,9 @@ class LeoPubsubMessageSubscriberSpec
                                                    Config.vpcConfig.subnetworkIpRange))
       )
       getDisk.status shouldBe DiskStatus.Ready
+      galaxyRestore shouldBe Some(
+        GalaxyDiskRestore(PvcId(s"nfs-pvc-id1"), PvcId("cvmfs-pvc-id1"), getApp.app.chart, getApp.app.release)
+      )
     }
 
     val res = for {
