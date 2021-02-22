@@ -381,24 +381,33 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
-      pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId, KubernetesNamespace(app.appResources.namespace.name))
 
-      galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
-      cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
-      _ <- (galaxyPvc, cvmfsPvc).tupled
-        .fold(F.raiseError[Unit](new LeoException("Fail to retrieve pvc ids", traceId = Some(ctx.traceId)))) {
-          case (gp, cp) =>
-            val galaxyDiskRestore = GalaxyDiskRestore(
-              PvcId(gp.getMetadata.getUid),
-              PvcId(cp.getMetadata.getUid),
-              app.chart,
-              app.release
-            )
-            persistentDiskQuery
-              .updateGalaxyDiskRestore(diskId, galaxyDiskRestore)
-              .transaction
-              .void
-        }
+      // TODO: this logic will be changed in the next PR
+      isUsedByGalaxy <- persistentDiskQuery.isUsedByGalaxy(diskId).transaction
+      _ <- if (isUsedByGalaxy.exists(identity)) F.unit
+      else
+        for {
+          pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId,
+                                                         KubernetesNamespace(app.appResources.namespace.name))
+
+          galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
+          cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
+          _ <- (galaxyPvc, cvmfsPvc).tupled
+            .fold(F.raiseError[Unit](new LeoException("Fail to retrieve pvc ids", traceId = Some(ctx.traceId)))) {
+              case (gp, cp) =>
+                val galaxyDiskRestore = GalaxyDiskRestore(
+                  PvcId(gp.getMetadata.getUid),
+                  PvcId(cp.getMetadata.getUid),
+                  app.chart,
+                  app.release
+                )
+                persistentDiskQuery
+                  .updateGalaxyDiskRestore(diskId, galaxyDiskRestore)
+                  .transaction
+                  .void
+            }
+        } yield ()
+
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
