@@ -165,6 +165,10 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
          Some(galaxyDiskRestore.release))
       )
 
+  def isUsedByGalaxy(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[Boolean]] =
+    findByIdQuery(id).result
+      .map(_.headOption.map(_.galaxyDiskRestore.isDefined))
+
   def getGalaxyDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[GalaxyDiskRestore]] =
     findByIdQuery(id).result.map(_.headOption.flatMap(_.galaxyDiskRestore))
 
