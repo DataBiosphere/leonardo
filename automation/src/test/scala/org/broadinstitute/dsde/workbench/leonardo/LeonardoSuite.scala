@@ -141,7 +141,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
           .createRuntimeWithWait(
             project,
             initalRuntimeName,
-            LeonardoApiClient.defaultCreateDataprocRuntimeRequest
+            LeonardoApiClient.defaultCreateRuntime2Request
           )
           .attempt
         _ <- res match {
