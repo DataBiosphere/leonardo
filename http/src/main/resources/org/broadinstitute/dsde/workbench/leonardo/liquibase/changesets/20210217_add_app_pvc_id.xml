@@ -2,12 +2,21 @@
 <databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
 
     <changeSet logicalFilePath="leonardo" author="qi" id="add_app_pvc_id">
-        <addColumn tableName="APP">
+        <addColumn tableName="PERSISTENT_DISK">
             <column name="galaxyPvcId" type="varchar(254)">
                 <constraints nullable="true"/>
             </column>
 
+            <!-- this is a second PVC id. We store this record in the same row for galaxy pvc Id because we don't currently persist disk Id for cvmfs. If we persist cmvfs disk separately in the future, we should move this field to new row -->
             <column name="cvmfsPvcId" type="varchar(254)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="chart" type="varchar(254)">
+                <constraints nullable="true"/>
+            </column>
+
+            <column name="release" type="varchar(254)">
                 <constraints nullable="true"/>
             </column>
         </addColumn>

@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -10,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImpl
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsp.Release
 
 import scala.concurrent.ExecutionContext
 
@@ -28,7 +28,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       size: DiskSize,
                                       diskType: DiskType,
                                       blockSize: BlockSize,
-                                      formattedBy: Option[FormattedBy])
+                                      formattedBy: Option[FormattedBy],
+                                      galaxyDiskRestore: Option[GalaxyDiskRestore])
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
   def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
@@ -47,6 +48,10 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def diskType = column[DiskType]("type", O.Length(255))
   def blockSize = column[BlockSize]("blockSizeBytes")
   def formattedBy = column[Option[FormattedBy]]("formattedBy", O.Length(255))
+  def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
+  def cvmfsPvcId = column[Option[PvcId]]("cvmfsPvcId", O.Length(254))
+  def chart = column[Option[Chart]]("chart", O.Length(254))
+  def release = column[Option[Release]]("release", O.Length(254))
 
   override def * =
     (id,
@@ -64,7 +69,68 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      size,
      diskType,
      blockSize,
-     formattedBy) <> (PersistentDiskRecord.tupled, PersistentDiskRecord.unapply)
+     formattedBy,
+     (galaxyPvcId, cvmfsPvcId, chart, release)) <> ({
+      case (id,
+            googleProject,
+            zone,
+            name,
+            googleId,
+            serviceAccount,
+            samResourceId,
+            status,
+            creator,
+            createdDate,
+            destroyedDate,
+            dateAccessed,
+            size,
+            diskType,
+            blockSize,
+            formattedBy,
+            (galaxyPvcId, cvmfsPvcId, chart, release)) =>
+        PersistentDiskRecord(
+          id,
+          googleProject,
+          zone,
+          name,
+          googleId,
+          serviceAccount,
+          samResourceId,
+          status,
+          creator,
+          createdDate,
+          destroyedDate,
+          dateAccessed,
+          size,
+          diskType,
+          blockSize,
+          formattedBy,
+          (galaxyPvcId, cvmfsPvcId, chart, release).mapN((gp, cp, c, r) => GalaxyDiskRestore(gp, cp, c, r))
+        )
+    }, { record: PersistentDiskRecord =>
+      Some(
+        record.id,
+        record.googleProject,
+        record.zone,
+        record.name,
+        record.googleId,
+        record.serviceAccount,
+        record.samResource,
+        record.status,
+        record.creator,
+        record.createdDate,
+        record.destroyedDate,
+        record.dateAccessed,
+        record.size,
+        record.diskType,
+        record.blockSize,
+        record.formattedBy,
+        (record.galaxyDiskRestore.map(_.galaxyPvcId),
+         record.galaxyDiskRestore.map(_.cvmfsPvcId),
+         record.galaxyDiskRestore.map(_.chart),
+         record.galaxyDiskRestore.map(_.release))
+      )
+    })
 }
 
 object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
@@ -88,6 +154,19 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
           lbl.resourceId.mapTo[DiskId] === d.id && lbl.resourceType === LabelResourceType.persistentDisk
       }
     } yield (disk, label)
+
+  def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyDiskRestore): DBIO[Int] =
+    findByIdQuery(id)
+      .map(x => (x.galaxyPvcId, x.cvmfsPvcId, x.chart, x.release))
+      .update(
+        (Some(galaxyDiskRestore.galaxyPvcId),
+         Some(galaxyDiskRestore.cvmfsPvcId),
+         Some(galaxyDiskRestore.chart),
+         Some(galaxyDiskRestore.release))
+      )
+
+  def getGalaxyDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[GalaxyDiskRestore]] =
+    findByIdQuery(id).result.map(_.headOption.flatMap(_.galaxyDiskRestore))
 
   def save(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[PersistentDisk] =
     for {
@@ -168,7 +247,8 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       disk.size,
       disk.diskType,
       disk.blockSize,
-      disk.formattedBy
+      disk.formattedBy,
+      None //TODO: update this one PersistentDisk model is updated
     )
 
   private[db] def aggregateLabels(
@@ -210,3 +290,5 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       labels
     )
 }
+
+final case class GalaxyDiskRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, chart: Chart, release: Release)
