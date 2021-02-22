@@ -300,6 +300,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       gkeClusterId = dbCluster.getGkeClusterId
       googleProject = params.googleProject
 
+      //TODO: This DB query might not be needed if it makes sense to add diskId in App model (will revisit in next PR)
+      diskOpt <- appQuery.getDiskId(app.id).transaction
+      diskId <- F.fromOption(diskOpt, DiskNotFoundForAppException(app.id, ctx.traceId))
+
       // Create namespace and secrets
       _ <- logger.info(ctx.loggingCtx)(
         s"Begin App(${app.appName.value}) Creation. Creating namespace ${namespaceName.value} in cluster ${gkeClusterId.toString}"
@@ -384,8 +388,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- (galaxyPvc, cvmfsPvc).tupled
         .fold(F.raiseError[Unit](new LeoException("Fail to retrieve pvc ids", traceId = Some(ctx.traceId)))) {
           case (gp, cp) =>
-            appQuery
-              .updatePvcIds(params.appId, PvcId(gp.getMetadata.getUid), PvcId(cp.getMetadata.getUid))
+            val galaxyDiskRestore = GalaxyDiskRestore(
+              PvcId(gp.getMetadata.getUid),
+              PvcId(cp.getMetadata.getUid),
+              app.chart,
+              app.release
+            )
+            persistentDiskQuery
+              .updateGalaxyDiskRestore(diskId, galaxyDiskRestore)
               .transaction
               .void
         }
@@ -1093,6 +1103,9 @@ final case class AppDeletionException(message: String) extends AppProcessingExce
 final case class AppStartException(message: String) extends AppProcessingException {
   override def getMessage: String = message
 }
+
+final case class DiskNotFoundForAppException(appId: AppId, traceId: TraceId)
+    extends LeoException(s"No persistent disk found for ${appId}", traceId = Some(traceId))
 
 final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       operation: com.google.container.v1.Operation,
