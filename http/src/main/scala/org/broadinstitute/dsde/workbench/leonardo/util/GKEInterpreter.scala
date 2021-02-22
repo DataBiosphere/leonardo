@@ -365,6 +365,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ).compile.lastOrError
 
       // helm install galaxy and wait
+      galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(diskId).transaction
       _ <- installGalaxy(
         helmAuthContext,
         app.appName,
@@ -375,16 +376,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         app.auditInfo.creator,
         app.customEnvironmentVariables,
         ksaName,
-        nfsDisk
+        nfsDisk,
+        galaxyRestore
       )
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
-      // TODO: this logic will be changed in the next PR
-      isUsedByGalaxy <- persistentDiskQuery.isUsedByGalaxy(diskId).transaction
-      _ <- if (isUsedByGalaxy.exists(identity)) F.unit
+      _ <- if (galaxyRestore.isDefined) F.unit
       else
         for {
           pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId,
@@ -395,7 +395,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           _ <- (galaxyPvc, cvmfsPvc).tupled
             .fold(F.raiseError[Unit](new LeoException("Fail to retrieve pvc ids", traceId = Some(ctx.traceId)))) {
               case (gp, cp) =>
-                val galaxyDiskRestore = GalaxyDiskRestore(
+                val galaxyDiskRestore = GalaxyRestore(
                   PvcId(gp.getMetadata.getUid),
                   PvcId(cp.getMetadata.getUid),
                   app.chart,
@@ -800,7 +800,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                   userEmail: WorkbenchEmail,
                                   customEnvironmentVariables: Map[String, String],
                                   kubernetesServiceAccount: ServiceAccountName,
-                                  nfsDisk: PersistentDisk)(
+                                  nfsDisk: PersistentDisk,
+                                  galaxyRestore: Option[GalaxyRestore])(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
@@ -810,15 +811,18 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      chartValues = buildGalaxyChartOverrideValuesString(appName,
-                                                         release,
-                                                         dbCluster,
-                                                         nodepoolName,
-                                                         userEmail,
-                                                         customEnvironmentVariables,
-                                                         kubernetesServiceAccount,
-                                                         namespaceName,
-                                                         nfsDisk)
+      chartValues = buildGalaxyChartOverrideValuesString(
+        appName,
+        release,
+        dbCluster,
+        nodepoolName,
+        userEmail,
+        customEnvironmentVariables,
+        kubernetesServiceAccount,
+        namespaceName,
+        nfsDisk,
+        galaxyRestore
+      )
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Chart override values are: ${chartValues}"
@@ -828,8 +832,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- helmClient
         .installChart(
           release,
-          config.galaxyAppConfig.chartName,
-          config.galaxyAppConfig.chartVersion,
+          galaxyRestore
+            .map(_.chart.name)
+            .getOrElse(config.galaxyAppConfig.chartName),
+          galaxyRestore
+            .map(_.chart.version)
+            .getOrElse(
+              config.galaxyAppConfig.chartVersion
+            ), // if galaxyRestore is defined, we use the old chart so that user can restore disks safely
           org.broadinstitute.dsp.Values(chartValues)
         )
         .run(helmAuthContext)
@@ -985,7 +995,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          customEnvironmentVariables: Map[String, String],
                                                          ksa: ServiceAccountName,
                                                          namespaceName: NamespaceName,
-                                                         nfsDisk: PersistentDisk): String = {
+                                                         nfsDisk: PersistentDisk,
+                                                         galaxyRestore: Option[GalaxyRestore]): String = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
@@ -1002,6 +1013,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
     }
 
+    val galaxyRestoreSettings = galaxyRestore.fold(List.empty[String])(g =>
+      List(
+        raw"""restore.persistence.nfs.galaxy.pvcID=${g.galaxyPvcId.asString}""",
+        raw"""restore.persistence.nfs.cvmfsCache.pvcID=${g.cvmfsPvcId.asString}""",
+        raw"""galaxy.persistence.existingClaim=${g.release.asString}-galaxy-pvc""",
+        raw"""cvmfs.cache.alienCache.existingClaim=${g.release.asString}-cvmfs-alien-cache-pvc"""
+      )
+    )
     // Using the string interpolator raw""" since the chart keys include quotes to escape Helm
     // value override special characters such as '.'
     // https://helm.sh/docs/intro/using_helm/#the-format-and-limitations-of---set
@@ -1057,7 +1076,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
       raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc""",
       raw"""galaxy.persistence.size=200Gi"""
-    ) ++ configs).mkString(",")
+    ) ++ configs ++ galaxyRestoreSettings).mkString(",")
   }
 
   private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =

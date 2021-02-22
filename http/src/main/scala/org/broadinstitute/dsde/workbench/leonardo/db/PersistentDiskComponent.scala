@@ -29,7 +29,7 @@ final case class PersistentDiskRecord(id: DiskId,
                                       diskType: DiskType,
                                       blockSize: BlockSize,
                                       formattedBy: Option[FormattedBy],
-                                      galaxyDiskRestore: Option[GalaxyDiskRestore])
+                                      galaxyDiskRestore: Option[GalaxyRestore])
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
   def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
@@ -105,7 +105,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           diskType,
           blockSize,
           formattedBy,
-          (galaxyPvcId, cvmfsPvcId, chart, release).mapN((gp, cp, c, r) => GalaxyDiskRestore(gp, cp, c, r))
+          (galaxyPvcId, cvmfsPvcId, chart, release).mapN((gp, cp, c, r) => GalaxyRestore(gp, cp, c, r))
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -155,7 +155,7 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       }
     } yield (disk, label)
 
-  def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyDiskRestore): DBIO[Int] =
+  def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyRestore): DBIO[Int] =
     findByIdQuery(id)
       .map(x => (x.galaxyPvcId, x.cvmfsPvcId, x.chart, x.release))
       .update(
@@ -165,12 +165,9 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
          Some(galaxyDiskRestore.release))
       )
 
-  def isUsedByGalaxy(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[Boolean]] =
+  def getGalaxyDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[GalaxyRestore]] =
     findByIdQuery(id).result
-      .map(_.headOption.map(_.galaxyDiskRestore.isDefined))
-
-  def getGalaxyDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[GalaxyDiskRestore]] =
-    findByIdQuery(id).result.map(_.headOption.flatMap(_.galaxyDiskRestore))
+      .map(_.headOption.flatMap(_.galaxyDiskRestore))
 
   def save(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[PersistentDisk] =
     for {
@@ -295,4 +292,4 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
     )
 }
 
-final case class GalaxyDiskRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, chart: Chart, release: Release)
+final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, chart: Chart, release: Release)
