@@ -398,8 +398,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                 val galaxyDiskRestore = GalaxyDiskRestore(
                   PvcId(gp.getMetadata.getUid),
                   PvcId(cp.getMetadata.getUid),
-                  app.chart,
-                  app.release
+                  app.id
                 )
                 persistentDiskQuery
                   .updateGalaxyDiskRestore(diskId, galaxyDiskRestore)

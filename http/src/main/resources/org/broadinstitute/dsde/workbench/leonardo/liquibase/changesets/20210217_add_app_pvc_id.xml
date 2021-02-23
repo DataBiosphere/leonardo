@@ -12,14 +12,12 @@
                 <constraints nullable="true"/>
             </column>
 
-            <column name="chart" type="varchar(254)">
-                <constraints nullable="true"/>
-            </column>
-
-            <column name="release" type="varchar(254)">
+            <column name="usedBy" type="BIGINT">
                 <constraints nullable="true"/>
             </column>
         </addColumn>
+
+        <addForeignKeyConstraint baseColumnNames="usedBy" baseTableName="PERSISTENT_DISK" constraintName="FK_DISK_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
     </changeSet>
 
 </databaseChangeLog>
