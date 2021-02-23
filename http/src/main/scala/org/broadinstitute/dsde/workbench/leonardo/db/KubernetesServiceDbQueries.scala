@@ -251,7 +251,7 @@ object KubernetesServiceDbQueries {
         namespaceQuery on (_._1._2.id === _.clusterId) join
         namespaceQuery on (_._1._1._1._1.namespaceId === _.id) joinLeft
         serviceQuery on (_._1._1._1._1._1.id === _.appId) joinLeft
-        persistentDiskQuery on (_._1._1._1._1._1._1.diskId === _.id) joinLeft
+        persistentDiskQuery.tableQuery on (_._1._1._1._1._1._1.diskId === _.id) joinLeft
         labelQuery on {
         case (c, lbl) =>
           lbl.resourceId

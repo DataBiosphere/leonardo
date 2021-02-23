@@ -12,6 +12,8 @@ object ConfigReader {
     .loadOrThrow[AppConfig]
 }
 
+// Note: pureconfig supports reading kebab case into camel case in code by default
+// More docs see https://pureconfig.github.io/docs/index.html
 final case class AppConfig(
   terraAppSetupChart: TerraAppSetupChartConfig
 )

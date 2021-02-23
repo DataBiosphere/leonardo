@@ -525,13 +525,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- googleClusterOpt.traverse(googleCluster =>
         for {
           helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+          _ <- uninstallGalaxy(helmAuthContext, dbCluster, app.appName, app.release, namespaceName)
           _ <- helmClient
             .uninstall(
               getTerraAppSetupChartReleaseName(app.release),
               config.galaxyAppConfig.uninstallKeepHistory
             )
             .run(helmAuthContext)
-          _ <- uninstallGalaxy(helmAuthContext, dbCluster, app.appName, app.release, namespaceName)
         } yield ()
       )
 

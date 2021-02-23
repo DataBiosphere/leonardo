@@ -12,12 +12,12 @@
                 <constraints nullable="true"/>
             </column>
 
-            <column name="usedBy" type="BIGINT">
+            <column name="lastUsedBy" type="BIGINT">
                 <constraints nullable="true"/>
             </column>
         </addColumn>
 
-        <addForeignKeyConstraint baseColumnNames="usedBy" baseTableName="PERSISTENT_DISK" constraintName="FK_DISK_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
+        <addForeignKeyConstraint baseColumnNames="lastUsedBy" baseTableName="PERSISTENT_DISK" constraintName="FK_DISK_APP_ID" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="APP"/>
     </changeSet>
 
 </databaseChangeLog>
