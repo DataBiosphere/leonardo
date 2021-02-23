@@ -181,7 +181,8 @@ object Boot extends IOApp {
         diskService,
         leoKubernetesService,
         StandardUserInfoDirectives,
-        contentSecurityPolicy
+        contentSecurityPolicy,
+        refererConfig
       )
       val httpServer = for {
         start <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)

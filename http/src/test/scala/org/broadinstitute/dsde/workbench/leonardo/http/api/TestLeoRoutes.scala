@@ -149,7 +149,8 @@ trait TestLeoRoutes {
     MockDiskServiceInterp,
     leoKubernetesService,
     userInfoDirectives,
-    contentSecurityPolicy
+    contentSecurityPolicy,
+    refererConfig
   )
   val timedHttpRoutes = new HttpRoutes(swaggerConfig,
                                        statusService,
@@ -158,7 +159,8 @@ trait TestLeoRoutes {
                                        MockDiskServiceInterp,
                                        leoKubernetesService,
                                        timedUserInfoDirectives,
-                                       contentSecurityPolicy)
+                                       contentSecurityPolicy,
+                                       refererConfig)
 
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r

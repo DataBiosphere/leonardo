@@ -54,7 +54,8 @@ class HttpRoutesSpec
     MockDiskServiceInterp,
     MockKubernetesServiceInterp,
     timedUserInfoDirectives,
-    contentSecurityPolicy
+    contentSecurityPolicy,
+    refererConfig
   )
 
   "RuntimeRoutes" should "create runtime" in {
@@ -562,7 +563,8 @@ class HttpRoutesSpec
       MockDiskServiceInterp,
       MockKubernetesServiceInterp,
       timedUserInfoDirectives,
-      contentSecurityPolicy
+      contentSecurityPolicy,
+      refererConfig
     )
 
   def fakeRoutes(kubernetesService: KubernetesService[IO]): HttpRoutes =
@@ -574,7 +576,8 @@ class HttpRoutesSpec
       MockDiskServiceInterp,
       kubernetesService,
       timedUserInfoDirectives,
-      contentSecurityPolicy
+      contentSecurityPolicy,
+      refererConfig
     )
 }
 
