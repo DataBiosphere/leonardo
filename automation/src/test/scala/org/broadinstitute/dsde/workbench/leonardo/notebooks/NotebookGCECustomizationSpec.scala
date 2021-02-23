@@ -187,12 +187,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
               // Stop the cluster
               stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-              logger.info(s"SHOULD HAVE STOPPED CLUSTER ${runtime.googleProject}/${runtime.clusterName}")
-
               // Start the cluster
               startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
-
-              logger.info(s"SHOULD HAVE STARTED CLUSTER ${runtime.googleProject}/${runtime.clusterName}")
 
               withNewNotebook(runtime, Python3) { notebookPage =>
                 notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
