@@ -68,4 +68,5 @@
     <include file="changesets/20201026_drop_not_null_constraint_on_error_code_table.xml" relativeToChangelogFile="true" />
     <include file="changesets/20201104_add_deletedFrom.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210122_remove_stop_after_creation.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20210217_add_app_pvc_id.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

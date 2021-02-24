@@ -8,20 +8,20 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.2"
-  val scalaTestV = "3.2.3"
+  val scalaTestV = "3.2.4"
   val slickV = "3.3.3"
   val http4sVersion = "0.21.15"
   val guavaV = "30.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
-  private val workbenchLibsHash = "ca18699"
-  val serviceTestV = s"0.18-${workbenchLibsHash}"
-  val workbenchModelV = s"0.14-${workbenchLibsHash}"
-  val workbenchGoogleV = s"0.21-${workbenchLibsHash}"
-  val workbenchGoogle2V = s"0.19-${workbenchLibsHash}"
-  val workbenchOpenTelemetryV = s"0.1-${workbenchLibsHash}"
-  val workbenchErrorReportingV = s"0.1-${workbenchLibsHash}"
+  private val workbenchLibsHash = "3889a04"
+  val serviceTestV = s"0.18-$workbenchLibsHash"
+  val workbenchModelV = s"0.14-$workbenchLibsHash"
+  val workbenchGoogleV = s"0.21-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.19-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.1-$workbenchLibsHash"
+  val workbenchErrorReportingV = s"0.1-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.1-RC4"
 
@@ -129,6 +129,9 @@ object Dependencies {
     "net.logstash.logback" % "logstash-logback-encoder" % "6.6", // for structured logging in logback
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
+    // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
+    // brings in an older version of `pureconfig`
+    "com.github.pureconfig" %% "pureconfig" % "0.14.0" % Provided,
     sealerate,
     enumeratum,
     http4sCirce,

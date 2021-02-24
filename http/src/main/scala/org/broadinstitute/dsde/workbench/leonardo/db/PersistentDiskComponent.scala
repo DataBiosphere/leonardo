@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
@@ -28,7 +27,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       size: DiskSize,
                                       diskType: DiskType,
                                       blockSize: BlockSize,
-                                      formattedBy: Option[FormattedBy])
+                                      formattedBy: Option[FormattedBy],
+                                      galaxyDiskRestore: Option[GalaxyDiskRestore])
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
   def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
@@ -47,6 +47,9 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
   def diskType = column[DiskType]("type", O.Length(255))
   def blockSize = column[BlockSize]("blockSizeBytes")
   def formattedBy = column[Option[FormattedBy]]("formattedBy", O.Length(255))
+  def galaxyPvcId = column[Option[PvcId]]("galaxyPvcId", O.Length(254))
+  def cvmfsPvcId = column[Option[PvcId]]("cvmfsPvcId", O.Length(254))
+  def lastUsedBy = column[Option[AppId]]("lastUsedBy")
 
   override def * =
     (id,
@@ -64,20 +67,82 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      size,
      diskType,
      blockSize,
-     formattedBy) <> (PersistentDiskRecord.tupled, PersistentDiskRecord.unapply)
+     formattedBy,
+     (galaxyPvcId, cvmfsPvcId, lastUsedBy)) <> ({
+      case (id,
+            googleProject,
+            zone,
+            name,
+            googleId,
+            serviceAccount,
+            samResourceId,
+            status,
+            creator,
+            createdDate,
+            destroyedDate,
+            dateAccessed,
+            size,
+            diskType,
+            blockSize,
+            formattedBy,
+            (galaxyPvcId, cvmfsPvcId, lastUsedBy)) =>
+        PersistentDiskRecord(
+          id,
+          googleProject,
+          zone,
+          name,
+          googleId,
+          serviceAccount,
+          samResourceId,
+          status,
+          creator,
+          createdDate,
+          destroyedDate,
+          dateAccessed,
+          size,
+          diskType,
+          blockSize,
+          formattedBy,
+          (galaxyPvcId, cvmfsPvcId, lastUsedBy).mapN((gp, cp, l) => GalaxyDiskRestore(gp, cp, l))
+        )
+    }, { record: PersistentDiskRecord =>
+      Some(
+        record.id,
+        record.googleProject,
+        record.zone,
+        record.name,
+        record.googleId,
+        record.serviceAccount,
+        record.samResource,
+        record.status,
+        record.creator,
+        record.createdDate,
+        record.destroyedDate,
+        record.dateAccessed,
+        record.size,
+        record.diskType,
+        record.blockSize,
+        record.formattedBy,
+        (record.galaxyDiskRestore.map(_.galaxyPvcId),
+         record.galaxyDiskRestore.map(_.cvmfsPvcId),
+         record.galaxyDiskRestore.map(_.lastUsedBy))
+      )
+    })
 }
 
-object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
-  private[db] def findByIdQuery(id: DiskId) = persistentDiskQuery.filter(_.id === id)
+object persistentDiskQuery {
+  val tableQuery = TableQuery[PersistentDiskTable]
+
+  private[db] def findByIdQuery(id: DiskId) = tableQuery.filter(_.id === id)
 
   private[db] def findActiveByNameQuery(googleProject: GoogleProject, name: DiskName) =
-    persistentDiskQuery
+    tableQuery
       .filter(_.googleProject === googleProject)
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
 
   private[db] def findByNameQuery(googleProject: GoogleProject, name: DiskName) =
-    persistentDiskQuery
+    tableQuery
       .filter(_.googleProject === googleProject)
       .filter(_.name === name)
 
@@ -89,9 +154,23 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       }
     } yield (disk, label)
 
+  def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyDiskRestore): DBIO[Int] =
+    findByIdQuery(id)
+      .map(x => (x.galaxyPvcId, x.cvmfsPvcId, x.lastUsedBy))
+      .update(
+        (Some(galaxyDiskRestore.galaxyPvcId), Some(galaxyDiskRestore.cvmfsPvcId), Some(galaxyDiskRestore.lastUsedBy))
+      )
+
+  def isUsedByGalaxy(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[Boolean]] =
+    findByIdQuery(id).result
+      .map(_.headOption.map(_.galaxyDiskRestore.isDefined))
+
+  def getGalaxyDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[GalaxyDiskRestore]] =
+    findByIdQuery(id).result.map(_.headOption.flatMap(_.galaxyDiskRestore))
+
   def save(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[PersistentDisk] =
     for {
-      diskId <- (persistentDiskQuery returning persistentDiskQuery.map(_.id)) += marshalPersistentDisk(disk)
+      diskId <- (tableQuery returning tableQuery.map(_.id)) += marshalPersistentDisk(disk)
       _ <- labelQuery.saveAllForResource(diskId.value, LabelResourceType.PersistentDisk, disk.labels)
     } yield disk.copy(diskId)
 
@@ -120,6 +199,8 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
     findByIdQuery(id)
       .map(d => (d.status, d.dateAccessed))
       .update((DiskStatus.Deleting, dateAccessed))
+
+  def nullifyDiskIds = persistentDiskQuery.tableQuery.map(x => (x.lastUsedBy)).update(None)
 
   def delete(id: DiskId, destroyedDate: Instant) =
     findByIdQuery(id)
@@ -168,7 +249,8 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       disk.size,
       disk.diskType,
       disk.blockSize,
-      disk.formattedBy
+      disk.formattedBy,
+      None //TODO: update this one PersistentDisk model is updated
     )
 
   private[db] def aggregateLabels(
@@ -210,3 +292,5 @@ object persistentDiskQuery extends TableQuery(new PersistentDiskTable(_)) {
       labels
     )
 }
+
+final case class GalaxyDiskRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId)
