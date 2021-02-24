@@ -13,7 +13,7 @@ import akka.stream.scaladsl.Sink
 import cats.effect.{ContextShift, IO}
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.Encoder
-import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{RefererConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   DiskService,
   KubernetesService,
@@ -38,13 +38,14 @@ class HttpRoutes(
   diskService: DiskService[IO],
   kubernetesService: KubernetesService[IO],
   userInfoDirectives: UserInfoDirectives,
-  contentSecurityPolicy: String
+  contentSecurityPolicy: String,
+  refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, cs: ContextShift[IO], metrics: OpenTelemetryMetrics[IO])
     extends LazyLogging {
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)
-  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport)
+  private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
   private val runtimeRoutes = new RuntimeRoutes(runtimeService, userInfoDirectives)
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)

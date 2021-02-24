@@ -20,8 +20,8 @@ object DiskServiceDbQueries {
     implicit ec: ExecutionContext
   ): DBIO[List[PersistentDisk]] = {
     val diskQueryFilteredByDeletion =
-      if (includeDeleted) persistentDiskQuery
-      else persistentDiskQuery.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
+      if (includeDeleted) persistentDiskQuery.tableQuery
+      else persistentDiskQuery.tableQuery.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
 
     val diskQueryFilteredByProject =
       googleProjectOpt.fold(diskQueryFilteredByDeletion)(p => diskQueryFilteredByDeletion.filter(_.googleProject === p))

@@ -3,7 +3,6 @@ package db
 
 import java.sql.SQLIntegrityConstraintViolationException
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import slick.lifted.Tag
 import LeoProfile.api._
@@ -201,6 +200,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
     getByIdQuery(id)
       .map(_.diskId)
       .update(None)
+
+  def getDiskId(id: AppId)(implicit ec: ExecutionContext): DBIO[Option[DiskId]] =
+    getByIdQuery(id).result.map(_.headOption.flatMap(_.diskId))
 
   def updateKubernetesServiceAccount(id: AppId, ksa: ServiceAccountName): DBIO[Int] =
     getByIdQuery(id)

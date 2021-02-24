@@ -33,7 +33,15 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
 # Add the repos containing nginx and galaxy charts
 RUN helm repo add center https://repo.chartcenter.io && \
     helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
+    helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo update
+
+# .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
+# pulling `terra-app-setup` locally and add cert files to the chart.
+# Leonardo will install the chart from local version.
+RUN pushd /leonardo && \
+    helm pull terra-app-setup-charts/terra-app-setup --untar && \
+    popd
 
 # Add Leonardo as a service (it will start when the container starts)
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
