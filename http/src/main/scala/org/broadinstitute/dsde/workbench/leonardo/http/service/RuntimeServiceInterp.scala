@@ -24,7 +24,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   InstanceName,
   MachineTypeName,
   OperationName,
-  PollError
+  PollError,
+  ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}

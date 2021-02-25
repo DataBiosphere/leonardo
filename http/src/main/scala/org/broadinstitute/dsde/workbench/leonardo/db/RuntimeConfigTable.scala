@@ -4,7 +4,7 @@ package db
 import java.sql.SQLDataException
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
@@ -22,6 +22,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def dataprocProperties = column[Option[Map[String, String]]]("dataprocProperties")
   def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
+  def zone = column[ZoneName]("zone", O.Length(254))
 
   def * =
     (
@@ -37,7 +38,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         numberOfWorkerLocalSSDs,
         numberOfPreemptibleWorkers,
         dataprocProperties,
-        persistentDiskId
+        persistentDiskId,
+        zone
       ),
       dateAccessed
     ).shaped <> ({
@@ -52,18 +54,19 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              numberOfWorkerLocalSSDs,
              numberOfPreemptibleWorkers,
              dataprocProperties,
-             persistentDiskId),
+             persistentDiskId,
+             zone),
             dateAccessed) =>
         val r = cloudService match {
           case CloudService.GCE =>
             diskSize match {
-              case Some(size) => RuntimeConfig.GceConfig(machineType, size, bootDiskSize)
+              case Some(size) => RuntimeConfig.GceConfig(machineType, size, bootDiskSize, zone)
               case None =>
                 val bds =
                   bootDiskSize.getOrElse(throw new SQLDataException("gce runtime with PD has to have a boot disk"))
                 persistentDiskId.fold(
-                  RuntimeConfig.GceWithPdConfig(machineType, None, bds)
-                )(diskId => RuntimeConfig.GceWithPdConfig(machineType, Some(diskId), bds))
+                  RuntimeConfig.GceWithPdConfig(machineType, None, bds, zone)
+                )(diskId => RuntimeConfig.GceWithPdConfig(machineType, Some(diskId), bds, zone))
             }
           case CloudService.Dataproc =>
             RuntimeConfig.DataprocConfig(
@@ -87,6 +90,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                 r.machineType,
                 Some(r.diskSize),
                 r.bootDiskSize,
+                Some(r.zone),
                 None,
                 None,
                 None,
@@ -118,6 +122,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.machineType,
              None,
              Some(r.bootDiskSize),
+             Some(r.zone),
              None,
              None,
              None,
