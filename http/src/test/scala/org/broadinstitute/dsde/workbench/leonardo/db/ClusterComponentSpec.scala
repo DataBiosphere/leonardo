@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimePatchDetails, RuntimeToMonitor}
@@ -322,14 +322,14 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       savedDisk <- makePersistentDisk(None).save()
       savedRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
         )
       )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(retrievedRuntime.get.runtimeConfigId).transaction
       error <- IO(
         makeCluster(2).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1)), bootDiskSize = DiskSize(50))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1)), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
         )
       ).attempt
     } yield {

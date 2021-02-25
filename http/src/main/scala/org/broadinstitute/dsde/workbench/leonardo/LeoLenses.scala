@@ -49,7 +49,8 @@ object LeoLenses {
               throw new Exception(
                 "Can't use this RuntimeConfig as RuntimeConfigInCreateRuntimeMessage due to bootDiskSize not defined"
               )
-            )
+            ),
+          x.zone
         )
       )
     case x: RuntimeConfig.GceWithPdConfig =>
@@ -61,7 +62,8 @@ object LeoLenses {
               "Can't use this RuntimeConfig as RuntimeConfigInCreateRuntimeMessage due to persistentDiskId not defined"
             )
           ),
-          x.bootDiskSize
+          x.bootDiskSize,
+          x.zone
         )
       )
     case x: RuntimeConfig.DataprocConfig =>
@@ -71,13 +73,15 @@ object LeoLenses {
       RuntimeConfig.GceConfig(
         x.machineType,
         x.diskSize,
-        Some(x.bootDiskSize)
+        Some(x.bootDiskSize),
+        x.zone
       )
     case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
       RuntimeConfig.GceWithPdConfig(
         x.machineType,
         Some(x.persistentDiskId),
-        x.bootDiskSize
+        x.bootDiskSize,
+        x.zone
       )
     case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
       dataprocInCreateRuntimeMsgToDataprocRuntime(x)

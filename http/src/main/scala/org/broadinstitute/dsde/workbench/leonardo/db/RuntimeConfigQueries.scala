@@ -3,7 +3,7 @@ package db
 
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries.RuntimeJoinLabel
@@ -62,6 +62,12 @@ object RuntimeConfigQueries {
       .filter(x => x.id === id)
       .map(c => (c.machineType, c.dateAccessed))
       .update((machineType, dateAccessed))
+
+  def updateZone(id: RuntimeConfigId, zone: ZoneName, dateAccessed: Instant): DBIO[Int] =
+    runtimeConfigs
+      .filter(x => x.id === id)
+      .map(c => (c.zone, c.dateAccessed))
+      .update((Some(zone), dateAccessed))
 
   def updatePersistentDiskId(id: RuntimeConfigId, persistentDiskId: Option[DiskId], dateAccessed: Instant): DBIO[Int] =
     runtimeConfigs

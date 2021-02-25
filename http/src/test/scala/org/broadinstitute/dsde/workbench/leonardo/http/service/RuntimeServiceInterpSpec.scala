@@ -9,7 +9,7 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGooglePublisher,
@@ -537,7 +537,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
-        bootDiskSize = DiskSize(50)
+        bootDiskSize = DiskSize(50),
+        zone = Some(ZoneName("us-central1-a"))
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
@@ -827,7 +828,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       testRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig
-            .GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(pd.id), bootDiskSize = DiskSize(50))
+            .GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(pd.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-central1-a")))
         )
       )
 
@@ -1534,7 +1535,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       savedDisk <- makePersistentDisk(None).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50), Some(ZoneName("us-central1-a")))
         )
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)

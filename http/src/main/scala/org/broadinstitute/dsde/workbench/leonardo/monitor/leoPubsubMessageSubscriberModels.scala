@@ -34,12 +34,13 @@ object RuntimeConfigInCreateRuntimeMessage {
   final case class GceConfig(
     machineType: MachineTypeName,
     diskSize: DiskSize,
-    bootDiskSize: DiskSize
+    bootDiskSize: DiskSize,
+    zone: Option[ZoneName] = None
   ) extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
 
-  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: DiskId, bootDiskSize: DiskSize)
+  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: DiskId, bootDiskSize: DiskSize, zone: Option[ZoneName] = None)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -559,17 +560,19 @@ object LeoPubsubCodec {
   }
 
   implicit val gceConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =
-    Decoder.forProduct3(
+    Decoder.forProduct4(
       "machineType",
       "diskSize",
-      "bootDiskSize"
+      "bootDiskSize",
+      "zone"
     )(RuntimeConfigInCreateRuntimeMessage.GceConfig.apply)
 
   implicit val gceWithPdConfigInCreateRuntimeMessageDecoder
-    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct3(
+    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct4(
     "machineType",
     "persistentDiskId",
-    "bootDiskSize"
+    "bootDiskSize",
+    "zone"
   )(RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig.apply)
 
   implicit val runtimeConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage] =

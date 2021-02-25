@@ -323,16 +323,18 @@ object JsonCodec {
   implicit val diskTypeDecoder: Decoder[DiskType] =
     Decoder.decodeString.emap(x => DiskType.stringToObject.get(x).toRight(s"Invalid disk type: $x"))
 
-  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct3(
+  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct4(
     "machineType",
     "persistentDiskId",
-    "bootDiskSize"
+    "bootDiskSize",
+    "zone"
   )(RuntimeConfig.GceWithPdConfig.apply)
-  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct3(
+  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct4(
     "machineType",
     "diskSize",
-    "bootDiskSize"
-  )((mt, ds, bds) => RuntimeConfig.GceConfig(mt, ds, bds))
+    "bootDiskSize",
+    "zone"
+  )((mt, ds, bds, z) => RuntimeConfig.GceConfig(mt, ds, bds, z))
 
   implicit val persistentDiskRequestDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
     for {

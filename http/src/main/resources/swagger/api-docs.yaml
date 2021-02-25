@@ -2503,6 +2503,10 @@ components:
                 or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
 
                 see https://cloud.google.com/compute/docs/machine-types
+            zone:
+              type: string
+              description: >
+                Optional, the deployment area of the GCE VM. For example, us-east1-a or europe-west2-c.
     GceWithPdConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
@@ -2523,6 +2527,10 @@ components:
                 or "n1-highmem-64". If unspecified, defaults to creating a "n1-standard-4" machine. To decide which is right for you,
 
                 see https://cloud.google.com/compute/docs/machine-types
+            zone:
+              type: string
+              description: >
+                Optional, the deployment area of the GCE VM. For example, us-east1-a or europe-west2-c.
     DataprocConfig:
       description: Configuration for a single Dataproc cluster.
       allOf:
@@ -2586,6 +2594,10 @@ components:
               type: object
               additionalProperties:
                 type: string
+            zone:
+              type: string
+              description: >
+                Optional, the deployment area of the cluster. For example, us-east1-a or europe-west2-c.
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:

@@ -613,7 +613,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
-        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _),
+        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
           for {
             targetDiskSize <- traverseIfChanged(diskSizeInRequest, existngDiskSize) { d =>
@@ -632,7 +632,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                targetDiskSize,
                                                context.traceId)
           } yield r
-        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _),
+        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
           for {
             // should disk size be updated?
