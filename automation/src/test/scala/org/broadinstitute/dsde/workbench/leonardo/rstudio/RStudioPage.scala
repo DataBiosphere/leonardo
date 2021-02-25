@@ -46,7 +46,11 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
     // Enter commands to launch the shiny app
     switchToNewTab {
       val launchCommand = s"""shiny::runExample("$exampleName", launch.browser = T)"""
+
       pressKeys(launchCommand)
+
+      await notVisible cssSelector("[class*='themedPopupPanel']")
+
       pressKeys(Keys.ENTER.toString)
       await condition windowHandles.size == 2
     }
