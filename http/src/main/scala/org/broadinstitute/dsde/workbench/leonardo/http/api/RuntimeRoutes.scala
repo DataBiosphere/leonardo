@@ -12,7 +12,7 @@ import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeRequest, RuntimeService}
@@ -248,7 +248,8 @@ object RuntimeRoutes {
       pd <- x
         .downField("persistentDisk")
         .as[PersistentDiskRequest]
-    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd)
+      zone <- x.downField("zone").as[Option[ZoneName]]
+    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd, zone)
   }
 
   implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
@@ -257,7 +258,8 @@ object RuntimeRoutes {
       diskSize <- x
         .downField("diskSize")
         .as[Option[DiskSize]]
-    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize)
+      zone <- x.downField("zone").as[Option[ZoneName]]
+    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize, zone)
   }
 
   val invalidPropertiesError =
@@ -292,6 +294,7 @@ object RuntimeRoutes {
         .downField("numberOfPreemptibleWorkers")
         .as[Option[Int]]
         .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+      zone <- c.downField("zone").as[Option[ZoneName]]
       res <- numberOfWorkersInput match {
         case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
         case Some(0) =>
@@ -337,12 +340,13 @@ object RuntimeRoutes {
           for {
             machineType <- x.downField("machineType").as[Option[MachineTypeName]]
             pd <- x.downField("persistentDisk").as[Option[PersistentDiskRequest]]
+            zone <- x.downField("zone").as[Option[ZoneName]]
             res <- pd match {
-              case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p).asRight[DecodingFailure]
+              case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p, zone).asRight[DecodingFailure]
               case None =>
                 x.downField("diskSize")
                   .as[Option[DiskSize]]
-                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d))
+                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d, zone))
             }
           } yield res
       }

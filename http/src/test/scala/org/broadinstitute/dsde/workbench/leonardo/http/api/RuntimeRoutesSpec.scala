@@ -7,7 +7,7 @@ import io.circe.CursorOp.DownField
 import io.circe.DecodingFailure
 import io.circe.parser.decode
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
   auditInfo,
   cryptoDetectorImage,
@@ -610,7 +610,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "runtimeConfig": {
         |    "cloudService": "gce",
         |    "machineType": "n1-standard-4",
-        |    "diskSize": 100
+        |    "diskSize": 100,
+        |    "zone": "us-central2-b"
         |  }
         |}
         |""".stripMargin
@@ -621,7 +622,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Some(
         RuntimeConfigRequest.GceConfig(
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(100))
+          Some(DiskSize(100)),
+          Some(ZoneName("us-central2-b"))
         )
       ),
       None,

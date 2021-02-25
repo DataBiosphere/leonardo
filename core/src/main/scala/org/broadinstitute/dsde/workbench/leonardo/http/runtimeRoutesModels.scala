@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
   AuditInfo,
@@ -33,14 +33,16 @@ sealed trait RuntimeConfigRequest extends Product with Serializable {
 object RuntimeConfigRequest {
   final case class GceConfig(
     machineType: Option[MachineTypeName],
-    diskSize: Option[DiskSize]
+    diskSize: Option[DiskSize],
+    zone: Option[ZoneName] = None
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
 
   final case class GceWithPdConfig(
     machineType: Option[MachineTypeName],
-    persistentDisk: PersistentDiskRequest
+    persistentDisk: PersistentDiskRequest,
+    zone: Option[ZoneName] = None
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
