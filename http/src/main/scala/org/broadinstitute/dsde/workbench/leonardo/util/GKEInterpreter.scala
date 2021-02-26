@@ -1022,6 +1022,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.ingress.tls[0].secretName=tls-secret""",
       // Galaxy configs
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
