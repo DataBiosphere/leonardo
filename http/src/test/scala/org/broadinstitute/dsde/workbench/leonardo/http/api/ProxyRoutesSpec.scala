@@ -554,7 +554,7 @@ class ProxyRoutesSpec
   it should "401 when Referer is not a valid URI" in {
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Referer(Uri("https://notAGoodExample.com"))) ~> httpRoutes.route ~> check {
-      status shouldEqual StatusCodes.MethodNotAllowed
+      status shouldEqual StatusCodes.Unauthorized
     }
   }
 }
