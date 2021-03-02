@@ -262,18 +262,21 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       pass
     }
 
+  private def requestPath(req: HttpRequest): String = req.uri.toString
+  private val logRequestPath = DebuggingDirectives.logRequest(requestPath _)
+
   private[api] def checkReferer: Directive0 =
     optionalHeaderValueByType(Referer) flatMap {
       case Some(referer) => {
         if (refererConfig.validHosts.contains(referer.uri.authority.toString())) pass
         else {
-          logger.info(s"${referer} is not allowed")
-          logRequest(failWith(AuthenticationError()))
+          logger.info(s"Referer ${referer} is not allowed")
+          logRequestPath.tflatMap(_ => reject)
         }
       }
       case None => {
         logger.info(s"Referer header is missing")
-        logRequest(failWith(AuthenticationError()))
+        logRequestPath.tflatMap(_ => reject)
       }
     }
 }
