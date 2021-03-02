@@ -266,9 +266,13 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     optionalHeaderValueByType(Referer) flatMap {
       case Some(referer) => {
         if (refererConfig.validHosts.contains(referer.uri.authority.toString())) pass
-        else failWith(AuthenticationError())
+        else {
+          logger.info(s"${referer} is not allowed")
+          failWith(AuthenticationError())
+        }
       }
       case None => {
+        logger.info(s"Referer header is missing")
         failWith(AuthenticationError())
       }
     }
