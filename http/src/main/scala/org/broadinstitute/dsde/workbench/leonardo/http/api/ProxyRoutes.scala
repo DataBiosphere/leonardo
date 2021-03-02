@@ -268,12 +268,12 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
         if (refererConfig.validHosts.contains(referer.uri.authority.toString())) pass
         else {
           logger.info(s"${referer} is not allowed")
-          failWith(AuthenticationError())
+          logRequest(failWith(AuthenticationError()))
         }
       }
       case None => {
         logger.info(s"Referer header is missing")
-        failWith(AuthenticationError())
+        logRequest(failWith(AuthenticationError()))
       }
     }
 }
