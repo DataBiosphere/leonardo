@@ -270,7 +270,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       case Some(referer) => {
         if (refererConfig.validHosts.contains(referer.uri.authority.toString())) pass
         else {
-          logger.info(s"Referer ${referer} is not allowed")
+          logger.info(s"Referer ${referer.uri.toString} is not allowed")
           logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
         }
       }
