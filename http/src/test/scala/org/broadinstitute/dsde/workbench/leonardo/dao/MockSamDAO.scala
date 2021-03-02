@@ -7,6 +7,7 @@ import cats.effect.IO
 import cats.syntax.all._
 import cats.mtl.Ask
 import io.circe.{Decoder, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.{SamResource, SamResourceAction}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -130,9 +131,7 @@ class MockSamDAO extends SamDAO[IO] {
     }
   }
 
-  override def createResourceWithManagerPolicy[R](resource: R,
-                                                  creatorEmail: WorkbenchEmail,
-                                                  googleProject: GoogleProject)(
+  override def createResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[IO, TraceId]

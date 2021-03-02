@@ -23,6 +23,7 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.ProjectSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
@@ -91,7 +92,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           method = Method.GET,
           uri = config.samUri
             .withPath(
-              s"/api/resources/v1/${resourceType.asString}/${resource}/action/${action}"
+              s"/api/resources/v2/${resourceType.asString}/${resource}/action/${action}"
             ),
           headers = Headers.of(authHeader)
         )
@@ -108,7 +109,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         Request[F](
           method = Method.GET,
           uri = config.samUri
-            .withPath(s"/api/resources/v1/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}/actions"),
+            .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}/actions"),
           headers = Headers.of(authHeader)
         )
       )(onError)
@@ -122,11 +123,11 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(s"/api/resources/v1/${sr.resourceType.asString}"),
+          uri = config.samUri.withPath(s"/api/resources/v2/${sr.resourceType.asString}"),
           headers = Headers.of(authHeader)
         )
       )(onError)
-    } yield resp.map(r => (r.samResourceId, r.samPolicyName))
+    } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
 
   def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
@@ -153,7 +154,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(s"/api/resources/v1/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
+              .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
             headers = Headers.of(authHeader)
           )
         )
@@ -165,7 +166,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         }
     } yield ()
 
-  def createResourceWithManagerPolicy[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
+  def createResourceV2[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
@@ -183,22 +184,21 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- logger.info(
-        s"${traceId} | creating ${sr.resourceType.asString} resource in sam for ${googleProject}/${sr.resourceIdAsString(resource)}"
+        s"${traceId} | creating ${sr.resourceType.asString} resource in sam v2 for ${googleProject}/${sr.resourceIdAsString(resource)}"
       )
       _ <- metrics.incrementCounter(s"sam/createResource/${sr.resourceType.asString}")
-      projectOwnerEmail <- getProjectOwnerPolicyEmail(authHeader, googleProject)
-      policies = Map(
-        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator)),
-        SamPolicyName.Manager -> SamPolicyData(List(projectOwnerEmail.email), List(SamRole.Manager))
+      policies = Map[SamPolicyName, SamPolicyData](
+        SamPolicyName.Creator -> SamPolicyData(List(creatorEmail), List(SamRole.Creator))
       )
+      parent = SerializableSamResource(SamResourceType.Project, ProjectSamResourceId(googleProject))
       _ <- httpClient
         .run(
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(s"/api/resources/v1/${sr.resourceType.asString}"),
+              .withPath(s"/api/resources/v2/${sr.resourceType.asString}"),
             headers = Headers.of(authHeader, `Content-Type`(MediaType.application.json)),
-            body = Stream.emits(CreateSamResourceRequest(resource, policies).asJson.noSpaces.getBytes)
+            body = Stream.emits(CreateSamResourceRequest(resource, policies, parent).asJson.noSpaces.getBytes)
           )
         )
         .use { resp =>
@@ -231,7 +231,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.DELETE,
             uri = config.samUri
-              .withPath(s"/api/resources/v1/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
+              .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
             headers = Headers.of(authHeader)
           )
         )
@@ -325,22 +325,6 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       _ <- metrics.incrementCounter("sam/errorResponse")
     } yield AuthProviderException(traceId, body, response.status.code)
 
-  private def getProjectOwnerPolicyEmail(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
-  ): F[SamPolicyEmail] =
-    for {
-      _ <- metrics.incrementCounter("sam/getProjectOwnerPolicyEmail")
-      resp <- httpClient.expectOr[SyncStatusResponse](
-        Request[F](
-          method = Method.GET,
-          uri = config.samUri.withPath(
-            s"/api/google/v1/resource/${SamResourceType.Project.asString}/${googleProject.value}/${SamPolicyName.Owner.toString}/sync"
-          ),
-          headers = Headers.of(authorization)
-        )
-      )(onError)
-    } yield resp.email
-
   override def getUserSubjectId(userEmail: WorkbenchEmail,
                                 googleProject: GoogleProject)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] =
     for {
@@ -389,8 +373,15 @@ object HttpSamDAO {
   implicit val samPolicyNameKeyEncoder: KeyEncoder[SamPolicyName] = new KeyEncoder[SamPolicyName] {
     override def apply(p: SamPolicyName): String = p.toString
   }
+  implicit val samResourceTypeEncooder: Encoder[SamResourceType] = Encoder.encodeString.contramap(_.asString)
+  implicit val samResourceIdEncooder: Encoder[SamResourceId] = Encoder.encodeString.contramap(_.resourceId)
+
+  implicit val samResourceEncoder: Encoder[SerializableSamResource] =
+    Encoder.forProduct2("resourceTypeName", "resourceId")(x => (x.resourceTypeName, x.resourceId))
   implicit def createSamResourceRequestEncoder[R: Encoder]: Encoder[CreateSamResourceRequest[R]] =
-    Encoder.forProduct3("resourceId", "policies", "authDomain")(x => (x.samResourceId, x.policies, List.empty[String]))
+    Encoder.forProduct5("resourceId", "policies", "authDomain", "returnResource", "parent")(x =>
+      (x.samResourceId, x.policies, List.empty[String], x.returnResource, x.parent)
+    )
 
   implicit val samPolicyNameDecoder: Decoder[SamPolicyName] =
     Decoder.decodeString.map(s => SamPolicyName.stringToSamPolicyName.getOrElse(s, SamPolicyName.Other(s)))
@@ -421,12 +412,18 @@ object HttpSamDAO {
       email <- x.downField("email").as[SamPolicyEmail]
     } yield SyncStatusResponse(lastSyncDate, email)
   }
+
+  implicit val samRoleActionDecoder: Decoder[SamRoleAction] = Decoder.forProduct1("roles")(SamRoleAction.apply)
   implicit def listResourceResponseDecoder[R: Decoder]: Decoder[ListResourceResponse[R]] = Decoder.instance { x =>
     for {
       resourceId <- x.downField("resourceId").as[R]
-      policyName <- x.downField("accessPolicyName").as[SamPolicyName]
-    } yield ListResourceResponse(resourceId, policyName)
+      //these three places can have duplicated SamPolicyNames
+      direct <- x.downField("direct").as[SamRoleAction]
+      inherited <- x.downField("inherited").as[SamRoleAction]
+      public <- x.downField("public").as[SamRoleAction]
+    } yield ListResourceResponse(resourceId, (direct.roles ++ inherited.roles ++ public.roles).toSet)
   }
+
   val subsystemStatusDecoder: Decoder[SubsystemStatus] = Decoder.instance { c =>
     for {
       ok <- c.downField("ok").as[Boolean]
@@ -445,9 +442,13 @@ object HttpSamDAO {
     Decoder.forProduct1("userSubjectId")(GetGoogleSubjectIdResponse.apply)
 }
 
-final case class CreateSamResourceRequest[R](samResourceId: R, policies: Map[SamPolicyName, SamPolicyData])
+final case class CreateSamResourceRequest[R](samResourceId: R,
+                                             policies: Map[SamPolicyName, SamPolicyData],
+                                             parent: SerializableSamResource,
+                                             authDomain: List[String] = List.empty,
+                                             returnResource: Boolean = false)
 final case class SyncStatusResponse(lastSyncDate: String, email: SamPolicyEmail)
-final case class ListResourceResponse[R](samResourceId: R, samPolicyName: SamPolicyName)
+final case class ListResourceResponse[R](samResourceId: R, samPolicyNames: Set[SamPolicyName])
 final case class HttpSamDaoConfig(samUri: Uri,
                                   petCacheEnabled: Boolean,
                                   petCacheExpiryTime: FiniteDuration,
@@ -455,6 +456,8 @@ final case class HttpSamDaoConfig(samUri: Uri,
                                   serviceAccountProviderConfig: ServiceAccountProviderConfig)
 
 final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: GoogleProject)
+final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
+final case class SamRoleAction(roles: List[SamPolicyName])
 
 final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
 final case object NotFoundException extends NoStackTrace

@@ -14,6 +14,7 @@ import fs2.Stream
 import io.chrisdavenport.log4cats.Logger
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
@@ -181,10 +182,12 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     creatorEmail: WorkbenchEmail,
     googleProject: GoogleProject
   )(implicit sr: SamResource[R], encoder: Encoder[R], ev: Ask[F, TraceId]): F[Unit] =
-    if (sr.policyNames == Set(SamPolicyName.Creator))
+    // TODO: consider using v2 for all existing entities if this works out for apps https://broadworkbench.atlassian.net/browse/IA-2569
+    // Apps are modeled different in SAM than other leo resources.
+    if (sr.resourceType != SamResourceType.App)
       samDao.createResource(samResource, creatorEmail, googleProject)
     else
-      samDao.createResourceWithManagerPolicy(samResource, creatorEmail, googleProject)
+      samDao.createResourceV2(samResource, creatorEmail, googleProject)
 
   override def notifyResourceDeleted[R](
     samResource: R,
