@@ -831,7 +831,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -873,7 +873,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -925,7 +925,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -1550,7 +1550,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {

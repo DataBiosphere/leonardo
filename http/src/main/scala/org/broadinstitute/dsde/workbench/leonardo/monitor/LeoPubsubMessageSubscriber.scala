@@ -40,6 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
+import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -479,6 +480,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             .setZone(msg.zone.value)
             .setType(msg.diskType.googleString(msg.googleProject, msg.zone))
             .setPhysicalBlockSizeBytes(msg.blockSize.bytes.toString)
+            .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )
       _ <- operationOpt.traverse(operation =>

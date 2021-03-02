@@ -736,6 +736,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       .setZone(zone.value)
       .setSizeGb(config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString)
       .setPhysicalBlockSizeBytes(config.galaxyDiskConfig.postgresDiskBlockSize.bytes.toString)
+      .putAllLabels(Map("leonardo" -> "true").asJava)
       .build()
 
   private[leonardo] def getGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
