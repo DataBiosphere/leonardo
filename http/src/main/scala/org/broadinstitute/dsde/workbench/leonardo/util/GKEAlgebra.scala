@@ -70,5 +70,9 @@ final case class DeleteAppParams(appId: AppId,
                                  errorAfterDelete: Boolean)
 
 final case class StopAppParams(appId: AppId, appName: AppName, googleProject: GoogleProject)
+object StopAppParams {
+  def fromStartAppParams(params: StartAppParams): StopAppParams =
+    StopAppParams(params.appId, params.appName, params.googleProject)
+}
 
 final case class StartAppParams(appId: AppId, appName: AppName, googleProject: GoogleProject)
