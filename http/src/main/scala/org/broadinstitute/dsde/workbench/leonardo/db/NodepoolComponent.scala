@@ -110,7 +110,7 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     n.status,
     n.auditInfo.creator,
     n.auditInfo.createdDate,
-    dummyDate,
+    n.auditInfo.destroyedDate.getOrElse(dummyDate),
     n.auditInfo.dateAccessed,
     n.machineType,
     n.numNodes,

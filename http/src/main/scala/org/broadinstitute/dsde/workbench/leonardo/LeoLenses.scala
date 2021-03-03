@@ -98,4 +98,9 @@ object LeoLenses {
   val appToCreator: Lens[App, WorkbenchEmail] = GenLens[App](_.auditInfo.creator)
 
   val appToDisk: Lens[App, Option[PersistentDisk]] = GenLens[App](_.appResources.disk)
+
+  val kubernetesClusterToDestroyedDate: Lens[KubernetesCluster, Option[Instant]] =
+    GenLens[KubernetesCluster](_.auditInfo.destroyedDate)
+
+  val nodepoolToDestroyedDate: Lens[Nodepool, Option[Instant]] = GenLens[Nodepool](_.auditInfo.destroyedDate)
 }
