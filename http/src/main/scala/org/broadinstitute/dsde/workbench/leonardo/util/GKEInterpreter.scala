@@ -3,7 +3,6 @@ package leonardo
 package util
 
 import java.util.Base64
-
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
@@ -25,7 +24,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryGoogleF,
   DiskName,
   KubernetesClusterNotFoundException,
-  KubernetesModels,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -33,19 +31,13 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.GalaxyDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import org.broadinstitute.dsp.{AuthContext, HelmAlgebra, Release}
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
+import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmAlgebra, Release}
 
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
-final case class GKEInterpreterConfig(securityFiles: SecurityFilesConfig,
-                                      ingressConfig: KubernetesIngressConfig,
-                                      galaxyAppConfig: GalaxyAppConfig,
-                                      monitorConfig: AppMonitorConfig,
-                                      clusterConfig: KubernetesClusterConfig,
-                                      proxyConfig: ProxyConfig,
-                                      galaxyDiskConfig: GalaxyDiskConfig)
 class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   config: GKEInterpreterConfig,
   vpcAlg: VPCAlgebra[F],
@@ -91,7 +83,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- if (nodepools.size != params.nodepoolsToCreate.size)
         F.raiseError[Unit](
           ClusterCreationException(
-            s"CreateCluster was called with nodepools that are not present in the database for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+            ctx.traceId,
+            s"CreateCluster was called with nodepools that are not present in the database for cluster ${dbCluster.getGkeClusterId.toString}"
           )
         )
       else F.unit
@@ -188,6 +181,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](
             ClusterCreationException(
+              ctx.traceId,
               s"Failed to poll cluster creation operation to completion for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
             )
           )
@@ -197,6 +191,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       googleCluster <- F.fromOption(
         googleClusterOpt,
         ClusterCreationException(
+          ctx.traceId,
           s"Cluster not found in Google: ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
@@ -305,32 +300,45 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       gkeClusterId = dbCluster.getGkeClusterId
       googleProject = params.googleProject
 
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Beginning app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
-      )
+      //TODO: This DB query might not be needed if it makes sense to add diskId in App model (will revisit in next PR)
+      diskOpt <- appQuery.getDiskId(app.id).transaction
+      diskId <- F.fromOption(diskOpt, DiskNotFoundForAppException(app.id, ctx.traceId))
 
       // Create namespace and secrets
       _ <- logger.info(ctx.loggingCtx)(
-        s"Creating namespace ${namespaceName.value} and secrets for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
+        s"Begin App(${app.appName.value}) Creation. Creating namespace ${namespaceName.value} in cluster ${gkeClusterId.toString}"
       )
 
       _ <- kubeService.createNamespace(gkeClusterId, KubernetesNamespace(namespaceName))
-      secrets <- getSecrets(namespaceName)
-      _ <- secrets.parTraverse(secret =>
-        kubeService.createSecret(gkeClusterId, KubernetesNamespace(namespaceName), secret)
-      )
 
       // Create KSA
       ksaName = config.galaxyAppConfig.serviceAccount
       gsa = dbApp.app.googleServiceAccount
-      annotations = Map("iam.gke.io/gcp-service-account" -> gsa.value)
-      ksa = KubernetesModels.KubernetesServiceAccount(ksaName, annotations)
 
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Creating Kubernetes service account ${ksaName.value} for app  ${app.appName.value} in cluster ${gkeClusterId.toString}"
+      // Resolve the cluster in Google
+      googleClusterOpt <- gkeService.getCluster(gkeClusterId)
+      googleCluster <- F.fromOption(
+        googleClusterOpt,
+        ClusterCreationException(ctx.traceId,
+                                 s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}")
       )
-      _ <- kubeService.createServiceAccount(gkeClusterId, ksa, KubernetesNamespace(namespaceName))
 
+      nfsDisk <- F.fromOption(
+        dbApp.app.appResources.disk,
+        AppCreationException(s"NFS disk not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}")
+      )
+
+      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+      _ <- helmClient
+        .installChart(
+          getTerraAppSetupChartReleaseName(app.release),
+          config.terraAppSetupChartConfig.chartName,
+          config.terraAppSetupChartConfig.chartVersion,
+          org.broadinstitute.dsp.Values(
+            s"serviceAccount.annotations.gcpServiceAccount=${gsa.value},serviceAccount.name=${ksaName.value}"
+          )
+        )
+        .run(helmAuthContext)
       // update KSA in DB
       _ <- appQuery.updateKubernetesServiceAccount(app.id, ksaName).transaction
 
@@ -356,26 +364,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
       ).compile.lastOrError
 
-      // Resolve the cluster in Google
-      googleClusterOpt <- gkeService.getCluster(gkeClusterId)
-      googleCluster <- F.fromOption(
-        googleClusterOpt,
-        ClusterCreationException(
-          s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}"
-        )
-      )
-
-      nfsDisk <- F.fromOption(
-        dbApp.app.appResources.disk,
-        AppCreationException(s"NFS disk not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}")
-      )
-
       // helm install galaxy and wait
       _ <- installGalaxy(
+        helmAuthContext,
         app.appName,
         app.release,
         dbCluster,
-        googleCluster,
         dbApp.nodepool.nodepoolName,
         namespaceName,
         app.auditInfo.creator,
@@ -387,6 +381,32 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
+
+      // TODO: this logic will be changed in the next PR
+      isUsedByGalaxy <- persistentDiskQuery.isUsedByGalaxy(diskId).transaction
+      _ <- if (isUsedByGalaxy.exists(identity)) F.unit
+      else
+        for {
+          pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId,
+                                                         KubernetesNamespace(app.appResources.namespace.name))
+
+          galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
+          cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
+          _ <- (galaxyPvc, cvmfsPvc).tupled
+            .fold(F.raiseError[Unit](new LeoException("Fail to retrieve pvc ids", traceId = Some(ctx.traceId)))) {
+              case (gp, cp) =>
+                val galaxyDiskRestore = GalaxyDiskRestore(
+                  PvcId(gp.getMetadata.getUid),
+                  PvcId(cp.getMetadata.getUid),
+                  app.id
+                )
+                persistentDiskQuery
+                  .updateGalaxyDiskRestore(diskId, galaxyDiskRestore)
+                  .transaction
+                  .void
+            }
+        } yield ()
+
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
 
@@ -503,7 +523,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // helm uninstall galaxy and wait
       _ <- googleClusterOpt.traverse(googleCluster =>
-        uninstallGalaxy(dbCluster, app.appName, app.release, namespaceName, googleCluster)
+        for {
+          helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
+          _ <- uninstallGalaxy(helmAuthContext, dbCluster, app.appName, app.release, namespaceName)
+          _ <- helmClient
+            .uninstall(
+              getTerraAppSetupChartReleaseName(app.release),
+              config.galaxyAppConfig.uninstallKeepHistory
+            )
+            .run(helmAuthContext)
+        } yield ()
       )
 
       // delete the namespace only after the helm uninstall completes
@@ -751,6 +780,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       loadBalancerIp <- F.fromOption(
         loadBalancerIpOpt,
         ClusterCreationException(
+          ctx.traceId,
           s"Load balancer IP did not become available after ${config.monitorConfig.createIngress.totalDuration} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         )
       )
@@ -760,10 +790,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
     } yield loadBalancerIp
 
-  private[util] def installGalaxy(appName: AppName,
+  private[util] def installGalaxy(helmAuthContext: AuthContext,
+                                  appName: AppName,
                                   release: Release,
                                   dbCluster: KubernetesCluster,
-                                  googleCluster: Cluster,
                                   nodepoolName: NodepoolName,
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail,
@@ -779,8 +809,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
 
-      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
-
       chartValues = buildGalaxyChartOverrideValuesString(appName,
                                                          release,
                                                          dbCluster,
@@ -791,8 +819,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          namespaceName,
                                                          nfsDisk)
 
-      _ <- logger.info(
-        s"Chart override values are: ${chartValues} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Chart override values are: ${chartValues}"
       )
 
       // Invoke helm
@@ -820,21 +848,19 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
     } yield ()
 
-  private[util] def uninstallGalaxy(dbCluster: KubernetesCluster,
+  private[util] def uninstallGalaxy(helmAuthContext: AuthContext,
+                                    dbCluster: KubernetesCluster,
                                     appName: AppName,
                                     release: Release,
-                                    namespaceName: NamespaceName,
-                                    googleCluster: Cluster)(
+                                    namespaceName: NamespaceName)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
 
-      _ <- logger.info(
+      _ <- logger.info(ctx.loggingCtx)(
         s"Uninstalling helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
-
-      helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
       // Invoke helm
       _ <- helmClient
@@ -886,28 +912,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         org.broadinstitute.dsp.CaCertFile(caCertFile.toAbsolutePath)
       )
 
-      _ <- logger.info(s"Helm auth context for cluster ${dbCluster.getGkeClusterId.toString}: ${helmAuthContext
-        .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))} | trace id: ${ctx.traceId}")
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Helm auth context for cluster ${dbCluster.getGkeClusterId.toString}: ${helmAuthContext
+          .copy(kubeToken = org.broadinstitute.dsp.KubeToken("<redacted>"))}"
+      )
 
     } yield helmAuthContext
-
-  private[util] def getSecrets(namespace: NamespaceName): F[List[KubernetesSecret]] =
-    config.ingressConfig.secrets.traverse { secret =>
-      for {
-        secretFiles <- secret.secretFiles
-          .traverse { secretFile =>
-            for {
-              bytes <- readFileToBytes(secretFile.path, blocker)
-            } yield (secretFile.name, bytes.toArray)
-          }
-          .map(_.toMap)
-      } yield KubernetesSecret(
-        namespace,
-        secret.name,
-        secretFiles,
-        KubernetesSecretType.Generic
-      )
-    }
 
   private[util] def buildGoogleNodepool(nodepool: Nodepool): com.google.container.v1.NodePool = {
     val nodepoolBuilder = NodePool
@@ -1012,6 +1022,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.ingress.tls[0].secretName=tls-secret""",
       // Galaxy configs
       raw"""galaxy.configs.galaxy\.yml.galaxy.single_user=${userEmail.value}""",
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
@@ -1049,6 +1061,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     ) ++ configs).mkString(",")
   }
 
+  private def getTerraAppSetupChartReleaseName(appReleaseName: Release): Release =
+    Release(s"${appReleaseName.asString}-setup-rls")
+
   private[util] def isPodDone(pod: KubernetesPodStatus): Boolean =
     pod.podStatus == PodStatus.Failed || pod.podStatus == PodStatus.Succeeded
 
@@ -1063,7 +1078,7 @@ sealed trait AppProcessingException extends Exception {
   def getMessage: String
 }
 
-final case class ClusterCreationException(message: String) extends AppProcessingException {
+final case class ClusterCreationException(traceId: TraceId, message: String) extends AppProcessingException {
   override def getMessage: String = message
 }
 
@@ -1099,6 +1114,22 @@ final case class AppStartException(message: String) extends AppProcessingExcepti
   override def getMessage: String = message
 }
 
+final case class DiskNotFoundForAppException(appId: AppId, traceId: TraceId)
+    extends LeoException(s"No persistent disk found for ${appId}", traceId = Some(traceId))
+
 final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       operation: com.google.container.v1.Operation,
                                       getAppResult: GetAppResult)
+
+final case class GKEInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig,
+                                      ingressConfig: KubernetesIngressConfig,
+                                      galaxyAppConfig: GalaxyAppConfig,
+                                      monitorConfig: AppMonitorConfig,
+                                      clusterConfig: KubernetesClusterConfig,
+                                      proxyConfig: ProxyConfig,
+                                      galaxyDiskConfig: GalaxyDiskConfig)
+
+final case class TerraAppSetupChartConfig(
+  chartName: ChartName,
+  chartVersion: ChartVersion
+)

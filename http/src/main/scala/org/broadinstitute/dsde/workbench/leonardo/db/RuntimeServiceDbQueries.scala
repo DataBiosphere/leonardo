@@ -46,7 +46,7 @@ object RuntimeServiceDbQueries {
     val activeRuntime = fullClusterQueryByUniqueKey(googleProject, runtimeName, None)
       .join(runtimeConfigs)
       .on(_._1.runtimeConfigId === _.id)
-      .joinLeft(persistentDiskQuery)
+      .joinLeft(persistentDiskQuery.tableQuery)
       .on { case (a, b) => a._2.persistentDiskId.isDefined && a._2.persistentDiskId === b.id }
     activeRuntime.result.flatMap { recs =>
       val runtimeRecs = recs.map(_._1._1)
