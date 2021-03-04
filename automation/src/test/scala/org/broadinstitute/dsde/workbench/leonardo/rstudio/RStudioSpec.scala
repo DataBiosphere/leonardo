@@ -54,5 +54,6 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
             rstudioPage.variableExists(s"$v") shouldBe true
           }
         }
+      }
     }
 }
