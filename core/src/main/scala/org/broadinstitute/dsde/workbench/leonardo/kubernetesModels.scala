@@ -418,7 +418,7 @@ object AppStatus {
   def stringToObject: Map[String, AppStatus] = values.map(v => v.toString -> v).toMap
 
   val deletableStatuses: Set[AppStatus] =
-    Set(Unspecified, Running, Stopped, Error)
+    Set(Unspecified, Running, Error)
 
   val stoppableStatuses: Set[AppStatus] =
     Set(Running, Starting)

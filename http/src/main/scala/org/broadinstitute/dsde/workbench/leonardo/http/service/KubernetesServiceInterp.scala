@@ -580,7 +580,8 @@ case class AppCannotBeDeletedException(googleProject: GoogleProject,
                                        status: AppStatus,
                                        traceId: TraceId)
     extends LeoException(
-      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status.",
+      s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status." +
+        (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )
