@@ -2,9 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import java.net.URL
 
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
   AppError,
@@ -13,11 +13,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppType,
   AuditInfo,
   KubernetesCluster,
-  KubernetesClusterStatus,
   KubernetesRuntimeConfig,
   LabelMap,
   Nodepool,
-  NodepoolStatus,
   NumNodepools
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -61,10 +59,6 @@ object ListAppResponse {
   def fromCluster(c: KubernetesCluster, proxyUrlBase: String): List[ListAppResponse] =
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
-        val hasError = c.status == KubernetesClusterStatus.Error ||
-          n.status == NodepoolStatus.Error ||
-          a.status == AppStatus.Error ||
-          a.errors.length > 0
         ListAppResponse(
           c.googleProject,
           KubernetesRuntimeConfig(
@@ -73,7 +67,7 @@ object ListAppResponse {
             n.autoscalingEnabled
           ),
           a.errors,
-          if (hasError) AppStatus.Error else a.status,
+          a.status,
           a.getProxyUrls(c.googleProject, proxyUrlBase),
           a.appName,
           a.appResources.disk.map(_.name),
@@ -85,11 +79,7 @@ object ListAppResponse {
 }
 
 object GetAppResponse {
-  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse = {
-    val hasError = appResult.cluster.status == KubernetesClusterStatus.Error ||
-      appResult.nodepool.status == NodepoolStatus.Error ||
-      appResult.app.status == AppStatus.Error ||
-      appResult.app.errors.length > 0
+  def fromDbResult(appResult: GetAppResult, proxyUrlBase: String): GetAppResponse =
     GetAppResponse(
       KubernetesRuntimeConfig(
         appResult.nodepool.numNodes,
@@ -97,11 +87,10 @@ object GetAppResponse {
         appResult.nodepool.autoscalingEnabled
       ),
       appResult.app.errors,
-      if (hasError) AppStatus.Error else appResult.app.status,
+      appResult.app.status,
       appResult.app.getProxyUrls(appResult.cluster.googleProject, proxyUrlBase),
       appResult.app.appResources.disk.map(_.name),
       appResult.app.customEnvironmentVariables,
       appResult.app.auditInfo
     )
-  }
 }
