@@ -7,6 +7,8 @@ services:
   rstudio:
     container_name: "${RSTUDIO_SERVER_NAME}"
     image: "${RSTUDIO_DOCKER_IMAGE}"
+    # Override the entrypoint from the Dockerfile so rserver starts with the below environment variables
+    entrypoint: "/init"
     network_mode: host
     restart: always
     environment:
