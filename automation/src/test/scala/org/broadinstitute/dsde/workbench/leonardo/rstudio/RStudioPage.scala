@@ -49,6 +49,7 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
 
       pressKeys(launchCommand)
 
+      Thread.sleep(5000)
       await notVisible cssSelector("[class*='themedPopupPanel']")
 
       pressKeys(Keys.ENTER.toString)
