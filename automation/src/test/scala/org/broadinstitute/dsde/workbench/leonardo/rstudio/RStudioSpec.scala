@@ -32,5 +32,27 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
         }
       }
     }
-  }
+
+    "environment variables should be available in RStudio" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
+          val expectedEVs = Map(
+            "GOOGLE_PROJECT" -> runtimeFixture.runtime.googleProject.value,
+            "WORKSPACE_NAMESPACE" -> runtimeFixture.runtime.googleProject.value,
+            "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
+            "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
+            "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
+            "WORKSPACE_NAME" -> "TestWorkspace",
+            "WORKSPACE_BUCKET" -> "gs://test-workspace-bucket"
+          )
+
+          expectedEVs.foreach { case (k, v) =>
+            rstudioPage.pressKeys(s"""var_$k <- System.getenv("$k")""")
+            rstudioPage.pressKeys(Keys.ENTER.toString)
+            await visible cssSelector(s"[title~='var_$k']")
+            rstudioPage.variableExists(s"var_$k") shouldBe true
+            rstudioPage.variableExists(s"$v") shouldBe true
+          }
+        }
+    }
 }
