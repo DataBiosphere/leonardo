@@ -2,11 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
+import cats.data.Kleisli
 import cats.effect.IO
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
@@ -36,6 +38,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeApp,
   makeKubeCluster,
@@ -54,14 +57,12 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.mocks.MockHelm
+import org.broadinstitute.dsp._
 import org.mockito.Mockito.{verify, _}
 import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
-import CommonTestData._
-import cats.data.Kleisli
-import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, Release, Values}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
@@ -831,7 +832,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -873,7 +874,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -925,7 +926,7 @@ class LeoPubsubMessageSubscriberSpec
 
     val assertions = for {
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -1550,7 +1551,7 @@ class LeoPubsubMessageSubscriberSpec
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, true).transaction
       getCluster = clusterOpt.get
       getAppOpt <- KubernetesServiceDbQueries
-        .getFullAppByName(savedCluster1.googleProject, savedApp1.id, includeDeletedClusterApps = true)
+        .getFullAppByName(savedCluster1.googleProject, savedApp1.id)
         .transaction
       getApp = getAppOpt.get
     } yield {
@@ -1644,6 +1645,50 @@ class LeoPubsubMessageSubscriberSpec
       msg = StartAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleStartAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
+
+    res.unsafeRunSync()
+  }
+
+  it should "handle start app timeouts" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
+    val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Starting).save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.head.errorMessage should include("Galaxy startup has failed or timed out for app")
+      getApp.app.errors.head.action shouldBe ErrorAction.StartGalaxyApp
+      getApp.app.errors.head.source shouldBe ErrorSource.App
+      getApp.app.status shouldBe AppStatus.Stopped
+      getApp.nodepool.status shouldBe NodepoolStatus.Running
+      getApp.nodepool.autoscalingEnabled shouldBe true
+      getApp.nodepool.numNodes shouldBe NumNodes(2)
+    }
+
+    val res = for {
+      tr <- traceId.ask[TraceId]
+      msg = StartAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
+      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
+      lock <- nodepoolLock
+      // create a GKEInterpreter instance with a 'down' GalaxyDAO to simulate a timeout
+      gkeInter = new GKEInterpreter[IO](Config.gkeInterpConfig,
+                                        vpcInterp,
+                                        MockGKEService,
+                                        new MockKubernetesService(),
+                                        MockHelm,
+                                        new MockGalaxyDAO(false),
+                                        credentials,
+                                        iamDAOKubernetes,
+                                        blocker,
+                                        lock)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterpreter = gkeInter)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleStartAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)

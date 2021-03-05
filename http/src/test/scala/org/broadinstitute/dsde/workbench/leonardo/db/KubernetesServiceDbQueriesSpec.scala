@@ -4,24 +4,13 @@ package db
 
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  appErrorQuery,
-  appQuery,
-  nodepoolQuery,
-  AppExistsForProjectException,
-  ClusterDoesNotExist,
-  ClusterExists,
-  KubernetesAppCreationException,
-  KubernetesServiceDbQueries,
-  SaveKubernetesCluster,
-  TestComponent
-}
-import CommonTestData._
-import KubernetesTestData._
-import TestUtils._
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.scalatest.flatspec.AnyFlatSpecLike
 
 class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
 
@@ -383,6 +372,44 @@ class KubernetesServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent 
     val app2 = makeApp(1, savedNodepool2.id).copy(status = AppStatus.Running).save()
 
     KubernetesServiceDbQueries.hasClusterOperationInProgress(savedCluster1.id).transaction.unsafeRunSync() shouldBe true
+  }
+
+  it should "list Error'd apps if the underlying cluster is deleted" in {
+    val cluster = LeoLenses.kubernetesClusterToDestroyedDate
+      .modify(_ => Some(Instant.now))(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Deleted))
+      .save()
+    val nodepool = LeoLenses.nodepoolToDestroyedDate
+      .modify(_ => Some(Instant.now))(makeNodepool(1, cluster.id).copy(status = NodepoolStatus.Deleted))
+      .save()
+
+    val app = makeApp(1, nodepool.id).copy(status = AppStatus.Error).save()
+
+    val listWithNoProject = dbFutureValue(KubernetesServiceDbQueries.listFullApps(None))
+    listWithNoProject.length shouldEqual 1
+    listWithNoProject.flatMap(_.nodepools).length shouldEqual 1
+    listWithNoProject.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
+    listWithNoProject.flatMap(_.nodepools).flatMap(_.apps).head shouldEqual app
+
+    val listWithProject = dbFutureValue(KubernetesServiceDbQueries.listFullApps(Some(cluster.googleProject)))
+    listWithProject.length shouldEqual 1
+    listWithProject.flatMap(_.nodepools).length shouldEqual 1
+    listWithProject.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
+    listWithProject.flatMap(_.nodepools).flatMap(_.apps).head shouldEqual app
+
+    val getActiveApp =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(cluster.googleProject, app.appName))
+    getActiveApp.isDefined shouldBe true
+    getActiveApp.get.cluster.googleProject shouldEqual cluster.googleProject
+    getActiveApp.get.cluster.clusterName shouldEqual cluster.clusterName
+    getActiveApp.get.nodepool.copy(apps = List()) shouldEqual nodepool
+    getActiveApp.get.app shouldEqual app
+
+    val getFullApp = dbFutureValue(KubernetesServiceDbQueries.getFullAppByName(cluster.googleProject, app.id))
+    getFullApp.isDefined shouldBe true
+    getFullApp.get.cluster.googleProject shouldEqual cluster.googleProject
+    getFullApp.get.cluster.clusterName shouldEqual cluster.clusterName
+    getFullApp.get.nodepool.copy(apps = List()) shouldEqual nodepool
+    getFullApp.get.app shouldEqual app
   }
 
 }

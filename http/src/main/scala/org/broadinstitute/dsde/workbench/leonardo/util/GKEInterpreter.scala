@@ -582,12 +582,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
               .compile
               .lastOrError
             _ <- if (lastOp.isDone)
-              logger.info(
-                s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id} | trace id: ${ctx.traceId}"
+              logger.info(ctx.loggingCtx)(
+                s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
               )
             else
-              logger.error(
-                s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id} | trace id: ${ctx.traceId}"
+              logger.error(ctx.loggingCtx)(
+                s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
               ) >>
                 F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
           } yield ()
@@ -607,12 +607,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             .compile
             .lastOrError
           _ <- if (lastOp.isDone)
-            logger.info(
-              s"setNodepoolSize operation has finished for nodepool ${dbNodepool.id} | trace id: ${ctx.traceId}"
+            logger.info(ctx.loggingCtx)(
+              s"setNodepoolSize operation has finished for nodepool ${dbNodepool.id}"
             )
           else
-            logger.error(
-              s"setNodepoolSize operation has failed or timed out for nodepool ${dbNodepool.id} | trace id: ${ctx.traceId}"
+            logger.error(ctx.loggingCtx)(
+              s"setNodepoolSize operation has failed or timed out for nodepool ${dbNodepool.id}"
             ) >>
               F.raiseError[Unit](NodepoolStopException(dbNodepool.id))
         } yield ()
@@ -637,8 +637,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       dbCluster = dbApp.cluster
       nodepoolId = NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
 
-      _ <- logger.info(
-        s"Starting app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Starting app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Provisioning).transaction
@@ -659,12 +659,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             .compile
             .lastOrError
           _ <- if (lastOp.isDone)
-            logger.info(
-              s"setNodepoolSize operation has finished for nodepool ${dbNodepool.id} | trace id: ${ctx.traceId}"
+            logger.info(ctx.loggingCtx)(
+              s"setNodepoolSize operation has finished for nodepool ${dbNodepool.id}"
             )
           else
-            logger.error(
-              s"setNodepoolSize operation has failed or timed out for nodepool ${dbNodepool.id} | trace id: ${ctx.traceId}"
+            logger.error(ctx.loggingCtx)(
+              s"setNodepoolSize operation has failed or timed out for nodepool ${dbNodepool.id}"
             ) >>
               F.raiseError[Unit](NodepoolStartException(dbNodepool.id))
         } yield ()
@@ -679,54 +679,64 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ).compile.lastOrError
 
       _ <- if (!isDone) {
+        // If starting timed out, persist an error and attempt to stop the app again.
+        // We don't want to move the app to Error status because that status is unrecoverable by the user.
         val msg =
-          s"Galaxy startup has failed or timed out for app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
-        logger.error(msg) >>
-          F.raiseError[Unit](AppStartException(msg))
-      } else F.unit
-
-      // The app is Running at this point and Galaxy can be used
-      _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
-
-      // If autoscaling should be enabled, enable it now. Galaxy can still be used while this is in progress
-      _ <- if (dbNodepool.autoscalingEnabled) {
-        dbNodepool.autoscalingConfig.traverse_ { autoscalingConfig =>
-          nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
-            for {
-              op <- gkeService.setNodepoolAutoscaling(
-                nodepoolId,
-                NodePoolAutoscaling
-                  .newBuilder()
-                  .setEnabled(true)
-                  .setMinNodeCount(autoscalingConfig.autoscalingMin.amount)
-                  .setMaxNodeCount(autoscalingConfig.autoscalingMax.amount)
-                  .build
-              )
-
-              lastOp <- gkeService
-                .pollOperation(
-                  KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
-                  config.monitorConfig.setNodepoolAutoscaling.interval,
-                  config.monitorConfig.setNodepoolAutoscaling.maxAttempts
-                )
-                .compile
-                .lastOrError
-              _ <- if (lastOp.isDone)
-                logger.info(
-                  s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id} | trace id: ${ctx.traceId}"
-                )
-              else
-                logger.error(
-                  s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id} | trace id: ${ctx.traceId}"
-                ) >>
-                  F.raiseError[Unit](NodepoolStartException(dbNodepool.id))
-            } yield ()
+          s"Galaxy startup has failed or timed out for app ${dbApp.app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        for {
+          _ <- logger.error(ctx.loggingCtx)(msg)
+          _ <- dbRef.inTransaction {
+            appErrorQuery.save(dbApp.app.id, AppError(msg, ctx.now, ErrorAction.StartGalaxyApp, ErrorSource.App, None)) >>
+              appQuery.updateStatus(dbApp.app.id, AppStatus.Stopping)
           }
-        }
-      } else F.unit
+          _ <- stopAndPollApp(StopAppParams.fromStartAppParams(params))
+        } yield ()
+      } else {
+        for {
+          // The app is Running at this point and Galaxy can be used
+          _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
 
-      // Finally update the nodepool status to Running
-      _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running).transaction
+          // If autoscaling should be enabled, enable it now. Galaxy can still be used while this is in progress
+          _ <- if (dbNodepool.autoscalingEnabled) {
+            dbNodepool.autoscalingConfig.traverse_ { autoscalingConfig =>
+              nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+                for {
+                  op <- gkeService.setNodepoolAutoscaling(
+                    nodepoolId,
+                    NodePoolAutoscaling
+                      .newBuilder()
+                      .setEnabled(true)
+                      .setMinNodeCount(autoscalingConfig.autoscalingMin.amount)
+                      .setMaxNodeCount(autoscalingConfig.autoscalingMax.amount)
+                      .build
+                  )
+
+                  lastOp <- gkeService
+                    .pollOperation(
+                      KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
+                      config.monitorConfig.setNodepoolAutoscaling.interval,
+                      config.monitorConfig.setNodepoolAutoscaling.maxAttempts
+                    )
+                    .compile
+                    .lastOrError
+                  _ <- if (lastOp.isDone)
+                    logger.info(ctx.loggingCtx)(
+                      s"setNodepoolAutoscaling operation has finished for nodepool ${dbNodepool.id}"
+                    )
+                  else
+                    logger.error(ctx.loggingCtx)(
+                      s"setNodepoolAutoscaling operation has failed or timed out for nodepool ${dbNodepool.id}"
+                    ) >>
+                      F.raiseError[Unit](NodepoolStartException(dbNodepool.id))
+                } yield ()
+              }
+            }
+          } else F.unit
+
+          // Finally update the nodepool status to Running
+          _ <- nodepoolQuery.updateStatus(dbNodepool.id, NodepoolStatus.Running).transaction
+        } yield ()
+      }
     } yield ()
 
   private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName, namespaceName: NamespaceName): Disk =
@@ -736,6 +746,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       .setZone(zone.value)
       .setSizeGb(config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString)
       .setPhysicalBlockSizeBytes(config.galaxyDiskConfig.postgresDiskBlockSize.bytes.toString)
+      .putAllLabels(Map("leonardo" -> "true").asJava)
       .build()
 
   private[leonardo] def getGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
@@ -747,13 +758,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ctx <- ev.ask
 
       // Create namespace for nginx
-      _ <- logger.info(
-        s"Creating namespace ${config.ingressConfig.namespace.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Creating namespace ${config.ingressConfig.namespace.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
       _ <- kubeService.createNamespace(dbCluster.getGkeClusterId, KubernetesNamespace(config.ingressConfig.namespace))
 
-      _ <- logger.info(
-        s"Installing ingress helm chart ${config.ingressConfig.chart} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Installing ingress helm chart ${config.ingressConfig.chart} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, config.ingressConfig.namespace)
@@ -785,8 +796,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       )
 
-      _ <- logger.info(
-        s"Successfully obtained public IP ${loadBalancerIp.asString} for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Successfully obtained public IP ${loadBalancerIp.asString} for cluster ${dbCluster.getGkeClusterId.toString}"
       )
     } yield loadBalancerIp
 
@@ -805,8 +816,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
     for {
       ctx <- ev.ask
 
-      _ <- logger.info(
-        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       chartValues = buildGalaxyChartOverrideValuesString(appName,
@@ -841,8 +852,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       _ <- if (!isDone) {
         val msg =
-          s"Galaxy installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
-        logger.error(msg) >>
+          s"Galaxy installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        logger.error(ctx.loggingCtx)(msg) >>
           F.raiseError[Unit](AppCreationException(msg))
       } else F.unit
 
@@ -859,7 +870,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Uninstalling helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+        s"Uninstalling helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       // Invoke helm
@@ -878,8 +889,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           s"Galaxy deletion has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}. The following pods are not in a terminal state: ${last
             .filterNot(isPodDone)
             .map(_.name.value)
-            .mkString(", ")} | trace id: ${ctx.traceId}"
-        logger.error(msg) >>
+            .mkString(", ")}"
+        logger.error(ctx.loggingCtx)(msg) >>
           F.raiseError[Unit](AppDeletionException(msg))
       } else F.unit
 

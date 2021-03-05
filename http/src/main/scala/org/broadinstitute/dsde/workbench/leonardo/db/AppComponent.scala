@@ -215,8 +215,11 @@ object appQuery extends TableQuery(new AppTable(_)) {
   private[db] def findActiveByNameQuery(
     appName: AppName
   ): Query[AppTable, AppRecord, Seq] =
+    nonDeletedAppQuery.filter(_.appName === appName)
+
+  private[db] def nonDeletedAppQuery: Query[AppTable, AppRecord, Seq] =
     appQuery
-      .filter(_.appName === appName)
+      .filter(_.status =!= (AppStatus.Deleted: AppStatus))
       .filter(_.destroyedDate === dummyDate)
 }
 

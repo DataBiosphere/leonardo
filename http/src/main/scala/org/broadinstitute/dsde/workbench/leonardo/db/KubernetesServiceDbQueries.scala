@@ -7,7 +7,6 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.kubernetesClusterQuery.unmarshalKubernetesCluster
 import org.broadinstitute.dsde.workbench.leonardo.db.nodepoolQuery.unmarshalNodepool
@@ -16,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
+import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.nonDeletedAppQuery
 
 import scala.concurrent.ExecutionContext
 
@@ -26,15 +26,9 @@ object KubernetesServiceDbQueries {
                    labelFilter: LabelMap = Map(),
                    includeDeleted: Boolean = false)(implicit ec: ExecutionContext): DBIO[List[KubernetesCluster]] =
     joinFullAppAndUnmarshal(
-      listClustersByProject(googleProject, includeDeleted),
-      includeDeleted match {
-        case true  => nodepoolQuery
-        case false => nodepoolQuery.filter(_.destroyedDate === dummyDate)
-      },
-      includeDeleted match {
-        case true  => appQuery
-        case false => appQuery.filter(_.destroyedDate === dummyDate)
-      },
+      listClustersByProject(googleProject),
+      nodepoolQuery,
+      if (includeDeleted) appQuery else nonDeletedAppQuery,
       labelFilter
     )
 
@@ -79,18 +73,15 @@ object KubernetesServiceDbQueries {
   def getActiveFullAppByName(googleProject: GoogleProject, appName: AppName, labelFilter: LabelMap = Map())(
     implicit ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
-    getActiveFullApp(listClustersByProject(Some(googleProject), true),
+    getActiveFullApp(listClustersByProject(Some(googleProject)),
                      nodepoolQuery,
                      appQuery.findActiveByNameQuery(appName),
                      labelFilter)
 
-  def getFullAppByName(googleProject: GoogleProject,
-                       appId: AppId,
-                       labelFilter: LabelMap = Map(),
-                       includeDeletedClusterApps: Boolean = false)(
+  def getFullAppByName(googleProject: GoogleProject, appId: AppId, labelFilter: LabelMap = Map())(
     implicit ec: ExecutionContext
   ): DBIO[Option[GetAppResult]] =
-    getActiveFullApp(listClustersByProject(Some(googleProject), includeDeletedClusterApps),
+    getActiveFullApp(listClustersByProject(Some(googleProject)),
                      nodepoolQuery,
                      appQuery.getByIdQuery(appId),
                      labelFilter)
@@ -209,20 +200,12 @@ object KubernetesServiceDbQueries {
     } yield ()
 
   private[db] def listClustersByProject(
-    googleProject: Option[GoogleProject],
-    includeDeleted: Boolean = false
-  ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] = {
-    val initialQuery =
-      googleProject match {
-        case Some(project) => kubernetesClusterQuery.filter(_.googleProject === project)
-        case None          => kubernetesClusterQuery
-      }
-
-    includeDeleted match {
-      case false => initialQuery.filter(_.destroyedDate === dummyDate)
-      case true  => initialQuery
+    googleProject: Option[GoogleProject]
+  ): Query[KubernetesClusterTable, KubernetesClusterRecord, Seq] =
+    googleProject match {
+      case Some(project) => kubernetesClusterQuery.filter(_.googleProject === project)
+      case None          => kubernetesClusterQuery
     }
-  }
 
   private[db] def joinFullAppAndUnmarshal(
     baseQuery: Query[KubernetesClusterTable, KubernetesClusterRecord, Seq],

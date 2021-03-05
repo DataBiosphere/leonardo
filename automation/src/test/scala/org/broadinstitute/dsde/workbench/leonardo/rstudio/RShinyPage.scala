@@ -10,7 +10,7 @@ class RShinyPage(val url: String)(implicit override val authToken: AuthToken, im
     extends CookieAuthedPage[RShinyPage] {
   private val exampleHeader: Query = cssSelector("#showcase-app-container > div > h2")
 
-  override def awaitLoaded: RShinyPage = {
+  override def awaitLoaded(): RShinyPage = {
     await visible (exampleHeader, 1.minute.toSeconds)
     this
   }
