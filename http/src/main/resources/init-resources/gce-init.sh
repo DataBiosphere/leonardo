@@ -491,7 +491,7 @@ OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
 
   # Add custom_env_vars.env to Renviron.site
   retry 3 docker cp /etc/custom_env_vars.env /usr/local/lib/R/etc/custom_env_vars.env
-  retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+  retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
 
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
