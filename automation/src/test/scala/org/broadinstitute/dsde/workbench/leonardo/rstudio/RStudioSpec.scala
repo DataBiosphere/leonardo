@@ -23,16 +23,6 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
       }
     }
 
-    "should launch an RShiny app" in { runtimeFixture =>
-      withWebDriver { implicit driver =>
-        withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
-          rstudioPage.withRShinyExample("01_hello")(rshinyPage =>
-            rshinyPage.getExampleHeader shouldBe Some("Hello Shiny!")
-          )
-        }
-      }
-    }
-
     "environment variables should be available in RStudio" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
@@ -54,6 +44,17 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
               rstudioPage.variableExists(s"var_$k") shouldBe true
               rstudioPage.variableExists(s"$v") shouldBe true
           }
+        }
+      }
+    }
+
+    // Note this test should be last because the test infrastructure does not close the shiny app
+    "should launch an RShiny app" in { runtimeFixture =>
+      withWebDriver { implicit driver =>
+        withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
+          rstudioPage.withRShinyExample("01_hello")(rshinyPage =>
+            rshinyPage.getExampleHeader shouldBe Some("Hello Shiny!")
+          )
         }
       }
     }
