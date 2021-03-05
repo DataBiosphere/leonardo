@@ -46,14 +46,16 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
             "WORKSPACE_BUCKET" -> "gs://test-workspace-bucket"
           )
 
-          expectedEVs.foreach { case (k, v) =>
-            rstudioPage.pressKeys(s"""var_$k <- System.getenv("$k")""")
-            rstudioPage.pressKeys(Keys.ENTER.toString)
-            await visible cssSelector(s"[title~='var_$k']")
-            rstudioPage.variableExists(s"var_$k") shouldBe true
-            rstudioPage.variableExists(s"$v") shouldBe true
+          expectedEVs.foreach {
+            case (k, v) =>
+              rstudioPage.pressKeys(s"""var_$k <- System.getenv("$k")""")
+              rstudioPage.pressKeys(Keys.ENTER.toString)
+              await visible cssSelector(s"[title~='var_$k']")
+              rstudioPage.variableExists(s"var_$k") shouldBe true
+              rstudioPage.variableExists(s"$v") shouldBe true
           }
         }
       }
     }
+  }
 }
