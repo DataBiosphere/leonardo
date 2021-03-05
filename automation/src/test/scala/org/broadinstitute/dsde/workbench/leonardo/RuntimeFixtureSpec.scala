@@ -173,8 +173,7 @@ object RuntimeFixtureSpec {
       defaultClientId = None,
       welderRegistry = None,
       scopes = Set.empty,
-      customEnvironmentVariables =
-        Map("WORKSPACE_NAME" -> "TestWorkspace", "WORKSPACE_BUCKET" -> "gs://test-workspace-bucket")
+      customEnvironmentVariables = Map("TEST_EV1" -> "test1", "TEST_EV2" -> "test2")
     )
   }
 }

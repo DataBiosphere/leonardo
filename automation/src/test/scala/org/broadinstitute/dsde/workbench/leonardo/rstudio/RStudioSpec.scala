@@ -42,8 +42,8 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
             "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
             "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
             "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
-            "WORKSPACE_NAME" -> "TestWorkspace",
-            "WORKSPACE_BUCKET" -> "gs://test-workspace-bucket"
+            "TEST_EV1" -> "test1",
+            "TEST_EV2" -> "test2"
           )
 
           expectedEVs.foreach {
