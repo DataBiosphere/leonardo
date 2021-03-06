@@ -36,7 +36,7 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   }
 
   def variableExists(variable: String): Boolean =
-    find(checkGlobalVariable(variable)).size > 0
+    find(checkGlobalVariable(variable)).isDefined
 
   // Opens an example app from the shiny package.
   // Valid examples are:
@@ -57,7 +57,7 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
     }
 
     // Do verifications
-    val rshinyPage = new RShinyPage(currentUrl).awaitLoaded
+    val rshinyPage = new RShinyPage(currentUrl).awaitLoaded()
     val result = Try(testCode(rshinyPage))
     result.get
   }

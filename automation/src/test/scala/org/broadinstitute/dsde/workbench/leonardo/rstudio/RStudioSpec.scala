@@ -38,7 +38,7 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
 
           expectedEVs.foreach {
             case (k, v) =>
-              rstudioPage.pressKeys(s"""var_$k <- System.getenv("$k")""")
+              rstudioPage.pressKeys(s"""var_$k <- Sys.getenv("$k")""")
               rstudioPage.pressKeys(Keys.ENTER.toString)
               await visible cssSelector(s"[title~='var_$k']")
               rstudioPage.variableExists(s"var_$k") shouldBe true
