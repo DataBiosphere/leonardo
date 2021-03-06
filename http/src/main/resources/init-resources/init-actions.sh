@@ -219,8 +219,6 @@ END
 
     # Install RStudio license file, if specified
     if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-      # TODO: remove the gsutil stat command when https://github.com/broadinstitute/firecloud-develop/pull/2105
-      # is merged because then we'll expect the license file to always be present.
       STAT_EXIT_CODE=0
       gsutil -q stat ${RSTUDIO_LICENSE_FILE} || STAT_EXIT_CODE=$?
       if [ $STAT_EXIT_CODE -eq 0 ] ; then
@@ -489,11 +487,36 @@ END
 
       STEP_TIMINGS+=($(date +%s))
     fi
+  fi
 
-    # Remove any unneeded cached images to save disk space.
-    # Do this asynchronously so it doesn't hold up cluster creation
-    log 'Pruning docker images...'
-    docker image prune -a -f &
+  # RStudio specific setup; only do if RStudio is installed
+  if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    EXIT_CODE=0
+    retry 3 docker exec ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/set_up_package_dir.sh || EXIT_CODE=$?
+    if [ $EXIT_CODE -ne 0 ]; then
+      echo "RStudio user package installation directory creation failed, creating /packages directory"
+      docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c "mkdir -p ${RSTUDIO_USER_HOME}/packages && chmod a+rwx ${RSTUDIO_USER_HOME}/packages"
+    fi
+
+    # Add the EVs specified in rstudio-docker-compose.yaml to Renviron.site
+    retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
+WORKSPACE_NAMESPACE=$WORKSPACE_NAMESPACE
+CLUSTER_NAME=$CLUSTER_NAME
+RUNTIME_NAME=$RUNTIME_NAME
+OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
+
+    # Add custom_env_vars.env to Renviron.site
+    retry 3 docker cp /etc/custom_env_vars.env ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
+    retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+
+    # Start RStudio server
+    retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
+  fi
+
+  # Remove any unneeded cached images to save disk space.
+  # Do this asynchronously so it doesn't hold up cluster creation
+  log 'Pruning docker images...'
+  docker image prune -a -f &
 fi
 
 log 'All done!'
