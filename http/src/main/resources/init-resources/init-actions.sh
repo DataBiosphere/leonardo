@@ -508,8 +508,11 @@ RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
 
     # Add custom_env_vars.env to Renviron.site
-    retry 3 docker cp /etc/custom_env_vars.env ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
-    retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+    CUSTOM_ENV_VARS_FILE=/etc/custom_env_vars.env
+    if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
+      retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
+      retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+    fi
 
     # Start RStudio server
     retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
