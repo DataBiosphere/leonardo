@@ -143,6 +143,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
     RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
+    RSTUDIO_SCRIPTS=/etc/rstudio/scripts
+    RSTUDIO_USER_HOME=/home/rstudio
 
     STEP_TIMINGS+=($(date +%s))
 
