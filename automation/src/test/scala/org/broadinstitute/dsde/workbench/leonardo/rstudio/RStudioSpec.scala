@@ -42,7 +42,7 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
               rstudioPage.pressKeys(Keys.ENTER.toString)
               await visible cssSelector(s"[title~='var_$k']")
               rstudioPage.variableExists(s"var_$k") shouldBe true
-              rstudioPage.variableExists(s"$v") shouldBe true
+              rstudioPage.variableExists(s""""$v"""") shouldBe true
           }
         }
       }
