@@ -34,12 +34,13 @@ object RuntimeConfigInCreateRuntimeMessage {
   final case class GceConfig(
     machineType: MachineTypeName,
     diskSize: DiskSize,
-    bootDiskSize: DiskSize
+    bootDiskSize: DiskSize,
+    zone: Option[ZoneName] = None
   ) extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
 
-  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: DiskId, bootDiskSize: DiskSize)
+  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: DiskId, bootDiskSize: DiskSize, zone: Option[ZoneName] = None)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }

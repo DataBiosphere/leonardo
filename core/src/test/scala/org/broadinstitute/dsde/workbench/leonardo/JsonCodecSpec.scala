@@ -4,7 +4,7 @@ import JsonCodec._
 import io.circe.CursorOp.DownField
 import io.circe.{DecodingFailure, Json}
 import io.circe.parser._
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -50,6 +50,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
     val expected = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-8"),
       DiskSize(500),
+      None,
       None
     )
     res shouldBe (Right(expected))
@@ -70,7 +71,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
     val expected = RuntimeConfig.GceWithPdConfig(
       MachineTypeName("n1-standard-8"),
       None,
-      DiskSize(50)
+      DiskSize(50),
+      None
     )
     res shouldBe (Right(expected))
   }
@@ -101,12 +103,13 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |   "cloudService": "gce",
         |   "machineType": "n1-standard-8",
         |   "persistentDiskId": 50,
-        |   "bootDiskSize": 50
+        |   "bootDiskSize": 50,
+        |   "zone": "us-east2-b"
         |}
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res shouldBe Right(RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50)))
+    res shouldBe Right(RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50), Some(ZoneName("us-east2-b"))))
   }
 
   it should "fail decoding if diskName has upper case" in {

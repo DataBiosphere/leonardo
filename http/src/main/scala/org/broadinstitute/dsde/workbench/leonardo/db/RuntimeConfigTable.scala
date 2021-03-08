@@ -22,7 +22,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def dataprocProperties = column[Option[Map[String, String]]]("dataprocProperties")
   def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
-  def zone = column[ZoneName]("zone", O.Length(254))
+  def zone = column[Option[ZoneName]]("zone", O.Length(254))
 
   def * =
     (
@@ -90,13 +90,13 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                 r.machineType,
                 Some(r.diskSize),
                 r.bootDiskSize,
-                Some(r.zone),
                 None,
                 None,
                 None,
                 None,
                 None,
-                None),
+                None,
+                Some(r.zone)),
                x.dateAccessed)
         case r: RuntimeConfig.DataprocConfig =>
           Some(

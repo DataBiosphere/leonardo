@@ -82,7 +82,8 @@ object Config {
     RuntimeConfig.GceConfig(
       machineType = config.as[MachineTypeName]("machineType"),
       diskSize = config.as[DiskSize]("diskSize"),
-      bootDiskSize = Some(config.as[DiskSize]("bootDiskSize"))
+      bootDiskSize = Some(config.as[DiskSize]("bootDiskSize")),
+      zone = Some(config.as[ZoneName]("zone"))
     )
   }
 
