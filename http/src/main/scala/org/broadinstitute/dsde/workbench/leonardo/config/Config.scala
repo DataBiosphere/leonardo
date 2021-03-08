@@ -600,6 +600,14 @@ object Config {
     )
   }
 
+  implicit private val customAppConfigReader: ValueReader[CustomAppConfig] = ValueReader.relative { config =>
+    CustomAppConfig(
+      config.as[ChartName]("chartName"),
+      config.as[ChartVersion]("chartVersion"),
+      config.as[String]("releaseNameSuffix")
+    )
+  }
+
   implicit private val releaseNameReader: ValueReader[Release] = stringValueReader.map(Release)
   implicit private val namespaceNameReader: ValueReader[NamespaceName] = stringValueReader.map(NamespaceName)
   implicit private val chartNameReader: ValueReader[ChartName] = stringValueReader.map(ChartName)
@@ -634,6 +642,7 @@ object Config {
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
   val gkeIngressConfig = config.as[KubernetesIngressConfig]("gke.ingress")
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
+  val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
   val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
@@ -739,6 +748,7 @@ object Config {
       org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader.appConfig.terraAppSetupChart,
       gkeIngressConfig,
       gkeGalaxyAppConfig,
+      gkeCustomAppConfig,
       gkeMonitorConfig,
       gkeClusterConfig,
       proxyConfig,

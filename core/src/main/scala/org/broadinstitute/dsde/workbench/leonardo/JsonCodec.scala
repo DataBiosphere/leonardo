@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GcsPath,
   GoogleProject
 }
+import org.http4s.Uri
 
 object JsonCodec {
   // Errors
@@ -435,4 +436,7 @@ object JsonCodec {
       "dataprocRole",
       "createdDate"
     )(x => DataprocInstance.unapply(x).get)
+
+  implicit val uriDecoder: Decoder[Uri] =
+    Decoder.decodeString.emap(s => Uri.fromString(s).leftMap(_.getMessage()))
 }

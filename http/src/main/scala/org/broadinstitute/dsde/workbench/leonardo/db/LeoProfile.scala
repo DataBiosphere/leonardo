@@ -23,6 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import org.broadinstitute.dsp.Release
+import org.http4s.Uri
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
 
@@ -95,6 +96,17 @@ private[leonardo] object LeoProfile extends MySQLProfile {
             res.fold(e => throw e, identity)
           }
         )
+    implicit val mapListColumnType: BaseColumnType[List[String]] =
+      MappedColumnType.base[List[String], String](
+        _.asJson.printWith(Printer.noSpaces),
+        s => {
+          val res = for {
+            s <- _root_.io.circe.parser.parse(s)
+            list <- s.as[List[String]]
+          } yield list
+          res.fold(e => throw e, identity)
+        }
+      )
     implicit def customImageTypeMapper = MappedColumnType.base[RuntimeImageType, String](
       _.toString,
       s => RuntimeImageType.withName(s)
@@ -224,6 +236,12 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[ServiceName, String](_.value, ServiceName.apply)
     implicit val serviceKindColumnType: BaseColumnType[KubernetesServiceKindName] =
       MappedColumnType.base[KubernetesServiceKindName, String](_.value, KubernetesServiceKindName.apply)
+
+    implicit val uriColumnType: BaseColumnType[Uri] =
+      MappedColumnType.base[Uri, String](
+        _.toString,
+        s => Uri.fromString(s).getOrElse(throw ColumnDecodingException(s"invalid uri $s"))
+      )
   }
 
   case class ColumnDecodingException(message: String) extends Exception

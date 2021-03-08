@@ -132,10 +132,10 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
               )
             )
             isFormatted <- persistentDisk.formattedBy match {
-              case Some(FormattedBy.Galaxy) =>
+              case Some(FormattedBy.Galaxy) | Some(FormattedBy.Custom) =>
                 F.raiseError[Boolean](
                   new RuntimeException(
-                    "Trying to use a Galaxy formatted disk for creating GCE runtime. This should never happen."
+                    s"Trying to use an app formatted disk for creating GCE runtime. This should never happen. Disk Id: ${x.persistentDiskId}."
                   )
                 )
               case Some(FormattedBy.GCE) => F.pure(true)

@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.KubernetesService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.http4s.Uri
 
 class AppRoutes(kubernetesService: KubernetesService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit metrics: OpenTelemetryMetrics[IO]
@@ -228,7 +229,15 @@ object AppRoutes {
         d <- x.downField("diskConfig").as[Option[PersistentDiskRequest]]
         l <- x.downField("labels").as[Option[LabelMap]]
         cv <- x.downField("customEnvironmentVariables").as[Option[LabelMap]]
-      } yield CreateAppRequest(c, a.getOrElse(AppType.Galaxy), d, l.getOrElse(Map.empty), cv.getOrElse(Map.empty))
+        dp <- x.downField("descriptorPath").as[Option[Uri]]
+        ea <- x.downField("extraArgs").as[Option[List[String]]]
+      } yield CreateAppRequest(c,
+                               a.getOrElse(AppType.Galaxy),
+                               d,
+                               l.getOrElse(Map.empty),
+                               cv.getOrElse(Map.empty),
+                               dp,
+                               ea.getOrElse(List.empty))
     }
 
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
