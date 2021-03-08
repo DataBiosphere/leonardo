@@ -1687,9 +1687,10 @@ class LeoPubsubMessageSubscriberSpec
                                         MockGKEService,
                                         new MockKubernetesService(),
                                         MockHelm,
-                                        new MockGalaxyDAO(false),
+                                        new MockAppDAO(false),
                                         credentials,
                                         iamDAOKubernetes,
+                                        MockAppDescriptorDAO,
                                         blocker,
                                         lock)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterpreter = gkeInter)
