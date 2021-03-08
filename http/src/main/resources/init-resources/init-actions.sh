@@ -489,39 +489,38 @@ END
 
       STEP_TIMINGS+=($(date +%s))
     fi
-  fi
 
-  # RStudio specific setup; only do if RStudio is installed
-  if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-    EXIT_CODE=0
-    retry 3 docker exec ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/set_up_package_dir.sh || EXIT_CODE=$?
-    if [ $EXIT_CODE -ne 0 ]; then
-      echo "RStudio user package installation directory creation failed, creating /packages directory"
-      docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c "mkdir -p ${RSTUDIO_USER_HOME}/packages && chmod a+rwx ${RSTUDIO_USER_HOME}/packages"
-    fi
+    # RStudio specific setup; only do if RStudio is installed
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+      EXIT_CODE=0
+      retry 3 docker exec ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/set_up_package_dir.sh || EXIT_CODE=$?
+      if [ $EXIT_CODE -ne 0 ]; then
+        echo "RStudio user package installation directory creation failed, creating /packages directory"
+        docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c "mkdir -p ${RSTUDIO_USER_HOME}/packages && chmod a+rwx ${RSTUDIO_USER_HOME}/packages"
+      fi
 
-    # Add the EVs specified in rstudio-docker-compose.yaml to Renviron.site
-    retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
+      # Add the EVs specified in rstudio-docker-compose.yaml to Renviron.site
+      retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
 WORKSPACE_NAMESPACE=$WORKSPACE_NAMESPACE
 CLUSTER_NAME=$CLUSTER_NAME
 RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
 
-    # Add custom_env_vars.env to Renviron.site
-    CUSTOM_ENV_VARS_FILE=/etc/custom_env_vars.env
-    if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
-      retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
-      retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+      # Add custom_env_vars.env to Renviron.site
+      CUSTOM_ENV_VARS_FILE=/etc/custom_env_vars.env
+      if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
+        retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
+        retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+      fi
+
+      # Start RStudio server
+      retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
     fi
 
-    # Start RStudio server
-    retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
-  fi
-
-  # Remove any unneeded cached images to save disk space.
-  # Do this asynchronously so it doesn't hold up cluster creation
-  log 'Pruning docker images...'
-  docker image prune -a -f &
+    # Remove any unneeded cached images to save disk space.
+    # Do this asynchronously so it doesn't hold up cluster creation
+    log 'Pruning docker images...'
+    docker image prune -a -f &
 fi
 
 log 'All done!'
