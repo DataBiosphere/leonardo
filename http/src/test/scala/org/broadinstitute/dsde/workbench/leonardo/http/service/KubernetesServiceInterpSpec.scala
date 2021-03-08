@@ -250,6 +250,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
 
     //we can't delete while its creating, so set it to Running
     dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
 
     val appResultPreDelete = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
