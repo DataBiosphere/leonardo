@@ -153,10 +153,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
               )
-            case (Some(FormattedBy.GCE), _) =>
+            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
               F.raiseError[Option[LastUsedApp]](
-                new LeoException("Disk is formatted by GCE already, cannot be used for galaxy app",
-                                 traceId = Some(ctx.traceId))
+                new LeoException(
+                  s"Disk is formatted by ${diskResult.disk.formattedBy.get} already, cannot be used for galaxy app",
+                  traceId = Some(ctx.traceId)
+                )
               )
             case (None, _) =>
               F.raiseError[Option[LastUsedApp]](

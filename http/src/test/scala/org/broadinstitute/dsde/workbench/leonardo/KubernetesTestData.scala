@@ -150,7 +150,8 @@ object KubernetesTestData {
         Option.empty
       ),
       List.empty,
-      customEnvironmentVariables None,
+      customEnvironmentVariables,
+      None,
       List.empty
     )
   }
