@@ -265,7 +265,7 @@ final class KubernetesServiceInterpSpec extends AnyFlatSpec with LeonardoTestSui
 
     clusterPostDelete.length shouldEqual 1
     val nodepool = clusterPostDelete.head.nodepools.head
-    nodepool.status shouldEqual NodepoolStatus.Predeleting
+    nodepool.status shouldEqual NodepoolStatus.Running
     val app = nodepool.apps.head
     app.status shouldEqual AppStatus.Predeleting
 
