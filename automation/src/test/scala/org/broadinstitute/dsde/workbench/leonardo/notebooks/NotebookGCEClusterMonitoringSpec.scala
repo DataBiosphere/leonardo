@@ -75,7 +75,7 @@ class NotebookGCEClusterMonitoringSpec
         withWebDriver { implicit driver =>
           // Make sure RStudio is up
           withNewRStudio(runtime) { rstudioPage =>
-            rstudioPage.pressKeys("""ns <- Sys.getEnv("WORKSPACE_NAMESPACE")""")
+            rstudioPage.pressKeys("""ns <- Sys.getenv("WORKSPACE_NAMESPACE")""")
             rstudioPage.pressKeys(Keys.ENTER.toString)
             await visible cssSelector("[title~='ns']")
             rstudioPage.variableExists("ns") shouldBe true
