@@ -18,7 +18,6 @@ class HttpAppDescriptorDAO[F[_]](httpClient: Client[F])(implicit logger: Structu
     for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(s"Attempting to retrieve descriptor $path")
-      //TODO: uri
       yamlStr <- resolveUri(path.toString())
       _ <- logger.info(ctx.loggingCtx)(s"Attempting to parse descriptor for $path as a yaml string into JSON...")
       json <- F.fromEither(parser.parse(yamlStr))
