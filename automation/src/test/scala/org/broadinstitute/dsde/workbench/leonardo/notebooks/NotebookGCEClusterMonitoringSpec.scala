@@ -4,13 +4,14 @@ import java.io.File
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioTestUtils
+import org.broadinstitute.dsde.workbench.leonardo.rstudio.{RStudio, RStudioTestUtils}
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
 import org.openqa.selenium.Keys
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
+import scala.util.Try
 
 /**
  * This spec verifies cluster status transitions like pause/resume and cluster PATCH.
@@ -89,12 +90,19 @@ class NotebookGCEClusterMonitoringSpec
           // Start the cluster
           startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
+          val getResultAfterResume = Try(RStudio.getApi(runtime.googleProject, runtime.clusterName))
+          getResultAfterResume.isSuccess shouldBe true
+          getResultAfterResume.get should include("unsupported_browser")
+          getResultAfterResume.get should not include "ProxyException"
+
           // Make sure RStudio session is preserved
-          withNewRStudio(runtime) { rstudioPage =>
-            await visible cssSelector("[title~='ns']")
-            rstudioPage.variableExists("ns") shouldBe true
-            rstudioPage.variableExists(s""""${runtime.googleProject.value}"""") shouldBe true
-          }
+          // TODO: commenting because this is flakey: the variables pane sometimes does
+          // not appear by default when RStudio is restarted, causing the selenium check to fail.
+//          withNewRStudio(runtime) { rstudioPage =>
+//            await visible cssSelector("[title~='ns']")
+//            rstudioPage.variableExists("ns") shouldBe true
+//            rstudioPage.variableExists(s""""${runtime.googleProject.value}"""") shouldBe true
+//          }
         }
       }
     }
