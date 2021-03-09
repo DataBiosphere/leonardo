@@ -92,7 +92,7 @@ class NotebookGCEClusterMonitoringSpec
           withNewRStudio(runtime) { rstudioPage =>
             await visible cssSelector("[title~='ns']")
             rstudioPage.variableExists("ns") shouldBe true
-            rstudioPage.variableExists(runtime.googleProject.value) shouldBe true
+            rstudioPage.variableExists(s""""${runtime.googleProject.value}"""") shouldBe true
           }
         }
       }
