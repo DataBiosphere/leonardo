@@ -16,6 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 
+import scala.util.Try
+
 class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
                                     implicit override val webDriver: WebDriver)
     extends JupyterPage
@@ -152,6 +154,10 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
   def isKernelShutdown: Boolean =
     find(kernelNotification).exists(e => e.text == "No kernel")
 
+  // has the notebook just been saved?
+  def isNotebookSaved: Boolean =
+    find(notebookNotification).exists(e => e.text.contains("Notebook saved") || e.text.contains("Checkpoint created"))
+
   def runAllCells(timeout: FiniteDuration = 60 seconds): Unit = {
     dismissNotebookChanged()
     click on cellMenu
@@ -178,6 +184,9 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
   def saveAndCheckpoint(): Unit = {
     click on fileMenu
     click on (await enabled saveAndCheckpointSelection)
+    // The 'notebook saved' element is only briefly visible, so don't throw an exception if this
+    // check times out. The notebook is auto-saved every 5 seconds anyway.
+    Try(await.condition(isNotebookSaved, 10))
   }
 
   lazy val cells: Query = cssSelector(".CodeMirror")
@@ -349,9 +358,9 @@ class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
     await visible saveButton
     click on saveButton
     if (isSafeMode) toggleSaveButtonHidden(true)
-    // TODO: add selenium condition for saved notebook instead of sleep
-    Thread.sleep(5000)
-    //await condition (isNotebookSaved, timeout.toSeconds)
+    // The 'notebook saved' element is only briefly visible, so don't throw an exception if this
+    // check times out. The notebook is auto-saved every 5 seconds anyway.
+    Try(await.condition(isNotebookSaved, 10))
   }
 
   def toggleSaveButtonHidden(shouldHide: Boolean) = {
