@@ -36,7 +36,7 @@ final case class AppRecord(id: AppId,
                            diskId: Option[DiskId],
                            customEnvironmentVariables: Option[Map[String, String]],
                            descriptorPath: Option[Uri],
-                           extraArgs: List[String])
+                           extraArgs: Option[List[String]])
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   //unique (appName, destroyedDate)
@@ -58,7 +58,7 @@ class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   def diskId = column[Option[DiskId]]("diskId", O.Length(254))
   def customEnvironmentVariables = column[Option[Map[String, String]]]("customEnvironmentVariables")
   def descriptorPath = column[Option[Uri]]("descriptorPath", O.Length(1024))
-  def extraArgs = column[List[String]]("extraArgs")
+  def extraArgs = column[Option[List[String]]]("extraArgs")
 
   def * =
     (
@@ -117,7 +117,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
       errors,
       app.customEnvironmentVariables.getOrElse(Map.empty),
       app.descriptorPath,
-      app.extraArgs
+      app.extraArgs.getOrElse(List.empty)
     )
 
   def save(saveApp: SaveApp)(implicit ec: ExecutionContext): DBIO[App] = {
@@ -179,7 +179,7 @@ object appQuery extends TableQuery(new AppTable(_)) {
         diskOpt.map(_.id),
         if (saveApp.app.customEnvironmentVariables.isEmpty) None else Some(saveApp.app.customEnvironmentVariables),
         saveApp.app.descriptorPath,
-        saveApp.app.extraArgs
+        if (saveApp.app.extraArgs.isEmpty) None else Some(saveApp.app.extraArgs)
       )
       appId <- appQuery returning appQuery.map(_.id) += record
       _ <- labelQuery.saveAllForResource(appId.id, LabelResourceType.App, saveApp.app.labels)
