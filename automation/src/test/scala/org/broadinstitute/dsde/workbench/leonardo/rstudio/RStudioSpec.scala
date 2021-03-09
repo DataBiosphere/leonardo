@@ -53,6 +53,7 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
     "should launch an RShiny app" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
+          rstudioPage.pressKeys(Keys.ENTER.toString)
           rstudioPage.withRShinyExample("01_hello")(rshinyPage =>
             rshinyPage.getExampleHeader shouldBe Some("Hello Shiny!")
           )
