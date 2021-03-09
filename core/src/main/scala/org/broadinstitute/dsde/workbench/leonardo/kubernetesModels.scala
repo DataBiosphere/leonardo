@@ -151,10 +151,6 @@ object NodepoolStatus {
     override def toString: String = "PRECREATING"
   }
 
-  final case object Predeleting extends NodepoolStatus {
-    override def toString: String = "PREDELETING"
-  }
-
   final case object Unclaimed extends NodepoolStatus {
     override def toString: String = "UNCLAIMED"
   }
