@@ -51,9 +51,11 @@ export CLUSTER_NAME=$(clusterName)
 export RUNTIME_NAME=$(clusterName)
 export OWNER_EMAIL=$(loginHint)
 export JUPYTER_SERVER_NAME=$(jupyterServerName)
+export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export WELDER_SERVER_NAME=$(welderServerName)
 export NOTEBOOKS_DIR=$(notebooksDir)
 export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
+export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
 export UPDATE_WELDER=$(updateWelder)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
@@ -147,6 +149,17 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         # TODO: remove this when we stop supporting the legacy docker image
         docker exec -u root jupyter-server sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' /etc/jupyter/scripts/kernel/kernel_bootstrap.sh
     fi
+fi
+
+# Configuring RStudio, if enabled
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    echo "Starting RStudio on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+    # update container MEM_LIMIT to reflect VM's MEM_LIMIT
+    docker update $RSTUDIO_SERVER_NAME --memory $MEM_LIMIT
+
+    # Start RStudio server
+    docker exec -d $RSTUDIO_SERVER_NAME /init
 fi
 
 # Configuring Welder, if enabled

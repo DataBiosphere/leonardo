@@ -481,6 +481,23 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
     echo "RStudio user package installation directory creation failed, creating /packages directory"
     docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c "mkdir -p ${RSTUDIO_USER_HOME}/packages && chmod a+rwx ${RSTUDIO_USER_HOME}/packages"
   fi
+
+  # Add the EVs specified in rstudio-docker-compose.yaml to Renviron.site
+  retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
+WORKSPACE_NAMESPACE=$WORKSPACE_NAMESPACE
+CLUSTER_NAME=$CLUSTER_NAME
+RUNTIME_NAME=$RUNTIME_NAME
+OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
+
+  # Add custom_env_vars.env to Renviron.site
+  CUSTOM_ENV_VARS_FILE=/etc/custom_env_vars.env
+  if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
+    retry 3 docker cp /etc/custom_env_vars.env ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
+    retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+  fi
+
+  # Start RStudio server
+  retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
 fi
 
 # Remove any unneeded cached images to save disk space.

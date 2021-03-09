@@ -4,9 +4,10 @@ import java.io.File
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudio
+import org.broadinstitute.dsde.workbench.leonardo.rstudio.{RStudio, RStudioTestUtils}
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
+import org.openqa.selenium.Keys
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -18,7 +19,11 @@ import scala.util.Try
  * so lives in the notebooks sub-package.
  */
 @DoNotDiscover
-class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
+class NotebookGCEClusterMonitoringSpec
+    extends GPAllocFixtureSpec
+    with ParallelTestExecution
+    with NotebookTestUtils
+    with RStudioTestUtils {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(
     org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
@@ -68,26 +73,37 @@ class NotebookGCEClusterMonitoringSpec extends GPAllocFixtureSpec with ParallelT
           toolDockerImage = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage)
         )
       ) { runtime =>
-        // Make sure RStudio is up
-        // See this ticket for adding more comprehensive selenium tests for RStudio:
-        // https://broadworkbench.atlassian.net/browse/IA-697
-        val getResult = Try(RStudio.getApi(runtime.googleProject, runtime.clusterName))
-        getResult.isSuccess shouldBe true
-        getResult.get should include("unsupported_browser")
-        getResult.get should not include "ProxyException"
+        withWebDriver { implicit driver =>
+          // Make sure RStudio is up
+          withNewRStudio(runtime) { rstudioPage =>
+            rstudioPage.pressKeys("""ns <- Sys.getenv("WORKSPACE_NAMESPACE")""")
+            rstudioPage.pressKeys(Keys.ENTER.toString)
+            await visible cssSelector("[title~='ns']")
+            rstudioPage.variableExists("ns") shouldBe true
+            rstudioPage.variableExists(s""""${runtime.googleProject.value}"""") shouldBe true
+            Thread.sleep(5000)
+          }
 
-        // Stop the cluster
-        stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+          // Stop the cluster
+          stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-        // Start the cluster
-        startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+          // Start the cluster
+          startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-        // RStudio should still be up
-        // TODO: also check that the session is preserved after IA-697 is done
-        val getResultAfterResume = Try(RStudio.getApi(runtime.googleProject, runtime.clusterName))
-        getResultAfterResume.isSuccess shouldBe true
-        getResultAfterResume.get should include("unsupported_browser")
-        getResultAfterResume.get should not include "ProxyException"
+          val getResultAfterResume = Try(RStudio.getApi(runtime.googleProject, runtime.clusterName))
+          getResultAfterResume.isSuccess shouldBe true
+          getResultAfterResume.get should include("unsupported_browser")
+          getResultAfterResume.get should not include "ProxyException"
+
+          // Make sure RStudio session is preserved
+          // TODO: commenting because this is flakey: the variables pane sometimes does
+          // not appear by default when RStudio is restarted, causing the selenium check to fail.
+//          withNewRStudio(runtime) { rstudioPage =>
+//            await visible cssSelector("[title~='ns']")
+//            rstudioPage.variableExists("ns") shouldBe true
+//            rstudioPage.variableExists(s""""${runtime.googleProject.value}"""") shouldBe true
+//          }
+        }
       }
     }
 
