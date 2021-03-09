@@ -80,6 +80,7 @@ class NotebookGCEClusterMonitoringSpec
             await visible cssSelector("[title~='ns']")
             rstudioPage.variableExists("ns") shouldBe true
             rstudioPage.variableExists(s""""${runtime.googleProject.value}"""") shouldBe true
+            Thread.sleep(5000)
           }
 
           // Stop the cluster
