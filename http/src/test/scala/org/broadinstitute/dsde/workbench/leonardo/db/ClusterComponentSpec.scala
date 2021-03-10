@@ -322,14 +322,20 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       savedDisk <- makePersistentDisk(None).save()
       savedRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                        Some(savedDisk.id),
+                                        bootDiskSize = DiskSize(50),
+                                        zone = Some(ZoneName("us-west2-b")))
         )
       )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(retrievedRuntime.get.runtimeConfigId).transaction
       error <- IO(
         makeCluster(2).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1)), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                        Some(DiskId(-1)),
+                                        bootDiskSize = DiskSize(50),
+                                        zone = Some(ZoneName("us-west2-b")))
         )
       ).attempt
     } yield {

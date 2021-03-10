@@ -40,7 +40,10 @@ object RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
 
-  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: DiskId, bootDiskSize: DiskSize, zone: Option[ZoneName] = None)
+  final case class GceWithPdConfig(machineType: MachineTypeName,
+                                   persistentDiskId: DiskId,
+                                   bootDiskSize: DiskSize,
+                                   zone: Option[ZoneName] = None)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }

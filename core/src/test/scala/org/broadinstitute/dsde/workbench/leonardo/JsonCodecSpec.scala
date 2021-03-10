@@ -109,7 +109,10 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
-    res shouldBe Right(RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50), Some(ZoneName("us-east2-b"))))
+    res shouldBe Right(
+      RuntimeConfig
+        .GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50), Some(ZoneName("us-east2-b")))
+    )
   }
 
   it should "fail decoding if diskName has upper case" in {

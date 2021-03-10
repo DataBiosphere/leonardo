@@ -828,7 +828,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       testRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig
-            .GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(pd.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-central1-a")))
+            .GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                             Some(pd.id),
+                             bootDiskSize = DiskSize(50),
+                             zone = Some(ZoneName("us-central1-a")))
         )
       )
 
@@ -1535,7 +1538,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       savedDisk <- makePersistentDisk(None).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50), Some(ZoneName("us-central1-a")))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                        Some(savedDisk.id),
+                                        bootDiskSize = DiskSize(50),
+                                        Some(ZoneName("us-central1-a")))
         )
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)

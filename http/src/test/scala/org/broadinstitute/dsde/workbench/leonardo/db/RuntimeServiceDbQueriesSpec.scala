@@ -49,13 +49,19 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
-      d1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      d1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d1.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(d1RuntimeConfig)
       )
       list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      d2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      d2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d2.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(d2RuntimeConfig)
       )
@@ -79,10 +85,16 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
-      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d1.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d2.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c2 <- IO(makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig))
       labels1 = Map("googleProject" -> c1.googleProject.value,
                     "clusterName" -> c1.runtimeName.asString,
@@ -120,12 +132,18 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
-      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d1.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig)
       )
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d2.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
       )
@@ -149,24 +167,36 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     val res = for {
       start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
-      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d1.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d1.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c1 <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Deleted)
           .saveWithRuntimeConfig(c1RuntimeConfig)
       )
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d2.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d2.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c2 <- IO(
         makeCluster(2)
           .copy(status = RuntimeStatus.Deleted)
           .saveWithRuntimeConfig(c2RuntimeConfig)
       )
       d3 <- makePersistentDisk(None).save()
-      c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d3.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(d3.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c3 <- IO(
         makeCluster(3).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(d3.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                        Some(d3.id),
+                                        bootDiskSize = DiskSize(50),
+                                        zone = Some(ZoneName("us-west2-b")))
         )
       )
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None).transaction
@@ -189,7 +219,10 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   it should "get a runtime" in isolatedDbTest {
     val res = for {
       disk <- makePersistentDisk(None).save()
-      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(disk.id), bootDiskSize = DiskSize(50), zone = Some(ZoneName("us-west2-b")))
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                                      Some(disk.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = Some(ZoneName("us-west2-b")))
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       get1 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, c1.runtimeName).transaction
       get2 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, RuntimeName("does-not-exist")).transaction.attempt
