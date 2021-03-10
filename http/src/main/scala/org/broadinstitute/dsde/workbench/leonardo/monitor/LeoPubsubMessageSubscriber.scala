@@ -912,7 +912,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 None
               )
           }
-        deleteDataDisk = msg.diskId.traverse_ { diskId =>
+
+        // detach/delete disk when we need to delete disk
+        _ <- msg.diskId.traverse_ { diskId =>
           val getDisk = googleDiskService.getDisk(
             msg.project,
             zone,
@@ -935,7 +937,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               5 seconds,
               "The disk failed to detach within the time limit, cannot proceed with delete disk"
             )
-            _ <- deleteDisk(diskId, true).adaptError {
+            deleteDataDisk = deleteDisk(diskId, true).adaptError {
               case e =>
                 PubsubKubernetesError(
                   AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.Disk, None),
@@ -946,23 +948,23 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 )
             }
 
+            deletePostgresDisk = deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
+                                                                      zone,
+                                                                      msg.appName,
+                                                                      dbApp.app.appResources.namespace.name)
+              .adaptError {
+                case e =>
+                  PubsubKubernetesError(
+                    AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.PostgresDisk, None),
+                    Some(msg.appId),
+                    false,
+                    None,
+                    None
+                  )
+              }
+            _ <- List(deleteDataDisk, deletePostgresDisk).parSequence_
           } yield ()
         }
-
-        deletePostgresDisk = msg.diskId.traverse_(_ =>
-          deleteGalaxyPostgresDiskOnlyInGoogle(msg.project, zone, msg.appName, dbApp.app.appResources.namespace.name)
-            .adaptError {
-              case e =>
-                PubsubKubernetesError(
-                  AppError(e.getMessage, ctx.now, ErrorAction.DeleteGalaxyApp, ErrorSource.PostgresDisk, None),
-                  Some(msg.appId),
-                  false,
-                  None,
-                  None
-                )
-            }
-        )
-        _ <- List(deleteDataDisk, deletePostgresDisk).parSequence_
 
         _ <- if (!errorAfterDelete)
           dbApp.app.status match {
