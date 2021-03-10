@@ -197,7 +197,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
               withOpenNotebook(runtime, notebookPath, 10.minutes) { notebookPage =>
                 // old output should still exist
                 val firstCell = notebookPage.firstCell
-                notebookPage.cellOutput(firstCell).get shouldBe "1"
+                notebookPage.cellOutput(firstCell) shouldBe Some(CellOutput("1", None))
                 // execute a new cell to make sure the startup script worked
                 notebookPage.runAllCells()
                 notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
