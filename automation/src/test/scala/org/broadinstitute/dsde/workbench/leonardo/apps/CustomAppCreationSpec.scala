@@ -8,17 +8,16 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, Persist
 import org.http4s.{AuthScheme, Credentials, Uri}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.http4s.headers.Authorization
-import org.scalatest.ParallelTestExecution
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
-//@DoNotDiscover
+@DoNotDiscover
 class CustomAppCreationSpec
     extends GPAllocFixtureSpec
     with LeonardoTestUtils
     with GPAllocUtils
-    with ParallelTestExecution
-    with GPAllocBeforeAndAfterAll {
+    with ParallelTestExecution {
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
