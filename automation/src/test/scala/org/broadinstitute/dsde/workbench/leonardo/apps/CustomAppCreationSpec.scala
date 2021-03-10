@@ -5,7 +5,7 @@ import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateAppRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
-import org.http4s.{Credentials, AuthScheme, Uri}
+import org.http4s.{AuthScheme, Credentials, Uri}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.http4s.headers.Authorization
 import org.scalatest.ParallelTestExecution
@@ -13,7 +13,12 @@ import org.scalatest.ParallelTestExecution
 import scala.concurrent.duration._
 
 //@DoNotDiscover
-class CustomAppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution with GPAllocBeforeAndAfterAll {
+class CustomAppCreationSpec
+    extends GPAllocFixtureSpec
+    with LeonardoTestUtils
+    with GPAllocUtils
+    with ParallelTestExecution
+    with GPAllocBeforeAndAfterAll {
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
@@ -30,8 +35,10 @@ class CustomAppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils wi
             Map.empty
           )
         ),
-        descriptorPath = Some(Uri.uri("https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml")),
-        appType = AppType.Custom,
+        descriptorPath = Some(
+          Uri.uri("https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml")
+        ),
+        appType = AppType.Custom
       )
 
       LeonardoApiClient.client.use { implicit client =>
@@ -69,8 +76,6 @@ class CustomAppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils wi
           _ = getAppResponse.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
 
           // Verify the app eventually becomes Deleted
-          // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
-          // See https://broadworkbench.atlassian.net/browse/IA-2471
           listApps = LeonardoApiClient.listApps(googleProject, true)
           implicit0(deletedDoneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
           monitorDeleteResult <- streamFUntilDone(
@@ -78,15 +83,12 @@ class CustomAppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils wi
             120,
             10 seconds
           ).compile.lastOrError
-          _ <- if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
-            loggerIO.warn(
-              s"CustomAppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
-            )
-          } else {
-            loggerIO.info(
-              s"CustomAppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
-            )
-          }
+
+          _ <- loggerIO.info(
+            s"CustomAppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+          )
+
+          _ = monitorDeleteResult.map(_.status) shouldBe List(AppStatus.Deleted)
         } yield ()
       }
     }

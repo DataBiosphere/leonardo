@@ -950,17 +950,19 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                                             gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name))
         diskDetachResult <- streamUntilDoneOrTimeout(
           getDiskDetachStatus(originalDetachTimestampOpt, getDisk),
-          24,
+          30,
           5 seconds,
           "The disk failed to detach within the time limit, cannot proceed with delete disk"
-        ).adaptError{case e =>
-        PubsubKubernetesError(
-        AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
-        Some(msg.appId),
-        false,
-        None,
-        None
-        )}
+        ).adaptError {
+          case e =>
+            PubsubKubernetesError(
+              AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
+              Some(msg.appId),
+              false,
+              None,
+              None
+            )
+        }
 
         _ <- deleteDisksInParallel
       } yield ()
@@ -1081,9 +1083,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
         } yield ()
       case e =>
-        ev.ask.flatMap(ctx => logger.error(ctx.loggingCtx, e)(
-          s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}"
-        ))
+        ev.ask.flatMap(ctx =>
+          logger.error(ctx.loggingCtx, e)(
+            s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}"
+          )
+        )
     }
 
   private def deleteDiskForApp(diskId: DiskId)(
