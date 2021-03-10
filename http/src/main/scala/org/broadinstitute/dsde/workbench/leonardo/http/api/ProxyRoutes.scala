@@ -268,6 +268,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
   private[api] def checkReferer: Directive0 =
     optionalHeaderValueByType(Referer) flatMap {
       case Some(referer) => {
+        logger.info("referer!!: " + referer.uri.authority.toString())
         if (refererConfig.validHosts.contains(referer.uri.authority.toString())) pass
         else {
           logger.info(s"Referer ${referer.uri.toString} is not allowed")

@@ -2,8 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
 
-import akka.http.scaladsl.model.HttpHeader
-import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken}
+import akka.http.scaladsl.model.{HttpHeader, Uri}
+import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken, Referer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{ContentItem, LeonardoConfig, NotebookContentItem, RuntimeName}
@@ -92,8 +92,8 @@ object Notebook extends RestClient with LazyLogging {
     val path = contentsPath(googleProject, clusterName, contentPath) + (if (includeContent) "?content=1" else "")
     logger.info(s"Get notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
-
-    handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
+    val referer = Referer(Uri("https://leonardo.dsde-dev.broadinstitute.org"))
+    handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie, referer))))
   }
 
   def getNotebookItem(googleProject: GoogleProject,

@@ -31,7 +31,6 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
 
   def withNewRStudio[T](timeout: FiniteDuration = 2.minutes)(testCode: RStudioPage => T): T = {
 
-    // Not calling NotebookPage.open() as it should already be opened
     val rstudioPage = new RStudioPage(currentUrl)
     val result = Try(testCode(rstudioPage))
     result.get

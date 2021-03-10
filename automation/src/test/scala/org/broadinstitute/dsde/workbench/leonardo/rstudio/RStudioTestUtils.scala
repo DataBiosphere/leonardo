@@ -2,10 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.ProxyRedirectClient
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
+
 import scala.concurrent._
 import scala.concurrent.duration._
+import scala.util.Try
 
 trait RStudioTestUtils extends LeonardoTestUtils {
   this: Suite =>
@@ -16,7 +19,15 @@ trait RStudioTestUtils extends LeonardoTestUtils {
                                                                            token: AuthToken): T = {
     val rstudioMainPage = RStudio.get(cluster.googleProject, cluster.clusterName)
     logger.info(s"rstudio ${rstudioMainPage.url}")
-    testCode(rstudioMainPage.open)
+    val bindingFuture = ProxyRedirectClient.startServer
+    val testResult = Try {
+      val proxyRedirectPage = ProxyRedirectClient.get(cluster.googleProject, cluster.clusterName, "rstudio")
+      proxyRedirectPage.open
+      testCode(rstudioMainPage)
+    }
+
+    ProxyRedirectClient.stopServer(bindingFuture)
+    testResult.get
   }
 
   def withNewRStudio[T](cluster: ClusterCopy, timeout: FiniteDuration = 5.minutes)(

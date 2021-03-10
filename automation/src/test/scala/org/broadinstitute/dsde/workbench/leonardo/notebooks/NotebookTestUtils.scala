@@ -19,6 +19,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.Try
+import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
+import scala.concurrent.duration._
 
 trait NotebookTestUtils extends LeonardoTestUtils {
   this: Suite =>
@@ -30,8 +32,16 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withNotebooksListPage[T](cluster: ClusterCopy)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
                                                                                        token: AuthToken): T = {
-    val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
-    testCode(notebooksListPage.open)
+    val bindingFuture = ProxyRedirectClient.startServer
+    val testResult = Try {
+      val proxyRedirectPage = ProxyRedirectClient.get(cluster.googleProject, cluster.clusterName, "jupyter")
+      proxyRedirectPage.open
+      testTimer.sleep(1 minutes).unsafeRunSync()
+      val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
+      testCode(notebooksListPage)
+    }
+    ProxyRedirectClient.stopServer(bindingFuture)
+    testResult.get
   }
 
   def withFileUpload[T](cluster: ClusterCopy, file: File)(
@@ -65,7 +75,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.asString} for ${kernel}"
       )(30 seconds, 2 minutes) { () =>
         Future(
-          notebooksListPage.open.withNewNotebook(kernel, timeout) { notebookPage =>
+          notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
             val res = testCode(notebookPage)
             notebookPage.saveAndCheckpoint()
             res
@@ -114,18 +124,18 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       notebooksListPage.withOpenNotebook(notebookPath, timeout)(notebookPage => testCode(notebookPage))
     }
 
-  def withDummyClientPage[T](cluster: ClusterCopy)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver,
-                                                                                   token: AuthToken): T = {
-    // start a server to load the dummy client page
-    val bindingFuture = DummyClient.startServer
-    val testResult = Try {
-      val dummyClientPage = DummyClient.get(cluster.googleProject, cluster.clusterName)
-      testCode(dummyClientPage)
-    }
-    // stop the server
-    DummyClient.stopServer(bindingFuture)
-    testResult.get
-  }
+//  def withDummyClientPage[T](cluster: ClusterCopy)(testCode: DummyClientPage => T)(implicit webDriver: WebDriver,
+//                                                                                   token: AuthToken): T = {
+//    // start a server to load the dummy client page
+//    val bindingFuture = DummyClient.startServer
+//    val testResult = Try {
+//      val dummyClientPage = DummyClient.get(cluster.googleProject, cluster.clusterName)
+//      testCode(dummyClientPage)
+//    }
+//    // stop the server
+//    DummyClient.stopServer(bindingFuture)
+//    testResult.get
+//  }
 
   def uploadDownloadTest(cluster: ClusterCopy, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(
     assertion: (File, File) => Any
