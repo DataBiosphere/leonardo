@@ -1085,7 +1085,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       case e =>
         ev.ask.flatMap(ctx =>
           logger.error(ctx.loggingCtx, e)(
-            s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}"
+            s"handleKubernetesError should not be used with a non kubernetes error. WHATEVER ERROR THIS IS SHOULD BE HANDLED AT ITS SOURCE TO APPROPRIATELY UPDATE DB STATE. Error: ${e}"
           )
         )
     }
