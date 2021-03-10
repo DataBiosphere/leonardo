@@ -560,17 +560,19 @@ object LeoPubsubCodec {
   }
 
   implicit val gceConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =
-    Decoder.forProduct3(
+    Decoder.forProduct4(
       "machineType",
       "diskSize",
-      "bootDiskSize"
+      "bootDiskSize",
+      "zone"
     )(RuntimeConfigInCreateRuntimeMessage.GceConfig.apply)
 
   implicit val gceWithPdConfigInCreateRuntimeMessageDecoder
-    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct3(
+    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct4(
     "machineType",
     "persistentDiskId",
-    "bootDiskSize"
+    "bootDiskSize",
+    "zone"
   )(RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig.apply)
 
   implicit val runtimeConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage] =

@@ -96,7 +96,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                 None,
                 None,
                 None,
-                Some(r.zone)),
+                r.zone),
                x.dateAccessed)
         case r: RuntimeConfig.DataprocConfig =>
           Some(
@@ -111,6 +111,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.numberOfWorkerLocalSSDs,
              r.numberOfPreemptibleWorkers,
              Some(r.properties),
+             None,
              None),
             x.dateAccessed
           )
@@ -122,13 +123,13 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.machineType,
              None,
              Some(r.bootDiskSize),
-             Some(r.zone),
              None,
              None,
              None,
              None,
              None,
-             r.persistentDiskId),
+             r.persistentDiskId,
+             r.zone),
             x.dateAccessed
           )
       }

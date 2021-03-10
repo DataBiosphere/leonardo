@@ -214,7 +214,8 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
-                                                    persistentDiskId = Some(disk.id))
+                                                    persistentDiskId = Some(disk.id),
+                                                    zone = Some(ZoneName("us-central1-a")))
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]
@@ -246,7 +247,8 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
-                                                    persistentDiskId = Some(disk.id))
+                                                    persistentDiskId = Some(disk.id),
+                                                    zone = Some(ZoneName("us-cetnral1-a")))
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]

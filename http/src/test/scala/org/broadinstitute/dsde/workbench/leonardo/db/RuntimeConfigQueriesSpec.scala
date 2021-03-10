@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makePersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, LeonardoTestSuite, RuntimeConfig}
@@ -37,12 +37,14 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
     val runtimeConfig1 = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
       DiskSize(100),
-      Some(DiskSize(50))
+      Some(DiskSize(50)),
+      Some(ZoneName("us-west2-b"))
     )
     val runtimeConfig2 = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
       DiskSize(100),
-      None
+      None,
+      Some(ZoneName("us-west2-b"))
     )
     val res = for {
       now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
@@ -65,7 +67,8 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       runtimeConfig = RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(savedDisk.id),
-        DiskSize(50)
+        DiskSize(50),
+        Some(ZoneName("us-west2-b"))
       )
       id <- RuntimeConfigQueries.insertRuntimeConfig(runtimeConfig, Instant.ofEpochMilli(now)).transaction
       rc <- RuntimeConfigQueries.getRuntimeConfig(id).transaction
