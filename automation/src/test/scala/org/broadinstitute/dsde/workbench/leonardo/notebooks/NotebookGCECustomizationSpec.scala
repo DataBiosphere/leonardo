@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import java.io.File
+
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
@@ -190,12 +192,18 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
               // Start the cluster
               startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-              withNewNotebook(runtime, Python3) { notebookPage =>
+              val notebookPath = new File("Untitled.ipynb")
+              // Use a longer timeout than default because opening notebooks after resume can be slow
+              withOpenNotebook(runtime, notebookPath, 10.minutes) { notebookPage =>
+                // old output should still exist
+                val firstCell = notebookPage.firstCell
+                notebookPage.cellOutput(firstCell) shouldBe Some(CellOutput("1", None))
+                // execute a new cell to make sure the startup script worked
+                notebookPage.runAllCells()
                 notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "2"
               }
             }
           }
-
         }
       }
     }
