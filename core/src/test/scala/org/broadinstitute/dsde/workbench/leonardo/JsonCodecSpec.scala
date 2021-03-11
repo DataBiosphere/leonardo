@@ -44,8 +44,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |{
         |   "machineType": "n1-standard-8",
         |   "diskSize": 500,
-        |   "cloudService": "GCE"
-        |   "zone" "us-west2-b"
+        |   "cloudService": "GCE",
+        |   "zone": "us-west2-b"
         |}
         |""".stripMargin
 
@@ -115,7 +115,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
     val res = decode[RuntimeConfig](inputString)
     res shouldBe Right(
       RuntimeConfig
-        .GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50), ZoneName("us-east2-b"))
+        .GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50), ZoneName("us-west2-b"))
     )
   }
 
