@@ -169,7 +169,15 @@ object CommonTestData {
     )
   val defaultMachineType = MachineTypeName("n1-standard-4")
   val defaultDataprocRuntimeConfig =
-    RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty, ZoneName("us-central1-a"))
+    RuntimeConfig.DataprocConfig(0,
+                                 MachineTypeName("n1-standard-4"),
+                                 DiskSize(500),
+                                 None,
+                                 None,
+                                 None,
+                                 None,
+                                 Map.empty,
+                                 ZoneName("us-central1-a"))
 
   val defaultCreateRuntimeRequest = CreateRuntime2Request(
     Map("lbl1" -> "true"),

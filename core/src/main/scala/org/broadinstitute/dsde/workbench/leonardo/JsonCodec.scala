@@ -266,7 +266,7 @@ object JsonCodec {
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
-      zone <-c.downField("zone").as[ZoneName]
+      zone <- c.downField("zone").as[ZoneName]
     } yield RuntimeConfig.DataprocConfig(numberOfWorkers,
                                          masterMachineType,
                                          masterDiskSize,

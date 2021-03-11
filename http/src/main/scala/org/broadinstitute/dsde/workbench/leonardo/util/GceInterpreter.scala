@@ -252,9 +252,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
         .build()
 
-      operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject,
-                                                       zoneParam,
-                                                       instance)
+      operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, zoneParam, instance)
 
       asyncRuntimeFields = AsyncRuntimeFields(GoogleId(operation.getTargetId),
                                               OperationName(operation.getName),
