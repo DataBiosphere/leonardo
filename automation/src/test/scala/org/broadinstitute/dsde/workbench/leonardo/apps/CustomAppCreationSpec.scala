@@ -12,34 +12,30 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class CustomAppCreationSpec
-    extends GPAllocFixtureSpec
-    with LeonardoTestUtils
-    with GPAllocUtils
-    with ParallelTestExecution {
+class CustomAppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with ParallelTestExecution {
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
-  "create and delete a custom app" in { _ =>
-    withNewProject { googleProject =>
-      val appName = randomAppName
+  "create and delete a custom app" in { googleProject =>
+    val appName = randomAppName
 
-      val createAppRequest = defaultCreateAppRequest.copy(
-        diskConfig = Some(
-          PersistentDiskRequest(
-            randomDiskName,
-            Some(DiskSize(500)),
-            None,
-            Map.empty
-          )
-        ),
-        descriptorPath = Some(
-          Uri.uri("https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml")
-        ),
-        appType = AppType.Custom
-      )
+    val createAppRequest = defaultCreateAppRequest.copy(
+      diskConfig = Some(
+        PersistentDiskRequest(
+          randomDiskName,
+          Some(DiskSize(500)),
+          None,
+          Map.empty
+        )
+      ),
+      descriptorPath = Some(
+        Uri.uri("https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/ucsc_genome_browser/app.yaml")
+      ),
+      appType = AppType.Custom
+    )
 
-      LeonardoApiClient.client.use { implicit client =>
+    LeonardoApiClient.client
+      .use { implicit client =>
         for {
           _ <- loggerIO.info(s"CustomAppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
@@ -89,6 +85,6 @@ class CustomAppCreationSpec
           _ = monitorDeleteResult.map(_.status) shouldBe List(AppStatus.Deleted)
         } yield ()
       }
-    }
+      .unsafeRunSync()
   }
 }
