@@ -243,19 +243,19 @@ final case class DefaultKubernetesLabels(googleProject: GoogleProject,
 
 sealed abstract class ErrorAction
 object ErrorAction {
-  case object CreateGalaxyApp extends ErrorAction {
+  case object CreateApp extends ErrorAction {
     override def toString: String = "createGalaxyApp"
   }
 
-  case object DeleteGalaxyApp extends ErrorAction {
+  case object DeleteApp extends ErrorAction {
     override def toString: String = "deleteGalaxyApp"
   }
 
-  case object StopGalaxyApp extends ErrorAction {
+  case object StopApp extends ErrorAction {
     override def toString: String = "stopGalaxyApp"
   }
 
-  case object StartGalaxyApp extends ErrorAction {
+  case object StartApp extends ErrorAction {
     override def toString: String = "startGalaxyApp"
   }
 

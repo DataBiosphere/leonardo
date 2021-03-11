@@ -710,7 +710,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         for {
           _ <- logger.error(ctx.loggingCtx)(msg)
           _ <- dbRef.inTransaction {
-            appErrorQuery.save(dbApp.app.id, AppError(msg, ctx.now, ErrorAction.StartGalaxyApp, ErrorSource.App, None)) >>
+            appErrorQuery.save(dbApp.app.id, AppError(msg, ctx.now, ErrorAction.StartApp, ErrorSource.App, None)) >>
               appQuery.updateStatus(dbApp.app.id, AppStatus.Stopping)
           }
           _ <- stopAndPollApp(StopAppParams.fromStartAppParams(params))

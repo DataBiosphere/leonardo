@@ -788,7 +788,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
       getApp.app.status shouldBe AppStatus.Error
       //we shouldn't see an error status here because the cluster we passed doesn't exist
@@ -837,7 +837,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
       getApp.nodepool.status shouldBe NodepoolStatus.Deleted
     }
@@ -879,7 +879,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
       getApp.nodepool.status shouldBe NodepoolStatus.Deleted
     }
@@ -931,7 +931,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.App)
       getApp.nodepool.status shouldBe NodepoolStatus.Running
     }
@@ -973,7 +973,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
     }
 
@@ -1123,7 +1123,7 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors.size shouldBe 1
       getApp.app.status shouldBe AppStatus.Error
-      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.App)
       getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
     }
@@ -1172,7 +1172,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
       getApp.nodepool.status shouldBe savedNodepool1.status
       getApp.app.status shouldBe AppStatus.Error
@@ -1668,7 +1668,7 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors.size shouldBe 1
       getApp.app.errors.head.errorMessage should include("Galaxy startup has failed or timed out for app")
-      getApp.app.errors.head.action shouldBe ErrorAction.StartGalaxyApp
+      getApp.app.errors.head.action shouldBe ErrorAction.StartApp
       getApp.app.errors.head.source shouldBe ErrorSource.App
       getApp.app.status shouldBe AppStatus.Stopped
       getApp.nodepool.status shouldBe NodepoolStatus.Running
