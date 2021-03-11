@@ -149,9 +149,6 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       }
     }
 
-    // TODO: This test has flaky selenium logic, ignoring for now. More details in:
-    // https://broadworkbench.atlassian.net/browse/QA-1199
-    // https://broadworkbench.atlassian.net/browse/IA-2050
     "should execute user-specified start script" in { billingProject =>
       implicit val ronToken: AuthToken = ronAuthToken
 
@@ -185,14 +182,16 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
               withNewNotebook(runtime, Python3) { notebookPage =>
                 notebookPage.executeCell("!cat $JUPYTER_HOME/leo_test_start_count.txt").get shouldBe "1"
               }
+            }
 
-              // Stop the cluster
-              stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+            // Stop the cluster
+            stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-              // Start the cluster
-              startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+            // Start the cluster
+            startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-              val notebookPath = new File("Untitled.ipynb")
+            val notebookPath = new File("Untitled.ipynb")
+            withWebDriver { implicit driver =>
               // Use a longer timeout than default because opening notebooks after resume can be slow
               withOpenNotebook(runtime, notebookPath, 10.minutes) { notebookPage =>
                 // old output should still exist
