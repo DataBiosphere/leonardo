@@ -70,5 +70,5 @@
     <include file="changesets/20210122_remove_stop_after_creation.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210217_add_app_pvc_id.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210203_custom_app.xml" relativeToChangelogFile="true" />
-    <include file="changesets/20210225_add_zone.xml" relativeToChangelogFile="true">
+    <include file="changesets/20210225_add_zone.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
