@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleResourceService,
   MockComputePollOperation
 }
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -201,7 +201,8 @@ class DataprocInterpreterSpec
                                                      None,
                                                      None,
                                                      None,
-                                                     Map.empty[String, String])
+                                                     Map.empty[String, String],
+                                                     ZoneName("us-central1-a"))
     val resourceConstraints = dataprocInterp
       .getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType)
       .unsafeRunSync()

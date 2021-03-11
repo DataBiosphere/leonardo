@@ -55,7 +55,8 @@ object RuntimeConfigRequest {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
+                                  properties: Map[String, String],
+                                  zone: Option[ZoneName] = None)
       extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }

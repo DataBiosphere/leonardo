@@ -58,7 +58,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(DiskSize(200)),
         Some(2),
         Some(1),
-        Map.empty
+        Map.empty,
+        ZoneName("test-zone")
       )
     )
     savedCluster3.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster3
@@ -231,7 +232,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           Some(DiskSize(200)),
           Some(2),
           Some(1),
-          Map.empty
+          Map.empty,
+          ZoneName("test-zone")
         )
       )
 
@@ -252,7 +254,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(DiskSize(200)),
         Some(2),
         Some(1),
-        Map.empty
+        Map.empty,
+        ZoneName("test-zone")
       )
     )
 
@@ -308,7 +311,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       Some(DiskSize(200)),
       Some(2),
       Some(1),
-      Map.empty
+      Map.empty,
+      ZoneName("test-zone")
     )
 
     val savedCluster = makeCluster(1)
@@ -325,7 +329,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                         Some(savedDisk.id),
                                         bootDiskSize = DiskSize(50),
-                                        zone = Some(ZoneName("us-west2-b")))
+                                        zone = ZoneName("us-west2-b"))
         )
       )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
@@ -335,7 +339,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                         Some(DiskId(-1)),
                                         bootDiskSize = DiskSize(50),
-                                        zone = Some(ZoneName("us-west2-b")))
+                                        zone = ZoneName("us-west2-b"))
         )
       ).attempt
     } yield {

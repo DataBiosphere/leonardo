@@ -69,9 +69,20 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
       )
 
+      zoneParam <- params.runtimeConfig match {
+        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.zone)
+        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure(x.zone)
+        case _ =>
+          F.raiseError[ZoneName](
+            new RuntimeException(
+              "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+            )
+          )
+      }
+
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
-                                                    config.gceConfig.zoneName,
+                                                    zoneParam,
                                                     params.runtimeConfig.machineType)
 
       // Create the bucket in the cluster's google project and populate with initialization files.
@@ -209,7 +220,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .setName(params.runtimeProjectAndName.runtimeName.asString)
         .setDescription("Leonardo Managed VM")
         .setTags(Tags.newBuilder().addItems(config.vpcConfig.networkTag.value).build())
-        .setMachineType(buildMachineTypeUri(config.gceConfig.zoneName, params.runtimeConfig.machineType))
+        .setMachineType(buildMachineTypeUri(zoneParam, params.runtimeConfig.machineType))
         .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, subnetwork))
         .addAllDisks(
           List(bootDisk, userDisk).asJava
@@ -242,7 +253,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .build()
 
       operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject,
-                                                       config.gceConfig.zoneName,
+                                                       zoneParam,
                                                        instance)
 
       asyncRuntimeFields = AsyncRuntimeFields(GoogleId(operation.getTargetId),

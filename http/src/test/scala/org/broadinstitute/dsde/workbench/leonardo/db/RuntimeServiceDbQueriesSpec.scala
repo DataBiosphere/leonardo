@@ -52,7 +52,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       d1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(d1RuntimeConfig)
       )
@@ -61,7 +61,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       d2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(d2RuntimeConfig)
       )
@@ -88,13 +88,13 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c2 <- IO(makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig))
       labels1 = Map("googleProject" -> c1.googleProject.value,
                     "clusterName" -> c1.runtimeName.asString,
@@ -135,7 +135,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig)
       )
@@ -143,7 +143,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
       )
@@ -170,7 +170,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c1 <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Deleted)
@@ -180,7 +180,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c2 <- IO(
         makeCluster(2)
           .copy(status = RuntimeStatus.Deleted)
@@ -190,13 +190,13 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c3RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d3.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c3 <- IO(
         makeCluster(3).saveWithRuntimeConfig(
           RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                         Some(d3.id),
                                         bootDiskSize = DiskSize(50),
-                                        zone = Some(ZoneName("us-west2-b")))
+                                        zone = ZoneName("us-west2-b"))
         )
       )
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None).transaction
@@ -222,7 +222,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(disk.id),
                                                       bootDiskSize = DiskSize(50),
-                                                      zone = Some(ZoneName("us-west2-b")))
+                                                      zone = ZoneName("us-west2-b"))
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       get1 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, c1.runtimeName).transaction
       get2 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, RuntimeName("does-not-exist")).transaction.attempt

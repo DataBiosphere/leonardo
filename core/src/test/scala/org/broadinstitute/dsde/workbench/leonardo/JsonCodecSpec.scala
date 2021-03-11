@@ -18,7 +18,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |   "masterMachineType": "n1-standard-8",
         |   "masterDiskSize": 500,
         |   "numberOfPreemptibleWorkers": -1,
-        |   "cloudService": "DATAPROC"
+        |   "cloudService": "DATAPROC",
+        |   "zone": "us-west2-b"
         |}
         |""".stripMargin
 
@@ -31,7 +32,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       None,
       None,
       Some(-1),
-      Map.empty
+      Map.empty,
+      ZoneName("us-west2-b")
     )
     res shouldBe (Right(expected))
   }
@@ -43,6 +45,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |   "machineType": "n1-standard-8",
         |   "diskSize": 500,
         |   "cloudService": "GCE"
+        |   "zone" "us-west2-b"
         |}
         |""".stripMargin
 
@@ -51,7 +54,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       MachineTypeName("n1-standard-8"),
       DiskSize(500),
       None,
-      None
+      ZoneName("us-west2-b")
     )
     res shouldBe (Right(expected))
   }
@@ -63,7 +66,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |{
         |   "machineType": "n1-standard-8",
         |   "cloudService": "GCE",
-        |   "bootDiskSize": 50
+        |   "bootDiskSize": 50,
+        |   "zone": "us-west2-b"
         |}
         |""".stripMargin
 
@@ -72,7 +76,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       MachineTypeName("n1-standard-8"),
       None,
       DiskSize(50),
-      None
+      ZoneName("us-west2-b")
     )
     res shouldBe (Right(expected))
   }
@@ -104,14 +108,14 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |   "machineType": "n1-standard-8",
         |   "persistentDiskId": 50,
         |   "bootDiskSize": 50,
-        |   "zone": "us-east2-b"
+        |   "zone": "us-west2-b"
         |}
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
     res shouldBe Right(
       RuntimeConfig
-        .GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50), Some(ZoneName("us-east2-b")))
+        .GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50), ZoneName("us-east2-b"))
     )
   }
 

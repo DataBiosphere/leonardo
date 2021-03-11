@@ -266,6 +266,7 @@ object JsonCodec {
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
+      zone <-c.downField("zone").as[ZoneName]
     } yield RuntimeConfig.DataprocConfig(numberOfWorkers,
                                          masterMachineType,
                                          masterDiskSize,
@@ -273,7 +274,8 @@ object JsonCodec {
                                          workerDiskSize,
                                          numberOfWorkerLocalSSDs,
                                          numberOfPreemptibleWorkers,
-                                         properties)
+                                         properties,
+                                         zone)
   }
 
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>

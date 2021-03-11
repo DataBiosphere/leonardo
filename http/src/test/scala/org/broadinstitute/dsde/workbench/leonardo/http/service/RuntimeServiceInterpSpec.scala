@@ -538,7 +538,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
         bootDiskSize = DiskSize(50),
-        zone = Some(ZoneName("us-central1-a"))
+        zone = ZoneName("us-central1-a")
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
@@ -552,7 +552,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(50))
+                                                                              bootDiskSize = DiskSize(50),
+                                                                              zone = ZoneName("us-central1-a"))
         )
       message shouldBe expectedMessage
     }
@@ -831,7 +832,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .GceWithPdConfig(MachineTypeName("n1-standard-4"),
                              Some(pd.id),
                              bootDiskSize = DiskSize(50),
-                             zone = Some(ZoneName("us-central1-a")))
+                             zone = ZoneName("us-central1-a"))
         )
       )
 
@@ -1541,7 +1542,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                         Some(savedDisk.id),
                                         bootDiskSize = DiskSize(50),
-                                        Some(ZoneName("us-central1-a")))
+                                        ZoneName("us-central1-a"))
         )
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)

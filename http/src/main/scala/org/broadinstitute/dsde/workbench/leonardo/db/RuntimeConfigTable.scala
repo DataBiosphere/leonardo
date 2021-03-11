@@ -22,7 +22,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def dataprocProperties = column[Option[Map[String, String]]]("dataprocProperties")
   def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
-  def zone = column[Option[ZoneName]]("zone", O.Length(254))
+  def zone = column[ZoneName]("zone", O.Length(254))
 
   def * =
     (
@@ -77,7 +77,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
               workerDiskSize,
               numberOfWorkerLocalSSDs,
               numberOfPreemptibleWorkers,
-              dataprocProperties.getOrElse(Map.empty)
+              dataprocProperties.getOrElse(Map.empty),
+              zone
             )
         }
         RuntimeConfigRecord(id, r, dateAccessed)
@@ -112,7 +113,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.numberOfPreemptibleWorkers,
              Some(r.properties),
              None,
-             None),
+             r.zone),
             x.dateAccessed
           )
         case r: RuntimeConfig.GceWithPdConfig =>

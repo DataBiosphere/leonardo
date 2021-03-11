@@ -74,7 +74,8 @@ object Config {
         config.getAs[DiskSize]("workerDiskSize"),
         config.getAs[Int]("numberOfWorkerLocalSSDs"),
         config.getAs[Int]("numberOfPreemptibleWorkers"),
-        Map.empty
+        Map.empty,
+        config.as[ZoneName]("zone")
       )
   }
 
@@ -83,7 +84,7 @@ object Config {
       machineType = config.as[MachineTypeName]("machineType"),
       diskSize = config.as[DiskSize]("diskSize"),
       bootDiskSize = Some(config.as[DiskSize]("bootDiskSize")),
-      zone = Some(config.as[ZoneName]("zone"))
+      zone = config.as[ZoneName]("zone")
     )
   }
 

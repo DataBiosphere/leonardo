@@ -35,7 +35,7 @@ object RuntimeConfigInCreateRuntimeMessage {
     machineType: MachineTypeName,
     diskSize: DiskSize,
     bootDiskSize: DiskSize,
-    zone: Option[ZoneName] = None
+    zone: ZoneName
   ) extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -43,7 +43,7 @@ object RuntimeConfigInCreateRuntimeMessage {
   final case class GceWithPdConfig(machineType: MachineTypeName,
                                    persistentDiskId: DiskId,
                                    bootDiskSize: DiskSize,
-                                   zone: Option[ZoneName] = None)
+                                   zone: ZoneName)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -56,7 +56,8 @@ object RuntimeConfigInCreateRuntimeMessage {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
+                                  properties: Map[String, String],
+                                  zone: ZoneName)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
@@ -79,7 +80,8 @@ object RuntimeConfigInCreateRuntimeMessage {
           None,
           None,
           None,
-          dataproc.properties
+          dataproc.properties,
+          dataproc.zone.getOrElse(default.zone)
         )
       case Some(numWorkers) =>
         val wds = dataproc.workerDiskSize.orElse(default.workerDiskSize)
@@ -91,7 +93,8 @@ object RuntimeConfigInCreateRuntimeMessage {
           wds.map(s => DiskSize(math.max(minimumDiskSize, s.gb))),
           dataproc.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
           dataproc.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
-          dataproc.properties
+          dataproc.properties,
+          dataproc.zone.getOrElse(default.zone)
         )
     }
   }
@@ -552,6 +555,7 @@ object LeoPubsubCodec {
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
+      zone <- c.downField("zone").as[ZoneName]
     } yield RuntimeConfigInCreateRuntimeMessage.DataprocConfig(numberOfWorkers,
                                                                masterMachineType,
                                                                masterDiskSize,
@@ -559,7 +563,8 @@ object LeoPubsubCodec {
                                                                workerDiskSize,
                                                                numberOfWorkerLocalSSDs,
                                                                numberOfPreemptibleWorkers,
-                                                               properties)
+                                                               properties,
+                                                               zone)
   }
 
   implicit val gceConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =

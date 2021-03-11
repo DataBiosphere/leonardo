@@ -197,7 +197,7 @@ object RuntimeConfig {
     bootDiskSize: Option[
       DiskSize
     ], //This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
-    zone: Option[ZoneName]
+    zone: ZoneName
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -206,7 +206,7 @@ object RuntimeConfig {
   final case class GceWithPdConfig(machineType: MachineTypeName,
                                    persistentDiskId: Option[DiskId],
                                    bootDiskSize: DiskSize,
-                                   zone: Option[ZoneName])
+                                   zone: ZoneName)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -219,7 +219,8 @@ object RuntimeConfig {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
+                                  properties: Map[String, String],
+                                  zone: ZoneName)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType

@@ -67,7 +67,7 @@ object RuntimeConfigQueries {
     runtimeConfigs
       .filter(x => x.id === id)
       .map(c => (c.zone, c.dateAccessed))
-      .update((Some(zone), dateAccessed))
+      .update((zone, dateAccessed))
 
   def updatePersistentDiskId(id: RuntimeConfigId, persistentDiskId: Option[DiskId], dateAccessed: Instant): DBIO[Int] =
     runtimeConfigs

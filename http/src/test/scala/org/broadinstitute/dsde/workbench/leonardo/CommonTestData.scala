@@ -169,7 +169,7 @@ object CommonTestData {
     )
   val defaultMachineType = MachineTypeName("n1-standard-4")
   val defaultDataprocRuntimeConfig =
-    RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty)
+    RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty, ZoneName("us-central1-a"))
 
   val defaultCreateRuntimeRequest = CreateRuntime2Request(
     Map("lbl1" -> "true"),
@@ -189,7 +189,7 @@ object CommonTestData {
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
                             DiskSize(500),
                             bootDiskSize = Some(DiskSize(50)),
-                            zone = Some(ZoneName("us-west2-b")))
+                            zone = ZoneName("us-west2-b"))
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(Some(0),
                                         Some(MachineTypeName("n1-standard-4")),
@@ -203,12 +203,12 @@ object CommonTestData {
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
                             DiskSize(500),
                             bootDiskSize = Some(DiskSize(50)),
-                            zone = Some(ZoneName("us-west2-b")))
+                            zone = ZoneName("us-west2-b"))
   val gceWithPdRuntimeConfig =
     RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                   Some(DiskId(1234)),
                                   DiskSize(50),
-                                  Some(ZoneName("us-west2-b")))
+                                  ZoneName("us-west2-b"))
 
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)

@@ -21,7 +21,8 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       workerDiskSize = None,
       numberOfPreemptibleWorkers = Some(0),
       numberOfWorkerLocalSSDs = None,
-      properties = Map("spark:spark.executor.memory" -> "10g")
+      properties = Map("spark:spark.executor.memory" -> "10g"),
+      zone = ZoneName("us-central1-a")
     )
     val res = for {
       now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
@@ -38,13 +39,13 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       MachineTypeName("n1-standard-4"),
       DiskSize(100),
       Some(DiskSize(50)),
-      Some(ZoneName("us-west2-b"))
+      ZoneName("us-west2-b")
     )
     val runtimeConfig2 = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
       DiskSize(100),
       None,
-      Some(ZoneName("us-west2-b"))
+      ZoneName("us-west2-b")
     )
     val res = for {
       now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
@@ -68,7 +69,7 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
         MachineTypeName("n1-standard-4"),
         Some(savedDisk.id),
         DiskSize(50),
-        Some(ZoneName("us-west2-b"))
+        ZoneName("us-west2-b")
       )
       id <- RuntimeConfigQueries.insertRuntimeConfig(runtimeConfig, Instant.ofEpochMilli(now)).transaction
       rc <- RuntimeConfigQueries.getRuntimeConfig(id).transaction
