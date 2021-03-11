@@ -16,6 +16,7 @@ comment:
   require_changes: no
 coverage:
   status:
+    patch: off
     project:
       default:
         target: 70%    # the required coverage value
