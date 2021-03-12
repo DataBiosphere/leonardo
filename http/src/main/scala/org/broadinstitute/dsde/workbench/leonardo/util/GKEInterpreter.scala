@@ -549,12 +549,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         for {
           helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
 
-          chart = app.appType match {
-            case AppType.Galaxy => config.galaxyAppConfig.chart
-            case AppType.Custom => config.customAppConfig.chart
-          }
           _ <- logger.info(ctx.loggingCtx)(
-            s"Uninstalling helm chart ${chart} for app ${app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+            s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
           )
 
           // helm uninstall the app chart and wait
