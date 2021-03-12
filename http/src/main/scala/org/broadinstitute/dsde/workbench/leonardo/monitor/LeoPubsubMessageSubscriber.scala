@@ -922,6 +922,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       deleteDisksInParallel = List(deleteDisk, deletePostgresDisk).parSequence_
 
+      // For Galaxy apps, wait for the postgres disk to detach before moving the app to deleted status
+      // TODO should we do this for the other disk too?
       deleteAppAndWaitForDiskDetach = if (dbApp.app.appType == AppType.Galaxy) {
         val getGalaxyPostgresDisk = googleDiskService.getDisk(
           msg.project,
@@ -936,7 +938,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           _ <- deleteApp
 
           // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
-          diskDetachResult <- streamUntilDoneOrTimeout(
+          _ <- streamUntilDoneOrTimeout(
             getDiskDetachStatus(originalDetachTimestampOpt, getGalaxyPostgresDisk),
             30,
             5 seconds,
@@ -954,7 +956,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         } yield ()
       } else deleteApp
 
-      // The app must be deleted before the nodepool and disk, to future proof against the app potentially flushing the postgres db somewhere
       task = for {
         _ <- deleteAppAndWaitForDiskDetach
         _ <- if (!errorAfterDelete)
