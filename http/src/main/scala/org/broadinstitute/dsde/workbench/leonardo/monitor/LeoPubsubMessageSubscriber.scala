@@ -922,34 +922,42 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       deleteDisksInParallel = List(deleteDisk, deletePostgresDisk).parSequence_
 
-      // For Galaxy apps, wait for the postgres disk to detach before deleting the disks
-      // TODO should we do this for the other disk too?
-      deleteAppAndWaitForDiskDetach = if (dbApp.app.appType == AppType.Galaxy) {
-        val getGalaxyPostgresDisk = googleDiskService.getDisk(
-          msg.project,
-          zone,
-          gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
-        )
-        for {
-          // we record the last disk detach timestamp here, before it is removed from galaxy
-          originalDiskOpt <- getGalaxyPostgresDisk
-          originalDetachTimestampOpt = originalDiskOpt.map(_.getLastDetachTimestamp)
+      task = for {
+        // For Galaxy apps, wait for the postgres disk to detach before deleting the disks
+        // TODO should we do this for the other disk too?
+        originalDetachTimestampOpt <- if (dbApp.app.appType == AppType.Galaxy) {
+          googleDiskService
+            .getDisk(
+              msg.project,
+              zone,
+              gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
+            )
+            .map(_.map(_.getLastDetachTimestamp))
+        } else F.pure(None)
 
-          _ <- deleteApp
-          _ <- if (!errorAfterDelete)
-            dbApp.app.status match {
-              // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
-              case AppStatus.Deleted => F.unit
-              case _ =>
-                appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >> authProvider
-                  .notifyResourceDeleted(dbApp.app.samResourceId, dbApp.app.auditInfo.creator, msg.project)
-                  .void
-            }
-          else F.unit
+        // Do the helm uninstall
+        _ <- deleteApp
+        _ <- if (!errorAfterDelete)
+          dbApp.app.status match {
+            // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
+            case AppStatus.Deleted => F.unit
+            case _ =>
+              appQuery.markAsDeleted(msg.appId, ctx.now).transaction.void >> authProvider
+                .notifyResourceDeleted(dbApp.app.samResourceId, dbApp.app.auditInfo.creator, msg.project)
+                .void
+          }
+        else F.unit
 
-          // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
-          _ <- streamUntilDoneOrTimeout(
-            getDiskDetachStatus(originalDetachTimestampOpt, getGalaxyPostgresDisk),
+        // If this is a Galaxy app, wait for the postgres disk to be detached before moving on
+        _ <- if (dbApp.app.appType == AppType.Galaxy) {
+          streamUntilDoneOrTimeout(
+            getDiskDetachStatus(originalDetachTimestampOpt,
+                                googleDiskService
+                                  .getDisk(
+                                    msg.project,
+                                    zone,
+                                    gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
+                                  )),
             30,
             5 seconds,
             "The disk failed to detach within the time limit, cannot proceed with delete disk"
@@ -963,11 +971,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 None
               )
           }
-        } yield ()
-      } else deleteApp
+        } else F.unit
 
-      task = for {
-        _ <- deleteAppAndWaitForDiskDetach
+        // Delete the disks
         _ <- deleteDisksInParallel
       } yield ()
 
