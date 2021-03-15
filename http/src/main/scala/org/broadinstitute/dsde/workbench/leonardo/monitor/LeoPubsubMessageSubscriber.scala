@@ -936,10 +936,19 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 originalDetachTimestampOpt = originalDiskOpt.map(_.getLastDetachTimestamp)
                 _ <- streamUntilDoneOrTimeout(
                   getDiskDetachStatus(originalDetachTimestampOpt, getDisk),
-                  24,
+                  50,
                   5 seconds,
                   "The disk failed to detach within the time limit, cannot proceed with delete disk"
-                )
+                ).adaptError {
+                  case e =>
+                    PubsubKubernetesError(
+                      AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
+                      Some(msg.appId),
+                      false,
+                      None,
+                      None
+                    )
+                }
               } yield ()
             else F.unit
             deleteDataDisk = deleteDisk(diskId, true).adaptError {
@@ -1086,12 +1095,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- asyncTasks.enqueue1(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now))
     } yield ()
 
-  private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>
     e match {
       case e: PubsubKubernetesError =>
         for {
-          ctx <- ev.ask
-          _ <- logger.error(ctx.loggingCtx, e)(s"Encountered async error for app ${e.appId}")
+          _ <- logger.error(ctx.loggingCtx, e)(s"Encountered an error for app ${e.appId}, ${e.getMessage}")
           _ <- e.appId.traverse(id => appErrorQuery.save(id, e.dbError).transaction)
           _ <- e.appId.traverse(id => appQuery.markAsErrored(id).transaction)
           _ <- e.clusterId.traverse(clusterId =>
@@ -1102,10 +1110,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
         } yield ()
       case _ =>
-        F.raiseError(
-          new RuntimeException(s"handleKubernetesError should not be used with a non kubernetes error. Error: ${e}")
+        logger.error(ctx.loggingCtx, e)(
+          s"handleKubernetesError should not be used with a non kubernetes error. WHATEVER ERROR THIS IS SHOULD BE HANDLED AT ITS SOURCE TO APPROPRIATELY UPDATE DB STATE. Error: ${e}"
         )
     }
+  }
 
   private def createDiskForApp(diskId: DiskId)(
     implicit ev: Ask[F, AppContext]
