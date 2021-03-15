@@ -8,12 +8,12 @@ import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.{DoneCheckable}
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
@@ -40,9 +40,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   config: LeoPubsubMessageSubscriberConfig,
@@ -906,33 +906,36 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(msg.project, msg.appId).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
       zone = ZoneName("us-central1-a")
-      deletePostgresDisk = deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
-                                                                zone,
-                                                                msg.appName,
-                                                                dbApp.app.appResources.namespace.name)
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.PostgresDisk, None),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-        }
+      deletePostgresDisk = if (dbApp.app.appType == AppType.Galaxy)
+        deleteGalaxyPostgresDiskOnlyInGoogle(msg.project, zone, msg.appName, dbApp.app.appResources.namespace.name)
+          .adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.PostgresDisk, None),
+                Some(msg.appId),
+                false,
+                None,
+                None
+              )
+          }
+      else F.unit
 
       deleteDisksInParallel = List(deleteDisk, deletePostgresDisk).parSequence_
 
-      // The app must be deleted before the nodepool and disk, to future proof against the app potentially flushing the postgres db somewhere
       task = for {
-        //we record the last disk detach timestamp here, before it is removed from galaxy
-        originalDiskOpt <- googleDiskService.getDisk(
-          msg.project,
-          zone,
-          gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
-        )
-        originalDetachTimestampOpt = originalDiskOpt.map(_.getLastDetachTimestamp)
+        // For Galaxy apps, wait for the postgres disk to detach before deleting the disks
+        // TODO should we do this for the other disk too?
+        originalDetachTimestampOpt <- if (dbApp.app.appType == AppType.Galaxy) {
+          googleDiskService
+            .getDisk(
+              msg.project,
+              zone,
+              gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
+            )
+            .map(_.map(_.getLastDetachTimestamp))
+        } else F.pure(None)
 
+        // Do the helm uninstall
         _ <- deleteApp
         _ <- if (!errorAfterDelete)
           dbApp.app.status match {
@@ -944,26 +947,33 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 .void
           }
         else F.unit
-        // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
-        getDisk = googleDiskService.getDisk(msg.project,
-                                            zone,
-                                            gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name))
-        diskDetachResult <- streamUntilDoneOrTimeout(
-          getDiskDetachStatus(originalDetachTimestampOpt, getDisk),
-          30,
-          5 seconds,
-          "The disk failed to detach within the time limit, cannot proceed with delete disk"
-        ).adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-        }
 
+        // If this is a Galaxy app, wait for the postgres disk to be detached before moving on
+        _ <- if (dbApp.app.appType == AppType.Galaxy) {
+          streamUntilDoneOrTimeout(
+            getDiskDetachStatus(originalDetachTimestampOpt,
+                                googleDiskService
+                                  .getDisk(
+                                    msg.project,
+                                    zone,
+                                    gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
+                                  )),
+            30,
+            5 seconds,
+            "The disk failed to detach within the time limit, cannot proceed with delete disk"
+          ).adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
+                Some(msg.appId),
+                false,
+                None,
+                None
+              )
+          }
+        } else F.unit
+
+        // Delete the disks
         _ <- deleteDisksInParallel
       } yield ()
 

@@ -545,11 +545,36 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Resolve the cluster in Google
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
 
-      // helm uninstall galaxy and wait
       _ <- googleClusterOpt.traverse(googleCluster =>
         for {
           helmAuthContext <- getHelmAuthContext(googleCluster, dbCluster, namespaceName)
-          _ <- uninstallGalaxy(helmAuthContext, dbCluster, app.appName, app.release, namespaceName)
+
+          _ <- logger.info(ctx.loggingCtx)(
+            s"Uninstalling release ${app.release.asString} for ${app.appType.toString} app ${app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+          )
+
+          // helm uninstall the app chart and wait
+          _ <- helmClient
+            .uninstall(app.release, config.galaxyAppConfig.uninstallKeepHistory)
+            .run(helmAuthContext)
+
+          last <- streamFUntilDone(
+            kubeService.listPodStatus(dbCluster.getGkeClusterId, KubernetesNamespace(namespaceName)),
+            config.monitorConfig.deleteApp.maxAttempts,
+            config.monitorConfig.deleteApp.interval
+          ).compile.lastOrError
+
+          _ <- if (!podDoneCheckable.isDone(last)) {
+            val msg =
+              s"Helm deletion has failed or timed out for app ${app.appName.value} in cluster ${dbCluster.getGkeClusterId.toString}. The following pods are not in a terminal state: ${last
+                .filterNot(isPodDone)
+                .map(_.name.value)
+                .mkString(", ")}"
+            logger.error(ctx.loggingCtx)(msg) >>
+              F.raiseError[Unit](AppDeletionException(msg))
+          } else F.unit
+
+          // helm uninstall the setup chart
           _ <- helmClient
             .uninstall(
               getTerraAppSetupChartReleaseName(app.release),
@@ -976,43 +1001,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           s"App installation has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
         logger.error(msg) >>
           F.raiseError[Unit](AppCreationException(msg))
-      } else F.unit
-
-    } yield ()
-
-  private[util] def uninstallGalaxy(helmAuthContext: AuthContext,
-                                    dbCluster: KubernetesCluster,
-                                    appName: AppName,
-                                    release: Release,
-                                    namespaceName: NamespaceName)(
-    implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-
-      _ <- logger.info(ctx.loggingCtx)(
-        s"Uninstalling helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
-      )
-
-      // Invoke helm
-      _ <- helmClient
-        .uninstall(release, config.galaxyAppConfig.uninstallKeepHistory)
-        .run(helmAuthContext)
-
-      last <- streamFUntilDone(
-        kubeService.listPodStatus(dbCluster.getGkeClusterId, KubernetesNamespace(namespaceName)),
-        config.monitorConfig.deleteApp.maxAttempts,
-        config.monitorConfig.deleteApp.interval
-      ).compile.lastOrError
-
-      _ <- if (!podDoneCheckable.isDone(last)) {
-        val msg =
-          s"Galaxy deletion has failed or timed out for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}. The following pods are not in a terminal state: ${last
-            .filterNot(isPodDone)
-            .map(_.name.value)
-            .mkString(", ")}"
-        logger.error(ctx.loggingCtx)(msg) >>
-          F.raiseError[Unit](AppDeletionException(msg))
       } else F.unit
 
     } yield ()
