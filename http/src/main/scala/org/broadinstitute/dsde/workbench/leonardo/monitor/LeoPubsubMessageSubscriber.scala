@@ -915,6 +915,29 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       // The app must be deleted before the nodepool and disk, to future proof against the app potentially flushing the postgres db somewhere
       task = for {
+        // we record the last disk detach timestamp here, before it is removed from galaxy
+        // this is needed before we can delete disks
+        postgresOriginalDetachTimestampOpt <- msg.diskId.flatTraverse { _ =>
+          googleDiskService
+            .getDisk(
+              msg.project,
+              zone,
+              gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
+            )
+            .map(_.map(_.getLastDetachTimestamp))
+        }
+
+        dataDisk <- msg.diskId.flatTraverse(diskId => persistentDiskQuery.getPersistentDiskRecord(diskId).transaction)
+        dataDiskOriginalDetachTimestampOpt <- dataDisk.flatTraverse { d =>
+          googleDiskService
+            .getDisk(
+              msg.project,
+              zone,
+              d.name
+            )
+            .map(_.map(_.getLastDetachTimestamp))
+        }
+
         _ <- gkeInterp
           .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
           .adaptError {
@@ -930,42 +953,48 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
         // detach/delete disk when we need to delete disk
         _ <- msg.diskId.traverse_ { diskId =>
-          val getDisk = googleDiskService.getDisk(
+          // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
+          val getPostgresDisk = googleDiskService.getDisk(
             msg.project,
             zone,
             gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
           )
+          val getDataDisk = dataDisk.flatTraverse { d =>
+            googleDiskService
+              .getDisk(
+                msg.project,
+                zone,
+                d.name
+              )
+          }
           for {
             // For Galaxy apps, wait for the postgres disk to detach before deleting the disks
-            _ <- if (dbApp.app.appType == AppType.Galaxy)
-              for {
-                // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
-
-                // we record the last disk detach timestamp here, before it is removed from galaxy
-                // this is needed before we can delete disks
-                originalDiskOpt <- googleDiskService.getDisk(
-                  msg.project,
-                  zone,
-                  gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
-                )
-                originalDetachTimestampOpt = originalDiskOpt.map(_.getLastDetachTimestamp)
+            _ <- if (dbApp.app.appType == AppType.Galaxy) {
+              val res = for {
                 _ <- streamUntilDoneOrTimeout(
-                  getDiskDetachStatus(originalDetachTimestampOpt, getDisk),
+                  getDiskDetachStatus(postgresOriginalDetachTimestampOpt, getPostgresDisk),
                   50,
                   5 seconds,
-                  "The disk failed to detach within the time limit, cannot proceed with delete disk"
-                ).adaptError {
-                  case e =>
-                    PubsubKubernetesError(
-                      AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
-                      Some(msg.appId),
-                      false,
-                      None,
-                      None
-                    )
-                }
+                  "The postgres disk failed to detach within the time limit, cannot proceed with delete disk"
+                )
+                _ <- streamUntilDoneOrTimeout(
+                  getDiskDetachStatus(dataDiskOriginalDetachTimestampOpt, getDataDisk),
+                  50,
+                  5 seconds,
+                  "The data disk failed to detach within the time limit, cannot proceed with delete disk"
+                )
               } yield ()
-            else F.unit
+              res.adaptError {
+                case e =>
+                  PubsubKubernetesError(
+                    AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                    Some(msg.appId),
+                    false,
+                    None,
+                    None
+                  )
+              }
+            } else F.unit
             deleteDataDisk = deleteDisk(diskId, true).adaptError {
               case e =>
                 PubsubKubernetesError(
