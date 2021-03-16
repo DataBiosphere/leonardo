@@ -466,8 +466,8 @@ object LeonardoApiClient {
     // retries app creation on 409 from Leo due to cluster being created
     implicit val doneCheckable: DoneCheckable[Either[Throwable, Unit]] = x =>
       x match {
-        case Left(RestError(message, Status.Conflict, _))
-            if message.contains("You cannot create an app while a cluster is in Set(PRECREATING, PROVISIONING)") =>
+        case Left(RestError(_, Status.Conflict, body))
+            if body.contains("You cannot create an app while a cluster is in Set(PRECREATING, PROVISIONING)") =>
           false
         case _ => true
       }
