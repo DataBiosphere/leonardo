@@ -734,7 +734,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               .adaptError {
                 case e =>
                   PubsubKubernetesError(
-                    AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None),
+                    AppError(e.getMessage,
+                             ctx.now,
+                             ErrorAction.CreateApp,
+                             ErrorSource.Cluster,
+                             None,
+                             Some(ctx.traceId)),
                     Some(msg.appId),
                     false,
                     // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
@@ -750,7 +755,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 .adaptError {
                   case e =>
                     PubsubKubernetesError(
-                      AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None),
+                      AppError(e.getMessage,
+                               ctx.now,
+                               ErrorAction.CreateApp,
+                               ErrorSource.Cluster,
+                               None,
+                               Some(ctx.traceId)),
                       Some(msg.appId),
                       false,
                       // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
@@ -770,7 +780,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               .adaptError {
                 case e =>
                   PubsubKubernetesError(
-                    AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Nodepool, None),
+                    AppError(e.getMessage,
+                             ctx.now,
+                             ErrorAction.CreateApp,
+                             ErrorSource.Nodepool,
+                             None,
+                             Some(ctx.traceId)),
                     Some(msg.appId),
                     false,
                     Some(nodepoolId),
@@ -787,7 +802,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           createDiskForApp(diskId).adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 None,
@@ -803,7 +818,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 None,
@@ -828,7 +843,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.App, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.App, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 None,
@@ -856,7 +871,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
               None,
               false,
               None,
@@ -871,7 +886,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
                 None,
                 false,
                 None,
@@ -905,7 +920,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.App, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.App, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 None,
@@ -942,7 +957,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 ).adaptError {
                   case e =>
                     PubsubKubernetesError(
-                      AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
+                      AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                       Some(msg.appId),
                       false,
                       None,
@@ -954,7 +969,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             deleteDataDisk = deleteDisk(diskId, true).adaptError {
               case e =>
                 PubsubKubernetesError(
-                  AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
+                  AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                   Some(msg.appId),
                   false,
                   None,
@@ -970,7 +985,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 .adaptError {
                   case e =>
                     PubsubKubernetesError(
-                      AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.PostgresDisk, None),
+                      AppError(e.getMessage,
+                               ctx.now,
+                               ErrorAction.DeleteApp,
+                               ErrorSource.PostgresDisk,
+                               None,
+                               Some(ctx.traceId)),
                       Some(msg.appId),
                       false,
                       None,
@@ -1063,7 +1083,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId)),
               Some(msg.appId),
               false,
               None,
@@ -1084,7 +1104,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.StartApp, ErrorSource.App, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.StartApp, ErrorSource.App, None, Some(ctx.traceId)),
               Some(msg.appId),
               false,
               None,
