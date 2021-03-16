@@ -71,7 +71,7 @@ object JsonCodec {
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.entryName)
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.asString)
 
-  implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
+  implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct9(
     "numberOfWorkers",
     "masterMachineType",
     "masterDiskSize",
@@ -80,7 +80,8 @@ object JsonCodec {
     "workerDiskSize",
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers",
-    "cloudService"
+    "cloudService",
+    "zone"
   )(x =>
     (x.numberOfWorkers,
      x.machineType,
@@ -89,14 +90,16 @@ object JsonCodec {
      x.workerDiskSize,
      x.numberOfWorkerLocalSSDs,
      x.numberOfPreemptibleWorkers,
-     x.cloudService)
+     x.cloudService,
+     x.zone)
   )
-  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct4(
+  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct5(
     "machineType",
     "diskSize",
     "cloudService",
-    "bootDiskSize"
-  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize))
+    "bootDiskSize",
+    "zone"
+  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone))
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
     "serverExtensions",
@@ -117,12 +120,13 @@ object JsonCodec {
     "imageUrl",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
-  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct4(
+  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct5(
     "machineType",
     "persistentDiskId",
     "cloudService",
-    "bootDiskSize"
-  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize))
+    "bootDiskSize",
+    "zone"
+  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone))
 
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {
