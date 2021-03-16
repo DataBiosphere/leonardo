@@ -344,7 +344,6 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
     val newApp = AppSamResourceId("new_app")
     mockSam.createResourceWithManagerPolicy(newApp, userEmail2, project).unsafeRunSync()
-    println(mockSam.appCreators)
     samAuthProvider.filterUserVisible(NonEmptyList.of(appSamId, newApp), userInfo).unsafeRunSync() shouldBe List(
       appSamId
     )

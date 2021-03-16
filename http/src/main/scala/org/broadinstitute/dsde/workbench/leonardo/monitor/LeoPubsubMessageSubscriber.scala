@@ -827,12 +827,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           }
       } else F.unit
 
-      // parallelize disk creation and cluster/nodepool monitoring
-      parPreAppCreationSetup = List(createDiskOp, createSecondDiskOp, createClusterOrNodepoolOp).parSequence_
-
       // build asynchronous task
       task = for {
-        _ <- parPreAppCreationSetup
+        // parallelize disk creation and cluster/nodepool monitoring
+        _ <- List(createDiskOp, createSecondDiskOp, createClusterOrNodepoolOp).parSequence_
+
         // create and monitor app
         _ <- gkeInterp
           .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName))
@@ -927,8 +926,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             .map(_.map(_.getLastDetachTimestamp))
         }
 
-        dataDisk <- msg.diskId.flatTraverse(diskId => persistentDiskQuery.getPersistentDiskRecord(diskId).transaction)
-        dataDiskOriginalDetachTimestampOpt <- dataDisk.flatTraverse { d =>
+        dataDiskOriginalDetachTimestampOpt <- dbApp.app.appResources.disk.flatTraverse { d =>
           googleDiskService
             .getDisk(
               msg.project,
@@ -937,7 +935,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             )
             .map(_.map(_.getLastDetachTimestamp))
         }
-
         _ <- gkeInterp
           .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
           .adaptError {
@@ -959,7 +956,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             zone,
             gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
           )
-          val getDataDisk = dataDisk.flatTraverse { d =>
+          val getDataDisk = dbApp.app.appResources.disk.flatTraverse { d =>
             googleDiskService
               .getDisk(
                 msg.project,
@@ -1027,10 +1024,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                     )
                 }
             else F.unit
+
             _ <- List(deleteDataDisk, deletePostgresDisk).parSequence_
           } yield ()
         }
-
         _ <- if (!errorAfterDelete)
           dbApp.app.status match {
             // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
@@ -1092,7 +1089,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       appOpt <- KubernetesServiceDbQueries.getFullAppByName(project, appId).transaction
       // note that this will only clean up the disk if it was created as part of this app creation.
       // it should not clean up the disk if it already existed
-      _ <- appOpt.traverse { app =>
+      _ <- appOpt.traverse { _ =>
         val deleteMsg =
           DeleteAppMessage(appId, appName, project, diskId, Some(ctx.traceId))
         // This is a good-faith attempt at clean-up. We do not want to take any action if clean-up fails for some reason.

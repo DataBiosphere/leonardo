@@ -953,7 +953,7 @@ class LeoPubsubMessageSubscriberSpec
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 40)
     } yield ()
 
     res.unsafeRunSync()
@@ -1124,38 +1124,6 @@ class LeoPubsubMessageSubscriberSpec
                                         blocker,
                                         lock)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterpreter = gkeInter)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-    verify(mockAckConsumer, times(1)).ack()
-  }
-
-  //error on delete disk if disk doesn't exist
-  it should "handle an error in delete app if delete disk = true and no disk exists" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-    val mockAckConsumer = mock[AckReplyConsumer]
-
-    val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
-      getApp = getAppOpt.get
-    } yield {
-      getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteApp)
-      getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
-      getApp.nodepool.status shouldBe savedNodepool1.status
-      getApp.app.status shouldBe AppStatus.Error
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(DiskId(-1)), Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)

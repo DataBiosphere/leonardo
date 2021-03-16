@@ -33,10 +33,11 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO, CustomAppService}
-import org.broadinstitute.dsde.workbench.leonardo.db.{kubernetesClusterQuery, nodepoolQuery, DbReference, _}
+import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmAlgebra, Release}
 import org.http4s.Uri
@@ -424,7 +425,20 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
           cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
           _ <- (galaxyPvc, cvmfsPvc).tupled
-            .fold(F.raiseError[Unit](new LeoException("Fail to retrieve pvc ids", traceId = Some(ctx.traceId)))) {
+            .fold(
+              F.raiseError[Unit](
+                PubsubKubernetesError(AppError("Fail to retrieve pvc ids",
+                                               ctx.now,
+                                               ErrorAction.CreateApp,
+                                               ErrorSource.App,
+                                               None,
+                                               Some(ctx.traceId)),
+                                      Some(app.id),
+                                      false,
+                                      None,
+                                      None)
+              )
+            ) {
               case (gp, cp) =>
                 val galaxyDiskRestore = GalaxyRestore(
                   PvcId(gp.getMetadata.getUid),
