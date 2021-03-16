@@ -355,7 +355,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |    "machineType" : "n1-standard-4",
         |    "diskSize" : 500,
         |    "cloudService" : "GCE",
-        |    "bootDiskSize" : 50
+        |    "bootDiskSize" : 50,
+        |    "zone" : "us-west2-b"
         |  },
         |  "proxyUrl" : "https://leo.org/proxy",
         |  "status" : "Running",
@@ -420,7 +421,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |    "machineType" : "n1-standard-4",
         |    "diskSize" : 500,
         |    "cloudService" : "GCE",
-        |    "bootDiskSize" : 50
+        |    "bootDiskSize" : 50,
+        |    "zone" : "us-west2-b"
         |  },
         |  "proxyUrl" : "https://leo.org/proxy",
         |  "status" : "Running",
