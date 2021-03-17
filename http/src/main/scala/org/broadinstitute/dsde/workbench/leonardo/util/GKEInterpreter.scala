@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
+  streamUntilDoneOrTimeout,
   tracedRetryGoogleF,
   DiskName,
   KubernetesClusterNotFoundException,
@@ -609,6 +610,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // delete the namespace only after the helm uninstall completes
       _ <- kubeService.deleteNamespace(dbApp.cluster.getGkeClusterId,
                                        KubernetesNamespace(dbApp.app.appResources.namespace.name))
+
+      fa = kubeService
+        .namespaceExists(dbApp.cluster.getGkeClusterId, KubernetesNamespace(dbApp.app.appResources.namespace.name))
+        .map(!_) //mapping to inverse because booleanDoneCheckable defines `Done` when it becomes `true`...In this case, the namespace will exists for a while, and eventually becomes non-existent
+
+      _ <- streamUntilDoneOrTimeout(fa, 30, 5 seconds, "delete namespace timed out")
       _ <- logger.info(ctx.loggingCtx)(
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
