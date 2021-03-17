@@ -39,6 +39,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
           corsSupport.corsHandler {
 
             refererHandler {
+              logger.info(s"!!! Referer enabled: ${refererConfig.enabled.toString}")
+              logger.info(s"!!! Referer valid referers: ${refererConfig.validHosts.toString()}")
               // "apps" proxy routes
               pathPrefix("google" / "v1" / "apps") {
                 pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
@@ -268,14 +270,15 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
   private[api] def checkReferer: Directive0 =
     optionalHeaderValueByType(Referer) flatMap {
       case Some(referer) => {
+        logger.info(s"!!! Referer: ${referer.uri.authority.toString()}")
         if (refererConfig.validHosts.contains(referer.uri.authority.toString())) pass
         else {
-          logger.info(s"Referer ${referer.uri.toString} is not allowed")
+          logger.info(s"!!! Referer ${referer.uri.toString} is not allowed")
           logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
         }
       }
       case None => {
-        logger.info(s"Referer header is missing")
+        logger.info(s"!!! Referer header is missing")
         logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
       }
     }
