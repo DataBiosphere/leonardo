@@ -88,8 +88,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
             )
           }
-//          // Verify creating another app with the same disk doesn't error out
-//          _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)
+          // Verify creating another app with the same disk doesn't error out
+          _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)
         } yield ()
       }
     }
