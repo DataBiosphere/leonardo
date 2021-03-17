@@ -4,7 +4,7 @@
     <changeSet logicalFilePath="leonardo" author="willyn" id="add_zone">
         <addColumn tableName="RUNTIME_CONFIG">
             <column name="zone" type="varchar(254)">
-                <constraints nullable="true"/>
+                <constraints nullable="false"/>
             </column>
         </addColumn>
 
