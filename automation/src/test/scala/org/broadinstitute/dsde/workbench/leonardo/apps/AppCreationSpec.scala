@@ -201,8 +201,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
             )
           }
-          // verify disk is also deleted
-          getDiskResp <- LeonardoApiClient.getDisk(googleProject, diskName).attempt
+//          // verify disk is also deleted
+//          getDiskResp <- LeonardoApiClient.getDisk(googleProject, diskName).attempt
         } yield {
           getDiskResp.toOption shouldBe (None)
         }
