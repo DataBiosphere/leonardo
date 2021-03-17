@@ -8,12 +8,12 @@ import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
-import cats.mtl.Ask
 import cats.syntax.all._
+import cats.mtl.Ask
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.DoneCheckable
+import org.broadinstitute.dsde.workbench.{DoneCheckable}
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
@@ -40,9 +40,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
+import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.jdk.CollectionConverters._
 
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   config: LeoPubsubMessageSubscriberConfig,
@@ -461,10 +461,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
-    createDisk(msg, false)
+    createDisk(msg, None, false)
 
   //this returns an F[F[Unit]. It kicks off the google operation, and then return an F containing the async polling task
-  private[monitor] def createDisk(msg: CreateDiskMessage, sync: Boolean)(
+  private[monitor] def createDisk(msg: CreateDiskMessage, formattedBy: Option[FormattedBy], sync: Boolean)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     val create = for {
@@ -496,7 +496,15 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             config.persistentDiskMonitorConfig.create.maxAttempts,
             None
           )(
-            persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void,
+            formattedBy match {
+              case Some(value) =>
+                persistentDiskQuery
+                  .updateStatusAndIsFormatted(msg.diskId, DiskStatus.Ready, value, ctx.now)
+                  .transaction[F]
+                  .void
+              case None =>
+                persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Ready, ctx.now).transaction[F].void
+            },
             F.raiseError(
               new TimeoutException(s"Fail to create disk ${msg.name.value} in a timely manner")
             ), //Should save disk creation error if we have error column in DB
@@ -726,7 +734,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               .adaptError {
                 case e =>
                   PubsubKubernetesError(
-                    AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None),
+                    AppError(e.getMessage,
+                             ctx.now,
+                             ErrorAction.CreateApp,
+                             ErrorSource.Cluster,
+                             None,
+                             Some(ctx.traceId)),
                     Some(msg.appId),
                     false,
                     // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
@@ -742,7 +755,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 .adaptError {
                   case e =>
                     PubsubKubernetesError(
-                      AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None),
+                      AppError(e.getMessage,
+                               ctx.now,
+                               ErrorAction.CreateApp,
+                               ErrorSource.Cluster,
+                               None,
+                               Some(ctx.traceId)),
                       Some(msg.appId),
                       false,
                       // We leave cluster id and default nodepool id as none here because we want the status to stay as DELETED and not transition to ERROR.
@@ -762,7 +780,12 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               .adaptError {
                 case e =>
                   PubsubKubernetesError(
-                    AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Nodepool, None),
+                    AppError(e.getMessage,
+                             ctx.now,
+                             ErrorAction.CreateApp,
+                             ErrorSource.Nodepool,
+                             None,
+                             Some(ctx.traceId)),
                     Some(msg.appId),
                     false,
                     Some(nodepoolId),
@@ -774,24 +797,28 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       }
 
       // create disk asynchronously
-      createDiskOp = createDiskForApp(msg).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None),
-            Some(msg.appId),
-            false,
-            None,
-            None
-          )
-      }
+      createDiskOp = msg.createDisk
+        .traverse(diskId =>
+          createDiskForApp(diskId).adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                Some(msg.appId),
+                false,
+                None,
+                None
+              )
+          }
+        )
+        .void
 
       // create second Galaxy disk asynchronously
-      createSecondDiskOp = if (msg.appType == Galaxy) {
+      createSecondDiskOp = if (msg.appType == Galaxy && msg.createDisk.isDefined) {
         createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, msg.namespaceName)
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 None,
@@ -800,20 +827,22 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           }
       } else F.unit
 
-      // parallelize disk creation and cluster/nodepool monitoring
-      parPreAppCreationSetup = List(createDiskOp, createSecondDiskOp, createClusterOrNodepoolOp).parSequence_
-
       // build asynchronous task
       task = for {
-        _ <- parPreAppCreationSetup
+        // parallelize disk creation and cluster/nodepool monitoring
+        _ <- List(createDiskOp, createSecondDiskOp, createClusterOrNodepoolOp).parSequence_
+
         // create and monitor app
         _ <- gkeInterp
           .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName))
-          .onError { case _ => cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk) }
+          .onError {
+            case _ =>
+              cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk)
+          }
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.App, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.App, None, Some(ctx.traceId)),
                 Some(msg.appId),
                 false,
                 None,
@@ -841,7 +870,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
               None,
               false,
               None,
@@ -856,7 +885,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           .adaptError {
             case e =>
               PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None),
+                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
                 None,
                 false,
                 None,
@@ -879,53 +908,15 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     for {
       ctx <- ev.ask
 
-      deleteApp = gkeInterp
-        .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.App, None),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-        }
-
-      deleteDisk = msg.diskId.traverse_(diskId => deleteDiskForApp(diskId)).adaptError {
-        case e =>
-          PubsubKubernetesError(
-            AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
-            Some(msg.appId),
-            false,
-            None,
-            None
-          )
-      }
-
       dbAppOpt <- KubernetesServiceDbQueries.getFullAppByName(msg.project, msg.appId).transaction
       dbApp <- F.fromOption(dbAppOpt, AppNotFoundException(msg.project, msg.appName, ctx.traceId))
       zone = ZoneName("us-central1-a")
-      deletePostgresDisk = if (dbApp.app.appType == AppType.Galaxy)
-        deleteGalaxyPostgresDiskOnlyInGoogle(msg.project, zone, msg.appName, dbApp.app.appResources.namespace.name)
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.PostgresDisk, None),
-                Some(msg.appId),
-                false,
-                None,
-                None
-              )
-          }
-      else F.unit
 
-      deleteDisksInParallel = List(deleteDisk, deletePostgresDisk).parSequence_
-
+      // The app must be deleted before the nodepool and disk, to future proof against the app potentially flushing the postgres db somewhere
       task = for {
-        // For Galaxy apps, wait for the postgres disk to detach before deleting the disks
-        // TODO should we do this for the other disk too?
-        originalDetachTimestampOpt <- if (dbApp.app.appType == AppType.Galaxy) {
+        // we record the last disk detach timestamp here, before it is removed from galaxy
+        // this is needed before we can delete disks
+        postgresOriginalDetachTimestampOpt <- msg.diskId.flatTraverse { _ =>
           googleDiskService
             .getDisk(
               msg.project,
@@ -933,10 +924,110 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
             )
             .map(_.map(_.getLastDetachTimestamp))
-        } else F.pure(None)
+        }
 
-        // Do the helm uninstall
-        _ <- deleteApp
+        dataDiskOriginalDetachTimestampOpt <- dbApp.app.appResources.disk.flatTraverse { d =>
+          googleDiskService
+            .getDisk(
+              msg.project,
+              zone,
+              d.name
+            )
+            .map(_.map(_.getLastDetachTimestamp))
+        }
+        _ <- gkeInterp
+          .deleteAndPollApp(DeleteAppParams(msg.appId, msg.project, msg.appName, errorAfterDelete))
+          .adaptError {
+            case e =>
+              PubsubKubernetesError(
+                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.App, None, Some(ctx.traceId)),
+                Some(msg.appId),
+                false,
+                None,
+                None
+              )
+          }
+
+        // detach/delete disk when we need to delete disk
+        _ <- msg.diskId.traverse_ { diskId =>
+          // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
+          val getPostgresDisk = googleDiskService.getDisk(
+            msg.project,
+            zone,
+            gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
+          )
+          val getDataDisk = dbApp.app.appResources.disk.flatTraverse { d =>
+            googleDiskService
+              .getDisk(
+                msg.project,
+                zone,
+                d.name
+              )
+          }
+          for {
+            // For Galaxy apps, wait for the postgres disk to detach before deleting the disks
+            _ <- if (dbApp.app.appType == AppType.Galaxy) {
+              val res = for {
+                _ <- streamUntilDoneOrTimeout(
+                  getDiskDetachStatus(postgresOriginalDetachTimestampOpt, getPostgresDisk),
+                  50,
+                  5 seconds,
+                  "The postgres disk failed to detach within the time limit, cannot proceed with delete disk"
+                )
+                _ <- streamUntilDoneOrTimeout(
+                  getDiskDetachStatus(dataDiskOriginalDetachTimestampOpt, getDataDisk),
+                  50,
+                  5 seconds,
+                  "The data disk failed to detach within the time limit, cannot proceed with delete disk"
+                )
+              } yield ()
+              res.adaptError {
+                case e =>
+                  PubsubKubernetesError(
+                    AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                    Some(msg.appId),
+                    false,
+                    None,
+                    None
+                  )
+              }
+            } else F.unit
+            deleteDataDisk = deleteDisk(diskId, true).adaptError {
+              case e =>
+                PubsubKubernetesError(
+                  AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                  Some(msg.appId),
+                  false,
+                  None,
+                  None
+                )
+            }
+
+            deletePostgresDisk = if (dbApp.app.appType == AppType.Galaxy)
+              deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
+                                                   zone,
+                                                   msg.appName,
+                                                   dbApp.app.appResources.namespace.name)
+                .adaptError {
+                  case e =>
+                    PubsubKubernetesError(
+                      AppError(e.getMessage,
+                               ctx.now,
+                               ErrorAction.DeleteApp,
+                               ErrorSource.PostgresDisk,
+                               None,
+                               Some(ctx.traceId)),
+                      Some(msg.appId),
+                      false,
+                      None,
+                      None
+                    )
+                }
+            else F.unit
+
+            _ <- List(deleteDataDisk, deletePostgresDisk).parSequence_
+          } yield ()
+        }
         _ <- if (!errorAfterDelete)
           dbApp.app.status match {
             // If the message is resubmitted, and this step has already been run, we don't want to re-notify the app creator and update the deleted timestamp
@@ -947,34 +1038,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
                 .void
           }
         else F.unit
-
-        // If this is a Galaxy app, wait for the postgres disk to be detached before moving on
-        _ <- if (dbApp.app.appType == AppType.Galaxy) {
-          streamUntilDoneOrTimeout(
-            getDiskDetachStatus(originalDetachTimestampOpt,
-                                googleDiskService
-                                  .getDisk(
-                                    msg.project,
-                                    zone,
-                                    gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
-                                  )),
-            30,
-            5 seconds,
-            "The disk failed to detach within the time limit, cannot proceed with delete disk"
-          ).adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None),
-                Some(msg.appId),
-                false,
-                None,
-                None
-              )
-          }
-        } else F.unit
-
-        // Delete the disks
-        _ <- deleteDisksInParallel
       } yield ()
 
       _ <- if (sync) task
@@ -989,6 +1052,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     for {
       disk <- getDisk
     } yield DiskDetachStatus(disk, originalDetachTimestampOpt)
+
   implicit val diskDetachDone: DoneCheckable[DiskDetachStatus] = x =>
     x.disk.map(_.getLastDetachTimestamp) != x.originalDetachTimestampOpt
 
@@ -1025,7 +1089,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       appOpt <- KubernetesServiceDbQueries.getFullAppByName(project, appId).transaction
       // note that this will only clean up the disk if it was created as part of this app creation.
       // it should not clean up the disk if it already existed
-      _ <- appOpt.traverse { app =>
+      _ <- appOpt.traverse { _ =>
         val deleteMsg =
           DeleteAppMessage(appId, appName, project, diskId, Some(ctx.traceId))
         // This is a good-faith attempt at clean-up. We do not want to take any action if clean-up fails for some reason.
@@ -1045,7 +1109,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.StopApp, ErrorSource.App, None, Some(ctx.traceId)),
               Some(msg.appId),
               false,
               None,
@@ -1066,7 +1130,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         .adaptError {
           case e =>
             PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.StartApp, ErrorSource.App, None),
+              AppError(e.getMessage, ctx.now, ErrorAction.StartApp, ErrorSource.App, None, Some(ctx.traceId)),
               Some(msg.appId),
               false,
               None,
@@ -1077,14 +1141,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- asyncTasks.enqueue1(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now))
     } yield ()
 
-  private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>
     e match {
       case e: PubsubKubernetesError =>
         for {
-          ctx <- ev.ask
-          _ <- logger.error(ctx.loggingCtx, e)(s"Encountered async error for app ${e.appId}")
+          _ <- logger.error(ctx.loggingCtx, e)(s"Encountered an error for app ${e.appId}, ${e.getMessage}")
           _ <- e.appId.traverse(id => appErrorQuery.save(id, e.dbError).transaction)
-          _ <- e.appId.traverse(id => appQuery.updateStatus(id, AppStatus.Error).transaction)
+          _ <- e.appId.traverse(id => appQuery.markAsErrored(id).transaction)
           _ <- e.clusterId.traverse(clusterId =>
             kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
           )
@@ -1092,36 +1155,26 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             nodepoolQuery.updateStatus(nodepoolId, NodepoolStatus.Error).transaction
           )
         } yield ()
-      case e =>
-        ev.ask.flatMap(ctx =>
-          logger.error(ctx.loggingCtx, e)(
-            s"handleKubernetesError should not be used with a non kubernetes error. WHATEVER ERROR THIS IS SHOULD BE HANDLED AT ITS SOURCE TO APPROPRIATELY UPDATE DB STATE. Error: ${e}"
-          )
+      case _ =>
+        logger.error(ctx.loggingCtx, e)(
+          s"handleKubernetesError should not be used with a non kubernetes error. WHATEVER ERROR THIS IS SHOULD BE HANDLED AT ITS SOURCE TO APPROPRIATELY UPDATE DB STATE. Error: ${e}"
         )
     }
+  }
 
-  private def deleteDiskForApp(diskId: DiskId)(
+  private def createDiskForApp(diskId: DiskId)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
-    deleteDisk(diskId, true)
-
-  private def createDiskForApp(msg: CreateAppMessage)(
-    implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
-    msg.createDisk match {
-      case Some(diskId) =>
-        for {
-          ctx <- ev.ask
-          _ <- logger.info(ctx.loggingCtx)(s"Beginning disk creation for app ${msg.appName}")
-          diskOpt <- persistentDiskQuery.getById(diskId).transaction
-          disk <- F.fromOption(
-            diskOpt,
-            DiskNotFound(diskId)
-          )
-          _ <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)), true)
-        } yield ()
-      case None => F.unit
-    }
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(s"Beginning disk creation for app")
+      diskOpt <- persistentDiskQuery.getById(diskId).transaction
+      disk <- F.fromOption(
+        diskOpt,
+        DiskNotFound(diskId)
+      )
+      _ <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)), Some(FormattedBy.Galaxy), true)
+    } yield ()
 
   private def createRuntimeErrorHandler(msg: CreateRuntimeMessage,
                                         now: Instant)(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
