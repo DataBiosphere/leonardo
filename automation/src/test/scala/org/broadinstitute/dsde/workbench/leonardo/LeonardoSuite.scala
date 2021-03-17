@@ -4,7 +4,11 @@ import cats.effect.IO
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, BatchNodepoolCreationSpec}
+import org.broadinstitute.dsde.workbench.leonardo.apps.{
+  AppCreationSpec,
+  BatchNodepoolCreationSpec,
+  CustomAppCreationSpec
+}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -141,7 +145,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
           .createRuntimeWithWait(
             project,
             initalRuntimeName,
-            LeonardoApiClient.defaultCreateDataprocRuntimeRequest
+            LeonardoApiClient.defaultCreateRuntime2Request
           )
           .attempt
         _ <- res match {
@@ -184,6 +188,7 @@ final class LeonardoSuite
     extends Suites(
       new BatchNodepoolCreationSpec,
       new AppCreationSpec,
+      new CustomAppCreationSpec,
       new RuntimeCreationDiskSpec,
       new LabSpec,
       new LeoPubsubSpec,

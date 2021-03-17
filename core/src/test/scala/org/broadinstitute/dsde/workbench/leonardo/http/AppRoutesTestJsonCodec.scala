@@ -6,24 +6,30 @@ import io.circe.{Decoder, Encoder, KeyDecoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.NumNodepools
+import org.http4s.Uri
 
 object AppRoutesTestJsonCodec {
-  implicit val createAppEncoder: Encoder[CreateAppRequest] = Encoder.forProduct5(
+  implicit val descriptorEncoder: Encoder[Uri] = Encoder.encodeString.contramap(_.toString)
+
+  implicit val createAppEncoder: Encoder[CreateAppRequest] = Encoder.forProduct7(
     "kubernetesRuntimeConfig",
     "appType",
     "diskConfig",
     "labels",
-    "customEnvironmentVariables"
+    "customEnvironmentVariables",
+    "descriptorPath",
+    "extraArgs"
   )(x =>
     (
       x.kubernetesRuntimeConfig,
       x.appType,
       x.diskConfig,
       x.labels,
-      x.customEnvironmentVariables
+      x.customEnvironmentVariables,
+      x.descriptorPath,
+      x.extraArgs
     )
   )
-
   implicit val numNodepoolsEncoder: Encoder[NumNodepools] = Encoder.encodeInt.contramap(_.value)
 
   implicit val proxyUrlDecoder: Decoder[Map[ServiceName, URL]] =

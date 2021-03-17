@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
-
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
@@ -19,7 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
@@ -243,19 +242,19 @@ final case class DefaultKubernetesLabels(googleProject: GoogleProject,
 
 sealed abstract class ErrorAction
 object ErrorAction {
-  case object CreateGalaxyApp extends ErrorAction {
+  case object CreateApp extends ErrorAction {
     override def toString: String = "createGalaxyApp"
   }
 
-  case object DeleteGalaxyApp extends ErrorAction {
+  case object DeleteApp extends ErrorAction {
     override def toString: String = "deleteGalaxyApp"
   }
 
-  case object StopGalaxyApp extends ErrorAction {
+  case object StopApp extends ErrorAction {
     override def toString: String = "stopGalaxyApp"
   }
 
-  case object StartGalaxyApp extends ErrorAction {
+  case object StartApp extends ErrorAction {
     override def toString: String = "startGalaxyApp"
   }
 
@@ -270,7 +269,8 @@ final case class AppError(errorMessage: String,
                           timestamp: Instant,
                           action: ErrorAction,
                           source: ErrorSource,
-                          googleErrorCode: Option[Int])
+                          googleErrorCode: Option[Int],
+                          traceId: Option[TraceId] = None)
 
 final case class KubernetesErrorId(value: Long) extends AnyVal
 

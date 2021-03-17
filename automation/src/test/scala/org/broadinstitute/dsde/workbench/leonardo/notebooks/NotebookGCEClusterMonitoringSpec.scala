@@ -41,15 +41,16 @@ class NotebookGCEClusterMonitoringSpec
           withNewNotebook(runtime, kernel = Python3) { notebookPage =>
             notebookPage.executeCell(s"""print("$printStr")""") shouldBe Some(printStr)
           }
+        }
 
-          // Stop the runtime
-          stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+        // Stop the runtime
+        stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-          // Start the runtime
-          startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+        // Start the runtime
+        startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-          // TODO make tests rename notebooks?
-          val notebookPath = new File("Untitled.ipynb")
+        val notebookPath = new File("Untitled.ipynb")
+        withWebDriver { implicit driver =>
           // Use a longer timeout than default because opening notebooks after resume can be slow
           withOpenNotebook(runtime, notebookPath, 10.minutes) { notebookPage =>
             // old output should still exist
@@ -83,27 +84,29 @@ class NotebookGCEClusterMonitoringSpec
             rstudioPage.variableExists(s""""${runtime.googleProject.value}"""") shouldBe true
             Thread.sleep(5000)
           }
+        }
 
-          // Stop the cluster
-          stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+        // Stop the cluster
+        stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-          // Start the cluster
-          startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
+        // Start the cluster
+        startAndMonitorRuntime(runtime.googleProject, runtime.clusterName)
 
-          val getResultAfterResume = Try(RStudio.getApi(runtime.googleProject, runtime.clusterName))
-          getResultAfterResume.isSuccess shouldBe true
-          getResultAfterResume.get should include("unsupported_browser")
-          getResultAfterResume.get should not include "ProxyException"
+        val getResultAfterResume = Try(RStudio.getApi(runtime.googleProject, runtime.clusterName))
+        getResultAfterResume.isSuccess shouldBe true
+        getResultAfterResume.get should include("unsupported_browser")
+        getResultAfterResume.get should not include "ProxyException"
 
-          // Make sure RStudio session is preserved
-          // TODO: commenting because this is flakey: the variables pane sometimes does
-          // not appear by default when RStudio is restarted, causing the selenium check to fail.
+      // Make sure RStudio session is preserved
+      // TODO: commenting because this is flakey: the variables pane sometimes does
+      // not appear by default when RStudio is restarted, causing the selenium check to fail.
+//        withWebDriver { implicit driver =>
 //          withNewRStudio(runtime) { rstudioPage =>
 //            await visible cssSelector("[title~='ns']")
 //            rstudioPage.variableExists("ns") shouldBe true
 //            rstudioPage.variableExists(s""""${runtime.googleProject.value}"""") shouldBe true
 //          }
-        }
+//        }
       }
     }
 
