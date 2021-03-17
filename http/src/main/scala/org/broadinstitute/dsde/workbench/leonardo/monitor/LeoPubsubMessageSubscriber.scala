@@ -965,33 +965,33 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               )
           }
           for {
-            // For Galaxy apps, wait for the postgres disk to detach before deleting the disks
-            _ <- if (dbApp.app.appType == AppType.Galaxy) {
-              val res = for {
-                _ <- streamUntilDoneOrTimeout(
+            // For Galaxy apps, wait for the postgres disk to detach before deleting the disks;
+            // otherwise, only wait for data disk to detach
+            _ <- (for {
+              _ <- if (dbApp.app.appType == AppType.Galaxy)
+                streamUntilDoneOrTimeout(
                   getDiskDetachStatus(postgresOriginalDetachTimestampOpt, getPostgresDisk),
                   50,
                   5 seconds,
                   "The postgres disk failed to detach within the time limit, cannot proceed with delete disk"
                 )
-                _ <- streamUntilDoneOrTimeout(
-                  getDiskDetachStatus(dataDiskOriginalDetachTimestampOpt, getDataDisk),
-                  50,
-                  5 seconds,
-                  "The data disk failed to detach within the time limit, cannot proceed with delete disk"
+              else F.unit
+              _ <- streamUntilDoneOrTimeout(
+                getDiskDetachStatus(dataDiskOriginalDetachTimestampOpt, getDataDisk),
+                50,
+                5 seconds,
+                "The data disk failed to detach within the time limit, cannot proceed with delete disk"
+              )
+            } yield ()).adaptError {
+              case e =>
+                PubsubKubernetesError(
+                  AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                  Some(msg.appId),
+                  false,
+                  None,
+                  None
                 )
-              } yield ()
-              res.adaptError {
-                case e =>
-                  PubsubKubernetesError(
-                    AppError(e.getMessage, ctx.now, ErrorAction.DeleteApp, ErrorSource.Disk, None, Some(ctx.traceId)),
-                    Some(msg.appId),
-                    false,
-                    None,
-                    None
-                  )
-              }
-            } else F.unit
+            }
             deleteDataDisk = deleteDisk(diskId, true).adaptError {
               case e =>
                 PubsubKubernetesError(
