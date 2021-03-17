@@ -271,7 +271,7 @@ final case class AppError(errorMessage: String,
                           source: ErrorSource,
                           googleErrorCode: Option[Int],
                           traceId: Option[TraceId] = None) {
-  val messageToSaveInDb = s"${traceId.map(x => x.asString).getOrElse(" ")} | ${errorMessage}"
+  val messageToSaveInDb = s"${traceId.map(x => x.asString + " | ").getOrElse("")}${errorMessage}"
 }
 
 final case class KubernetesErrorId(value: Long) extends AnyVal
