@@ -4,7 +4,7 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.openqa.selenium.Keys
 import org.scalatest.DoNotDiscover
 
-//@DoNotDiscover
+@DoNotDiscover
 class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage.imageUrl)
