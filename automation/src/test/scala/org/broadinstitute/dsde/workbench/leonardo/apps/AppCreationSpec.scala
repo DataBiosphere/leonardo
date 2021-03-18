@@ -206,13 +206,8 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
               )
-              getDiskResp <- streamUntilDoneOrTimeout(
-                LeonardoApiClient.getDisk(googleProject, diskName).attempt,
-                30,
-                10 seconds,
-                s"AppCreationSpec: disk failed to delete for app ${googleProject.value}/${appName.value}"
-              )
-            } yield ()
+              getDiskResp <- LeonardoApiClient.getDisk(googleProject, diskName).attempt
+            } yield getDiskResp.toOption shouldBe (None)
           }
         } yield ()
       }
