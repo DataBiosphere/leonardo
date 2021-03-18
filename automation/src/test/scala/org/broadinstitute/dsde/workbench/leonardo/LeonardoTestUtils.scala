@@ -1,10 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
-import cats.effect.concurrent.Semaphore
 import cats.effect.IO
+import cats.effect.concurrent.Semaphore
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
@@ -17,14 +18,13 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName
 }
 import org.broadinstitute.dsde.workbench.leonardo.ClusterStatus.{deletableStatuses, ClusterStatus}
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, GetAppResponse, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.CreateRuntime2Request
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
-import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.Suite
@@ -143,10 +143,8 @@ trait LeonardoTestUtils
   // TODO: show diffs as screenshot or other test output?
   def compareFilesExcludingIPs(left: File, right: File): Unit = {
 
-    def linesWithoutIPs(file: File) = {
-      import scala.jdk.CollectionConverters._
+    def linesWithoutIPs(file: File) =
       Files.readAllLines(file.toPath).asScala map { _.replaceAll("(\\d+.){3}\\d+", "<IP>") }
-    }
 
     linesWithoutIPs(left) shouldEqual linesWithoutIPs(right)
   }
@@ -711,14 +709,5 @@ trait LeonardoTestUtils
 
   def randomAppName: AppName = AppName(s"automation-test-app-a${makeRandomId().toLowerCase}z")
   def randomDiskName(): DiskName = DiskName(s"automation-test-disk-a${makeRandomId().toLowerCase}z")
-
-  def appDeleted(appName: AppName): DoneCheckable[List[ListAppResponse]] =
-    x => x.filter(_.appName == appName).map(_.status).distinct == List(AppStatus.Deleted)
-
-  def appsDeleted(appNames: Set[AppName]): DoneCheckable[List[ListAppResponse]] =
-    x => x.filter(r => appNames.contains(r.appName)).map(_.status).distinct == List(AppStatus.Deleted)
-
-  def appInStateOrError(status: AppStatus): DoneCheckable[GetAppResponse] =
-    x => x.status == status || x.status == AppStatus.Error
 
 }

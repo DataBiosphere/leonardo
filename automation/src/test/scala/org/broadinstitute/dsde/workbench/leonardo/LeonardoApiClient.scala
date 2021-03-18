@@ -229,7 +229,7 @@ object LeonardoApiClient {
     } yield res
   }
 
-  def waitUntilAppRunning(googleProject: GoogleProject, appName: AppName, shouldError: Boolean = true)(
+  def waitUntilAppRunning(googleProject: GoogleProject, appName: AppName)(
     implicit timer: Timer[IO],
     client: Client[IO],
     authHeader: Authorization,
@@ -247,14 +247,62 @@ object LeonardoApiClient {
       )
       _ <- res.status match {
         case AppStatus.Error =>
-          if (shouldError)
-            IO.raiseError(
-              new RuntimeException(s"${googleProject.value}/${appName.value} errored due to ${res.errors}")
-            )
-          else logger.info(s"${googleProject.value}/${appName.value} errored due to ${res.errors}")
+          IO.raiseError(
+            new RuntimeException(s"${googleProject.value}/${appName.value} errored due to ${res.errors}")
+          )
         case _ => IO.unit
       }
     } yield res
+  }
+
+  def waitUntilAppStopped(googleProject: GoogleProject, appName: AppName)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization,
+    logger: StructuredLogger[IO]
+  ): IO[GetAppResponse] = {
+    val ioa = getApp(googleProject, appName)
+    implicit val doneCheckeable: DoneCheckable[GetAppResponse] = x =>
+      x.status == AppStatus.Stopped || x.status == AppStatus.Error
+    for {
+      res <- timer.sleep(30 seconds) >> streamUntilDoneOrTimeout(
+        ioa,
+        120,
+        10 seconds,
+        s"app ${googleProject.value}/${appName.value} did not finish app stop after 20 minutes."
+      )
+      _ <- res.status match {
+        case AppStatus.Error =>
+          IO.raiseError(
+            new RuntimeException(s"${googleProject.value}/${appName.value} errored due to ${res.errors}")
+          )
+        case _ => IO.unit
+      }
+    } yield res
+  }
+
+  def waitUntilAppDeleted(googleProject: GoogleProject, appName: AppName)(
+    implicit timer: Timer[IO],
+    client: Client[IO],
+    authHeader: Authorization,
+    logger: StructuredLogger[IO]
+  ): IO[Unit] = {
+    val ioa = getApp(googleProject, appName).attempt
+    for {
+      res <- timer.sleep(60 seconds) >> streamUntilDoneOrTimeout(
+        ioa,
+        120,
+        10 seconds,
+        s"app ${googleProject.value}/${appName.value} did not finish app deletion after 20 minutes."
+      )
+      _ <- res match {
+        case Right(res) =>
+          IO.raiseError(
+            new RuntimeException(s"${googleProject.value}/${appName.value} errored due to ${res.errors}")
+          )
+        case _ => IO.unit
+      }
+    } yield ()
   }
 
   def getRuntime(
