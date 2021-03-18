@@ -447,16 +447,6 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def createAppWithWait(
-    googleProject: GoogleProject,
-    appName: AppName,
-    createAppRequest: CreateAppRequest = defaultCreateAppRequest
-  )(implicit client: Client[IO], authHeader: Authorization, logger: StructuredLogger[IO], timer: Timer[IO]): IO[Unit] =
-    for {
-      _ <- createApp(googleProject, appName, createAppRequest)
-      _ <- waitUntilAppRunning(googleProject, appName, true)
-    } yield ()
-
   def createAppWithRetry(
     googleProject: GoogleProject,
     appName: AppName,

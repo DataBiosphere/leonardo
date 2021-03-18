@@ -17,25 +17,25 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
-  "create, delete an app and re-create an app with same disk" taggedAs Tags.SmokeTest in { _ =>
-    withNewProject { googleProject =>
-      val appName = randomAppName
-      val restoreAppName = AppName(s"restore-${appName.value}")
-      val diskName = Generators.genDiskName.sample.get
+  "create, delete an app and re-create an app with same disk" taggedAs Tags.SmokeTest in { googleProject =>
+    val appName = randomAppName
+    val restoreAppName = AppName(s"restore-${appName.value}")
+    val diskName = Generators.genDiskName.sample.get
 
-      val createAppRequest = defaultCreateAppRequest.copy(
-        diskConfig = Some(
-          PersistentDiskRequest(
-            diskName,
-            Some(DiskSize(300)),
-            None,
-            Map.empty
-          )
-        ),
-        customEnvironmentVariables = Map("WORKSPACE_NAME" -> "Galaxy-Workshop-ASHG_2020_GWAS_Demo")
-      )
+    val createAppRequest = defaultCreateAppRequest.copy(
+      diskConfig = Some(
+        PersistentDiskRequest(
+          diskName,
+          Some(DiskSize(300)),
+          None,
+          Map.empty
+        )
+      ),
+      customEnvironmentVariables = Map("WORKSPACE_NAME" -> "Galaxy-Workshop-ASHG_2020_GWAS_Demo")
+    )
 
-      LeonardoApiClient.client.use { implicit client =>
+    LeonardoApiClient.client
+      .use { implicit client =>
         for {
           _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
@@ -95,26 +95,26 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           }
         } yield ()
       }
-    }
+      .unsafeRunSync()
   }
 
-  "stop and start an app" taggedAs Tags.SmokeTest in { _ =>
-    withNewProject { googleProject =>
-      val appName = randomAppName
-      val diskName = Generators.genDiskName.sample.get
+  "stop and start an app" taggedAs Tags.SmokeTest in { googleProject =>
+    val appName = randomAppName
+    val diskName = Generators.genDiskName.sample.get
 
-      val createAppRequest = defaultCreateAppRequest.copy(
-        diskConfig = Some(
-          PersistentDiskRequest(
-            diskName,
-            Some(DiskSize(500)),
-            None,
-            Map.empty
-          )
+    val createAppRequest = defaultCreateAppRequest.copy(
+      diskConfig = Some(
+        PersistentDiskRequest(
+          diskName,
+          Some(DiskSize(500)),
+          None,
+          Map.empty
         )
       )
+    )
 
-      LeonardoApiClient.client.use { implicit client =>
+    LeonardoApiClient.client
+      .use { implicit client =>
         for {
           _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
@@ -211,7 +211,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           }
         } yield ()
       }
-    }
+      .unsafeRunSync()
   }
 
 }
