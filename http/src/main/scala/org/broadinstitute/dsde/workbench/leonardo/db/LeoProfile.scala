@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-
 import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{
@@ -20,7 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
   ServiceAccountName,
   ServiceName
 }
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import org.broadinstitute.dsp.Release
 import org.http4s.Uri
@@ -133,6 +132,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[BlockSize, Int](_.bytes, BlockSize.apply)
     implicit val pvcIdMappedColumnType: BaseColumnType[PvcId] =
       MappedColumnType.base[PvcId, String](_.asString, PvcId.apply)
+    implicit val traceIdIdMappedColumnType: BaseColumnType[TraceId] =
+      MappedColumnType.base[TraceId, String](_.asString, TraceId.apply)
     implicit val labelResourceTypeColumnMapper: BaseColumnType[LabelResourceType] =
       MappedColumnType.base[LabelResourceType, String](
         _.asString,
