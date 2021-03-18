@@ -5,7 +5,6 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.ProxyRedirectClient
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
-
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.Try
