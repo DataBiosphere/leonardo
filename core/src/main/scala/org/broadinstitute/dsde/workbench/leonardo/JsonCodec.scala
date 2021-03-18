@@ -31,6 +31,8 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject
 }
 import org.http4s.Uri
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
 object JsonCodec {
   // Errors
@@ -155,7 +157,7 @@ object JsonCodec {
   implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
   implicit val errorActionEncoder: Encoder[ErrorAction] = Encoder.encodeString.contramap(_.toString)
   implicit val kubernetesErrorEncoder: Encoder[AppError] =
-    Encoder.forProduct5("errorMessage", "timestamp", "action", "source", "googleErrorCode")(x =>
+    Encoder.forProduct6("errorMessage", "timestamp", "action", "source", "googleErrorCode", "traceId")(x =>
       AppError.unapply(x).get
     )
   implicit val nodepoolIdEncoder: Encoder[NodepoolLeoId] = Encoder.encodeLong.contramap(_.id)
@@ -362,7 +364,7 @@ object JsonCodec {
   implicit val errorActionDecoder: Decoder[ErrorAction] =
     Decoder.decodeString.emap(s => ErrorAction.stringToObject.get(s).toRight(s"Invalid error action ${s}"))
   implicit val kubernetesErrorDecoder: Decoder[AppError] =
-    Decoder.forProduct5("errorMessage", "timestamp", "action", "source", "googleErrorCode")(AppError.apply)
+    Decoder.forProduct6("errorMessage", "timestamp", "action", "source", "googleErrorCode", "traceId")(AppError.apply)
 
   implicit val nodepoolIdDecoder: Decoder[NodepoolLeoId] = Decoder.decodeLong.map(NodepoolLeoId)
   implicit val nodepoolNameDecoder: Decoder[NodepoolName] =
