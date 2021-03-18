@@ -98,7 +98,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
       .unsafeRunSync()
   }
 
-  "stop and start an app" taggedAs Tags.SmokeTest in { googleProject =>
+  "stop and start an app" in { googleProject =>
     val appName = randomAppName
     val diskName = Generators.genDiskName.sample.get
 
