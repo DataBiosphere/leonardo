@@ -72,7 +72,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
                   s"AppCreationSpec: app ${googleProject.value}/${appName.value} has been deleted."
                 )
                 _ <- LeonardoApiClient.createAppWithRetry(googleProject, restoreAppName, createAppRequest)
-                _ <- waitUntilAppRunning(googleProject, appName)
+                _ <- waitUntilAppRunning(googleProject, restoreAppName)
               } yield ()
           }
         } yield ()
