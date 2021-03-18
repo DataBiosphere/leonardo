@@ -210,7 +210,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
             ) <* IO
               .fromFuture(IO(request.entity.discardBytes().future))
         }
-      _ <- metrics.incrementCounter("proxyApp")
+      _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "requestApp"))
+
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
     } yield resp
 
@@ -224,7 +225,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
-      _ <- metrics.incrementCounter("openTerminal")
+      _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "openTerminal"))
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
     } yield resp
 
@@ -237,17 +238,17 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
-      _ <- metrics.incrementCounter("proxyRuntime")
+      _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest"))
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
     } yield resp
 
   private[api] def setCookieHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("setCookie") >>
+    metrics.incrementCounter("proxy", tags = Map("action" -> "setCookie")) >>
       IO(logger.debug(s"Successfully set cookie for user $userInfoOpt"))
         .as(StatusCodes.NoContent)
 
   private[api] def invalidateTokenHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("invalidateToken") >>
+    metrics.incrementCounter("proxy", tags = Map("action" -> "invalidateToken")) >>
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)

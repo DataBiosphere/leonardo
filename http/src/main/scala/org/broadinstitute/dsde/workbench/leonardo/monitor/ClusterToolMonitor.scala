@@ -55,6 +55,8 @@ class ClusterToolMonitor(
       val res = for {
         activeClusters <- getActiveClustersFromDatabase
         statuses <- activeClusters.toList.parFlatTraverse(checkClusterStatus)
+        _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "getClusterStatus"))
+
         //statuses is a Seq[Seq[ToolStatus]] because we create a Seq[ToolStatus] for each cluster, necessitating the flatten below
         _ <- statuses.parTraverse(handleClusterStatus)
       } yield ()

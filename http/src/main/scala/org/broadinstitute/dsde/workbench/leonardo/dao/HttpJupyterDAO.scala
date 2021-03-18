@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
@@ -17,11 +18,13 @@ import org.http4s.{Method, Request, Uri}
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
 class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
   implicit F: Concurrent[F],
+  metrics: OpenTelemetryMetrics[F],
   logger: Logger[F]
 ) extends JupyterDAO[F] {
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
       case HostReady(targetHost) =>
+        metrics.incrementCounter("proxy", tags = Map("action" -> "getJupyterStatus"))
         client
           .successful(
             Request[F](
@@ -32,7 +35,9 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
             )
           )
           .handleError(_ => false)
-      case _ => F.pure(false)
+      case _ =>
+        metrics.incrementCounter("proxy", tags = Map("action" -> "getJupyterStatus"))
+        F.pure(false)
     }
 
   def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
