@@ -81,7 +81,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       _ <- if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
         F.raiseError[Unit](
           KubernetesAppCreationException(
-            s"You cannot create an app while a cluster is in status ${saveClusterResult.minimalCluster.status}"
+            s"You cannot create an app while a cluster${saveClusterResult.minimalCluster.clusterName.value} is in status ${saveClusterResult.minimalCluster.status}",
+            Some(ctx.traceId)
           )
         )
       else F.unit
