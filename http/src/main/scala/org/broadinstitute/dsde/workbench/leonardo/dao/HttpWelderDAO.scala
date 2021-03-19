@@ -38,12 +38,14 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
             )
             .as(false)
       }
-      _ <- if (res)
+      _ <- if (res) {
         metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "success"))
-      else
+        metrics.incrementCounter("proxy", tags = Map("action" -> "flushWelderCache"))
+      } else {
         metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "failure"))
+        metrics.incrementCounter("proxy", tags = Map("action" -> "flushWelderCache"))
 
-      _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "flushWelderCache"))
+      }
     } yield ()
 
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
@@ -70,10 +72,12 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
       }
       _ <- if (res) {
         metrics.incrementCounter("welder/status", tags = Map("result" -> "success"))
-      } else
-        metrics.incrementCounter("welder/status", tags = Map("result" -> "failure"))
+        metrics.incrementCounter("proxy", tags = Map("action" -> "getWelderStatus"))
 
-      _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "getWelderStatus"))
+      } else {
+        metrics.incrementCounter("welder/status", tags = Map("result" -> "failure"))
+        metrics.incrementCounter("proxy", tags = Map("action" -> "getWelderStatus"))
+      }
     } yield res
 }
 
