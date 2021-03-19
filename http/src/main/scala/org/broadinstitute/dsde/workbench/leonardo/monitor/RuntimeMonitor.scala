@@ -125,10 +125,19 @@ final case class MonitorContext(start: Instant, runtimeId: Long, traceId: TraceI
   val loggingContext = Map("traceId" -> traceId.asString, "action" -> action.toString)
 }
 
-sealed abstract class MonitorState extends Product with Serializable
+sealed abstract class MonitorState extends Product with Serializable {
+  // Indicates whether the status transition is changed from what the stream has started with.
+  // This can happen when a monitor stream started as monitoring for `Starting`, but somehow starting fails, hence,
+  // we need to transition runtime to `Stopped` now
+  def newTransition: Option[RuntimeStatus]
+}
 object MonitorState {
-  final case object Initial extends MonitorState
-  final case class Check(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig) extends MonitorState
+  final case object Initial extends MonitorState {
+    def newTransition: Option[RuntimeStatus] = None
+  }
+  final case class Check(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                         override val newTransition: Option[RuntimeStatus])
+      extends MonitorState
 }
 
 sealed trait MonitorConfig {

@@ -322,6 +322,35 @@ class GceRuntimeMonitorSpec
     res.unsafeRunSync()
   }
 
+//  it should "transition gce runtime to Stopping if Starting times out" in isolatedDbTest {
+//    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
+//      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+//        implicit ev: Ask[IO, TraceId]
+//      ): IO[Option[Instance]] = {
+//        val beforeInstance = Instance.newBuilder().setStatus("Provisioning").build()
+//        val afterInstance = Instance.newBuilder().setStatus("Stopped").build()
+//
+//        for {
+//          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
+//          res <- if (now - start < 5000)
+//            IO.pure(Some(beforeInstance))
+//          else IO.pure(Some(afterInstance))
+//        } yield res
+//      }
+//    }
+//
+//    val res = for {
+//      start <- nowInstant[IO]
+//      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
+//      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).save())
+//      assersions = for {
+//        status <- clusterQuery.getClusterStatus(runtime.id).transaction
+//      } yield status.get shouldBe RuntimeStatus.Stopped
+//      _ <- withInfiniteStream(monitor.process(runtime.id, RuntimeStatus.Starting), assersions)
+//    } yield ()
+//    res.unsafeRunSync()
+//  }
+
   it should "terminate if instance is terminated after 5 seconds when trying to Starting one" in isolatedDbTest {
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,

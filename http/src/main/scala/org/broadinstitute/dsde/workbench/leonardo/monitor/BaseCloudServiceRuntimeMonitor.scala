@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import cats.Parallel
+import cats.effect.concurrent.Ref
 import cats.effect.{Async, Sync, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
@@ -50,10 +51,20 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- Stream.eval(ev.ask)
       startMonitoring <- Stream.eval(nowInstant[F])
-      monitorContext = MonitorContext(startMonitoring, runtimeId, traceId, runtimeStatus)
-      _ <- Stream.sleep(monitorConfig.initialDelay) ++ Stream.unfoldLoopEval[F, MonitorState, Unit](Initial)(s =>
-        Timer[F].sleep(monitorConfig.pollingInterval) >> handler(monitorContext, s)
+      monitorContextRef <- Stream.eval(
+        Ref.of[F, MonitorContext](MonitorContext(startMonitoring, runtimeId, traceId, runtimeStatus))
       )
+      _ <- Stream.sleep(monitorConfig.initialDelay) ++ Stream.unfoldLoopEval[F, MonitorState, Unit](Initial) { s =>
+        for {
+          _ <- s.newTransition.traverse(newStatus => monitorContextRef.modify(x => (x.copy(action = newStatus), ())))
+          monitorContext <- monitorContextRef.get
+          _ <- Timer[F].sleep(monitorConfig.pollingInterval)
+          res <- handler(
+            monitorContext,
+            s
+          )
+        } yield res
+      }
     } yield ()
 
   def pollCheck(googleProject: GoogleProject,
@@ -74,7 +85,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           logger
             .error(ctx.loggingCtx)(s"disappeared from database in the middle of status transition!")
             .as(((), None))
-        case Some(status) if (status != monitorContext.action) =>
+        case Some(status) if (status != monitorContext.action) && monitorState.newTransition.isEmpty =>
           val tags = Map("original_status" -> monitorContext.action.toString, "interrupted_by" -> status.toString)
           openTelemetry.incrementCounter("earlyTerminationOfMonitoring", 1, tags) >> logger
             .warn(ctx.loggingCtx)(
@@ -83,8 +94,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             .as(((), None))
         case Some(_) =>
           monitorState match {
-            case MonitorState.Initial                        => handleInitial(monitorContext)
-            case MonitorState.Check(runtimeAndRuntimeConfig) => handleCheck(monitorContext, runtimeAndRuntimeConfig)
+            case MonitorState.Initial => handleInitial(monitorContext)
+            case MonitorState.Check(runtimeAndRuntimeConfig, _) =>
+              handleCheck(monitorContext, runtimeAndRuntimeConfig)
           }
       }
     } yield res
@@ -217,6 +229,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         ctx
       )
       timeElapsed = (now.toEpochMilli - monitorContext.start.toEpochMilli).millis
+
       res <- monitorConfig.monitorStatusTimeouts.get(runtimeAndRuntimeConfig.runtime.status) match {
         case Some(timeLimit) if timeElapsed > timeLimit =>
           for {
@@ -239,7 +252,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                   LeoLenses.ipRuntimeAndRuntimeConfig.set(i)(runtimeAndRuntimeConfig)
                 )
                 rrc = runtimeAndRuntimeConfigAfterSetIp.lens(_.runtime.status).set(RuntimeStatus.Stopping)
-              } yield ((), Some(MonitorState.Check(rrc))): CheckResult
+              } yield ((), Some(MonitorState.Check(rrc, Some(RuntimeStatus.Stopping)))): CheckResult
             } else
               failedRuntime(
                 monitorContext,
@@ -253,11 +266,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         case _ =>
           logger
             .info(monitorContext.loggingContext)(
-              s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in ${runtimeAndRuntimeConfig.runtime.status.terminalStatus
+              s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is still in ${runtimeAndRuntimeConfig.runtime.status}, not in ${runtimeAndRuntimeConfig.runtime.status.terminalStatus
                 .getOrElse("final")} state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
                 .getOrElse("")}"
             )
-            .as(((), Some(Check(runtimeAndRuntimeConfig))))
+            .as(((), Some(Check(runtimeAndRuntimeConfig, None))))
       }
     } yield res
 
