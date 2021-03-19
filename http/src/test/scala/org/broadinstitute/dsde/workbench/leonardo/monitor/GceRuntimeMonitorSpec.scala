@@ -296,7 +296,7 @@ class GceRuntimeMonitorSpec
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val beforeInstance = Instance.newBuilder().setStatus("TERMINATED").build()
+        val beforeInstance = Instance.newBuilder().setStatus("Stopping").build()
 
         for {
           now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
@@ -317,6 +317,46 @@ class GceRuntimeMonitorSpec
     } yield {
       (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
       status shouldBe Some(RuntimeStatus.Running)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "terminate if instance is terminated after 5 seconds when trying to Starting one" in isolatedDbTest {
+    val runtime = makeCluster(1).copy(
+      serviceAccount = clusterServiceAccountFromProject(project).get,
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+      status = RuntimeStatus.Starting
+    )
+
+    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[Instance]] = {
+        val beforeInstance = Instance.newBuilder().setStatus("STOPPING").build()
+        val terminatedInstance = Instance.newBuilder().setStatus("TERMINATED").build()
+
+        for {
+          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
+          res <- if (now - start < 4000)
+            IO.pure(Some(beforeInstance))
+          else IO.pure(Some(terminatedInstance))
+        } yield res
+      }
+    }
+
+    val res = for {
+      start <- nowInstant[IO]
+      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
+      savedRuntime <- IO(runtime.save())
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
+      afterMonitor <- nowInstant
+      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
+    } yield {
+      val delay = afterMonitor.toEpochMilli - start.toEpochMilli
+      (delay > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
+      (delay < 10000) shouldBe true
+      status shouldBe Some(RuntimeStatus.Stopped)
     }
 
     res.unsafeRunSync()

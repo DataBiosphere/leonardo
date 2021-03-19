@@ -282,15 +282,22 @@ class GceRuntimeMonitor[F[_]: Parallel](
           GceInstanceStatus.Stopping
         )
         r <- gceStatus match {
-          // This happens when a VM fail to start. Potential causes are: start up script failure,
+          // This happens when a VM fails to start. Potential causes are: start up script failure,
           case GceInstanceStatus.Terminated =>
             nowInstant
-              .flatMap(now =>
-                clusterQuery
-                  .updateClusterStatusAndHostIp(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopping, None, now)
-                  .transaction
-              )
-              .as(((), None): CheckResult)
+              .flatMap { now =>
+                if (now.toEpochMilli - monitorContext.start.toEpochMilli > 5000)
+                  clusterQuery
+                    .updateClusterStatusAndHostIp(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopped, None, now)
+                    .transaction
+                    .as(((), None): CheckResult)
+                else
+                  checkAgain(monitorContext,
+                             runtimeAndRuntimeConfig,
+                             Set.empty,
+                             Some(s"Instance is still in ${GceInstanceStatus.Terminated}"))
+              }
+
           case s if (startableStatuses.contains(s)) =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Instance is still in ${gceStatus}"))
           case GceInstanceStatus.Running =>
