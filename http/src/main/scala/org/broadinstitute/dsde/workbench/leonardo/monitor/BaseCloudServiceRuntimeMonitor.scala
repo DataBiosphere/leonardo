@@ -7,7 +7,6 @@ import cats.mtl.Ask
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
 import io.chrisdavenport.log4cats.StructuredLogger
-import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -233,13 +232,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 )
                 // Stopping the runtime
                 _ <- clusterQuery
-                  .updateClusterStatusAndHostIp(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopping, ip, now)
+                  .updateClusterStatusAndHostIp(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopping, None, now)
                   .transaction
-                runtimeAndRuntimeConfigAfterSetIp = ip.fold(runtimeAndRuntimeConfig)(i =>
-                  LeoLenses.ipRuntimeAndRuntimeConfig.set(i)(runtimeAndRuntimeConfig)
-                )
-                rrc = runtimeAndRuntimeConfigAfterSetIp.lens(_.runtime.status).set(RuntimeStatus.Stopping)
-              } yield ((), Some(MonitorState.Check(rrc))): CheckResult
+              } yield ((), None): CheckResult
             } else
               failedRuntime(
                 monitorContext,

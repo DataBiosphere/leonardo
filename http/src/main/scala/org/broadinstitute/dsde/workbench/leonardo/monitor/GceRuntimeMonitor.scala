@@ -282,6 +282,15 @@ class GceRuntimeMonitor[F[_]: Parallel](
           GceInstanceStatus.Stopping
         )
         r <- gceStatus match {
+          // This happens when a VM fail to start. Potential causes are: start up script failure,
+          case GceInstanceStatus.Terminated =>
+            nowInstant
+              .flatMap(now =>
+                clusterQuery
+                  .updateClusterStatusAndHostIp(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopping, None, now)
+                  .transaction
+              )
+              .as(((), None): CheckResult)
           case s if (startableStatuses.contains(s)) =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Instance is still in ${gceStatus}"))
           case GceInstanceStatus.Running =>

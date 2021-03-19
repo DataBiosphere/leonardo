@@ -2,12 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.util.UUID
-
 import cats.effect.{Async, ContextShift, Timer}
 import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.Logger
+import io.chrisdavenport.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -26,7 +25,7 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
   publisherQueue: InspectableQueue[F, LeoPubsubMessage]
 )(implicit F: Async[F],
   metrics: OpenTelemetryMetrics[F],
-  logger: Logger[F],
+  logger: StructuredLogger[F],
   dbRef: DbReference[F],
   ec: ExecutionContext) {
 
@@ -93,7 +92,7 @@ object AutopauseMonitor {
                                        publisherQueue: InspectableQueue[F, LeoPubsubMessage])(
     implicit F: Async[F],
     metrics: OpenTelemetryMetrics[F],
-    logger: Logger[F],
+    logger: StructuredLogger[F],
     dbRef: DbReference[F],
     ec: ExecutionContext
   ): AutopauseMonitor[F] =
