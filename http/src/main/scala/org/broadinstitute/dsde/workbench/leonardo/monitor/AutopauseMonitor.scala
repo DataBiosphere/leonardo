@@ -80,7 +80,7 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
         val traceId = TraceId(s"fromAutopause_${UUID.randomUUID().toString}")
         for {
           _ <- clusterQuery.updateClusterStatus(cl.id, RuntimeStatus.PreStopping, now).transaction
-          _ <- logger.info(s"${traceId.asString} | Auto freezing runtime ${cl.projectNameString}")
+          _ <- logger.info(Map("traceId" -> traceId.asString))(s"Auto freezing runtime ${cl.projectNameString}")
           _ <- publisherQueue.enqueue1(LeoPubsubMessage.StopRuntimeMessage(cl.id, Some(traceId)))
         } yield ()
       }

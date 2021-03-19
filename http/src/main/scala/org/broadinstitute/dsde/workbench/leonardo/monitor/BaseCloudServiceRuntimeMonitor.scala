@@ -253,7 +253,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         case _ =>
           logger
             .info(monitorContext.loggingContext)(
-              s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in final state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
+              s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in ${runtimeAndRuntimeConfig.runtime.status.terminalStatus
+                .getOrElse("final")} state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
                 .getOrElse("")}"
             )
             .as(((), Some(Check(runtimeAndRuntimeConfig))))
@@ -488,7 +489,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     val result = for {
       ctx <- ev.ask
       _ <- clusterErrorQuery
-        .save(runtimeId, RuntimeError(errorDetails.longMessage, errorDetails.code, ctx.now))
+        .save(runtimeId, RuntimeError(errorDetails.longMessage, errorDetails.code, ctx.now, Some(ctx.traceId)))
         .transaction
         .void
         .adaptError {

@@ -278,7 +278,6 @@ class GceRuntimeMonitor[F[_]: Parallel](
           GceInstanceStatus.Suspending,
           GceInstanceStatus.Provisioning,
           GceInstanceStatus.Staging,
-          GceInstanceStatus.Terminated,
           GceInstanceStatus.Suspended,
           GceInstanceStatus.Stopping
         )

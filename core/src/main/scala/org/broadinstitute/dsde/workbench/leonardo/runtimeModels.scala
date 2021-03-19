@@ -70,29 +70,60 @@ object Runtime {
 }
 
 /** Runtime status enum */
-sealed trait RuntimeStatus extends EnumEntry with Product with Serializable
+sealed trait RuntimeStatus extends EnumEntry with Product with Serializable {
+  // end status if it is a transition status. For instance, terminalStatus for `Starting` is `Running`
+  def terminalStatus: Option[RuntimeStatus]
+}
 object RuntimeStatus extends Enum[RuntimeStatus] {
   val values = findValues
   // Leonardo defined runtime statuses.
 
   // These statuses exist when we save a runtime during an API request, but we haven't published the event to back leo
-  case object PreCreating extends RuntimeStatus
-  case object PreDeleting extends RuntimeStatus
-  case object PreStarting extends RuntimeStatus
-  case object PreStopping extends RuntimeStatus
+  case object PreCreating extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Running)
+  }
+  case object PreDeleting extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Deleted)
+  }
+  case object PreStarting extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Running)
+  }
+  case object PreStopping extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Stopped)
+  }
 
   // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  case object Creating extends RuntimeStatus
-  case object Updating extends RuntimeStatus //only for dataproc status
-  case object Deleting extends RuntimeStatus
-  case object Starting extends RuntimeStatus
-  case object Stopping extends RuntimeStatus
+  case object Creating extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Running)
+  }
+  case object Updating extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Running)
+  } //only for dataproc status
+  case object Deleting extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Deleted)
+  }
+  case object Starting extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Running)
+  }
+  case object Stopping extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = Some(Stopped)
+  }
 
-  case object Running extends RuntimeStatus
-  case object Error extends RuntimeStatus
-  case object Unknown extends RuntimeStatus
-  case object Stopped extends RuntimeStatus
-  case object Deleted extends RuntimeStatus
+  case object Running extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = None
+  }
+  case object Error extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = None
+  }
+  case object Unknown extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = None
+  }
+  case object Stopped extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = None
+  }
+  case object Deleted extends RuntimeStatus {
+    override def terminalStatus: Option[RuntimeStatus] = None
+  }
 
   def fromDataprocClusterStatus(dataprocClusterStatus: DataprocClusterStatus): RuntimeStatus =
     dataprocClusterStatus match {
