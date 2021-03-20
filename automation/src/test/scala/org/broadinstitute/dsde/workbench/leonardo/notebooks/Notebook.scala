@@ -18,6 +18,8 @@ object Notebook extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
+  private val refererUrl = "https://leonardo.dsde-dev.broadinstitute.org"
+
   def handleContentItemResponse(response: String): ContentItem =
     mapper.readValue(response, classOf[ContentItem])
 
@@ -49,9 +51,10 @@ object Notebook extends RestClient with LazyLogging {
   ): File = {
     val path = contentsPath(googleProject, clusterName, fileName)
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+    val referer = Referer(Uri(refererUrl))
     val payload: Map[String, String] = Map("path" -> fileName)
 
-    putRequest(url + path, payload, httpHeaders = List(cookie))
+    putRequest(url + path, payload, httpHeaders = List(cookie, referer))
 
     new File(fileName)
   }
@@ -59,13 +62,15 @@ object Notebook extends RestClient with LazyLogging {
   def getApi(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
     val path = notebooksBasePath(googleProject, clusterName)
     logger.info(s"Get notebook: GET /$path")
-    parseResponse(getRequest(url + path))
+    val referer = Referer(Uri(refererUrl))
+    parseResponse(getRequest(url + path, httpHeaders = List(referer)))
   }
 
   def getTree(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
     val path = notebooksTreePath(googleProject, clusterName)
     logger.info(s"Get notebook tree: GET /$path")
-    parseResponse(getRequest(url + path))
+    val referer = Referer(Uri(refererUrl))
+    parseResponse(getRequest(url + path, httpHeaders = List(referer)))
   }
 
   def getApiHeaders(googleProject: GoogleProject,
@@ -82,7 +87,8 @@ object Notebook extends RestClient with LazyLogging {
     val path = localizePath(googleProject, clusterName, async)
     logger.info(s"Localize notebook files: POST /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
-    postRequest(url + path, locMap, httpHeaders = List(cookie))
+    val referer = Referer(Uri(refererUrl))
+    postRequest(url + path, locMap, httpHeaders = List(cookie, referer))
   }
 
   def getContentItem(googleProject: GoogleProject,
@@ -92,7 +98,7 @@ object Notebook extends RestClient with LazyLogging {
     val path = contentsPath(googleProject, clusterName, contentPath) + (if (includeContent) "?content=1" else "")
     logger.info(s"Get notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
-    val referer = Referer(Uri("https://leonardo.dsde-dev.broadinstitute.org"))
+    val referer = Referer(Uri(refererUrl))
     handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie, referer))))
   }
 
@@ -103,14 +109,17 @@ object Notebook extends RestClient with LazyLogging {
     val path = contentsPath(googleProject, clusterName, contentPath) + (if (includeContent) "?content=1" else "")
     logger.info(s"Get notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
+    val referer = Referer(Uri(refererUrl))
 
-    handleNotebookContentResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie))))
+    handleNotebookContentResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie, referer))))
   }
 
   def setCookie(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
     val path = notebooksBasePath(googleProject, clusterName) + "/setCookie"
+    val referer = Referer(Uri(refererUrl))
+
     logger.info(s"Set cookie: GET /$path")
-    parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)))))
+    parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)), referer)))
   }
 
   sealed trait NotebookMode extends Product with Serializable {
