@@ -36,7 +36,6 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     val testResult = Try {
       val proxyRedirectPage = ProxyRedirectClient.get(cluster.googleProject, cluster.clusterName, "jupyter")
       proxyRedirectPage.open
-      testTimer.sleep(1 minutes).unsafeRunSync()
       val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
       testCode(notebooksListPage)
     }
