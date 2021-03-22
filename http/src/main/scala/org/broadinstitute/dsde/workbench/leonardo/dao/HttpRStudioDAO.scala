@@ -10,8 +10,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
 
-class HttpRStudioDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
-  ) extends RStudioDAO[F]
+class HttpRStudioDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])
+    extends RStudioDAO[F]
     with LazyLogging {
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
@@ -26,12 +26,8 @@ class HttpRStudioDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache:
             )
           )
           .handleError(_ => false)
-
-      case _ =>
-        Concurrent[F].pure(false)
-
+      case _ => Concurrent[F].pure(false)
     }
-
 }
 
 trait RStudioDAO[F[_]] {

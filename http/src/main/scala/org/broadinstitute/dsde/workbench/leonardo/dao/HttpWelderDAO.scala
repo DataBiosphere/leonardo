@@ -38,11 +38,10 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
             )
             .as(false)
       }
-      _ <- if (res) {
+      _ <- if (res)
         metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "success"))
-      } else {
+      else
         metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "failure"))
-      }
     } yield ()
 
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
@@ -69,9 +68,8 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
       }
       _ <- if (res) {
         metrics.incrementCounter("welder/status", tags = Map("result" -> "success"))
-      } else {
+      } else
         metrics.incrementCounter("welder/status", tags = Map("result" -> "failure"))
-      }
     } yield res
 }
 
