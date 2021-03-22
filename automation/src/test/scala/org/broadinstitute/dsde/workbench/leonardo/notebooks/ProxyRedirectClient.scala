@@ -27,9 +27,9 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
     implicit webDriver: WebDriver,
     token: AuthToken
   ): ProxyRedirectPage = {
+    // When running this test locally, change localhost to "127.0.0.1"
     val localhost = java.net.InetAddress.getLocalHost.getHostName
-    // When running this test locally, change ${localhost} to "http://127.0.0.1"
-    val serverUrl = s"${localhost}:9090/${googleProject.value}/${clusterName.asString}/${tool}/client"
+    val serverUrl = s"http://${localhost}:9090/${googleProject.value}/${clusterName.asString}/${tool}/client"
     new ProxyRedirectPage(serverUrl)
   }
 
