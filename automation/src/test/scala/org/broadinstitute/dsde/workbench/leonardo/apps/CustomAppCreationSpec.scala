@@ -5,9 +5,8 @@ import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateAppRequest
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
-import org.http4s.{AuthScheme, Credentials, Uri}
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials, Uri}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._

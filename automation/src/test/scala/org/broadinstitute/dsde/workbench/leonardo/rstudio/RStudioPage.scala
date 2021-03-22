@@ -20,6 +20,8 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
 
   val rstudioContainer: Query = cssSelector("[id='rstudio_container']")
 
+  val popupPanel: Query = cssSelector("[class*='themedPopupPanel']")
+
   override def awaitLoaded(): RStudioPage = {
     await enabled renderedApp
     this
@@ -38,6 +40,15 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   def variableExists(variable: String): Boolean =
     find(checkGlobalVariable(variable)).isDefined
 
+  def dismissPopupPanel(): Unit = {
+    Thread.sleep(5000)
+    // Press ESC if the popup panel is present to dismiss it
+    if (find(popupPanel).isDefined) {
+      pressKeys(Keys.ESCAPE.toString)
+      await notVisible popupPanel
+    }
+  }
+
   // Opens an example app from the shiny package.
   // Valid examples are:
   //   "01_hello", "02_text", "03_reactivity", "04_mpg", "05_sliders", "06_tabsets",
@@ -45,14 +56,16 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   def withRShinyExample[T](exampleName: String)(testCode: RShinyPage => T): T = {
     // Enter commands to launch the shiny app
     switchToNewTab {
-      val launchCommand = s"""shiny::runExample("$exampleName", launch.browser = T)"""
-
-      pressKeys(launchCommand)
-
-      Thread.sleep(5000)
-      await notVisible cssSelector("[class*='themedPopupPanel']")
-
+      val loadShiny = "library(shiny)"
+      pressKeys(loadShiny)
+      dismissPopupPanel()
       pressKeys(Keys.ENTER.toString)
+
+      val launchCommand = s"""runExample("$exampleName", launch.browser = T)"""
+      pressKeys(launchCommand)
+      dismissPopupPanel()
+      pressKeys(Keys.ENTER.toString)
+
       await condition windowHandles.size == 2
     }
 

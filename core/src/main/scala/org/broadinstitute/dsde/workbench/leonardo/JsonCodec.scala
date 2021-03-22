@@ -154,15 +154,16 @@ object JsonCodec {
     "googleProject",
     "clusterName"
   )(x => RuntimeProjectAndName.unapply(x).get)
-  implicit val runtimeErrorEncoder: Encoder[RuntimeError] = Encoder.forProduct3(
+  implicit val runtimeErrorEncoder: Encoder[RuntimeError] = Encoder.forProduct4(
     "errorMessage",
     "errorCode",
-    "timestamp"
+    "timestamp",
+    "traceId"
   )(x => RuntimeError.unapply(x).get)
 
   implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
   implicit val errorActionEncoder: Encoder[ErrorAction] = Encoder.encodeString.contramap(_.toString)
-  implicit val kubernetesErrorEncoder: Encoder[AppError] =
+  implicit val appErrorEncoder: Encoder[AppError] =
     Encoder.forProduct6("errorMessage", "timestamp", "action", "source", "googleErrorCode", "traceId")(x =>
       AppError.unapply(x).get
     )
@@ -298,10 +299,11 @@ object JsonCodec {
     } yield r
   }
 
-  implicit val runtimeErrorDecoder: Decoder[RuntimeError] = Decoder.forProduct3(
+  implicit val runtimeErrorDecoder: Decoder[RuntimeError] = Decoder.forProduct4(
     "errorMessage",
     "errorCode",
-    "timestamp"
+    "timestamp",
+    "traceId"
   )(RuntimeError.apply)
   implicit val gcsPathDecoder: Decoder[GcsPath] = Decoder.decodeString.emap(s => parseGcsPath(s).leftMap(_.value))
   implicit val userScriptPathDecoder: Decoder[UserScriptPath] = Decoder.decodeString.emap { s =>
@@ -374,7 +376,7 @@ object JsonCodec {
     Decoder.decodeString.emap(s => ErrorSource.stringToObject.get(s).toRight(s"Invalid error source ${s}"))
   implicit val errorActionDecoder: Decoder[ErrorAction] =
     Decoder.decodeString.emap(s => ErrorAction.stringToObject.get(s).toRight(s"Invalid error action ${s}"))
-  implicit val kubernetesErrorDecoder: Decoder[AppError] =
+  implicit val appErrorDecoder: Decoder[AppError] =
     Decoder.forProduct6("errorMessage", "timestamp", "action", "source", "googleErrorCode", "traceId")(AppError.apply)
 
   implicit val nodepoolIdDecoder: Decoder[NodepoolLeoId] = Decoder.decodeLong.map(NodepoolLeoId)
