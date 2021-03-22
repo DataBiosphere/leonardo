@@ -19,6 +19,8 @@ EXPOSE 8080
 EXPOSE 5050
 
 ENV GIT_HASH $GIT_HASH
+# TODO: remove this
+ENV HELM_DEBUG 1
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
