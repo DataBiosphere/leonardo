@@ -344,7 +344,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     )
 
     val newApp = AppSamResourceId("new_app")
-    mockSam.createResourceV2(newApp, userEmail2, project).unsafeRunSync()
+    mockSam.createResourceWithParent(newApp, userEmail2, project).unsafeRunSync()
     samAuthProvider.filterUserVisible(NonEmptyList.of(appSamId, newApp), userInfo).unsafeRunSync() shouldBe List(
       appSamId
     )
@@ -422,7 +422,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     mockSam.persistentDisks.get((diskSamResource, authHeader)) shouldBe Some(
       PersistentDiskAction.allActions
     )
-    mockSam.createResourceV2(KubernetesTestData.appSamId, userEmail, project).unsafeRunSync()
+    mockSam.createResourceWithParent(KubernetesTestData.appSamId, userEmail, project).unsafeRunSync()
     mockSam.apps.get((appSamId, authHeader)) shouldBe Some(
       AppAction.allActions
     )

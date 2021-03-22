@@ -187,7 +187,7 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
     if (sr.resourceType != SamResourceType.App)
       samDao.createResource(samResource, creatorEmail, googleProject)
     else
-      samDao.createResourceV2(samResource, creatorEmail, googleProject)
+      samDao.createResourceWithParent(samResource, creatorEmail, googleProject)
 
   override def notifyResourceDeleted[R](
     samResource: R,
