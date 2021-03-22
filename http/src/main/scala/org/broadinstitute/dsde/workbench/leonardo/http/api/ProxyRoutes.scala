@@ -238,8 +238,20 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
-      _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest"))
+      // if request is jupyter and it's a PUT measure the content
+      // mayb eif ends in ipynb
+      //need tool type
+      //TODO
+//      _ <- if ( ) {
+//        _ <- metrics.gauge("proxy", tags = Map("" -> ""))
+//      }
+//      else IO.unit
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest", "result" -> "success"))
+      } else {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest", "result" -> "failure"))
+      }
     } yield resp
 
   private[api] def setCookieHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
