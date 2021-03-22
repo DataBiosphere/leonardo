@@ -20,6 +20,8 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
 
   val rstudioContainer: Query = cssSelector("[id='rstudio_container']")
 
+  val popupPanel: Query = cssSelector("[class*='themedPopupPanel']")
+
   override def awaitLoaded(): RStudioPage = {
     await enabled renderedApp
     this
@@ -49,9 +51,13 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
 
       pressKeys(launchCommand)
 
-      Thread.sleep(5000)
-      await notVisible cssSelector("[class*='themedPopupPanel']")
+      // Press ESC if the popup panel is present to dismiss it
+      if (find(popupPanel).isDefined) {
+        pressKeys(Keys.ESCAPE.toString)
+        await notVisible popupPanel
+      }
 
+      Thread.sleep(5000)
       pressKeys(Keys.ENTER.toString)
       await condition windowHandles.size == 2
     }
