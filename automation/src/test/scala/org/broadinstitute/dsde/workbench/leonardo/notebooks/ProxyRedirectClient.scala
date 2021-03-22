@@ -27,7 +27,7 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
     implicit webDriver: WebDriver,
     token: AuthToken
   ): ProxyRedirectPage = {
-    val serverUrl = s"http://localhost:9090/${googleProject.value}/${clusterName.asString}/${tool}/client"
+    val serverUrl = s"http://127.0.0.1:9090/${googleProject.value}/${clusterName.asString}/${tool}/client"
     new ProxyRedirectPage(serverUrl)
   }
 
