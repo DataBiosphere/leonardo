@@ -19,8 +19,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 import scala.util.Try
-import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
-import scala.concurrent.duration._
 
 trait NotebookTestUtils extends LeonardoTestUtils {
   this: Suite =>

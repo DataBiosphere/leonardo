@@ -1,24 +1,21 @@
-package org.broadinstitute.dsde.workbench.leonardo.notebooks
+package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.Done
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model._
+import akka.http.scaladsl.server.Directives.{get => httpGet, _}
 import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeName}
-import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.page.ProxyRedirectPage
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives.{get => httpGet, _}
 
 import scala.concurrent.Future
 import scala.io.Source
 
-/**
- * Leonardo API service client.
- */
 object ProxyRedirectClient extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
@@ -27,7 +24,7 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
     implicit webDriver: WebDriver,
     token: AuthToken
   ): ProxyRedirectPage = {
-    val serverUrl = s"http://127.0.0.1:9090/${googleProject.value}/${clusterName.asString}/${tool}/client"
+    val serverUrl = s"http://localhost:9090/${googleProject.value}/${clusterName.asString}/${tool}/client"
     new ProxyRedirectPage(serverUrl)
   }
 

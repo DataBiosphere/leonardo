@@ -2,9 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.ProxyRedirectClient
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
+
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.Try
