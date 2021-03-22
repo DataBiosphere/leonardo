@@ -40,11 +40,8 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
       }
       _ <- if (res) {
         metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "success"))
-        metrics.incrementCounter("proxy", tags = Map("action" -> "flushWelderCache"))
       } else {
         metrics.incrementCounter("welder/flushcache", tags = Map("result" -> "failure"))
-        metrics.incrementCounter("proxy", tags = Map("action" -> "flushWelderCache"))
-
       }
     } yield ()
 
@@ -72,11 +69,8 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
       }
       _ <- if (res) {
         metrics.incrementCounter("welder/status", tags = Map("result" -> "success"))
-        metrics.incrementCounter("proxy", tags = Map("action" -> "getWelderStatus"))
-
       } else {
         metrics.incrementCounter("welder/status", tags = Map("result" -> "failure"))
-        metrics.incrementCounter("proxy", tags = Map("action" -> "getWelderStatus"))
       }
     } yield res
 }
