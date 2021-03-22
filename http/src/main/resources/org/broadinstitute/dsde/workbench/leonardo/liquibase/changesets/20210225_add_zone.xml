@@ -4,10 +4,17 @@
     <changeSet logicalFilePath="leonardo" author="willyn" id="add_zone">
         <addColumn tableName="RUNTIME_CONFIG">
             <column name="zone" type="varchar(254)">
-                <constraints nullable="false"/>
+                <constraints nullable="true"/>
             </column>
         </addColumn>
+    </changeSet>
 
+    <changeSet logicalFilePath="leonardo" id="set zone to us-central1-a" author="willyn">
+        <sql>UPDATE RUNTIME_CONFIG SET zone = 'us-central1-a'</sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="willyn" id="add_not_nullabel_constraint_on_zone">
+        <addNotNullConstraint columnName="zone" tableName="RUNTIME_CONFIG" columnDataType="varchar(254)"/>
     </changeSet>
 
 </databaseChangeLog>
