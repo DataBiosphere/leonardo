@@ -79,17 +79,20 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             120,
             10 seconds
           ).compile.lastOrError
+          // TODO remove first case in below if statement when Galaxy deletion is reliable
           _ <- if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
             loggerIO.warn(
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
             )
           } else {
-            loggerIO.info(
-              s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
-            )
+            // Verify creating another app with the same disk doesn't error out
+            for {
+              _ <- loggerIO.info(
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+              )
+              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)
+            } yield ()
           }
-//          // Verify creating another app with the same disk doesn't error out
-//          _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)
         } yield ()
       }
     }
@@ -192,20 +195,21 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           listApps = LeonardoApiClient.listApps(googleProject, true)
           implicit0(doneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
           monitorDeleteResult <- streamFUntilDone(listApps, 120, 10 seconds).compile.lastOrError
+          // TODO remove first case in below if statement when Galaxy deletion is reliable
           _ <- if (!doneCheckable.isDone(monitorDeleteResult)) {
             loggerIO.warn(
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
             )
           } else {
-            loggerIO.info(
-              s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
-            )
+            // verify disk is also deleted
+            for {
+              _ <- loggerIO.info(
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+              )
+              getDiskResp <- LeonardoApiClient.getDisk(googleProject, diskName).attempt
+            } yield getDiskResp.toOption shouldBe (None)
           }
-          // verify disk is also deleted
-          getDiskResp <- LeonardoApiClient.getDisk(googleProject, diskName).attempt
-        } yield {
-          getDiskResp.toOption shouldBe (None)
-        }
+        } yield ()
       }
     }
   }
