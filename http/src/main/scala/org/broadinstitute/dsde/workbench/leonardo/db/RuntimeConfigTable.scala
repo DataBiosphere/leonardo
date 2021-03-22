@@ -87,6 +87,11 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         RuntimeConfigRecord(id, r, dateAccessed)
     }, { x: RuntimeConfigRecord =>
       x.runtimeConfig match {
+        // Whats with the "dummy" values below?
+        // We want Gce/GceWithPdConfig to have zone, but not region
+        // We want DataprocConfig to have region, but not zone
+        // We want both zone and region to be required in the database, not optional
+        // So we pass a "dummy" zone/region to Dataproc/GCE respectively
         case r: RuntimeConfig.GceConfig =>
           Some(x.id,
                (CloudService.GCE: CloudService,
@@ -101,7 +106,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                 None,
                 None,
                 r.zone,
-                r.region),
+                RegionName("dummy")),
                x.dateAccessed)
         case r: RuntimeConfig.DataprocConfig =>
           Some(
@@ -117,7 +122,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.numberOfPreemptibleWorkers,
              Some(r.properties),
              None,
-             r.zone,
+             ZoneName("dummy"),
              r.region),
             x.dateAccessed
           )
@@ -136,7 +141,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              r.persistentDiskId,
              r.zone,
-             r.region),
+             RegionName("dummy")),
             x.dateAccessed
           )
       }
