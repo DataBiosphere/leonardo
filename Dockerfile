@@ -40,8 +40,11 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
+# We are also cacheing charts so they are not downloaded with every helm-install
 RUN pushd /leonardo && \
     helm pull terra-app-setup-charts/terra-app-setup --untar && \
+    helm pull galaxy/galaxykubeman --untar && \
+    helm pull terra/terra-app --untar && \
     popd
 
 # Add Leonardo as a service (it will start when the container starts)
