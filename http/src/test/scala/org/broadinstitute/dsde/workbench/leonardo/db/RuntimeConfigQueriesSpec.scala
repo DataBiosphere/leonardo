@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makePersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, LeonardoTestSuite, RuntimeConfig}
@@ -22,7 +22,7 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       numberOfPreemptibleWorkers = Some(0),
       numberOfWorkerLocalSSDs = None,
       properties = Map("spark:spark.executor.memory" -> "10g"),
-      zone = ZoneName("us-central1-a")
+      region = RegionName("us-central1")
     )
     val res = for {
       now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)

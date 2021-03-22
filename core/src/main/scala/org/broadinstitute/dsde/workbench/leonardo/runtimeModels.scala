@@ -6,7 +6,7 @@ import java.time.Instant
 import cats.syntax.all._
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, ZoneName, RegionName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
@@ -220,7 +220,7 @@ object RuntimeConfig {
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
-                                  zone: ZoneName)
+                                  region: RegionName)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType

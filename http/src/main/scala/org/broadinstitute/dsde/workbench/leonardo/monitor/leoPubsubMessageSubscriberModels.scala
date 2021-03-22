@@ -9,7 +9,7 @@ import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
@@ -57,7 +57,7 @@ object RuntimeConfigInCreateRuntimeMessage {
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
-                                  zone: ZoneName)
+                                  region: RegionName)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
@@ -81,7 +81,7 @@ object RuntimeConfigInCreateRuntimeMessage {
           None,
           None,
           dataproc.properties,
-          dataproc.zone.getOrElse(default.zone)
+          dataproc.region.getOrElse(default.region)
         )
       case Some(numWorkers) =>
         val wds = dataproc.workerDiskSize.orElse(default.workerDiskSize)
@@ -94,7 +94,7 @@ object RuntimeConfigInCreateRuntimeMessage {
           dataproc.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
           dataproc.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
           dataproc.properties,
-          dataproc.zone.getOrElse(default.zone)
+          dataproc.region.getOrElse(default.region)
         )
     }
   }
@@ -557,7 +557,7 @@ object LeoPubsubCodec {
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
-      zone <- c.downField("zone").as[ZoneName]
+      region <- c.downField("region").as[RegionName]
     } yield RuntimeConfigInCreateRuntimeMessage.DataprocConfig(numberOfWorkers,
                                                                masterMachineType,
                                                                masterDiskSize,
@@ -566,7 +566,7 @@ object LeoPubsubCodec {
                                                                numberOfWorkerLocalSSDs,
                                                                numberOfPreemptibleWorkers,
                                                                properties,
-                                                               zone)
+                                                               region)
   }
 
   implicit val gceConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =

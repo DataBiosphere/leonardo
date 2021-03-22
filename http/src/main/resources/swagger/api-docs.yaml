@@ -2594,10 +2594,10 @@ components:
               type: object
               additionalProperties:
                 type: string
-            zone:
+            region:
               type: string
               description: >
-                Optional, the deployment area of the cluster. For example, us-east1-a or europe-west2-c.
+                Optional, the deployment region of the cluster. For example, us-east1 or europe-west2.
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:

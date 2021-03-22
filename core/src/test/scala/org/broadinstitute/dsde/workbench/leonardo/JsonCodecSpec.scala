@@ -4,7 +4,7 @@ import JsonCodec._
 import io.circe.CursorOp.DownField
 import io.circe.{DecodingFailure, Json}
 import io.circe.parser._
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
 
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
@@ -19,7 +19,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |   "masterDiskSize": 500,
         |   "numberOfPreemptibleWorkers": -1,
         |   "cloudService": "DATAPROC",
-        |   "zone": "us-west2-b"
+        |   "region": "us-west2"
         |}
         |""".stripMargin
 
@@ -33,7 +33,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       None,
       Some(-1),
       Map.empty,
-      ZoneName("us-west2-b")
+      RegionName("us-west2")
     )
     res shouldBe (Right(expected))
   }

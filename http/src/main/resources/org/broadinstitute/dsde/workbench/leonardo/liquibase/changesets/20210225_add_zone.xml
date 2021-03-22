@@ -17,4 +17,20 @@
         <addNotNullConstraint columnName="zone" tableName="RUNTIME_CONFIG" columnDataType="varchar(254)"/>
     </changeSet>
 
+    <changeSet logicalFilePath="leonardo" author="willyn" id="add_region">
+        <addColumn tableName="RUNTIME_CONFIG">
+            <column name="region" type="varchar(254)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" id="set region to us-central1" author="willyn">
+        <sql>UPDATE RUNTIME_CONFIG SET region = 'us-central1'</sql>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" author="willyn" id="add_not_nullabel_constraint_on_region">
+        <addNotNullConstraint columnName="region" tableName="RUNTIME_CONFIG" columnDataType="varchar(254)"/>
+    </changeSet>
+
 </databaseChangeLog>

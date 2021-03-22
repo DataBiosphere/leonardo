@@ -20,7 +20,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   NetworkName,
   OperationName,
   SubnetworkName,
-  ZoneName
+  ZoneName,
+  RegionName
 }
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, VM, Welder}
@@ -177,7 +178,7 @@ object CommonTestData {
                                  None,
                                  None,
                                  Map.empty,
-                                 ZoneName("us-central1-a"))
+                                 RegionName("us-central1"))
 
   val defaultCreateRuntimeRequest = CreateRuntime2Request(
     Map("lbl1" -> "true"),

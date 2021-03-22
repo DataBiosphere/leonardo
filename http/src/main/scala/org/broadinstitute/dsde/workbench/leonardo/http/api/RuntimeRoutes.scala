@@ -12,7 +12,7 @@ import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeRequest, RuntimeService}
@@ -294,7 +294,7 @@ object RuntimeRoutes {
         .downField("numberOfPreemptibleWorkers")
         .as[Option[Int]]
         .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
-      zone <- c.downField("zone").as[Option[ZoneName]]
+      region <- c.downField("region").as[Option[RegionName]]
       res <- numberOfWorkersInput match {
         case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
         case Some(0) =>

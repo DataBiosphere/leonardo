@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
   AuditInfo,
@@ -34,6 +34,7 @@ object RuntimeConfigRequest {
   final case class GceConfig(
     machineType: Option[MachineTypeName],
     diskSize: Option[DiskSize],
+    region: Option[ZoneName] = None,
     zone: Option[ZoneName] = None
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
@@ -56,7 +57,7 @@ object RuntimeConfigRequest {
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
-                                  zone: Option[ZoneName] = None)
+                                  region: Option[RegionName] = None)
       extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }

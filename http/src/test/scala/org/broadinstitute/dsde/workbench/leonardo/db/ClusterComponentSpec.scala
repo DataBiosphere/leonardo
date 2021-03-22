@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimePatchDetails, RuntimeToMonitor}
@@ -59,7 +59,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(2),
         Some(1),
         Map.empty,
-        ZoneName("test-zone")
+        RegionName("test-region")
       )
     )
     savedCluster3.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster3
@@ -233,7 +233,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           Some(2),
           Some(1),
           Map.empty,
-          ZoneName("test-zone")
+          RegionName("test-region")
         )
       )
 
@@ -255,7 +255,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(2),
         Some(1),
         Map.empty,
-        ZoneName("test-zone")
+        RegionName("test-region")
       )
     )
 
@@ -312,7 +312,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       Some(2),
       Some(1),
       Map.empty,
-      ZoneName("test-zone")
+      RegionName("test-region")
     )
 
     val savedCluster = makeCluster(1)

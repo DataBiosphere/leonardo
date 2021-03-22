@@ -4,7 +4,7 @@ package db
 import java.sql.SQLDataException
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
@@ -23,6 +23,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def dataprocProperties = column[Option[Map[String, String]]]("dataprocProperties")
   def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
   def zone = column[ZoneName]("zone", O.Length(254))
+  def region = column[RegionName]("region", O.Length(254))
 
   def * =
     (
@@ -39,7 +40,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         numberOfPreemptibleWorkers,
         dataprocProperties,
         persistentDiskId,
-        zone
+        zone,
+        region
       ),
       dateAccessed
     ).shaped <> ({
@@ -55,7 +57,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              numberOfPreemptibleWorkers,
              dataprocProperties,
              persistentDiskId,
-             zone),
+             zone,
+             region),
             dateAccessed) =>
         val r = cloudService match {
           case CloudService.GCE =>
@@ -78,7 +81,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
               numberOfWorkerLocalSSDs,
               numberOfPreemptibleWorkers,
               dataprocProperties.getOrElse(Map.empty),
-              zone
+              region
             )
         }
         RuntimeConfigRecord(id, r, dateAccessed)
@@ -97,7 +100,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                 None,
                 None,
                 None,
-                r.zone),
+                r.zone,
+                r.region),
                x.dateAccessed)
         case r: RuntimeConfig.DataprocConfig =>
           Some(
@@ -113,7 +117,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.numberOfPreemptibleWorkers,
              Some(r.properties),
              None,
-             r.zone),
+             r.zone,
+             r.region),
             x.dateAccessed
           )
         case r: RuntimeConfig.GceWithPdConfig =>
@@ -130,7 +135,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              None,
              r.persistentDiskId,
-             r.zone),
+             r.zone,
+             r.region),
             x.dateAccessed
           )
       }

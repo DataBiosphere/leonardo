@@ -19,7 +19,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   NetworkName,
   OperationName,
   SubnetworkName,
-  ZoneName
+  ZoneName,
+  RegionName
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
@@ -64,6 +65,7 @@ object JsonCodec {
   implicit val runtimeSamResourceIdEncoder: Encoder[RuntimeSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.value)
+  implicit val regionNameEncoder: Encoder[RegionName] = Encoder.encodeString.contramap(_.value)
   implicit val diskNameEncoder: Encoder[DiskName] = Encoder.encodeString.contramap(_.value)
   implicit val diskSamResourceIdEncoder: Encoder[PersistentDiskSamResourceId] =
     Encoder.encodeString.contramap(_.resourceId)
@@ -83,7 +85,7 @@ object JsonCodec {
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers",
     "cloudService",
-    "zone"
+    "region"
   )(x =>
     (x.numberOfWorkers,
      x.machineType,
@@ -93,7 +95,7 @@ object JsonCodec {
      x.numberOfWorkerLocalSSDs,
      x.numberOfPreemptibleWorkers,
      x.cloudService,
-     x.zone)
+     x.region)
   )
   implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct5(
     "machineType",
@@ -272,7 +274,7 @@ object JsonCodec {
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
-      zone <- c.downField("zone").as[ZoneName]
+      region <- c.downField("region").as[RegionName]
     } yield RuntimeConfig.DataprocConfig(numberOfWorkers,
                                          masterMachineType,
                                          masterDiskSize,
@@ -281,7 +283,7 @@ object JsonCodec {
                                          numberOfWorkerLocalSSDs,
                                          numberOfPreemptibleWorkers,
                                          properties,
-                                         zone)
+                                         region)
   }
 
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>
@@ -324,6 +326,7 @@ object JsonCodec {
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
 
   implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName(_))
+  implicit val regionDecoder: Decoder[RegionName] = Decoder.decodeString.map(RegionName(_))
   implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.emap(s => validateName(s).map(DiskName))
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
   implicit val diskStatusDecoder: Decoder[DiskStatus] =

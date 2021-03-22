@@ -75,7 +75,7 @@ object Config {
         config.getAs[Int]("numberOfWorkerLocalSSDs"),
         config.getAs[Int]("numberOfPreemptibleWorkers"),
         Map.empty,
-        config.as[ZoneName]("zone")
+        config.as[RegionName]("region")
       )
   }
 
