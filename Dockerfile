@@ -45,6 +45,7 @@ RUN pushd /leonardo && \
     helm pull terra-app-setup-charts/terra-app-setup --untar && \
     helm pull galaxy/galaxykubeman --untar && \
     helm pull terra/terra-app --untar && \
+    helm pull ingress-nginx/ingress-nginx --untar && \
     popd
 
 # Add Leonardo as a service (it will start when the container starts)
