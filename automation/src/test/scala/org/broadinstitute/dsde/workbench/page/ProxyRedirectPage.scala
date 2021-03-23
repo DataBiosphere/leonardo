@@ -21,6 +21,9 @@ trait ProxyRedirectPage[P <: Page] extends Page with PageUtil[P] with WebBrowser
     //    redirect to the target page. This is done so the Referer is set correctly.
     go.to(ProxyRedirectClient.get(url))
 
+    // 4. Wait for the target page to load.
+    awaitLoaded()
+
     this
   }
 
