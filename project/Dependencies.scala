@@ -11,7 +11,7 @@ object Dependencies {
   val scalaTestV = "3.2.6"
   val slickV = "3.3.3"
   val http4sVersion = "0.21.20"
-  val guavaV = "30.1-jre"
+  val guavaV = "30.1.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
@@ -57,7 +57,7 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.44.0"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.45.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.6.1"
 
@@ -109,7 +109,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.3.1"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.10" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.11" % Test // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.13.1"
