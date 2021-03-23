@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.http4s._
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
@@ -238,15 +239,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
-      // if request is jupyter and it's a PUT measure the content
-      // mayb eif ends in ipynb
-      //need tool type
-      //TODO
-//      _ <- if ( ) {
-//        _ <- metrics.gauge("proxy", tags = Map("" -> ""))
-//      }
-//      else IO.unit
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
+
+      headerMap: Map[String, String] = request.headers.map(header => (header.name(), header.value())).toMap
+      contentLength = headerMap.get("content-length").toString.toDouble
+      _ <- if (request.uri.toString() contains ".ipynb") {
+        metrics.gauge("proxy/notebooksSize", contentLength)
+      } else IO.unit
+
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest", "result" -> "success"))
       } else {
