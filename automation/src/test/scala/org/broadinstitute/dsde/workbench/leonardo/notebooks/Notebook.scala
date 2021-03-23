@@ -2,11 +2,17 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
 
+import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.{HttpHeader, Uri}
-import akka.http.scaladsl.model.headers.{Authorization, Cookie, HttpCookiePair, OAuth2BearerToken, Referer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{ContentItem, LeonardoConfig, NotebookContentItem, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  ContentItem,
+  LeonardoConfig,
+  NotebookContentItem,
+  ProxyRedirectClient,
+  RuntimeName
+}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
@@ -18,7 +24,7 @@ object Notebook extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  private val refererUrl = "https://leonardo.dsde-dev.broadinstitute.org"
+  private val refererUrl = s"http://${ProxyRedirectClient.host}:${ProxyRedirectClient.port}"
 
   def handleContentItemResponse(response: String): ContentItem =
     mapper.readValue(response, classOf[ContentItem])
