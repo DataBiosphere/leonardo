@@ -10,6 +10,7 @@ import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import cats.effect.IO
+import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -18,10 +19,9 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Ser
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.Data
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockProxyService, TestProxy}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.{dataDecoder, Data}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockDiskServiceInterp, MockProxyService, TestProxy}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
-import org.broadinstitute.dsde.workbench.leonardo.http.service.MockDiskServiceInterp
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito.{verify, _}
 import org.scalatest.concurrent.ScalaFutures
@@ -29,8 +29,6 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll}
 import org.scalatestplus.mockito.MockitoSugar
-import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.dataDecoder
-import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 
 import scala.collection.immutable
 import scala.concurrent.duration._
@@ -558,6 +556,7 @@ class ProxyRoutesSpec
 
   it should "handle wildcards in referer allow list" in {
     Get(s"/proxy/$googleProject/$clusterName")
+      .addHeader(Cookie(tokenCookie))
       .addHeader(Referer(Uri("http://foo:9099"))) ~> httpRoutes.route ~> check {
       handled shouldBe true
       status shouldEqual StatusCodes.OK
