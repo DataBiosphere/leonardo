@@ -13,7 +13,7 @@ import scala.concurrent.Future
 import scala.io.Source
 
 object ProxyRedirectClient extends RestClient with LazyLogging {
-  val host = "localhost"
+  val host = java.net.InetAddress.getLocalHost.getHostName
   val port = 9099
 
   def get(rurl: String): String =

@@ -117,8 +117,13 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         case Right(billingProject) =>
           IO(sys.props.put(gpallocProjectKey, billingProject.value)) >> createInitialRuntime(billingProject)
       }
-      _ <- IO {
-        bindingFuture = ProxyRedirectClient.startServer
+      bindAttempt <- IO(ProxyRedirectClient.startServer).attempt
+      _ <- bindAttempt match {
+        case Left(e) => loggerIO.warn(s"Failed to start proxy redirect server due to ${e.getMessage}")
+        case Right(future) =>
+          IO {
+            bindingFuture = future
+          }
       }
     } yield ()
 
@@ -135,7 +140,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
       } else loggerIO.info(s"Not going to release project: ${projectProp} due to error happened")
       _ <- IO(sys.props.remove(gpallocProjectKey))
-      _ <- IO(ProxyRedirectClient.stopServer(bindingFuture))
+      _ <- if (bindingFuture != null) IO(ProxyRedirectClient.stopServer(bindingFuture)) else IO.unit
       _ <- IO(super.afterAll())
     } yield ()
 
