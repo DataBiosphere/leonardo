@@ -22,8 +22,6 @@ import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
-import scala.concurrent.Future
-
 trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
@@ -105,7 +103,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
 trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  var bindingFuture: Future[Http.ServerBinding] = _
+  var serverBinding: Http.ServerBinding = _
 
   override def beforeAll(): Unit = {
     val res = for {
@@ -117,12 +115,12 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         case Right(billingProject) =>
           IO(sys.props.put(gpallocProjectKey, billingProject.value)) >> createInitialRuntime(billingProject)
       }
-      bindAttempt <- IO(ProxyRedirectClient.startServer).attempt
+      bindAttempt <- IO.fromFuture(IO(ProxyRedirectClient.startServer)).attempt
       _ <- bindAttempt match {
         case Left(e) => loggerIO.warn(s"Failed to start proxy redirect server due to ${e.getMessage}")
-        case Right(future) =>
+        case Right(binding) =>
           IO {
-            bindingFuture = future
+            serverBinding = binding
           }
       }
     } yield ()
@@ -140,7 +138,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
       } else loggerIO.info(s"Not going to release project: ${projectProp} due to error happened")
       _ <- IO(sys.props.remove(gpallocProjectKey))
-      _ <- if (bindingFuture != null) IO(ProxyRedirectClient.stopServer(bindingFuture)) else IO.unit
+      _ <- if (serverBinding != null) IO(ProxyRedirectClient.stopServer(serverBinding)) else IO.unit
       _ <- IO(super.afterAll())
     } yield ()
 

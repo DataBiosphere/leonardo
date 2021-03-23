@@ -13,6 +13,7 @@ import scala.concurrent.Future
 import scala.io.Source
 
 object ProxyRedirectClient extends RestClient with LazyLogging {
+  // Note: change to "localhost" if running tests locally
   val host = java.net.InetAddress.getLocalHost.getHostName
   val port = 9099
 
@@ -24,9 +25,9 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
     Http().newServerAt("0.0.0.0", port).bind(route)
   }
 
-  def stopServer(bindingFuture: Future[Http.ServerBinding]): Future[Done] = {
+  def stopServer(serverBinding: Http.ServerBinding): Future[Done] = {
     logger.info("Stopping local server")
-    bindingFuture.flatMap(_.unbind())
+    serverBinding.unbind()
   }
 
   val route: Route =
