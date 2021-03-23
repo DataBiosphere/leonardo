@@ -18,7 +18,6 @@ import org.scalatest.Suite
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
-import scala.util.Try
 
 trait NotebookTestUtils extends LeonardoTestUtils {
   this: Suite =>
@@ -30,15 +29,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withNotebooksListPage[T](cluster: ClusterCopy)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
                                                                                        token: AuthToken): T = {
-    val bindingFuture = ProxyRedirectClient.startServer
-    val testResult = Try {
-      val proxyRedirectPage = ProxyRedirectClient.get(cluster.googleProject, cluster.clusterName, "jupyter")
-      proxyRedirectPage.open
-      val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
-      testCode(notebooksListPage)
-    }
-    ProxyRedirectClient.stopServer(bindingFuture)
-    testResult.get
+    val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
+    testCode(notebooksListPage.open)
   }
 
   def withFileUpload[T](cluster: ClusterCopy, file: File)(

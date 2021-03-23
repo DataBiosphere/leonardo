@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import akka.http.scaladsl.Http
 import cats.effect.IO
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -20,6 +21,8 @@ import org.http4s.Credentials.Token
 import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
+
+import scala.concurrent.Future
 
 trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
   override type FixtureParam = GoogleProject
@@ -102,6 +105,8 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
 trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
+  var bindingFuture: Future[Http.ServerBinding] = _
+
   override def beforeAll(): Unit = {
     val res = for {
       _ <- IO(super.beforeAll())
@@ -111,6 +116,9 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
         case Right(billingProject) =>
           IO(sys.props.put(gpallocProjectKey, billingProject.value)) >> createInitialRuntime(billingProject)
+      }
+      _ <- IO {
+        bindingFuture = ProxyRedirectClient.startServer
       }
     } yield ()
 
@@ -127,6 +135,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
       } else loggerIO.info(s"Not going to release project: ${projectProp} due to error happened")
       _ <- IO(sys.props.remove(gpallocProjectKey))
+      _ <- IO(ProxyRedirectClient.stopServer(bindingFuture))
       _ <- IO(super.afterAll())
     } yield ()
 

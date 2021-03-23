@@ -1,20 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
-import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
+import org.broadinstitute.dsde.workbench.page.ProxyRedirectPage
 import org.openqa.selenium.{Keys, WebDriver}
 
 import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.Try
 
-class RStudioPage(override val url: String)(implicit override val authToken: AuthToken,
-                                            implicit val webDriver: WebDriver)
-    extends CookieAuthedPage[RStudioPage]
-    with LazyLogging {
-
-  override def open(implicit webDriver: WebDriver): RStudioPage =
-    super.open.asInstanceOf[RStudioPage]
+class RStudioPage(override val url: String)(implicit val webDriver: WebDriver, val authToken: AuthToken)
+    extends ProxyRedirectPage[RStudioPage] {
 
   val renderedApp: Query = cssSelector("[id='rstudio_rstudio_logo']")
 

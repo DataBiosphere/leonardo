@@ -7,30 +7,19 @@ import akka.http.scaladsl.server.Directives.{get => httpGet, _}
 import akka.http.scaladsl.server.Route
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.ResourceFile
-import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.page.ProxyRedirectPage
 import org.broadinstitute.dsde.workbench.service.RestClient
-import org.openqa.selenium.WebDriver
 
 import scala.concurrent.Future
 import scala.io.Source
 
 object ProxyRedirectClient extends RestClient with LazyLogging {
 
-  private val url = LeonardoConfig.Leonardo.apiUrl
-
-  def get(googleProject: GoogleProject, clusterName: RuntimeName, tool: String)(
-    implicit webDriver: WebDriver,
-    token: AuthToken
-  ): ProxyRedirectPage = {
-    val serverUrl = s"http://localhost:9090/${googleProject.value}/${clusterName.asString}/${tool}/client"
-    new ProxyRedirectPage(serverUrl)
-  }
+  def get(rurl: String): String =
+    s"http://localhost:9090/proxyRedirectClient?rurl=${rurl}"
 
   def startServer: Future[Http.ServerBinding] = {
     logger.info("Starting local server on port 9090")
-    Http().bindAndHandle(route, "localhost", 9090)
+    Http().newServerAt("localhost", 9090).bind(route)
   }
 
   def stopServer(bindingFuture: Future[Http.ServerBinding]): Future[Done] = {
@@ -39,25 +28,27 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
   }
 
   val route: Route =
-    path(Segment / Segment / Segment / "client") { (googleProject, clusterName, tool) =>
-      httpGet {
-        complete {
-          logger.info(s"Serving proxy redirect client for $googleProject/$clusterName/$tool")
-          HttpEntity(ContentTypes.`text/html(UTF-8)`,
-                     getContent(GoogleProject(googleProject), RuntimeName(clusterName), tool))
+    path("proxyRedirectClient") {
+      parameter("rurl") { rurl =>
+        httpGet {
+          complete {
+            logger.info(s"Serving proxy redirect client for redirect url $rurl")
+            HttpEntity(ContentTypes.`text/html(UTF-8)`, getContent(rurl))
+          }
         }
       }
     }
 
-  private def getContent(googleProject: GoogleProject, clusterName: RuntimeName, tool: String) = {
+  private def getContent(rurl: String) = {
     val resourceFile = ResourceFile("redirect-proxy-page.html")
     val raw = Source.fromFile(resourceFile).mkString
+
     val replacementMap = Map(
-      "proxyUrl" -> s"${url}/proxy/${googleProject.value}/${clusterName.asString}/${tool}"
+      "rurl" -> rurl
     )
     replacementMap.foldLeft(raw) {
       case (source, (key, replacement)) =>
-        source.replaceAllLiterally("$(" + key + ")", s"""'$replacement'""")
+        source.replace("$(" + key + ")", s"""'$replacement'""")
     }
   }
 }
