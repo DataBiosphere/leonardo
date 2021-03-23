@@ -13,13 +13,15 @@ import scala.concurrent.Future
 import scala.io.Source
 
 object ProxyRedirectClient extends RestClient with LazyLogging {
+  val host = "localhost"
+  val port = 9099
 
   def get(rurl: String): String =
-    s"http://localhost:9090/proxyRedirectClient?rurl=${rurl}"
+    s"http://$host:$port/proxyRedirectClient?rurl=${rurl}"
 
   def startServer: Future[Http.ServerBinding] = {
-    logger.info("Starting local server on port 9090")
-    Http().newServerAt("localhost", 9090).bind(route)
+    logger.info("Starting local server on port $port")
+    Http().newServerAt(host, port).bind(route)
   }
 
   def stopServer(bindingFuture: Future[Http.ServerBinding]): Future[Done] = {
