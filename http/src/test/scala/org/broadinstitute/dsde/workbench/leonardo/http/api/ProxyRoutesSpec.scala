@@ -78,8 +78,6 @@ class ProxyRoutesSpec
                                       Some(appSamId.resourceId))
   }
 
-  // adding Referer(Uri("none)) to
-
   "runtime proxy routes" should "listen on /proxy/{project}/{name} id1" in {
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Cookie(tokenCookie))
@@ -555,6 +553,15 @@ class ProxyRoutesSpec
     Get(s"/proxy/$googleProject/$clusterName")
       .addHeader(Referer(Uri("https://notAGoodExample.com"))) ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.Unauthorized
+    }
+  }
+
+  it should "handle wildcards in referer allow list" in {
+    Get(s"/proxy/$googleProject/$clusterName")
+      .addHeader(Referer(Uri("http://foo:9099"))) ~> httpRoutes.route ~> check {
+      handled shouldBe true
+      status shouldEqual StatusCodes.OK
+      validateCors()
     }
   }
 }
