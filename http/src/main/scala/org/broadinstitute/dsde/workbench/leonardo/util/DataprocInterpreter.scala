@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDiskService,
   GoogleResourceService,
   MachineTypeName,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
@@ -247,9 +248,17 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         softwareConfig
       )
 
+      regionParam <- params.runtimeConfig match {
+        case _: RuntimeConfigInCreateRuntimeMessage.GceConfig |
+            _: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
+          F.raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
+        case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
+          F.pure(x.region)
+      }
+
       op <- googleDataprocService.createCluster(
         params.runtimeProjectAndName.googleProject,
-        config.dataprocConfig.regionName,
+        regionParam,
         DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString),
         Some(createClusterConfig)
       )
