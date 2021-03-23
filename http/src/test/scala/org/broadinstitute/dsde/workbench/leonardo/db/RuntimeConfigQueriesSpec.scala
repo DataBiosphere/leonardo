@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.db
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makePersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, LeonardoTestSuite, RuntimeConfig}

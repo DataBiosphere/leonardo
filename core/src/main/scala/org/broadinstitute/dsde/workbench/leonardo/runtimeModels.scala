@@ -5,7 +5,7 @@ import java.time.Instant
 import cats.syntax.all._
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, ZoneName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}

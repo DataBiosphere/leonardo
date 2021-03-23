@@ -19,9 +19,9 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   NetworkName,
   OperationName,
+  RegionName,
   SubnetworkName,
-  ZoneName,
-  RegionName
+  ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, VM, Welder}

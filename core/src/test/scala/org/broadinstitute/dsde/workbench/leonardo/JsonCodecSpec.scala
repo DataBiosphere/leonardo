@@ -4,7 +4,7 @@ import JsonCodec._
 import io.circe.CursorOp.DownField
 import io.circe.{DecodingFailure, Json}
 import io.circe.parser._
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers

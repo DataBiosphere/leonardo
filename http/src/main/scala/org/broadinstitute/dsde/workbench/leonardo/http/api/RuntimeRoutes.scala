@@ -12,7 +12,7 @@ import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeRequest, RuntimeService}

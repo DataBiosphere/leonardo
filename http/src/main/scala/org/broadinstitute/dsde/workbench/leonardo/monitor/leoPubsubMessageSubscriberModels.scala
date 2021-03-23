@@ -9,7 +9,7 @@ import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
@@ -558,15 +558,17 @@ object LeoPubsubCodec {
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
       region <- c.downField("region").as[RegionName]
-    } yield RuntimeConfigInCreateRuntimeMessage.DataprocConfig(numberOfWorkers,
-                                                               masterMachineType,
-                                                               masterDiskSize,
-                                                               workerMachineType,
-                                                               workerDiskSize,
-                                                               numberOfWorkerLocalSSDs,
-                                                               numberOfPreemptibleWorkers,
-                                                               properties,
-                                                               region)
+    } yield RuntimeConfigInCreateRuntimeMessage.DataprocConfig(
+      numberOfWorkers,
+      masterMachineType,
+      masterDiskSize,
+      workerMachineType,
+      workerDiskSize,
+      numberOfWorkerLocalSSDs,
+      numberOfPreemptibleWorkers,
+      properties,
+      region
+    )
   }
 
   implicit val gceConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =

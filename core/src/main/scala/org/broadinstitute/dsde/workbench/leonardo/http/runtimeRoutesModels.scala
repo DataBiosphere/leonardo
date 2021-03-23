@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
   AuditInfo,

@@ -4,7 +4,7 @@ package db
 import java.sql.SQLDataException
 import java.time.Instant
 
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
@@ -93,21 +93,23 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         // We want both zone and region to be required in the database, not optional
         // So we pass a "dummy" zone/region to Dataproc/GCE respectively
         case r: RuntimeConfig.GceConfig =>
-          Some(x.id,
-               (CloudService.GCE: CloudService,
-                0,
-                r.machineType,
-                Some(r.diskSize),
-                r.bootDiskSize,
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-                r.zone,
-                RegionName("dummy")),
-               x.dateAccessed)
+          Some(
+            x.id,
+            (CloudService.GCE: CloudService,
+             0,
+             r.machineType,
+             Some(r.diskSize),
+             r.bootDiskSize,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             r.zone,
+             RegionName("dummy")),
+            x.dateAccessed
+          )
         case r: RuntimeConfig.DataprocConfig =>
           Some(
             x.id,

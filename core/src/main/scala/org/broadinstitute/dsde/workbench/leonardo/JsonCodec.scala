@@ -18,9 +18,9 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   NetworkName,
   OperationName,
+  RegionName,
   SubnetworkName,
-  ZoneName,
-  RegionName
+  ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
@@ -276,15 +276,17 @@ object JsonCodec {
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
       region <- c.downField("region").as[RegionName]
-    } yield RuntimeConfig.DataprocConfig(numberOfWorkers,
-                                         masterMachineType,
-                                         masterDiskSize,
-                                         workerMachineType,
-                                         workerDiskSize,
-                                         numberOfWorkerLocalSSDs,
-                                         numberOfPreemptibleWorkers,
-                                         properties,
-                                         region)
+    } yield RuntimeConfig.DataprocConfig(
+      numberOfWorkers,
+      masterMachineType,
+      masterDiskSize,
+      workerMachineType,
+      workerDiskSize,
+      numberOfWorkerLocalSSDs,
+      numberOfPreemptibleWorkers,
+      properties,
+      region
+    )
   }
 
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>
