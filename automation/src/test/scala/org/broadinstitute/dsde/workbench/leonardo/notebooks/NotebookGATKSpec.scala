@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.leonardo.{GPAllocBeforeAndAfterAll, LeonardoConfig, RuntimeFixtureSpec}
+import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
 
 /**

@@ -9,7 +9,7 @@ trait JupyterPage extends ProxyRedirectPage[JupyterPage] {
 
   override def awaitLoaded(): JupyterPage = {
     await enabled renderedApp
-    super.awaitLoaded()
+    this
   }
 
   //Useful utility to print client-side information.
