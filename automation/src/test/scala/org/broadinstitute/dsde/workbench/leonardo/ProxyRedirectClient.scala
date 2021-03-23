@@ -20,8 +20,8 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
     s"http://$host:$port/proxyRedirectClient?rurl=${rurl}"
 
   def startServer: Future[Http.ServerBinding] = {
-    logger.info("Starting local server on port $port")
-    Http().newServerAt(host, port).bind(route)
+    logger.info(s"Starting local server on 0.0.0.0:$port")
+    Http().newServerAt("0.0.0.0", port).bind(route)
   }
 
   def stopServer(bindingFuture: Future[Http.ServerBinding]): Future[Done] = {
