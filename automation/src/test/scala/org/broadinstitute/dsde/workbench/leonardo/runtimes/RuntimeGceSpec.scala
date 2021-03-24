@@ -5,10 +5,7 @@ import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
 
-import org.broadinstitute.dsde.workbench.google2.{
-  MachineTypeName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
@@ -42,13 +39,15 @@ class RuntimeGceSpec
       )
     )
     val res = LeonardoApiClient.client.use { c =>
-        implicit val httpClient = c
-        for {
-            getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
-            _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].zone shouldBe Some(ZoneName("europe-west1-a"))
+      implicit val httpClient = c
+      for {
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
+        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].zone shouldBe Some(
+          ZoneName("europe-west1-a")
+        )
 
-            _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
-        } yield ()
+        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
+      } yield ()
     }
   }
 }
