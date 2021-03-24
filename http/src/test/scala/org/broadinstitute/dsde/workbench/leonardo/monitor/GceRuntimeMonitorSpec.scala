@@ -178,7 +178,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -231,7 +231,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -272,7 +272,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -310,7 +310,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -360,7 +360,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService)
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -383,7 +383,7 @@ class GceRuntimeMonitorSpec
     )
 
     val monitor = gceRuntimeMonitor()
-    val savedRuntime = runtime.save()
+    val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
     val res = for {
       now <- nowInstant[IO]
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Creating).compile.drain //start monitoring process
@@ -406,7 +406,7 @@ class GceRuntimeMonitorSpec
     )
 
     val monitor = gceRuntimeMonitor()
-    val savedRuntime = runtime.save()
+    val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
     val res = for {
       now <- nowInstant[IO]
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
@@ -437,7 +437,7 @@ class GceRuntimeMonitorSpec
       }
     }
     val monitor = gceRuntimeMonitor(googleComputeService = computeService)
-    val savedRuntime = runtime.save()
+    val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
     val res = for {
       now <- nowInstant[IO]
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
@@ -465,7 +465,7 @@ class GceRuntimeMonitorSpec
         googleComputeService =
           computeService(start.toEpochMilli, Some(GceInstanceStatus.Running), Some(GceInstanceStatus.Terminated))
       )
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Stopping).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
@@ -486,7 +486,7 @@ class GceRuntimeMonitorSpec
     )
 
     val monitor = gceRuntimeMonitor()
-    val savedRuntime = runtime.save()
+    val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
     val res = for {
       now <- nowInstant[IO]
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Deleting).compile.drain //start monitoring process
@@ -526,7 +526,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Deleting).compile.drain //start monitoring process
       afterMonitor <- nowInstant
 
@@ -550,7 +550,7 @@ class GceRuntimeMonitorSpec
     val op = com.google.cloud.compute.v1.Operation.newBuilder().build()
     val monitor = gceRuntimeMonitor()
     val res = for {
-      _ <- IO(runtime.save())
+      _ <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       r <- monitor
         .pollCheck(
           runtime.googleProject,
@@ -623,7 +623,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(computePollOperation = computePollOperation(start.toEpochMilli))
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.pollCheck(
         savedRuntime.googleProject,
         RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig),
@@ -659,7 +659,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(computePollOperation = pollOperation)
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.pollCheck(
         runtime.googleProject,
         RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig),
