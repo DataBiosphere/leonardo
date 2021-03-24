@@ -82,8 +82,9 @@ object Notebook extends RestClient with LazyLogging {
   def getApiHeaders(googleProject: GoogleProject,
                     clusterName: RuntimeName)(implicit token: AuthToken): Seq[HttpHeader] = {
     val path = notebooksTreePath(googleProject, clusterName)
+    val referer = Referer(Uri(refererUrl))
     logger.info(s"Get notebook: GET /$path")
-    getRequest(url + path).headers
+    getRequest(url + path, httpHeaders = List(referer)).headers
   }
 
   def localize(googleProject: GoogleProject,
