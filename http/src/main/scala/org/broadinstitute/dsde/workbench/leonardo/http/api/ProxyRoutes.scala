@@ -24,6 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.http4s.Method
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
@@ -242,7 +243,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
 
       headerMap: Map[String, String] = request.headers.map(header => (header.name(), header.value())).toMap
       contentLength = headerMap.get("content-length").toString.toDouble
-      _ <- if (request.uri.toString().endsWith(".ipynb")) {
+      _ <- if (request.uri.toString().endsWith(".ipynb") && request.method.equals(Method.PUT)) {
         metrics.gauge("proxy/notebooksSize", contentLength)
       } else IO.unit
 
