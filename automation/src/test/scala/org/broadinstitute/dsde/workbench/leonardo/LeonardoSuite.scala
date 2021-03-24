@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import akka.http.scaladsl.Http
 import cats.effect.IO
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
@@ -103,19 +102,14 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
 trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  var serverBinding: Http.ServerBinding = _
-
   override def beforeAll(): Unit = {
     val res = for {
       _ <- IO(super.beforeAll())
       _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll beforeAll")
       bindAttempt <- IO.fromFuture(IO(ProxyRedirectClient.startServer)).attempt
       _ <- bindAttempt match {
-        case Left(e) => loggerIO.warn(s"Failed to start proxy redirect server due to ${e.getMessage}")
-        case Right(binding) =>
-          IO {
-            serverBinding = binding
-          }
+        case Left(e)  => loggerIO.warn(s"Failed to start proxy redirect server due to ${e.getMessage}")
+        case Right(b) => loggerIO.info(s"Started proxy redirect server on ${b.localAddress.toString}")
       }
       claimAttempt <- claimProject().attempt
       _ <- claimAttempt match {
@@ -138,7 +132,6 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
       } else loggerIO.info(s"Not going to release project: ${projectProp} due to error happened")
       _ <- IO(sys.props.remove(gpallocProjectKey))
-      _ <- if (serverBinding != null) IO(ProxyRedirectClient.stopServer(serverBinding)) else IO.unit
       _ <- IO(super.afterAll())
     } yield ()
 
