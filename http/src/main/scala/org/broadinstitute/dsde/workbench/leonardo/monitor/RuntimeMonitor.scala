@@ -5,20 +5,19 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.effect.{Async, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ImageConfig, RuntimeBucketConfig}
+import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import scala.jdk.CollectionConverters._
 
 import scala.collection.immutable.Set
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 /**
  * Monitor for runtime status transition: Starting, Creating, Deleting, Stopping
@@ -148,7 +147,6 @@ object MonitorConfig {
                                     checkToolsMaxAttempts: Int,
                                     runtimeBucketConfig: RuntimeBucketConfig,
                                     monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
-                                    gceZoneName: ZoneName,
                                     imageConfig: ImageConfig)
       extends MonitorConfig
 
@@ -159,7 +157,6 @@ object MonitorConfig {
                                          checkToolsMaxAttempts: Int,
                                          runtimeBucketConfig: RuntimeBucketConfig,
                                          monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
-                                         imageConfig: ImageConfig,
-                                         regionName: RegionName)
+                                         imageConfig: ImageConfig)
       extends MonitorConfig
 }

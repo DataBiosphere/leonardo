@@ -2,10 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.sql.SQLDataException
+
 import cats.Parallel
 import cats.effect.{Async, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
 import io.chrisdavenport.log4cats.StructuredLogger
@@ -155,9 +156,16 @@ class GceRuntimeMonitor[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
+      zoneParam <- F.fromOption(
+        LeoLenses.gceZone.getOption(runtimeAndRuntimeConfig.runtimeConfig),
+        new RuntimeException(
+          "GceRuntimeMonitor shouldn't get a dataproc runtime creation request. Something is very wrong"
+        )
+      )
+
       instance <- googleComputeService.getInstance(
         runtimeAndRuntimeConfig.runtime.googleProject,
-        config.gceZoneName,
+        zoneParam,
         InstanceName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
       )
       result <- runtimeAndRuntimeConfig.runtime.status match {

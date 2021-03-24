@@ -67,9 +67,16 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
+      dataprocConfig <- runtimeAndRuntimeConfig.runtimeConfig match {
+        case x: RuntimeConfig.DataprocConfig => F.pure(x)
+        case _ =>
+          F.raiseError[RuntimeConfig.DataprocConfig](
+            new RuntimeException("DataprocRuntimeMonitor should not get a GCE request")
+          )
+      }
       cluster <- googleDataprocService.getCluster(
         runtimeAndRuntimeConfig.runtime.googleProject,
-        config.regionName,
+        dataprocConfig.region,
         DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
       )
       result <- runtimeAndRuntimeConfig.runtime.status match {

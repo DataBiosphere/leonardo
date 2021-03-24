@@ -22,8 +22,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
   def dataprocProperties = column[Option[Map[String, String]]]("dataprocProperties")
   def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
-  def zone = column[ZoneName]("zone", O.Length(254))
-  def region = column[RegionName]("region", O.Length(254))
+  def zone = column[Option[ZoneName]]("zone", O.Length(254))
+  def region = column[Option[RegionName]]("region", O.Length(254))
 
   def * =
     (
@@ -63,35 +63,46 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         val r = cloudService match {
           case CloudService.GCE =>
             diskSize match {
-              case Some(size) => RuntimeConfig.GceConfig(machineType, size, bootDiskSize, zone)
+              case Some(size) =>
+                RuntimeConfig.GceConfig(machineType,
+                                        size,
+                                        bootDiskSize,
+                                        zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")))
               case None =>
                 val bds =
                   bootDiskSize.getOrElse(throw new SQLDataException("gce runtime with PD has to have a boot disk"))
                 persistentDiskId.fold(
-                  RuntimeConfig.GceWithPdConfig(machineType, None, bds, zone)
-                )(diskId => RuntimeConfig.GceWithPdConfig(machineType, Some(diskId), bds, zone))
+                  RuntimeConfig.GceWithPdConfig(
+                    machineType,
+                    None,
+                    bds,
+                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE"))
+                  )
+                )(diskId =>
+                  RuntimeConfig.GceWithPdConfig(
+                    machineType,
+                    Some(diskId),
+                    bds,
+                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE"))
+                  )
+                )
             }
           case CloudService.Dataproc =>
             RuntimeConfig.DataprocConfig(
               numberOfWorkers,
               machineType,
-              diskSize.getOrElse(throw new Exception("diskSize field should not be null for Dataproc.")),
+              diskSize.getOrElse(throw new SQLDataException("diskSize field should not be null for Dataproc.")),
               workerMachineType,
               workerDiskSize,
               numberOfWorkerLocalSSDs,
               numberOfPreemptibleWorkers,
               dataprocProperties.getOrElse(Map.empty),
-              region
+              region.getOrElse(throw new SQLDataException("region should not be null for Dataproc"))
             )
         }
         RuntimeConfigRecord(id, r, dateAccessed)
     }, { x: RuntimeConfigRecord =>
       x.runtimeConfig match {
-        // Whats with the "dummy" values below?
-        // We want Gce/GceWithPdConfig to have zone, but not region
-        // We want DataprocConfig to have region, but not zone
-        // We want both zone and region to be required in the database, not optional
-        // So we pass a "dummy" zone/region to Dataproc/GCE respectively
         case r: RuntimeConfig.GceConfig =>
           Some(
             x.id,
@@ -106,8 +117,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              None,
              None,
-             r.zone,
-             RegionName("dummy")),
+             Some(r.zone),
+             None),
             x.dateAccessed
           )
         case r: RuntimeConfig.DataprocConfig =>
@@ -124,8 +135,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.numberOfPreemptibleWorkers,
              Some(r.properties),
              None,
-             ZoneName("dummy"),
-             r.region),
+             None,
+             Some(r.region)),
             x.dateAccessed
           )
         case r: RuntimeConfig.GceWithPdConfig =>
@@ -142,8 +153,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              None,
              r.persistentDiskId,
-             r.zone,
-             RegionName("dummy")),
+             Some(r.zone),
+             None),
             x.dateAccessed
           )
       }

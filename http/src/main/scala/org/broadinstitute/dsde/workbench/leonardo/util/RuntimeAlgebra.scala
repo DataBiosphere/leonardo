@@ -10,8 +10,8 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Zon
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -23,7 +23,6 @@ trait RuntimeAlgebra[F[_]] {
   def createRuntime(params: CreateRuntimeParams)(
     implicit ev: Ask[F, AppContext]
   ): F[CreateGoogleRuntimeResponse]
-  def getRuntimeStatus(params: GetRuntimeStatusParams)(implicit ev: Ask[F, AppContext]): F[RuntimeStatus]
   def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit]
   def stopRuntime(params: StopRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
@@ -71,19 +70,18 @@ final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFie
                                              initBucket: GcsBucketName,
                                              serviceAccountKey: Option[ServiceAccountKey],
                                              customImage: CustomImage)
-final case class GetRuntimeStatusParams(googleProject: GoogleProject,
-                                        runtimeName: RuntimeName,
-                                        zoneName: Option[ZoneName]) // zoneName is only needed for GCE
-final case class DeleteRuntimeParams(runtime: Runtime)
+final case class DeleteRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
 final case class FinalizeDeleteParams(runtime: Runtime)
-final case class StopRuntimeParams(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig], now: Instant)
-final case class StartRuntimeParams(runtime: Runtime, initBucket: GcsBucketName)
-final case class UpdateMachineTypeParams(runtime: Runtime, machineType: MachineTypeName, now: Instant)
+final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)
+final case class StartRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, initBucket: GcsBucketName)
+final case class UpdateMachineTypeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                         machineType: MachineTypeName,
+                                         now: Instant)
 
 sealed trait UpdateDiskSizeParams extends Product with Serializable
 object UpdateDiskSizeParams {
   final case class Dataproc(diskSize: DiskSize, masterDataprocInstance: DataprocInstance) extends UpdateDiskSizeParams
-  final case class Gce(googleProject: GoogleProject, diskName: DiskName, diskSize: DiskSize)
+  final case class Gce(googleProject: GoogleProject, diskName: DiskName, diskSize: DiskSize, zone: ZoneName)
       extends UpdateDiskSizeParams
 
   val dataprocPrism = Prism[UpdateDiskSizeParams, Dataproc] {
@@ -97,7 +95,9 @@ object UpdateDiskSizeParams {
   }(identity)
 }
 
-final case class ResizeClusterParams(runtime: Runtime, numWorkers: Option[Int], numPreemptibles: Option[Int])
+final case class ResizeClusterParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                     numWorkers: Option[Int],
+                                     numPreemptibles: Option[Int])
 
 // Configurations
 sealed trait RuntimeInterpreterConfig {

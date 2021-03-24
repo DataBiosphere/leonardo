@@ -2507,6 +2507,7 @@ components:
               type: string
               description: >
                 Optional, the deployment area of the GCE VM. For example, us-east1-a or europe-west2-c.
+                Defaults to us-central1-a.
     GceWithPdConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
@@ -2531,6 +2532,7 @@ components:
               type: string
               description: >
                 Optional, the deployment area of the GCE VM. For example, us-east1-a or europe-west2-c.
+                Defaults to us-central1-a.
     DataprocConfig:
       description: Configuration for a single Dataproc cluster.
       allOf:
@@ -2598,6 +2600,7 @@ components:
               type: string
               description: >
                 Optional, the deployment region of the cluster. For example, us-east1 or europe-west2.
+                Defaults to us-central1.
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:

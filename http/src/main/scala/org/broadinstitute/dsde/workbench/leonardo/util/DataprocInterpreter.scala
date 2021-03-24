@@ -4,7 +4,6 @@ package util
 import _root_.io.chrisdavenport.log4cats.StructuredLogger
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
-import cats.data.OptionT
 import cats.effect.{Async, _}
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -32,14 +31,12 @@ import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImag
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
-import org.broadinstitute.dsde.workbench.leonardo.model.InvalidDataprocMachineConfigException
-import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.model.{InvalidDataprocMachineConfigException, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -60,9 +57,10 @@ final case object ImageProjectNotFoundException
     extends LeoException("Custom Dataproc image project not found", StatusCodes.NotFound, traceId = None)
 
 final case class ClusterResourceConstraintsException(clusterProjectAndName: RuntimeProjectAndName,
-                                                     machineType: MachineTypeName)
+                                                     machineType: MachineTypeName,
+                                                     region: RegionName)
     extends LeoException(
-      s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType}",
+      s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType} in region ${region}",
       traceId = None
     )
 
@@ -93,220 +91,210 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
   override def createRuntime(
     params: CreateRuntimeParams
   )(implicit ev: Ask[F, AppContext]): F[CreateGoogleRuntimeResponse] = {
-    val initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
-    val stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
-
-    val ioResult = for {
+    for {
       ctx <- ev.ask
-      // Set up VPC network and firewall
-      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
-      )
-      _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
-      )
-      resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
-                                                          params.runtimeConfig.machineType)
-
-      // Set up IAM roles necessary to create a cluster.
-      _ <- createClusterIamRoles(params.runtimeProjectAndName.googleProject, params.serviceAccountInfo)
-
-      // Add member to the Google Group that has the IAM role to pull the Dataproc image
-      _ <- updateDataprocImageGroupMembership(params.runtimeProjectAndName.googleProject, createCluster = true)
-
-      // Create the bucket in the cluster's google project and populate with initialization files.
-      // ACLs are granted so the cluster service account can access the files at initialization time.
-      _ <- bucketHelper
-        .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
-        .compile
-        .drain
-
-      // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
-      _ <- bucketHelper
-        .createStagingBucket(params.auditInfo.creator,
-                             params.runtimeProjectAndName.googleProject,
-                             stagingBucketName,
-                             params.serviceAccountInfo)
-        .compile
-        .drain
-
-      templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
-        params,
-        Some(initBucketName),
-        Some(stagingBucketName),
-        None,
-        config.imageConfig,
-        config.welderConfig,
-        config.proxyConfig,
-        config.clusterFilesConfig,
-        config.clusterResourcesConfig,
-        Some(resourceConstraints),
-        false
-      )
-      templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
-      _ <- bucketHelper
-        .initializeBucketObjects(initBucketName,
-                                 templateParams.serviceAccountKey,
-                                 templateValues,
-                                 params.customEnvironmentVariables)
-        .compile
-        .drain
-
-      // build cluster configuration
-      initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
-      initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
-
-      // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
-      // we will use the new custom dataproc image
-      dataprocImage = if (params.runtimeImages.exists(_.imageUrl == config.imageConfig.legacyJupyterImage.imageUrl))
-        config.dataprocConfig.legacyCustomDataprocImage
-      else config.dataprocConfig.customDataprocImage
-
       machineConfig <- params.runtimeConfig match {
-        case _: RuntimeConfigInCreateRuntimeMessage.GceConfig |
-            _: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
-          F.raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
         case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
           F.pure(dataprocInCreateRuntimeMsgToDataprocRuntime(x))
-      }
-
-      gceClusterConfig = {
-        val bldr = GceClusterConfig
-          .newBuilder()
-          .addTags(config.vpcConfig.networkTag.value)
-          .setSubnetworkUri(subnetwork.value)
-          .setServiceAccount(params.serviceAccountInfo.value)
-          .addAllServiceAccountScopes(params.scopes.asJava)
-        config.dataprocConfig.zoneName.foreach(zone => bldr.setZoneUri(zone.value))
-        bldr.build()
-      }
-
-      nodeInitializationActions = initScripts.map { script =>
-        NodeInitializationAction
-          .newBuilder()
-          .setExecutableFile(script.toUri)
-          .setExecutionTimeout(
-            com.google.protobuf.Duration.newBuilder().setSeconds(config.runtimeCreationTimeout.toSeconds)
+        case _ =>
+          F.raiseError[RuntimeConfig.DataprocConfig](
+            new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
           )
-          .build()
       }
+      initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
+      stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
 
-      masterConfig = InstanceGroupConfig
-        .newBuilder()
-        .setMachineTypeUri(machineConfig.masterMachineType.value)
-        .setDiskConfig(
-          DiskConfig
-            .newBuilder()
-            .setBootDiskSizeGb(machineConfig.masterDiskSize.gb)
+      createOp = for {
+        // Set up VPC network and firewall
+        (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
+          SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
         )
-        .setImageUri(dataprocImage.asString)
-        .build()
+        _ <- vpcAlg.setUpProjectFirewalls(
+          SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
+        )
+        resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
+                                                            machineConfig.masterMachineType,
+                                                            machineConfig.region)
 
-      (workerConfig, secondaryWorkerConfig) = if (machineConfig.numberOfWorkers > 0) {
-        (machineConfig.workerMachineType,
-         machineConfig.workerDiskSize,
-         machineConfig.numberOfWorkerLocalSSDs,
-         machineConfig.numberOfPreemptibleWorkers)
-          .mapN {
-            case (machineType, diskSize, numLocalSSDs, numPreemptibles) =>
-              val workerConfig = InstanceGroupConfig
-                .newBuilder()
-                .setNumInstances(machineConfig.numberOfWorkers)
-                .setMachineTypeUri(machineType.value)
-                .setDiskConfig(DiskConfig.newBuilder().setBootDiskSizeGb(diskSize.gb).setNumLocalSsds(numLocalSSDs))
-                .setImageUri(dataprocImage.asString)
-                .build()
+        // Set up IAM roles necessary to create a cluster.
+        _ <- createClusterIamRoles(params.runtimeProjectAndName.googleProject, params.serviceAccountInfo)
 
-              val secondaryWorkerConfig =
-                if (numPreemptibles > 0)
-                  Some(
-                    InstanceGroupConfig
-                      .newBuilder()
-                      .setIsPreemptible(true)
-                      .setNumInstances(numPreemptibles)
-                      .setMachineTypeUri(machineType.value)
-                      .setDiskConfig(DiskConfig.newBuilder().setBootDiskSizeGb(diskSize.gb))
-                      .setImageUri(dataprocImage.asString)
-                      .build()
-                  )
-                else None
+        // Add member to the Google Group that has the IAM role to pull the Dataproc image
+        _ <- updateDataprocImageGroupMembership(params.runtimeProjectAndName.googleProject, createCluster = true)
 
-              (Some(workerConfig), secondaryWorkerConfig)
-          }
-          .getOrElse((None, None))
-      } else (None, None)
+        // Create the bucket in the cluster's google project and populate with initialization files.
+        // ACLs are granted so the cluster service account can access the files at initialization time.
+        _ <- bucketHelper
+          .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
+          .compile
+          .drain
 
-      softwareConfig = getSoftwareConfig(params.runtimeProjectAndName.googleProject, machineConfig)
+        // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
+        _ <- bucketHelper
+          .createStagingBucket(params.auditInfo.creator,
+                               params.runtimeProjectAndName.googleProject,
+                               stagingBucketName,
+                               params.serviceAccountInfo)
+          .compile
+          .drain
 
-      createClusterConfig = CreateClusterConfig(
-        gceClusterConfig,
-        nodeInitializationActions,
-        masterConfig,
-        workerConfig,
-        secondaryWorkerConfig,
-        stagingBucketName,
-        softwareConfig
-      )
+        templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
+          params,
+          Some(initBucketName),
+          Some(stagingBucketName),
+          None,
+          config.imageConfig,
+          config.welderConfig,
+          config.proxyConfig,
+          config.clusterFilesConfig,
+          config.clusterResourcesConfig,
+          Some(resourceConstraints),
+          false
+        )
+        templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
+        _ <- bucketHelper
+          .initializeBucketObjects(initBucketName,
+                                   templateParams.serviceAccountKey,
+                                   templateValues,
+                                   params.customEnvironmentVariables)
+          .compile
+          .drain
 
-      regionParam <- params.runtimeConfig match {
-        case _: RuntimeConfigInCreateRuntimeMessage.GceConfig |
-            _: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
-          F.raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
-        case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
-          F.pure(x.region)
+        // build cluster configuration
+        initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
+        initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
+
+        // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
+        // we will use the new custom dataproc image
+        dataprocImage = if (params.runtimeImages.exists(_.imageUrl == config.imageConfig.legacyJupyterImage.imageUrl))
+          config.dataprocConfig.legacyCustomDataprocImage
+        else config.dataprocConfig.customDataprocImage
+
+        gceClusterConfig = {
+          val bldr = GceClusterConfig
+            .newBuilder()
+            .addTags(config.vpcConfig.networkTag.value)
+            .setSubnetworkUri(subnetwork.value)
+            .setServiceAccount(params.serviceAccountInfo.value)
+            .addAllServiceAccountScopes(params.scopes.asJava)
+          bldr.build()
+        }
+
+        nodeInitializationActions = initScripts.map { script =>
+          NodeInitializationAction
+            .newBuilder()
+            .setExecutableFile(script.toUri)
+            .setExecutionTimeout(
+              com.google.protobuf.Duration.newBuilder().setSeconds(config.runtimeCreationTimeout.toSeconds)
+            )
+            .build()
+        }
+
+        masterConfig = InstanceGroupConfig
+          .newBuilder()
+          .setMachineTypeUri(machineConfig.masterMachineType.value)
+          .setDiskConfig(
+            DiskConfig
+              .newBuilder()
+              .setBootDiskSizeGb(machineConfig.masterDiskSize.gb)
+          )
+          .setImageUri(dataprocImage.asString)
+          .build()
+
+        (workerConfig, secondaryWorkerConfig) = if (machineConfig.numberOfWorkers > 0) {
+          (machineConfig.workerMachineType,
+           machineConfig.workerDiskSize,
+           machineConfig.numberOfWorkerLocalSSDs,
+           machineConfig.numberOfPreemptibleWorkers)
+            .mapN {
+              case (machineType, diskSize, numLocalSSDs, numPreemptibles) =>
+                val workerConfig = InstanceGroupConfig
+                  .newBuilder()
+                  .setNumInstances(machineConfig.numberOfWorkers)
+                  .setMachineTypeUri(machineType.value)
+                  .setDiskConfig(DiskConfig.newBuilder().setBootDiskSizeGb(diskSize.gb).setNumLocalSsds(numLocalSSDs))
+                  .setImageUri(dataprocImage.asString)
+                  .build()
+
+                val secondaryWorkerConfig =
+                  if (numPreemptibles > 0)
+                    Some(
+                      InstanceGroupConfig
+                        .newBuilder()
+                        .setIsPreemptible(true)
+                        .setNumInstances(numPreemptibles)
+                        .setMachineTypeUri(machineType.value)
+                        .setDiskConfig(DiskConfig.newBuilder().setBootDiskSizeGb(diskSize.gb))
+                        .setImageUri(dataprocImage.asString)
+                        .build()
+                    )
+                  else None
+
+                (Some(workerConfig), secondaryWorkerConfig)
+            }
+            .getOrElse((None, None))
+        } else (None, None)
+
+        softwareConfig = getSoftwareConfig(params.runtimeProjectAndName.googleProject, machineConfig)
+
+        createClusterConfig = CreateClusterConfig(
+          gceClusterConfig,
+          nodeInitializationActions,
+          masterConfig,
+          workerConfig,
+          secondaryWorkerConfig,
+          stagingBucketName,
+          softwareConfig
+        )
+
+        op <- googleDataprocService.createCluster(
+          params.runtimeProjectAndName.googleProject,
+          machineConfig.region,
+          DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString),
+          Some(createClusterConfig)
+        )
+
+        asyncRuntimeFields = AsyncRuntimeFields(
+          GoogleId(op.metadata.getClusterUuid),
+          op.name,
+          stagingBucketName,
+          None
+        )
+      } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, dataprocImage)
+
+      res <- createOp.handleErrorWith { throwable =>
+        cleanUpGoogleResourcesOnError(
+          params.runtimeProjectAndName.googleProject,
+          params.runtimeProjectAndName.runtimeName,
+          initBucketName,
+          params.serviceAccountInfo,
+          machineConfig.region
+        ) >> F.raiseError[CreateGoogleRuntimeResponse](throwable)
       }
-
-      op <- googleDataprocService.createCluster(
-        params.runtimeProjectAndName.googleProject,
-        regionParam,
-        DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString),
-        Some(createClusterConfig)
-      )
-
-      asyncRuntimeFields = AsyncRuntimeFields(
-        GoogleId(op.metadata.getClusterUuid),
-        op.name,
-        stagingBucketName,
-        None
-      )
-      res = CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, dataprocImage)
     } yield res
-
-    ioResult.handleErrorWith { throwable =>
-      cleanUpGoogleResourcesOnError(
-        params.runtimeProjectAndName.googleProject,
-        params.runtimeProjectAndName.runtimeName,
-        initBucketName,
-        params.serviceAccountInfo
-      ) >> F.raiseError[CreateGoogleRuntimeResponse](throwable)
-    }
   }
-
-  override def getRuntimeStatus(
-    params: GetRuntimeStatusParams
-  )(implicit ev: Ask[F, AppContext]): F[RuntimeStatus] =
-    for {
-      clusterOpt <- googleDataprocService.getCluster(params.googleProject,
-                                                     config.dataprocConfig.regionName,
-                                                     DataprocClusterName(params.runtimeName.asString))
-      status = clusterOpt
-        .flatMap(c => DataprocClusterStatus.withNameInsensitiveOption(c.getStatus.getState.name))
-        .map(s => RuntimeStatus.fromDataprocClusterStatus(s))
-        .getOrElse(RuntimeStatus.Deleted)
-    } yield status
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
   )(implicit ev: Ask[F, AppContext]): F[Option[com.google.cloud.compute.v1.Operation]] =
-    if (params.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
+    if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
       for {
-        metadata <- getShutdownScript(params.runtime, blocker)
-        _ <- params.runtime.dataprocInstances.find(_.dataprocRole == Master).traverse { instance =>
-          googleComputeService.addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
+        region <- F.fromOption(
+          LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
+          new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
+        )
+        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
+        _ <- params.runtimeAndRuntimeConfig.runtime.dataprocInstances.find(_.dataprocRole == Master).traverse {
+          instance =>
+            googleComputeService
+              .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
         }
-        _ <- googleDataprocService.deleteCluster(params.runtime.googleProject,
-                                                 config.dataprocConfig.regionName,
-                                                 DataprocClusterName(params.runtime.runtimeName.asString))
+
+        _ <- googleDataprocService.deleteCluster(
+          params.runtimeAndRuntimeConfig.runtime.googleProject,
+          region,
+          DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+        )
       } yield None
     } else F.pure(None)
 
@@ -316,41 +304,48 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
     } yield ()
 
-  override protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
+  override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
-      metadata <- getShutdownScript(runtime, blocker)
-      _ <- googleDataprocService.stopCluster(runtime.googleProject,
-                                             config.dataprocConfig.regionName,
-                                             DataprocClusterName(runtime.runtimeName.asString),
-                                             Some(metadata))
+      region <- F.fromOption(
+        LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
+        new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
+      )
+      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
+      _ <- googleDataprocService.stopCluster(
+        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        region,
+        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+        Some(metadata)
+      )
     } yield None
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      resourceConstraints <- getClusterResourceContraints(
-        RuntimeProjectAndName(params.runtime.googleProject, params.runtime.runtimeName),
-        params.runtimeConfig.machineType
+      dataprocConfig <- F.fromOption(
+        LeoLenses.dataprocPrism.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
+        new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
       )
-      metadata <- getStartupScript(params.runtime,
+      resourceConstraints <- getClusterResourceContraints(
+        RuntimeProjectAndName(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                              params.runtimeAndRuntimeConfig.runtime.runtimeName),
+        params.runtimeAndRuntimeConfig.runtimeConfig.machineType,
+        dataprocConfig.region
+      )
+      metadata <- getStartupScript(params.runtimeAndRuntimeConfig.runtime,
                                    params.welderAction,
                                    params.initBucket,
                                    blocker,
                                    resourceConstraints,
                                    false)
 
-      dataprocConfig <- params.runtimeConfig match {
-        case c: RuntimeConfig.DataprocConfig => F.pure(c)
-        case _                               => F.raiseError[RuntimeConfig.DataprocConfig](new NotImplementedException)
-      }
-
       _ <- googleDataprocService.startCluster(
-        params.runtime.googleProject,
-        config.dataprocConfig.regionName,
-        DataprocClusterName(params.runtime.runtimeName.asString),
+        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        dataprocConfig.region,
+        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         dataprocConfig.numberOfPreemptibleWorkers,
         Some(metadata)
       )
@@ -358,16 +353,22 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     (for {
+      region <- F.fromOption(
+        LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
+        new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
+      )
       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
-      _ <- createClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
+      _ <- createClusterIamRoles(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                                 params.runtimeAndRuntimeConfig.runtime.serviceAccount)
 
-      _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = true)
+      _ <- updateDataprocImageGroupMembership(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                                              createCluster = true)
 
       // Resize the cluster in Google
       _ <- googleDataprocService.resizeCluster(
-        params.runtime.googleProject,
-        config.dataprocConfig.regionName,
-        DataprocClusterName(params.runtime.runtimeName.asString),
+        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        region,
+        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         params.numWorkers,
         params.numPreemptibles
       )
@@ -377,27 +378,30 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         // resize the cluster we need to revoke it manually here
         for {
           ctx <- ev.ask
-          _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
+          _ <- removeClusterIamRoles(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                                     params.runtimeAndRuntimeConfig.runtime.serviceAccount)
           // Remove member from the Google Group that has the IAM role to pull the Dataproc image
-          _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
+          _ <- updateDataprocImageGroupMembership(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                                                  createCluster = false)
           _ <- logger.error(ctx.loggingCtx, e)(
-            s"Could not successfully update cluster ${params.runtime.projectNameString}"
+            s"Could not successfully update cluster ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
           )
           _ <- F.raiseError[Unit](InvalidDataprocMachineConfigException(e.getMessage))
         } yield ()
     }
 
   //updates machine type in gdDAO
-  override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
+  override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
-    runtime.dataprocInstances
+    params.runtimeAndRuntimeConfig.runtime.dataprocInstances
       .find(_.dataprocRole == Master)
       .traverse_(instance =>
         // Note: we don't support changing the machine type for worker instances. While this is possible
         // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
         // and rebuilding the cluster if new worker machine/disk sizes are needed.
-        googleComputeService.setMachineType(instance.key.project, instance.key.zone, instance.key.name, machineType)
+        googleComputeService
+          .setMachineType(instance.key.project, instance.key.zone, instance.key.name, params.machineType)
       )
 
   // Note: we don't support changing the machine type for worker instances. While this is possible
@@ -471,7 +475,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
     googleProject: GoogleProject,
     clusterName: RuntimeName,
     initBucketName: GcsBucketName,
-    serviceAccountInfo: WorkbenchEmail
+    serviceAccountInfo: WorkbenchEmail,
+    region: RegionName
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     ev.ask.flatMap { ctx =>
       // Clean up resources in Google
@@ -490,7 +495,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
 
       val deleteCluster = {
         googleDataprocService
-          .deleteCluster(googleProject, config.dataprocConfig.regionName, DataprocClusterName(clusterName.asString))
+          .deleteCluster(googleProject, region, DataprocClusterName(clusterName.asString))
           .attempt
           .flatMap {
             case Left(e) =>
@@ -519,45 +524,35 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
     }
 
   private[leonardo] def getClusterResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
-                                                     machineType: MachineTypeName)(
+                                                     machineType: MachineTypeName,
+                                                     region: RegionName)(
     implicit ev: Ask[F, AppContext]
-  ): F[RuntimeResourceConstraints] = {
-    val totalMemory = for {
-      ctx <- OptionT.liftF(ev.ask)
-      // Find a zone in which to query the machine type: either the configured zone or
-      // an arbitrary zone in the configured region.
-      zoneUri <- {
-        val configuredZone = OptionT.fromOption[F](config.dataprocConfig.zoneName)
-        val zoneList = for {
-          zones <- googleComputeService.getZones(runtimeProjectAndName.googleProject, config.dataprocConfig.regionName)
-          _ <- logger.debug(ctx.loggingCtx)(
-            s"List of zones in project ${runtimeProjectAndName.googleProject}: ${zones}"
-          )
-          zoneNames = zones.map(z => ZoneName(z.getName))
-        } yield zoneNames
-
-        configuredZone orElse OptionT(zoneList.map(_.headOption))
-      }
-      _ <- OptionT.liftF(logger.debug(ctx.loggingCtx)(s"Using zone ${zoneUri} to resolve machine type"))
+  ): F[RuntimeResourceConstraints] =
+    for {
+      ctx <- ev.ask
+      // Find an arbitrary zone in the configured region in which to query the machine type
+      zones <- googleComputeService.getZones(runtimeProjectAndName.googleProject, region)
+      zoneUri <- F.fromOption(zones.headOption.map(z => ZoneName(z.getName)),
+                              ClusterResourceConstraintsException(runtimeProjectAndName, machineType, region))
+      _ <- logger.debug(ctx.loggingCtx)(s"Using zone ${zoneUri} to resolve machine type")
 
       // Resolve the master machine type in Google to get the total memory.
-      machineType <- OptionT.pure[F](machineType)
-      resolvedMachineType <- OptionT(
-        googleComputeService.getMachineType(runtimeProjectAndName.googleProject, zoneUri, machineType)
+      resolvedMachineTypeOpt <- googleComputeService.getMachineType(runtimeProjectAndName.googleProject,
+                                                                    zoneUri,
+                                                                    machineType)
+      resolvedMachineType <- F.fromOption(
+        resolvedMachineTypeOpt,
+        ClusterResourceConstraintsException(runtimeProjectAndName, machineType, region)
       )
-      _ <- OptionT.liftF(logger.debug(ctx.loggingCtx)(s"Resolved machine type: ${resolvedMachineType.toString}"))
-    } yield MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
-
-    totalMemory.value.flatMap {
-      case None        => F.raiseError(ClusterResourceConstraintsException(runtimeProjectAndName, machineType))
-      case Some(total) =>
-        // total - dataproc allocated - welder allocated
-        val dataprocAllocated = config.dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
-        val welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
-        val result = MemorySize(total.bytes - dataprocAllocated - welderAllocated)
-        F.pure(RuntimeResourceConstraints(result))
+      _ <- logger.debug(ctx.loggingCtx)(s"Resolved machine type: ${resolvedMachineType.toString}")
+      total = MemorySize.fromMb(resolvedMachineType.getMemoryMb.toDouble)
+    } yield {
+      // total - dataproc allocated - welder allocated
+      val dataprocAllocated = config.dataprocConfig.dataprocReservedMemory.map(_.bytes).getOrElse(0L)
+      val welderAllocated = config.welderConfig.welderReservedMemory.map(_.bytes).getOrElse(0L)
+      val result = MemorySize(total.bytes - dataprocAllocated - welderAllocated)
+      RuntimeResourceConstraints(result)
     }
-  }
 
   /**
    * Add the Dataproc Worker role in the user's project to the cluster service account, if present.

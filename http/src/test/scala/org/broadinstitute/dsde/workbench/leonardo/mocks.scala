@@ -140,10 +140,6 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
     implicit ev: Ask[IO, AppContext]
   ): IO[CreateGoogleRuntimeResponse] = ???
 
-  override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: Ask[IO, AppContext]
-  ): IO[RuntimeStatus] = ???
-
   override def deleteRuntime(params: DeleteRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
   ): IO[Option[Operation]] = IO.pure(None)

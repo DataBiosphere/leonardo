@@ -90,8 +90,6 @@ object Config {
 
   implicit private val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
-      config.as[RegionName]("region"),
-      config.getAs[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.as[DataprocCustomImage]("legacyCustomDataprocImage"),
       config.as[DataprocCustomImage]("customDataprocImage"),
@@ -104,8 +102,6 @@ object Config {
     GceConfig(
       config.as[GceCustomImage]("customGceImage"),
       config.as[DeviceName]("userDiskDeviceName"),
-      config.as[RegionName]("region"),
-      config.as[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
@@ -459,9 +455,7 @@ object Config {
         toScalaDuration(config.getDuration("pollPeriod")),
         config.getString("deletionConfirmationLabelKey"),
         toScalaDuration(config.getDuration("creationHangTolerance")),
-        config.getInt("concurrency"),
-        gceConfig.zoneName,
-        dataprocConfig.regionName
+        config.getInt("concurrency")
       )
   }
 
@@ -488,7 +482,6 @@ object Config {
       config.as[Int]("checkToolsMaxAttempts"),
       clusterBucketConfig,
       timeoutMap,
-      gceConfig.zoneName,
       imageConfig
     )
   }
@@ -511,8 +504,7 @@ object Config {
         config.as[Int]("checkToolsMaxAttempts"),
         clusterBucketConfig,
         timeoutMap,
-        imageConfig,
-        dataprocConfig.regionName
+        imageConfig
       )
   }
   val gceMonitorConfig = config.as[GceMonitorConfig]("gce.monitor")

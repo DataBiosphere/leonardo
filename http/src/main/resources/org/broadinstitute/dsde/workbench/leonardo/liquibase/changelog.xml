@@ -71,6 +71,6 @@
     <include file="changesets/20210217_add_app_pvc_id.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210203_custom_app.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210224_drop_release_uniq_constraint.xml" relativeToChangelogFile="true" />
-    <include file="changesets/20210225_add_zone.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210317_add_trace_id.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20210324_add_zone_and_region_to_runtime_config.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

@@ -204,7 +204,9 @@ class DataprocInterpreterSpec
                                                      Map.empty[String, String],
                                                      RegionName("us-central1"))
     val resourceConstraints = dataprocInterp
-      .getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType)
+      .getClusterResourceContraints(testClusterClusterProjectAndName,
+                                    runtimeConfig.machineType,
+                                    RegionName("us-central1"))
       .unsafeRunSync()
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m

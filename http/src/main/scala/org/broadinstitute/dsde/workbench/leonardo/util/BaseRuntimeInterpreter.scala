@@ -31,7 +31,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
   executionContext: ExecutionContext)
     extends RuntimeAlgebra[F] {
 
-  protected def stopGoogleRuntime(runtime: Runtime, dataprocConfig: Option[RuntimeConfig.DataprocConfig])(
+  protected def stopGoogleRuntime(params: StopGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
   ): F[Option[Operation]]
 
@@ -39,7 +39,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
     implicit ev: Ask[F, AppContext]
   ): F[Unit]
 
-  protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
+  protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit]
 
@@ -49,42 +49,44 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
     for {
       ctx <- ev.ask
       // Flush the welder cache to disk
-      _ <- if (params.runtime.welderEnabled) {
+      _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
         welderDao
-          .flushCache(params.runtime.googleProject, params.runtime.runtimeName)
+          .flushCache(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                      params.runtimeAndRuntimeConfig.runtime.runtimeName)
           .handleErrorWith(e =>
             logger.error(ctx.loggingCtx, e)(
-              s"Failed to flush welder cache for ${params.runtime.projectNameString}"
+              s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
             )
           )
       } else F.unit
 
-      _ <- clusterQuery.updateClusterHostIp(params.runtime.id, None, ctx.now).transaction
+      _ <- clusterQuery.updateClusterHostIp(params.runtimeAndRuntimeConfig.runtime.id, None, ctx.now).transaction
 
       // Stop the cluster in Google
-      r <- stopGoogleRuntime(params.runtime, params.dataprocConfig)
+      r <- stopGoogleRuntime(
+        StopGoogleRuntime(params.runtimeAndRuntimeConfig)
+      )
     } yield r
 
   final override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val welderAction = getWelderAction(params.runtime)
+    val welderAction = getWelderAction(params.runtimeAndRuntimeConfig.runtime)
     for {
       ctx <- ev.ask
       // Check if welder should be deployed or updated
       updatedRuntime <- welderAction
         .traverse {
-          case UpdateWelder => updateWelder(params.runtime, ctx.now)
+          case UpdateWelder => updateWelder(params.runtimeAndRuntimeConfig.runtime, ctx.now)
           case DisableDelocalization =>
             labelQuery
-              .save(params.runtime.id, LabelResourceType.Runtime, "welderInstallFailed", "true")
+              .save(params.runtimeAndRuntimeConfig.runtime.id, LabelResourceType.Runtime, "welderInstallFailed", "true")
               .transaction
-              .as(params.runtime)
+              .as(params.runtimeAndRuntimeConfig.runtime)
         }
-        .map(_.getOrElse(params.runtime))
+        .map(_.getOrElse(params.runtimeAndRuntimeConfig.runtime))
 
-      runtimeConfig <- dbRef.inTransaction(
-        RuntimeConfigQueries.getRuntimeConfig(params.runtime.runtimeConfigId)
-      )
-      startGoogleRuntimeReq = StartGoogleRuntime(updatedRuntime, params.initBucket, welderAction, runtimeConfig)
+      startGoogleRuntimeReq = StartGoogleRuntime(params.runtimeAndRuntimeConfig.copy(runtime = updatedRuntime),
+                                                 params.initBucket,
+                                                 welderAction)
       // Start the cluster in Google
       _ <- startGoogleRuntime(startGoogleRuntimeReq)
     } yield ()
@@ -151,13 +153,17 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
     for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(
-        s"New machine config present. Changing machine type to ${params.machineType} for cluster ${params.runtime.projectNameString}..."
+        s"New machine config present. Changing machine type to ${params.machineType} for cluster ${params.runtimeAndRuntimeConfig.runtime.projectNameString}..."
       )
       // Update the machine type in Google
-      _ <- setMachineTypeInGoogle(params.runtime, params.machineType)
+      _ <- setMachineTypeInGoogle(
+        SetGoogleMachineType(params.runtimeAndRuntimeConfig, params.machineType)
+      )
       // Update the DB
       _ <- dbRef.inTransaction {
-        RuntimeConfigQueries.updateMachineType(params.runtime.runtimeConfigId, params.machineType, params.now)
+        RuntimeConfigQueries.updateMachineType(params.runtimeAndRuntimeConfig.runtime.runtimeConfigId,
+                                               params.machineType,
+                                               params.now)
       }
     } yield ()
 
@@ -234,7 +240,10 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
 
 }
 
-final case class StartGoogleRuntime(runtime: Runtime,
+final case class StartGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                     initBucket: GcsBucketName,
-                                    welderAction: Option[WelderAction],
-                                    runtimeConfig: RuntimeConfig)
+                                    welderAction: Option[WelderAction])
+
+final case class StopGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
+
+final case class SetGoogleMachineType(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, machineType: MachineTypeName)

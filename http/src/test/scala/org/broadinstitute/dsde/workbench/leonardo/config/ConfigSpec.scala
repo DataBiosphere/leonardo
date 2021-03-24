@@ -55,7 +55,6 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         RuntimeStatus.Starting -> 20.minutes,
         RuntimeStatus.Deleting -> 30.minutes
       ),
-      ZoneName("us-central1-a"),
       Config.imageConfig
     )
 
