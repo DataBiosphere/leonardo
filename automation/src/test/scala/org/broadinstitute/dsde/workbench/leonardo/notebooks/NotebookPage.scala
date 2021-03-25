@@ -1,29 +1,31 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import cats.effect.{IO, Timer}
+import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
-import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 import org.openqa.selenium.interactions.Actions
 import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
 import org.scalatest.exceptions.TestFailedDueToTimeoutException
-import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatest.time.{Seconds, Span}
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
+import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
+import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
+
 import scala.util.Try
 
-class NotebookPage(override val url: String)(implicit override val webDriver: WebDriver,
-                                             override val authToken: AuthToken,
-                                             override val timer: Timer[IO])
+class NotebookPage(val url: String)(implicit override val authToken: AuthToken,
+                                    implicit override val webDriver: WebDriver)
     extends JupyterPage
-    with Eventually {
+    with Eventually
+    with LazyLogging {
 
-  override def open(implicit webDriver: WebDriver): NotebookPage = super.open.asInstanceOf[NotebookPage]
+  override def open(implicit webDriver: WebDriver): NotebookPage =
+    super.open.asInstanceOf[NotebookPage]
 
   // selects all menus from the header bar
   lazy val menus: Query = cssSelector("[class='dropdown-toggle']")

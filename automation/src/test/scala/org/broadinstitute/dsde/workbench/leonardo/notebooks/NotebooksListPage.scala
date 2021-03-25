@@ -2,11 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
 
-import cats.effect.{IO, Timer}
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
-import scala.concurrent.duration.{FiniteDuration, _}
+import scala.concurrent.duration.FiniteDuration
+import scala.concurrent.duration._
 import scala.util.Try
 
 sealed trait NotebookKernel {
@@ -39,10 +40,10 @@ case object RKernel extends NotebookKernel {
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with R']"
 }
 
-class NotebooksListPage(override val url: String)(implicit override val webDriver: WebDriver,
-                                                  override val authToken: AuthToken,
-                                                  override val timer: Timer[IO])
-    extends JupyterPage {
+class NotebooksListPage(override val url: String)(implicit override val authToken: AuthToken,
+                                                  implicit override val webDriver: WebDriver)
+    extends JupyterPage
+    with LazyLogging {
 
   override def open(implicit webDriver: WebDriver): NotebooksListPage = super.open.asInstanceOf[NotebooksListPage]
 

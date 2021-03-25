@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
-import org.broadinstitute.dsde.workbench.page.ProxyRedirectPage
+import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
 import org.openqa.selenium.WebDriver
 
-trait LabPage extends ProxyRedirectPage[LabPage] {
+trait LabPage extends CookieAuthedPage[LabPage] {
   implicit val webDriver: WebDriver
 
   val renderedApp: Query = cssSelector("[id='jp-top-panel']")
