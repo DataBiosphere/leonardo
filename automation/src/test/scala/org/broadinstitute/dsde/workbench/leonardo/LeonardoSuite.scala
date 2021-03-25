@@ -198,7 +198,8 @@ final class LeonardoSuite
       new NotebookGCEClusterMonitoringSpec,
       new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec,
-      new RuntimeDataprocSpec
+      new RuntimeDataprocSpec,
+      new RuntimeGceSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll

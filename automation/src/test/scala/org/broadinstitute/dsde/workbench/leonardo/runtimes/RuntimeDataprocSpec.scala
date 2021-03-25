@@ -53,7 +53,7 @@ class RuntimeDataprocSpec
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
         RuntimeConfigRequest.DataprocConfig(
-          Some(1),
+          Some(2),
           Some(MachineTypeName("n1-standard-4")),
           Some(DiskSize(100)),
           Some(MachineTypeName("n1-standard-4")),
