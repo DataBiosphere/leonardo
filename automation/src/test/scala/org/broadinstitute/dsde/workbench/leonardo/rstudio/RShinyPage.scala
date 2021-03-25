@@ -1,17 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
-import org.broadinstitute.dsde.workbench.page.PageUtil
-import org.broadinstitute.dsde.workbench.service.test.WebBrowserUtil
+import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
 import org.openqa.selenium.WebDriver
-import org.scalatestplus.selenium.Page
 
 import scala.concurrent.duration._
 
-class RShinyPage(val url: String)(implicit val webDriver: WebDriver)
-    extends Page
-    with PageUtil[RShinyPage]
-    with WebBrowserUtil {
-
+class RShinyPage(val url: String)(implicit override val authToken: AuthToken, implicit val webDriver: WebDriver)
+    extends CookieAuthedPage[RShinyPage] {
   private val exampleHeader: Query = cssSelector("#showcase-app-container > div > h2")
 
   override def awaitLoaded(): RShinyPage = {
