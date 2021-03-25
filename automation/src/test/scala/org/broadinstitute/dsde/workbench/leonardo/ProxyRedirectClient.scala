@@ -41,7 +41,7 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
             Ok(getContent(rurl, blocker), `Content-Type`(MediaType.text.html))
         }
         .orNotFound
-      server <- BlazeServerBuilder[IO](blockingEc).bindHttp(port, host).withHttpApp(route).resource
+      server <- BlazeServerBuilder[IO](blockingEc).bindHttp(port, "0.0.0.0").withHttpApp(route).resource
     } yield server
 
   object Rurl extends QueryParamDecoderMatcher[String]("rurl")
