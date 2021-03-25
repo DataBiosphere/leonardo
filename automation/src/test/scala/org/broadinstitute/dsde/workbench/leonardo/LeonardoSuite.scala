@@ -106,11 +106,8 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
     val res = for {
       _ <- IO(super.beforeAll())
       _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll beforeAll")
-      bindAttempt <- IO.fromFuture(IO(ProxyRedirectClient.startServer)).attempt
-      _ <- bindAttempt match {
-        case Left(e)  => loggerIO.warn(s"Failed to start proxy redirect server due to ${e.getMessage}")
-        case Right(b) => loggerIO.info(s"Started proxy redirect server on ${b.localAddress.toString}")
-      }
+      // Start the proxy redirect server and forget about it
+      _ <- ProxyRedirectClient.server.use(_ => IO.never).start
       claimAttempt <- claimProject().attempt
       _ <- claimAttempt match {
         case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))

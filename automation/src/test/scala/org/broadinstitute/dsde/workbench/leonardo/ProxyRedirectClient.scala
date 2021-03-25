@@ -1,53 +1,48 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import akka.Done
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives.{get => httpGet, _}
-import akka.http.scaladsl.server.Route
+import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.ResourceFile
+import fs2._
 import org.broadinstitute.dsde.workbench.service.RestClient
-
-import scala.concurrent.Future
-import scala.io.Source
+import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
+import org.http4s.dsl.io._
+import org.http4s.headers.`Content-Type`
+import org.http4s.implicits._
+import org.http4s.server.Server
+import org.http4s.server.blaze._
+import org.http4s.{HttpRoutes, _}
 
 object ProxyRedirectClient extends RestClient with LazyLogging {
   // Note: change to "localhost" if running tests locally
   val host = java.net.InetAddress.getLocalHost.getHostName
   val port = 9099
 
-  // Use a separate dispatcher than other RestClients:
-  // https://github.com/broadinstitute/workbench-libs/blob/develop/serviceTest/src/test/resources/application.conf
-  implicit val dispatcher = system.dispatchers.lookup("blocking-dispatcher")
-
   def get(rurl: String): String =
     s"http://$host:$port/proxyRedirectClient?rurl=${rurl}"
 
-  def startServer: Future[Http.ServerBinding] = {
-    logger.info(s"Starting local server on 0.0.0.0:$port")
-    Http().newServerAt("0.0.0.0", port).bind(route)
-  }
+  private def getContent(rurl: String, blocker: Blocker)(implicit cs: ContextShift[IO]): Stream[IO, Byte] =
+    io.readInputStream(IO(getClass.getClassLoader.getResourceAsStream("redirect-proxy-page.html")), 4096, blocker)
+      .through(text.utf8Decode)
+      .through(text.lines)
+      .map(_.replace("""$(rurl)""", s"""'$rurl'"""))
+      .intersperse("\n")
+      .through(text.utf8Encode)
 
-  def stopServer(serverBinding: Http.ServerBinding): Future[Done] = {
-    logger.info("Stopping local server")
-    serverBinding.unbind()
-  }
-
-  val route: Route =
-    path("proxyRedirectClient") {
-      parameter("rurl") { rurl =>
-        httpGet {
-          complete {
-            logger.info(s"Serving proxy redirect client for redirect url $rurl")
-            HttpEntity(ContentTypes.`text/html(UTF-8)`, getContent(rurl))
-          }
+  def server: Resource[IO, Server[IO]] =
+    for {
+      // Instantiate a dedicated execution context for this server
+      blockingEc <- ExecutionContexts.cachedThreadPool[IO]
+      blocker = Blocker.liftExecutionContext(blockingEc)
+      implicit0(timer: Timer[IO]) = IO.timer(blockingEc)
+      implicit0(cs: ContextShift[IO]) = IO.contextShift(blockingEc)
+      route = HttpRoutes
+        .of[IO] {
+          case GET -> Root / "proxyRedirectClient" :? Rurl(rurl) =>
+            Ok(getContent(rurl, blocker), `Content-Type`(MediaType.text.html))
         }
-      }
-    }
+        .orNotFound
+      server <- BlazeServerBuilder[IO](blockingEc).bindHttp(port, host).withHttpApp(route).resource
+    } yield server
 
-  private def getContent(rurl: String): String = {
-    val resourceFile = ResourceFile("redirect-proxy-page.html")
-    Source.fromFile(resourceFile).mkString.replace("rurl", rurl)
-  }
+  object Rurl extends QueryParamDecoderMatcher[String]("rurl")
 }
