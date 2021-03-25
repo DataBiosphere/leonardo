@@ -230,6 +230,10 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
     } yield resp
 
+  def safeParseDouble(s: String): Option[Double] =
+    try { Some(s.toDouble) }
+    catch { case _: Exception => None }
+
   private[api] def proxyRuntimeHandler(
     userInfo: UserInfo,
     googleProject: GoogleProject,
@@ -242,12 +246,10 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
 
       headerMap: Map[String, String] = request.headers.map(header => (header.name(), header.value())).toMap
-      isContentLengthDefined = headerMap.get("content-length").isDefined
+      contentLength = safeParseDouble(headerMap.getOrElse("content-length", null))
 
-      _ <- if (request.uri
-                 .toString()
-                 .endsWith(".ipynb") && request.method.equals(Method.PUT) && isContentLengthDefined) {
-        metrics.gauge("proxy/notebooksSize", headerMap.get("content-length").toString.toDouble)
+      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method.equals(Method.PUT)) {
+        contentLength.traverse(size => metrics.gauge("proxy/notebooksSize", size))
       } else IO.unit
 
       _ <- if (resp.status.isSuccess()) {
