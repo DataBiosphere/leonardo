@@ -26,6 +26,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.Method
 
+import scala.util.Try
+
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
   cs: ContextShift[IO],
@@ -230,10 +232,6 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
     } yield resp
 
-  def safeParseDouble(s: String): Option[Double] =
-    try { Some(s.toDouble) }
-    catch { case _: Exception => None }
-
   private[api] def proxyRuntimeHandler(
     userInfo: UserInfo,
     googleProject: GoogleProject,
@@ -246,7 +244,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
 
       headerMap: Map[String, String] = request.headers.map(header => (header.name(), header.value())).toMap
-      contentLength = safeParseDouble(headerMap.getOrElse("content-length", null))
+      contentLength = Try(headerMap.get("content-length").map(_.toDouble)).toOption.flatten
 
       _ <- if (request.uri.toString.endsWith(".ipynb") && request.method.equals(Method.PUT)) {
         contentLength.traverse(size => metrics.gauge("proxy/notebooksSize", size))
