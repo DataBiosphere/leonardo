@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.lab
 
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair, Referer}
+import cats.effect.{IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.{contentsPath, handleContentItemResponse}
@@ -27,7 +28,8 @@ object Lab extends RestClient with LazyLogging {
   }
 
   def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken,
-                                                                  webDriver: WebDriver): LabLauncherPage = {
+                                                                  webDriver: WebDriver,
+                                                                  timer: Timer[IO]): LabLauncherPage = {
     val path = labPath(googleProject, clusterName)
     logger.info(s"Get jupyter lab: GET /$path")
     new LabLauncherPage(url + path)
