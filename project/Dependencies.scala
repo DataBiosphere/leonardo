@@ -114,6 +114,7 @@ object Dependencies {
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.13.1"
   val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
+  val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
@@ -173,7 +174,7 @@ object Dependencies {
 
     // Dependent on the trace exporters you want to use add one or more of the following
     "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
-    "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test,
+    http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito
   )
@@ -198,6 +199,7 @@ object Dependencies {
     akkaHttpSprayJson,
     scalaTest,
     scalaTestSelenium,
-    scalaTestMockito
+    scalaTestMockito,
+    http4sBlazeServer % Test
   )
 }

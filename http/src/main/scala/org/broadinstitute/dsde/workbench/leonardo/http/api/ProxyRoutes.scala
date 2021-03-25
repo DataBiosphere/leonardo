@@ -270,7 +270,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       case Some(referer) =>
         val authority = referer.uri.authority
         if (refererConfig.validHosts.contains(authority.toString())
-            || refererConfig.validHosts.contains(s"*:${authority.port}")) {
+            || refererConfig.validHosts.contains("*")) {
           pass
         } else {
           logger.info(s"Referer ${referer.uri.toString} is not allowed")
