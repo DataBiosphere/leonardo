@@ -4,17 +4,30 @@ import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-final case class RuntimeSamResourceId(resourceId: String) extends AnyVal
-final case class PersistentDiskSamResourceId(resourceId: String) extends AnyVal
-final case class ProjectSamResourceId(googleProject: GoogleProject) extends AnyVal
-final case class AppSamResourceId(resourceId: String) extends AnyVal
+sealed trait SamResourceId {
+  def resourceId: String
+  def asString: String = resourceId
+}
+
+object SamResourceId {
+  final case class RuntimeSamResourceId(resourceId: String) extends SamResourceId
+
+  final case class PersistentDiskSamResourceId(resourceId: String) extends SamResourceId
+
+  final case class ProjectSamResourceId(googleProject: GoogleProject) extends SamResourceId {
+    override def resourceId: String = googleProject.value
+  }
+
+  final case class AppSamResourceId(resourceId: String) extends SamResourceId
+
+}
 
 sealed trait SamResourceType extends Product with Serializable {
   def asString: String
 }
 object SamResourceType {
   final case object Project extends SamResourceType {
-    val asString = "billing-project"
+    val asString = "google-project"
   }
   final case object Runtime extends SamResourceType {
     val asString = "notebook-cluster"
