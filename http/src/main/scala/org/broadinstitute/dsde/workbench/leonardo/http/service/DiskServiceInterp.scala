@@ -25,9 +25,11 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
-
 import java.time.Instant
 import java.util.UUID
+
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+
 import scala.concurrent.ExecutionContext
 
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
@@ -263,6 +265,7 @@ object DiskServiceInterp {
       else req.size.getOrElse(config.defaultDiskSizeGB),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
+      None,
       None,
       labels
     )

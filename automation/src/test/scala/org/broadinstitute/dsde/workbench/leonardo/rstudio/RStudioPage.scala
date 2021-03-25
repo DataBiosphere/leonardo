@@ -1,24 +1,23 @@
 package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
-import com.typesafe.scalalogging.LazyLogging
+import cats.effect.{IO, Timer}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
+import org.broadinstitute.dsde.workbench.page.ProxyRedirectPage
 import org.openqa.selenium.{Keys, WebDriver}
 
 import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.Try
 
-class RStudioPage(override val url: String)(implicit override val authToken: AuthToken,
-                                            implicit val webDriver: WebDriver)
-    extends CookieAuthedPage[RStudioPage]
-    with LazyLogging {
-
-  override def open(implicit webDriver: WebDriver): RStudioPage =
-    super.open.asInstanceOf[RStudioPage]
+class RStudioPage(override val url: String)(implicit val webDriver: WebDriver,
+                                            override val authToken: AuthToken,
+                                            override val timer: Timer[IO])
+    extends ProxyRedirectPage[RStudioPage] {
 
   val renderedApp: Query = cssSelector("[id='rstudio_rstudio_logo']")
 
   val rstudioContainer: Query = cssSelector("[id='rstudio_container']")
+
+  val popupPanel: Query = cssSelector("[class*='themedPopupPanel']")
 
   override def awaitLoaded(): RStudioPage = {
     await enabled renderedApp
@@ -29,7 +28,6 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
 
   def withNewRStudio[T](timeout: FiniteDuration = 2.minutes)(testCode: RStudioPage => T): T = {
 
-    // Not calling NotebookPage.open() as it should already be opened
     val rstudioPage = new RStudioPage(currentUrl)
     val result = Try(testCode(rstudioPage))
     result.get
@@ -38,6 +36,15 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   def variableExists(variable: String): Boolean =
     find(checkGlobalVariable(variable)).isDefined
 
+  def dismissPopupPanel(): Unit = {
+    Thread.sleep(5000)
+    // Press ESC if the popup panel is present to dismiss it
+    if (find(popupPanel).isDefined) {
+      pressKeys(Keys.ESCAPE.toString)
+      await notVisible popupPanel
+    }
+  }
+
   // Opens an example app from the shiny package.
   // Valid examples are:
   //   "01_hello", "02_text", "03_reactivity", "04_mpg", "05_sliders", "06_tabsets",
@@ -45,14 +52,16 @@ class RStudioPage(override val url: String)(implicit override val authToken: Aut
   def withRShinyExample[T](exampleName: String)(testCode: RShinyPage => T): T = {
     // Enter commands to launch the shiny app
     switchToNewTab {
-      val launchCommand = s"""shiny::runExample("$exampleName", launch.browser = T)"""
-
-      pressKeys(launchCommand)
-
-      Thread.sleep(5000)
-      await notVisible cssSelector("[class*='themedPopupPanel']")
-
+      val loadShiny = "library(shiny)"
+      pressKeys(loadShiny)
+      dismissPopupPanel()
       pressKeys(Keys.ENTER.toString)
+
+      val launchCommand = s"""runExample("$exampleName", launch.browser = T)"""
+      pressKeys(launchCommand)
+      dismissPopupPanel()
+      pressKeys(Keys.ENTER.toString)
+
       await condition windowHandles.size == 2
     }
 

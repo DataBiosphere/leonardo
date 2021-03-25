@@ -71,13 +71,6 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
     )
   }
 
-  it should "successfully retrieve and parse a remote object" in {
-    withAppDescriptorDAO { dao =>
-      val app = dao.getDescriptor(appYamlURI).unsafeRunSync()
-      app.name shouldBe "rstudio"
-    }
-  }
-
   //allows you to specify the response of requests
   def withStubbedAppDescriptorDAO(response: String, testCode: HttpAppDescriptorDAO[IO] => Any): Unit = {
     val fixedRespClient = Client.fromHttpApp[IO](

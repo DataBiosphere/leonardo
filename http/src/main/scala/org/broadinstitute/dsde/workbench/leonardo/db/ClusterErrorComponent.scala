@@ -2,8 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.sql.Timestamp
-
 import LeoProfile.api._
+import org.broadinstitute.dsde.workbench.model.TraceId
+import LeoProfile.mappedColumnImplicits._
 
 import scala.concurrent.ExecutionContext
 
@@ -11,7 +12,8 @@ case class ClusterErrorRecord(id: Long,
                               clusterId: Long,
                               errorMessage: String,
                               errorCode: Option[Int],
-                              timestamp: Timestamp)
+                              timestamp: Timestamp,
+                              traceId: Option[TraceId])
 
 class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTER_ERROR") {
   def id = column[Long]("id", O.AutoInc)
@@ -26,8 +28,10 @@ class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTE
 
   def cluster = foreignKey("FK_CLUSTER_ID", clusterId, clusterQuery)(_.id)
 
+  def traceId = column[Option[TraceId]]("traceId")
+
   def * =
-    (id, clusterId, errorMessage, errorCode, timestamp) <> (ClusterErrorRecord.tupled, ClusterErrorRecord.unapply)
+    (id, clusterId, errorMessage, errorCode, timestamp, traceId) <> (ClusterErrorRecord.tupled, ClusterErrorRecord.unapply)
 }
 
 object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
@@ -37,7 +41,8 @@ object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
                                             clusterId,
                                             clusterError.errorMessage,
                                             clusterError.errorCode,
-                                            Timestamp.from(clusterError.timestamp))
+                                            Timestamp.from(clusterError.timestamp),
+                                            clusterError.traceId)
 
   def get(clusterId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeError]] =
     clusterErrorQuery.filter(_.clusterId === clusterId).result map { recs =>

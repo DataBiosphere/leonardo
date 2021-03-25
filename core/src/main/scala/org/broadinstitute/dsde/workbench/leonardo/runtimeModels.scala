@@ -2,16 +2,16 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.URL
 import java.time.Instant
-
 import cats.syntax.all._
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
-import org.broadinstitute.dsde.workbench.model.{IP, ValueObject, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
 
 import scala.collection.immutable
 
@@ -401,7 +401,10 @@ final case class RunningRuntime(googleProject: GoogleProject,
                                 containers: List[RuntimeContainerServiceType])
 
 final case class RuntimeName(asString: String) extends AnyVal
-final case class RuntimeError(errorMessage: String, errorCode: Option[Int], timestamp: Instant)
+final case class RuntimeError(errorMessage: String,
+                              errorCode: Option[Int],
+                              timestamp: Instant,
+                              traceId: Option[TraceId] = None)
 final case class RuntimeErrorDetails(longMessage: String,
                                      code: Option[Int] = None,
                                      shortMessage: Option[String] = None,

@@ -6,6 +6,7 @@ import java.time.Instant
 import cats.syntax.all._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
@@ -31,6 +32,8 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject
 }
 import org.http4s.Uri
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
 object JsonCodec {
   // Errors
@@ -146,16 +149,17 @@ object JsonCodec {
     "googleProject",
     "clusterName"
   )(x => RuntimeProjectAndName.unapply(x).get)
-  implicit val runtimeErrorEncoder: Encoder[RuntimeError] = Encoder.forProduct3(
+  implicit val runtimeErrorEncoder: Encoder[RuntimeError] = Encoder.forProduct4(
     "errorMessage",
     "errorCode",
-    "timestamp"
+    "timestamp",
+    "traceId"
   )(x => RuntimeError.unapply(x).get)
 
   implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
   implicit val errorActionEncoder: Encoder[ErrorAction] = Encoder.encodeString.contramap(_.toString)
-  implicit val kubernetesErrorEncoder: Encoder[AppError] =
-    Encoder.forProduct5("errorMessage", "timestamp", "action", "source", "googleErrorCode")(x =>
+  implicit val appErrorEncoder: Encoder[AppError] =
+    Encoder.forProduct6("errorMessage", "timestamp", "action", "source", "googleErrorCode", "traceId")(x =>
       AppError.unapply(x).get
     )
   implicit val nodepoolIdEncoder: Encoder[NodepoolLeoId] = Encoder.encodeLong.contramap(_.id)
@@ -288,10 +292,11 @@ object JsonCodec {
     } yield r
   }
 
-  implicit val runtimeErrorDecoder: Decoder[RuntimeError] = Decoder.forProduct3(
+  implicit val runtimeErrorDecoder: Decoder[RuntimeError] = Decoder.forProduct4(
     "errorMessage",
     "errorCode",
-    "timestamp"
+    "timestamp",
+    "traceId"
   )(RuntimeError.apply)
   implicit val gcsPathDecoder: Decoder[GcsPath] = Decoder.decodeString.emap(s => parseGcsPath(s).leftMap(_.value))
   implicit val userScriptPathDecoder: Decoder[UserScriptPath] = Decoder.decodeString.emap { s =>
@@ -361,8 +366,8 @@ object JsonCodec {
     Decoder.decodeString.emap(s => ErrorSource.stringToObject.get(s).toRight(s"Invalid error source ${s}"))
   implicit val errorActionDecoder: Decoder[ErrorAction] =
     Decoder.decodeString.emap(s => ErrorAction.stringToObject.get(s).toRight(s"Invalid error action ${s}"))
-  implicit val kubernetesErrorDecoder: Decoder[AppError] =
-    Decoder.forProduct5("errorMessage", "timestamp", "action", "source", "googleErrorCode")(AppError.apply)
+  implicit val appErrorDecoder: Decoder[AppError] =
+    Decoder.forProduct6("errorMessage", "timestamp", "action", "source", "googleErrorCode", "traceId")(AppError.apply)
 
   implicit val nodepoolIdDecoder: Decoder[NodepoolLeoId] = Decoder.decodeLong.map(NodepoolLeoId)
   implicit val nodepoolNameDecoder: Decoder[NodepoolName] =

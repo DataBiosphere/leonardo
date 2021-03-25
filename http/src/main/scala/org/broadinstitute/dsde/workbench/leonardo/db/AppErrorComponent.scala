@@ -2,9 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
+import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.ExecutionContext
 
@@ -14,7 +14,8 @@ case class AppErrorRecord(id: KubernetesErrorId,
                           timestamp: Instant,
                           action: ErrorAction,
                           source: ErrorSource,
-                          googleErrorCode: Option[Int])
+                          googleErrorCode: Option[Int],
+                          traceId: Option[TraceId])
 
 class AppErrorTable(tag: Tag) extends Table[AppErrorRecord](tag, "APP_ERROR") {
   def id = column[KubernetesErrorId]("id", O.AutoInc)
@@ -24,9 +25,10 @@ class AppErrorTable(tag: Tag) extends Table[AppErrorRecord](tag, "APP_ERROR") {
   def action = column[ErrorAction]("action", O.Length(254))
   def source = column[ErrorSource]("source", O.Length(254))
   def googleErrorCode = column[Option[Int]]("googleErrorCode")
+  def traceId = column[Option[TraceId]]("traceId")
 
   def * =
-    (id, appId, errorMessage, timestamp, action, source, googleErrorCode) <> (AppErrorRecord.tupled, AppErrorRecord.unapply)
+    (id, appId, errorMessage, timestamp, action, source, googleErrorCode, traceId) <> (AppErrorRecord.tupled, AppErrorRecord.unapply)
 }
 
 object appErrorQuery extends TableQuery(new AppErrorTable(_)) {
@@ -35,11 +37,12 @@ object appErrorQuery extends TableQuery(new AppErrorTable(_)) {
     appErrorQuery += AppErrorRecord(
       KubernetesErrorId(0),
       appId,
-      Option(error.errorMessage).map(_.take(1024)).getOrElse("null"),
+      Some(error.errorMessage).map(_.take(1024)).getOrElse("null"),
       error.timestamp,
       error.action,
       error.source,
-      error.googleErrorCode
+      error.googleErrorCode,
+      error.traceId
     )
 
   def get(appId: AppId)(implicit ec: ExecutionContext): DBIO[List[AppError]] =

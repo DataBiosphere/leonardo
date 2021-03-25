@@ -629,7 +629,7 @@ class LeoPubsubMessageSubscriberSpec
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
-      getApp.app.errors shouldBe List()
+      getApp.app.errors shouldBe List.empty
       getApp.app.status shouldBe AppStatus.Running
       getApp.app.appResources.kubernetesServiceAccountName shouldBe Some(
         ServiceAccountName("gxy-ksa")
@@ -645,7 +645,7 @@ class LeoPubsubMessageSubscriberSpec
       )
       getDisk.status shouldBe DiskStatus.Ready
       galaxyRestore shouldBe Some(
-        GalaxyDiskRestore(PvcId(s"nfs-pvc-id1"), PvcId("cvmfs-pvc-id1"), getApp.app.id)
+        GalaxyRestore(PvcId(s"nfs-pvc-id1"), PvcId("cvmfs-pvc-id1"), getApp.app.id)
       )
     }
 
@@ -788,7 +788,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
       getApp.app.status shouldBe AppStatus.Error
       //we shouldn't see an error status here because the cluster we passed doesn't exist
@@ -837,7 +837,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
       getApp.nodepool.status shouldBe NodepoolStatus.Deleted
     }
@@ -879,7 +879,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Cluster)
       getApp.nodepool.status shouldBe NodepoolStatus.Deleted
     }
@@ -931,7 +931,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.App)
       getApp.nodepool.status shouldBe NodepoolStatus.Running
     }
@@ -953,7 +953,7 @@ class LeoPubsubMessageSubscriberSpec
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 40)
     } yield ()
 
     res.unsafeRunSync()
@@ -973,7 +973,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
     } yield {
       getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
     }
 
@@ -999,33 +999,6 @@ class LeoPubsubMessageSubscriberSpec
 
     res.unsafeRunSync()
     verify(mockAckConsumer, times(1)).ack()
-  }
-
-  it should "delete app without disk" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-
-    val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
-      getApp = getAppOpt.get
-    } yield {
-      getApp.app.errors.size shouldBe 0
-      getApp.app.status shouldBe AppStatus.Deleted
-      getApp.nodepool.status shouldBe savedNodepool1.status
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.handleDeleteAppMessage(msg)
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
   }
 
   //delete app and not delete disk when specified
@@ -1061,7 +1034,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1123,7 +1096,7 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors.size shouldBe 1
       getApp.app.status shouldBe AppStatus.Error
-      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
+      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.App)
       getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
     }
@@ -1151,38 +1124,6 @@ class LeoPubsubMessageSubscriberSpec
                                         blocker,
                                         lock)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeInterpreter = gkeInter)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-    verify(mockAckConsumer, times(1)).ack()
-  }
-
-  //error on delete disk if disk doesn't exist
-  it should "handle an error in delete app if delete disk = true and no disk exists" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val savedApp1 = makeApp(1, savedNodepool1.id).save()
-    val mockAckConsumer = mock[AckReplyConsumer]
-
-    val assertions = for {
-      getAppOpt <- KubernetesServiceDbQueries.getFullAppByName(savedCluster1.googleProject, savedApp1.id).transaction
-      getApp = getAppOpt.get
-    } yield {
-      getApp.app.errors.size shouldBe 1
-      getApp.app.errors.map(_.action) should contain(ErrorAction.DeleteGalaxyApp)
-      getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
-      getApp.nodepool.status shouldBe savedNodepool1.status
-      getApp.app.status shouldBe AppStatus.Error
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(DiskId(-1)), Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1361,7 +1302,8 @@ class LeoPubsubMessageSubscriberSpec
       override def installChart(release: Release,
                                 chartName: ChartName,
                                 chartVersion: ChartVersion,
-                                values: Values): Kleisli[IO, AuthContext, Unit] =
+                                values: Values,
+                                createNamespace: Boolean): Kleisli[IO, AuthContext, Unit] =
         if (chartName == Config.gkeInterpConfig.terraAppSetupChartConfig.chartName)
           Kleisli.liftF(IO.raiseError(new Exception("this is an intentional test exception")))
         else Kleisli.liftF(IO.unit)
@@ -1464,7 +1406,8 @@ class LeoPubsubMessageSubscriberSpec
       override def installChart(release: Release,
                                 chartName: ChartName,
                                 chartVersion: ChartVersion,
-                                values: Values): Kleisli[IO, AuthContext, Unit] =
+                                values: Values,
+                                createNamespace: Boolean): Kleisli[IO, AuthContext, Unit] =
         if (chartName == Config.gkeInterpConfig.terraAppSetupChartConfig.chartName)
           Kleisli.liftF(IO.raiseError(new Exception("this is an intentional test exception")))
         else Kleisli.liftF(IO.unit)
@@ -1668,7 +1611,7 @@ class LeoPubsubMessageSubscriberSpec
     } yield {
       getApp.app.errors.size shouldBe 1
       getApp.app.errors.head.errorMessage should include("Galaxy startup has failed or timed out for app")
-      getApp.app.errors.head.action shouldBe ErrorAction.StartGalaxyApp
+      getApp.app.errors.head.action shouldBe ErrorAction.StartApp
       getApp.app.errors.head.source shouldBe ErrorSource.App
       getApp.app.status shouldBe AppStatus.Stopped
       getApp.nodepool.status shouldBe NodepoolStatus.Running

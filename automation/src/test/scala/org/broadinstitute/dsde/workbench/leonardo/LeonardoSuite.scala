@@ -4,7 +4,11 @@ import cats.effect.IO
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, BatchNodepoolCreationSpec}
+import org.broadinstitute.dsde.workbench.leonardo.apps.{
+  AppCreationSpec,
+  BatchNodepoolCreationSpec,
+  CustomAppCreationSpec
+}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -102,6 +106,11 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
     val res = for {
       _ <- IO(super.beforeAll())
       _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll beforeAll")
+      bindAttempt <- IO.fromFuture(IO(ProxyRedirectClient.startServer)).attempt
+      _ <- bindAttempt match {
+        case Left(e)  => loggerIO.warn(s"Failed to start proxy redirect server due to ${e.getMessage}")
+        case Right(b) => loggerIO.info(s"Started proxy redirect server on ${b.localAddress.toString}")
+      }
       claimAttempt <- claimProject().attempt
       _ <- claimAttempt match {
         case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
@@ -141,7 +150,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
           .createRuntimeWithWait(
             project,
             initalRuntimeName,
-            LeonardoApiClient.defaultCreateDataprocRuntimeRequest
+            LeonardoApiClient.defaultCreateRuntime2Request
           )
           .attempt
         _ <- res match {
@@ -184,6 +193,7 @@ final class LeonardoSuite
     extends Suites(
       new BatchNodepoolCreationSpec,
       new AppCreationSpec,
+      new CustomAppCreationSpec,
       new RuntimeCreationDiskSpec,
       new LabSpec,
       new LeoPubsubSpec,

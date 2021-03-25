@@ -2,8 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
+
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
@@ -28,7 +30,7 @@ final case class PersistentDiskRecord(id: DiskId,
                                       diskType: DiskType,
                                       blockSize: BlockSize,
                                       formattedBy: Option[FormattedBy],
-                                      galaxyDiskRestore: Option[GalaxyDiskRestore])
+                                      galaxyRestore: Option[GalaxyRestore])
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
   def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
@@ -103,7 +105,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           diskType,
           blockSize,
           formattedBy,
-          (galaxyPvcId, cvmfsPvcId, lastUsedBy).mapN((gp, cp, l) => GalaxyDiskRestore(gp, cp, l))
+          (galaxyPvcId, cvmfsPvcId, lastUsedBy).mapN((gp, cp, l) => GalaxyRestore(gp, cp, l))
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -123,9 +125,9 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
         record.diskType,
         record.blockSize,
         record.formattedBy,
-        (record.galaxyDiskRestore.map(_.galaxyPvcId),
-         record.galaxyDiskRestore.map(_.cvmfsPvcId),
-         record.galaxyDiskRestore.map(_.lastUsedBy))
+        (record.galaxyRestore.map(_.galaxyPvcId),
+         record.galaxyRestore.map(_.cvmfsPvcId),
+         record.galaxyRestore.map(_.lastUsedBy))
       )
     })
 }
@@ -154,19 +156,23 @@ object persistentDiskQuery {
       }
     } yield (disk, label)
 
-  def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyDiskRestore): DBIO[Int] =
+  def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyRestore): DBIO[Int] =
     findByIdQuery(id)
       .map(x => (x.galaxyPvcId, x.cvmfsPvcId, x.lastUsedBy))
       .update(
         (Some(galaxyDiskRestore.galaxyPvcId), Some(galaxyDiskRestore.cvmfsPvcId), Some(galaxyDiskRestore.lastUsedBy))
       )
 
-  def isUsedByGalaxy(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[Boolean]] =
-    findByIdQuery(id).result
-      .map(_.headOption.map(_.galaxyDiskRestore.isDefined))
+  def updateLastUsedBy(id: DiskId, lastUsedBy: AppId): DBIO[Int] =
+    findByIdQuery(id)
+      .map(x => (x.lastUsedBy))
+      .update(
+        (Some(lastUsedBy))
+      )
 
-  def getGalaxyDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[GalaxyDiskRestore]] =
-    findByIdQuery(id).result.map(_.headOption.flatMap(_.galaxyDiskRestore))
+  def getGalaxyDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[GalaxyRestore]] =
+    findByIdQuery(id).result
+      .map(_.headOption.flatMap(_.galaxyRestore))
 
   def save(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[PersistentDisk] =
     for {
@@ -250,7 +256,7 @@ object persistentDiskQuery {
       disk.diskType,
       disk.blockSize,
       disk.formattedBy,
-      None //TODO: update this one PersistentDisk model is updated
+      disk.galaxyRestore
     )
 
   private[db] def aggregateLabels(
@@ -289,8 +295,7 @@ object persistentDiskQuery {
       rec.diskType,
       rec.blockSize,
       rec.formattedBy,
+      rec.galaxyRestore,
       labels
     )
 }
-
-final case class GalaxyDiskRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId)

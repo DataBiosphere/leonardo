@@ -41,6 +41,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 
 import scala.concurrent.duration._
 
@@ -311,7 +312,9 @@ object CommonTestData {
     )
     .build()
 
-  def makePersistentDisk(diskName: Option[DiskName] = None, formattedBy: Option[FormattedBy] = None): PersistentDisk =
+  def makePersistentDisk(diskName: Option[DiskName] = None,
+                         formattedBy: Option[FormattedBy] = None,
+                         galaxyRestore: Option[GalaxyRestore] = None): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
       project,
@@ -326,6 +329,7 @@ object CommonTestData {
       diskType,
       blockSize,
       formattedBy,
+      galaxyRestore,
       Map.empty
     )
 

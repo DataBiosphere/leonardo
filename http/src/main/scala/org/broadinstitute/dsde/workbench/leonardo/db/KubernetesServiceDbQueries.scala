@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
-
 import akka.http.scaladsl.model.StatusCodes
 import cats.data.Chain
 import cats.syntax.all._
@@ -16,6 +15,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.KubernetesClusterNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.db.appQuery.nonDeletedAppQuery
+import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.ExecutionContext
 
@@ -58,7 +58,8 @@ object KubernetesServiceDbQueries {
             case s if KubernetesClusterStatus.creatingStatuses contains s =>
               DBIO.failed(
                 KubernetesAppCreationException(
-                  s"You cannot create an app while a cluster is in ${KubernetesClusterStatus.creatingStatuses}. Status: ${s}"
+                  s"You cannot create an app while a cluster is in ${KubernetesClusterStatus.creatingStatuses}. Status: ${s}",
+                  None
                 )
               )
             case _ => DBIO.successful(ClusterExists(cluster))
@@ -362,5 +363,5 @@ final case class ClusterDoesNotExist(minimalCluster: KubernetesCluster, defaultN
     extends SaveClusterResult
 final case class ClusterExists(minimalCluster: KubernetesCluster) extends SaveClusterResult
 final case class GetAppAssertion(msg: String) extends LeoException(msg, StatusCodes.InternalServerError, traceId = None)
-final case class KubernetesAppCreationException(msg: String)
-    extends LeoException(msg, StatusCodes.Conflict, traceId = None)
+final case class KubernetesAppCreationException(msg: String, traceId: Option[TraceId])
+    extends LeoException(msg, StatusCodes.Conflict, traceId = traceId)
