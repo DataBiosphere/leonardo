@@ -17,6 +17,10 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
   val host = java.net.InetAddress.getLocalHost.getHostName
   val port = 9099
 
+  // Use a separate dispatcher than other RestClients:
+  // https://github.com/broadinstitute/workbench-libs/blob/develop/serviceTest/src/test/resources/application.conf
+  implicit val dispatcher = system.dispatchers.lookup("blocking-dispatcher")
+
   def get(rurl: String): String =
     s"http://$host:$port/proxyRedirectClient?rurl=${rurl}"
 
@@ -42,16 +46,8 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
       }
     }
 
-  private def getContent(rurl: String) = {
+  private def getContent(rurl: String): String = {
     val resourceFile = ResourceFile("redirect-proxy-page.html")
-    val raw = Source.fromFile(resourceFile).mkString
-
-    val replacementMap = Map(
-      "rurl" -> rurl
-    )
-    replacementMap.foldLeft(raw) {
-      case (source, (key, replacement)) =>
-        source.replace("$(" + key + ")", s"""'$replacement'""")
-    }
+    Source.fromFile(resourceFile).mkString.replace("rurl", rurl)
   }
 }
