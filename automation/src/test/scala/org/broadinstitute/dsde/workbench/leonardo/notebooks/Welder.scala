@@ -1,17 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import akka.http.scaladsl.model.Uri
-import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair, Referer}
+import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import cats.effect.{ContextShift, IO}
 import com.typesafe.scalalogging.LazyLogging
-import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.WelderJsonCodec._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, _}
 import org.broadinstitute.dsde.workbench.service.RestClient
-
+import io.circe.Decoder
+import WelderJsonCodec._
 import scala.concurrent.ExecutionContext.global
 
 /**
@@ -25,8 +23,6 @@ object Welder extends RestClient with LazyLogging {
   implicit val cs: ContextShift[IO] = IO.contextShift(global)
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  private val refererUrl = s"http://${ProxyRedirectClient.host}:${ProxyRedirectClient.port}"
-
   case class Metadata(syncMode: String,
                       syncStatus: Option[String],
                       lastLockedBy: Option[String],
@@ -37,11 +33,10 @@ object Welder extends RestClient with LazyLogging {
 
   def getWelderStatus(cluster: ClusterCopy)(implicit token: AuthToken): IO[StatusResponse] = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName)
-    val referer = Referer(Uri(refererUrl))
     logger.info(s"Get welder status: GET $path/status")
 
     for {
-      response <- IO(getRequest(path + "/status", httpHeaders = List(referer)))
+      response <- IO(getRequest(path + "/status"))
       bodyString <- IO.fromFuture(IO(Unmarshal(response.entity).to[String]))
       json <- IO.fromEither(io.circe.parser.parse(bodyString))
       body <- IO.fromEither(json.as[StatusResponse])
@@ -50,7 +45,6 @@ object Welder extends RestClient with LazyLogging {
 
   def postStorageLink(cluster: ClusterCopy, cloudStoragePath: GcsPath)(implicit token: AuthToken): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/storageLinks"
-    val referer = Referer(Uri(refererUrl))
 
     val payload = Map(
       "localBaseDirectory" -> localBaseDirectory,
@@ -63,14 +57,13 @@ object Welder extends RestClient with LazyLogging {
 
     logger.info(s"Calling Welder storage links: POST on $path with payload $payload")
 
-    postRequest(path, payload, httpHeaders = List(cookie, referer))
+    postRequest(path, payload, httpHeaders = List(cookie))
   }
 
   def localize(cluster: ClusterCopy, cloudStoragePath: GcsPath, isEditMode: Boolean)(
     implicit token: AuthToken
   ): String = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects"
-    val referer = Referer(Uri(refererUrl))
 
     val payload = Map(
       "action" -> "localize",
@@ -85,14 +78,13 @@ object Welder extends RestClient with LazyLogging {
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
     logger.info(s"Calling Welder localize: POST on $path with payload ${payload.toString()}")
-    postRequest(path, payload, httpHeaders = List(cookie, referer))
+    postRequest(path, payload, httpHeaders = List(cookie))
   }
 
   def getMetadata(cluster: ClusterCopy, cloudStoragePath: GcsPath, isEditMode: Boolean)(
     implicit token: AuthToken
   ): Metadata = {
     val path = welderBasePath(cluster.googleProject, cluster.clusterName) + "/objects/metadata"
-    val referer = Referer(Uri(refererUrl))
 
     val payload = Map(
       "localPath" -> getLocalPath(cloudStoragePath, isEditMode)
@@ -101,7 +93,7 @@ object Welder extends RestClient with LazyLogging {
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
 
     logger.info(s"Calling check metadata on a file: POST on $path with payload ${payload.toString()}")
-    parseMetadataResponse(postRequest(path, payload, httpHeaders = List(cookie, referer)))
+    parseMetadataResponse(postRequest(path, payload, httpHeaders = List(cookie)))
   }
 
   def parseMetadataResponse(response: String): Metadata =
