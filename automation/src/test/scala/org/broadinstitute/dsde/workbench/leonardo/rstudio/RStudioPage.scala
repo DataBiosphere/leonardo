@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
+import cats.effect.{IO, Timer}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.page.ProxyRedirectPage
 import org.openqa.selenium.{Keys, WebDriver}
@@ -7,7 +8,9 @@ import org.openqa.selenium.{Keys, WebDriver}
 import scala.concurrent.duration.{FiniteDuration, _}
 import scala.util.Try
 
-class RStudioPage(override val url: String)(implicit val webDriver: WebDriver, val authToken: AuthToken)
+class RStudioPage(override val url: String)(implicit val webDriver: WebDriver,
+                                            override val authToken: AuthToken,
+                                            override val timer: Timer[IO])
     extends ProxyRedirectPage[RStudioPage] {
 
   val renderedApp: Query = cssSelector("[id='rstudio_rstudio_logo']")
