@@ -213,9 +213,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
             ) <* IO
               .fromFuture(IO(request.entity.discardBytes().future))
         }
-      _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "requestApp"))
-
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
+
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "requestApp", "result" -> "success"))
+      } else {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "requestApp", "result" -> "failure"))
+      }
+
     } yield resp
 
   private[api] def openTerminalHandler(
@@ -228,8 +233,13 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
-      _ <- metrics.incrementCounter("proxy", tags = Map("action" -> "openTerminal"))
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
+
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "openTerminal", "result" -> "success"))
+      } else {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "openTerminal", "result" -> "failure"))
+      }
     } yield resp
 
   private[api] def proxyRuntimeHandler(
