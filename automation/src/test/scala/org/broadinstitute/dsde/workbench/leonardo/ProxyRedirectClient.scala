@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import cats.effect.{Blocker, ContextShift, IO, Resource, Timer}
+import java.util.concurrent.Executors
+
+import cats.effect.concurrent.Ref
+import cats.effect.{Blocker, ContextShift, IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import fs2._
 import org.broadinstitute.dsde.workbench.service.RestClient
-import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.http4s.client.Client
 import org.http4s.dsl.io._
 import org.http4s.headers.`Content-Type`
@@ -13,21 +15,22 @@ import org.http4s.server.Server
 import org.http4s.server.blaze._
 import org.http4s.{HttpRoutes, _}
 
-object ProxyRedirectClient extends RestClient with LazyLogging {
-  // Note: change to "localhost" if running tests locally
-  val host = java.net.InetAddress.getLocalHost.getHostName
-  val port = 9099
+import scala.concurrent.ExecutionContext
 
-  def get(rurl: String): String =
-    s"http://$host:$port/proxyRedirectClient?rurl=${rurl}"
+object ProxyRedirectClient extends RestClient with LazyLogging {
+  def baseUri: IO[Uri] = singletonServer.get.map(_._1.baseUri)
+
+  def get(rurl: String): IO[Uri] =
+    baseUri.map(_.withPath("proxyRedirectClient").withQueryParam("rurl", rurl))
 
   def testConnection(rurl: String)(implicit client: Client[IO]): IO[Unit] =
     for {
+      uri <- get(rurl)
       r <- client
         .run(
           Request[IO](
             method = Method.GET,
-            uri = Uri.unsafeFromString(get(rurl))
+            uri = uri
           )
         )
         .use { resp =>
@@ -38,6 +41,9 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
             IO.unit
         }
     } yield r
+
+  def stopServer(): IO[Unit] =
+    singletonServer.get.flatMap(_._2)
 
   private def onError(message: String)(response: Response[IO]): IO[Throwable] =
     for {
@@ -52,10 +58,10 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
       .intersperse("\n")
       .through(text.utf8Encode)
 
-  def server: Resource[IO, Server[IO]] =
+  private def server: IO[(Server[IO], IO[Unit])] =
     for {
       // Instantiate a dedicated execution context for this server
-      blockingEc <- ExecutionContexts.cachedThreadPool[IO]
+      blockingEc <- IO(Executors.newCachedThreadPool).map(ExecutionContext.fromExecutor)
       blocker = Blocker.liftExecutionContext(blockingEc)
       implicit0(timer: Timer[IO]) = IO.timer(blockingEc)
       implicit0(cs: ContextShift[IO]) = IO.contextShift(blockingEc)
@@ -65,8 +71,10 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
             Ok(getContent(rurl, blocker), `Content-Type`(MediaType.text.html))
         }
         .orNotFound
-      server <- BlazeServerBuilder[IO](blockingEc).bindHttp(port, "0.0.0.0").withHttpApp(route).resource
+      server <- BlazeServerBuilder[IO](blockingEc).bindAny().withHttpApp(route).allocated
     } yield server
 
-  object Rurl extends QueryParamDecoderMatcher[String]("rurl")
+  private val singletonServer: Ref[IO, (Server[IO], IO[Unit])] = Ref.unsafe(server.unsafeRunSync())
+
+  private object Rurl extends QueryParamDecoderMatcher[String]("rurl")
 }

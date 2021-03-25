@@ -17,7 +17,7 @@ object RStudio extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  private val refererUrl = s"http://${ProxyRedirectClient.host}:${ProxyRedirectClient.port}"
+  private val refererUrl = ProxyRedirectClient.baseUri.map(_.renderString).unsafeRunSync()
 
   def rstudioPath(googleProject: GoogleProject, clusterName: RuntimeName): String =
     s"proxy/${googleProject.value}/${clusterName.asString}/rstudio/"

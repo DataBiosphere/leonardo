@@ -25,7 +25,7 @@ object Welder extends RestClient with LazyLogging {
   implicit val cs: ContextShift[IO] = IO.contextShift(global)
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  private val refererUrl = s"http://${ProxyRedirectClient.host}:${ProxyRedirectClient.port}"
+  private val refererUrl = ProxyRedirectClient.baseUri.map(_.renderString).unsafeRunSync()
 
   case class Metadata(syncMode: String,
                       syncStatus: Option[String],
