@@ -4,7 +4,6 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.openqa.selenium.WebDriver
 import org.scalatest.Suite
-
 import scala.concurrent._
 import scala.concurrent.duration._
 
@@ -16,6 +15,7 @@ trait RStudioTestUtils extends LeonardoTestUtils {
   def withRStudioPage[T](cluster: ClusterCopy)(testCode: RStudioPage => T)(implicit webDriver: WebDriver,
                                                                            token: AuthToken): T = {
     val rstudioMainPage = RStudio.get(cluster.googleProject, cluster.clusterName)
+    logger.info(s"rstudio ${rstudioMainPage.url}")
     testCode(rstudioMainPage.open)
   }
 

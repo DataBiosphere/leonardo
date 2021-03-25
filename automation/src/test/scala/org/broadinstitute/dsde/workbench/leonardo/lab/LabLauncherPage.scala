@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
-import cats.effect.{IO, Timer}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
@@ -38,8 +37,7 @@ case object RKernel extends LabKernel {
 }
 
 class LabLauncherPage(override val url: String)(implicit override val authToken: AuthToken,
-                                                override val webDriver: WebDriver,
-                                                override val timer: Timer[IO])
+                                                implicit override val webDriver: WebDriver)
     extends LabPage {
 
   override def open(implicit webDriver: WebDriver): LabLauncherPage = super.open.asInstanceOf[LabLauncherPage]
