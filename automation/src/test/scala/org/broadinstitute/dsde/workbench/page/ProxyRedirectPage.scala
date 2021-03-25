@@ -22,12 +22,12 @@ trait ProxyRedirectPage[P <: Page] extends Page with PageUtil[P] with WebBrowser
       // Set the LeoToken cookie. Note this needs to be done from the same domain as the target page.
       _ <- IO(addCookie("LeoToken", authToken.value))
 
-      proxyRedirectPage = ProxyRedirectClient.get(url)
-
       // Go to the proxy redirect page, specifying the target page as the `rurl`. This will automatically
       // redirect to the target page. This is done so the Referer is set correctly.
       redirect = for {
-        _ <- IO(go.to(proxyRedirectPage))
+        _ <- IO(go.to(ProxyRedirectClient.get(url)))
+
+        // Wait for the target page to load after redirect.
         res <- IO(awaitLoaded())
       } yield res
 
