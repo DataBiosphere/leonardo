@@ -4,7 +4,6 @@ import java.io.File
 
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.{HttpHeader, Uri}
-import cats.effect.{IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -47,8 +46,7 @@ object Notebook extends RestClient with LazyLogging {
     s"${notebooksBasePath(googleProject, clusterName)}/api/localize${if (async) "?async=true" else ""}"
 
   def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken,
-                                                                  webDriver: WebDriver,
-                                                                  timer: Timer[IO]): NotebooksListPage = {
+                                                                  webDriver: WebDriver): NotebooksListPage = {
     val path = notebooksBasePath(googleProject, clusterName)
     logger.info(s"Get notebook: GET /$path")
     new NotebooksListPage(url + path)

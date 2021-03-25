@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import cats.effect.{IO, Timer}
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
@@ -17,9 +16,7 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-class NotebookPage(override val url: String)(implicit override val webDriver: WebDriver,
-                                             override val authToken: AuthToken,
-                                             override val timer: Timer[IO])
+class NotebookPage(val url: String)(implicit override val webDriver: WebDriver, val authToken: AuthToken)
     extends JupyterPage
     with Eventually {
 

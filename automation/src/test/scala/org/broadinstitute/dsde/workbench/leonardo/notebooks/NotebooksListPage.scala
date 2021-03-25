@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import java.io.File
 
-import cats.effect.{IO, Timer}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
@@ -39,9 +38,7 @@ case object RKernel extends NotebookKernel {
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with R']"
 }
 
-class NotebooksListPage(override val url: String)(implicit override val webDriver: WebDriver,
-                                                  override val authToken: AuthToken,
-                                                  override val timer: Timer[IO])
+class NotebooksListPage(override val url: String)(implicit override val webDriver: WebDriver, val authToken: AuthToken)
     extends JupyterPage {
 
   override def open(implicit webDriver: WebDriver): NotebooksListPage = super.open.asInstanceOf[NotebooksListPage]
