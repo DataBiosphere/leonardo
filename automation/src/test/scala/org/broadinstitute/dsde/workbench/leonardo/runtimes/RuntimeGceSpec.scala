@@ -42,8 +42,8 @@ class RuntimeGceSpec
       implicit val httpClient = c
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
-        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].zone shouldBe Some(
-          ZoneName("europe-west1-a")
+        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].zone shouldBe ZoneName(
+          "europe-west1-a"
         )
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)

@@ -1,9 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
-import cats.data.NonEmptyList
-
+import java.nio.charset.Charset
 import java.util.UUID
+
+import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -19,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   StorageRole
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -28,8 +30,6 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
-
-import java.nio.charset.Charset
 
 @DoNotDiscover
 class RuntimeDataprocSpec
@@ -76,6 +76,7 @@ class RuntimeDataprocSpec
 
         // check cluster status in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 1, 1, "europe-west1")
+        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
