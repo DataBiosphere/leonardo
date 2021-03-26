@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
+import cats.effect.{IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
@@ -10,12 +11,14 @@ import org.scalatest.exceptions.TestFailedDueToTimeoutException
 import org.scalatest.time.{Seconds, Span}
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
+
 import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 
 class LabNotebookPage(override val url: String)(implicit override val authToken: AuthToken,
-                                                implicit override val webDriver: WebDriver)
+                                                override val webDriver: WebDriver,
+                                                override val timer: Timer[IO])
     extends LabPage
     with Toolbar
     with NotebookCell
