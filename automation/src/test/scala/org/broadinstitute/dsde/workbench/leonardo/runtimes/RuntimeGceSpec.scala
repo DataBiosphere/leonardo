@@ -2,9 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
 import java.util.UUID
+
 import cats.effect.IO
 import cats.mtl.Ask
-
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
@@ -49,5 +49,7 @@ class RuntimeGceSpec
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
     }
+
+    res.unsafeRunSync()
   }
 }
