@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.http4s.Method
 
 import scala.util.Try
 
@@ -253,11 +252,9 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
 
-      headerMap: Map[String, String] = request.headers.map(header => (header.name(), header.value())).toMap
-      contentLength = Try(headerMap.get("content-length").map(_.toDouble)).toOption.flatten
-
-      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method.equals(Method.PUT)) {
-        contentLength.traverse(size => metrics.gauge("proxy/notebooksSize", size))
+      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
+        val contentLengthOpt = request.header[`Content-Length`].flatMap(h => Try(h.length.toDouble).toOption)
+        contentLengthOpt.traverse(size => metrics.gauge("proxy/notebooksSize", size))
       } else IO.unit
 
       _ <- if (resp.status.isSuccess()) {
