@@ -25,6 +25,8 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
+import scala.util.Try
+
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
   cs: ContextShift[IO],
@@ -210,8 +212,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
             ) <* IO
               .fromFuture(IO(request.entity.discardBytes().future))
         }
-      _ <- metrics.incrementCounter("proxyApp")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
+
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "requestApp", "result" -> "success"))
+      } else {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "requestApp", "result" -> "failure"))
+      }
+
     } yield resp
 
   private[api] def openTerminalHandler(
@@ -224,8 +232,13 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
-      _ <- metrics.incrementCounter("openTerminal")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
+
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "openTerminal", "result" -> "success"))
+      } else {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "openTerminal", "result" -> "failure"))
+      }
     } yield resp
 
   private[api] def proxyRuntimeHandler(
@@ -237,17 +250,27 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
-      _ <- metrics.incrementCounter("proxyRuntime")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
+
+      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
+        val contentLengthOpt = request.header[`Content-Length`].flatMap(h => Try(h.length.toDouble).toOption)
+        contentLengthOpt.traverse(size => metrics.gauge("proxy/notebooksSize", size))
+      } else IO.unit
+
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest", "result" -> "success"))
+      } else {
+        metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest", "result" -> "failure"))
+      }
     } yield resp
 
   private[api] def setCookieHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("setCookie") >>
+    metrics.incrementCounter("proxy", tags = Map("action" -> "setCookie")) >>
       IO(logger.debug(s"Successfully set cookie for user $userInfoOpt"))
         .as(StatusCodes.NoContent)
 
   private[api] def invalidateTokenHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("invalidateToken") >>
+    metrics.incrementCounter("proxy", tags = Map("action" -> "invalidateToken")) >>
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)
