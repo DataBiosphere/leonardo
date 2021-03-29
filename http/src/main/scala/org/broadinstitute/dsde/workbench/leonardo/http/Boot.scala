@@ -427,7 +427,7 @@ object Boot extends IOApp {
         pathToCredentialJson,
         blocker,
         semaphore,
-        RegionName("us-central1")
+        RegionName("europe-west1")
       )
       dataprocService = Map(
         RegionName("us-central1") -> usCentralService,
