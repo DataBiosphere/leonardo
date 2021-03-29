@@ -120,7 +120,7 @@ class LeoPubsubMessageSubscriberSpec
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
-                                                   Map(RegionName("fake") -> FakeGoogleDataprocService),
+                                                   Map(RegionName("us-central1") -> FakeGoogleDataprocService),
                                                    FakeGoogleComputeService,
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,

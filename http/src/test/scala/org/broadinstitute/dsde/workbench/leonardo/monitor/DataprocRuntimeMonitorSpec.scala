@@ -224,7 +224,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       )(implicit ev: Ask[IO, TraceId]): IO[Option[ClusterError]] =
         IO.pure(Some(ClusterError(4, "time out")))
     }
-    val dataprocMap = Map(RegionName("fake") -> dataproc)
+    val dataprocMap = Map(RegionName("us-central1") -> dataproc)
     val res = for {
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
@@ -571,7 +571,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 
   def dataprocRuntimeMonitor(
     googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
-    dataprocService: Map[RegionName, GoogleDataprocService[IO]] = Map(RegionName("fake") -> FakeGoogleDataprocService)
+    dataprocService: Map[RegionName, GoogleDataprocService[IO]] = Map(RegionName("us-central1") -> FakeGoogleDataprocService)
   )(implicit ev: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType]): DataprocRuntimeMonitor[IO] =
     new DataprocRuntimeMonitor[IO](
       Config.dataprocMonitorConfig,
