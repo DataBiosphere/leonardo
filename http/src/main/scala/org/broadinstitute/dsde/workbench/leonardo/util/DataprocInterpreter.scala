@@ -247,12 +247,14 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           softwareConfig
         )
 
-        op <-  googleDataprocService.getOrElse(machineConfig.region, throw new Exception("Invalid region")).createCluster(
-          params.runtimeProjectAndName.googleProject,
-          machineConfig.region,
-          DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString),
-          Some(createClusterConfig)
-        )
+        op <- googleDataprocService
+          .getOrElse(machineConfig.region, throw new Exception("Invalid region"))
+          .createCluster(
+            params.runtimeProjectAndName.googleProject,
+            machineConfig.region,
+            DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString),
+            Some(createClusterConfig)
+          )
 
         asyncRuntimeFields = AsyncRuntimeFields(
           GoogleId(op.metadata.getClusterUuid),
@@ -290,11 +292,13 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
               .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
         }
 
-        _ <- googleDataprocService.getOrElse(region, throw new Exception("Invalid region")).deleteCluster(
-          params.runtimeAndRuntimeConfig.runtime.googleProject,
-          region,
-          DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-        )
+        _ <- googleDataprocService
+          .getOrElse(region, throw new Exception("Invalid region"))
+          .deleteCluster(
+            params.runtimeAndRuntimeConfig.runtime.googleProject,
+            region,
+            DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+          )
       } yield None
     } else F.pure(None)
 
@@ -313,12 +317,14 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
       )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
-      _ <- googleDataprocService.getOrElse(region, throw new Exception("Invalid region")).stopCluster(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
-        region,
-        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
-        Some(metadata)
-      )
+      _ <- googleDataprocService
+        .getOrElse(region, throw new Exception("Invalid region"))
+        .stopCluster(
+          params.runtimeAndRuntimeConfig.runtime.googleProject,
+          region,
+          DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+          Some(metadata)
+        )
     } yield None
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
@@ -342,13 +348,15 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
                                    resourceConstraints,
                                    false)
 
-      _ <- googleDataprocService.getOrElse(dataprocConfig.region, throw new Exception("Invalid region")).startCluster(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
-        dataprocConfig.region,
-        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
-        dataprocConfig.numberOfPreemptibleWorkers,
-        Some(metadata)
-      )
+      _ <- googleDataprocService
+        .getOrElse(dataprocConfig.region, throw new Exception("Invalid region"))
+        .startCluster(
+          params.runtimeAndRuntimeConfig.runtime.googleProject,
+          dataprocConfig.region,
+          DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+          dataprocConfig.numberOfPreemptibleWorkers,
+          Some(metadata)
+        )
     } yield ()
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -365,13 +373,15 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
                                               createCluster = true)
 
       // Resize the cluster in Google
-      _ <- googleDataprocService.getOrElse(region, throw new Exception("Invalid region")).resizeCluster(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
-        region,
-        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
-        params.numWorkers,
-        params.numPreemptibles
-      )
+      _ <- googleDataprocService
+        .getOrElse(region, throw new Exception("Invalid region"))
+        .resizeCluster(
+          params.runtimeAndRuntimeConfig.runtime.googleProject,
+          region,
+          DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+          params.numWorkers,
+          params.numPreemptibles
+        )
     } yield ()) recoverWith {
       case e: ApiException =>
         // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
@@ -494,7 +504,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       // Don't delete the staging bucket so the user can see error logs.
 
       val deleteCluster = {
-        googleDataprocService.getOrElse(region, throw new Exception("Invalid region"))
+        googleDataprocService
+          .getOrElse(region, throw new Exception("Invalid region"))
           .deleteCluster(googleProject, region, DataprocClusterName(clusterName.asString))
           .attempt
           .flatMap {

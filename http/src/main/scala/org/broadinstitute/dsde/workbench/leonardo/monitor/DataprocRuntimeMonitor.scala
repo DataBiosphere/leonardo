@@ -75,11 +75,13 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             new RuntimeException("DataprocRuntimeMonitor should not get a GCE request")
           )
       }
-      cluster <- googleDataprocService.getOrElse(dataprocConfig.region, throw new Exception("Invalid region")).getCluster(
-        runtimeAndRuntimeConfig.runtime.googleProject,
-        dataprocConfig.region,
-        DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-      )
+      cluster <- googleDataprocService
+        .getOrElse(dataprocConfig.region, throw new Exception("Invalid region"))
+        .getCluster(
+          runtimeAndRuntimeConfig.runtime.googleProject,
+          dataprocConfig.region,
+          DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+        )
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
           creatingRuntime(cluster, monitorContext, runtimeAndRuntimeConfig)
@@ -186,7 +188,9 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                       new RuntimeException("DataprocRuntimeMonitor shouldn't get a GCE request")
                     )
                     error <- operationName.flatTraverse(o =>
-                      googleDataprocService.getOrElse(dataprocConfig.region, throw new Exception("Invalid region")).getClusterError(google2.OperationName(o.value))
+                      googleDataprocService
+                        .getOrElse(dataprocConfig.region, throw new Exception("Invalid region"))
+                        .getClusterError(google2.OperationName(o.value))
                     )
                     r <- failedRuntime(
                       monitorContext,
