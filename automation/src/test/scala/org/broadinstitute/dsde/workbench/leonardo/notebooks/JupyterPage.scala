@@ -1,11 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import org.broadinstitute.dsde.workbench.page.CookieAuthedPage
+import org.broadinstitute.dsde.workbench.page._
 import org.openqa.selenium.{JavascriptExecutor, WebDriver}
 
-trait JupyterPage extends CookieAuthedPage[JupyterPage] {
+trait JupyterPage extends ProxyRedirectPage[JupyterPage] {
   implicit val webDriver: WebDriver
-
   val renderedApp: Query = cssSelector("[id='ipython-main-app']")
 
   override def awaitLoaded(): JupyterPage = {
