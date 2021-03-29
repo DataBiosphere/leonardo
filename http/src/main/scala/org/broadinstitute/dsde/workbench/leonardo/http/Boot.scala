@@ -413,12 +413,26 @@ object Boot extends IOApp {
                                                                   blocker,
                                                                   semaphore,
                                                                   googleComputeRetryPolicy)
-      dataprocService <- GoogleDataprocService.resource(
+
+      // TODO(wnojopra): How do I re-write the dataprocService Map in a more FP-friendly way?
+      usCentralService <- GoogleDataprocService.resource(
         googleComputeService,
         pathToCredentialJson,
         blocker,
         semaphore,
-        RegionName("unused") // TODO remove from GoogleDataprocService constructor
+        RegionName("us-central1")
+      )
+      europeWestService <- GoogleDataprocService.resource(
+        googleComputeService,
+        pathToCredentialJson,
+        blocker,
+        semaphore,
+        RegionName("us-central1")
+      )
+      dataprocService = Map(
+        RegionName("us-central1") -> usCentralService,
+        RegionName("europe-west1") -> europeWestService
+        /// TODO(wnojopra): continue with other regions
       )
       asyncTasksQueue <- Resource.liftF(InspectableQueue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson), blocker)
@@ -491,7 +505,7 @@ final case class GoogleDependencies[F[_]](
   googleDirectoryDAO: HttpGoogleDirectoryDAO,
   cryptoMiningUserPublisher: GooglePublisher[F],
   googleIamDAO: HttpGoogleIamDAO,
-  googleDataproc: GoogleDataprocService[F],
+  googleDataproc: Map[RegionName, GoogleDataprocService[F]],
   kubernetesDnsCache: KubernetesDnsCache[F],
   gkeService: GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],

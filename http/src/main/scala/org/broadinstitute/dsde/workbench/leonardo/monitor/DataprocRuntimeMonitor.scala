@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDataprocInterpreter,
   GoogleDataprocService,
   GoogleStorageService,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
@@ -39,7 +40,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   authProvider: LeoAuthProvider[F],
   googleStorageService: GoogleStorageService[F],
   override val runtimeAlg: RuntimeAlgebra[F],
-  googleDataprocService: GoogleDataprocService[F]
+  googleDataprocService: Map[RegionName, GoogleDataprocService[F]]
 )(implicit override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   override val F: Async[F],
@@ -74,7 +75,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             new RuntimeException("DataprocRuntimeMonitor should not get a GCE request")
           )
       }
-      cluster <- googleDataprocService.getCluster(
+      cluster <- googleDataprocService.getOrElse(dataprocConfig.region, throw new Exception("Invalid region")).getCluster(
         runtimeAndRuntimeConfig.runtime.googleProject,
         dataprocConfig.region,
         DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
@@ -180,8 +181,12 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 case _ =>
                   val operationName = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.map(_.operationName)
                   for {
+                    dataprocConfig <- F.fromOption(
+                      LeoLenses.dataprocPrism.getOption(runtimeAndRuntimeConfig.runtimeConfig),
+                      new RuntimeException("DataprocRuntimeMonitor shouldn't get a GCE request")
+                    )
                     error <- operationName.flatTraverse(o =>
-                      googleDataprocService.getClusterError(google2.OperationName(o.value))
+                      googleDataprocService.getOrElse(dataprocConfig.region, throw new Exception("Invalid region")).getClusterError(google2.OperationName(o.value))
                     )
                     r <- failedRuntime(
                       monitorContext,

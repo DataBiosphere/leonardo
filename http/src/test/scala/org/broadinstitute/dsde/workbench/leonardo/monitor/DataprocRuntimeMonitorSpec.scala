@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDataprocService,
   InstanceName,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -223,12 +224,13 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       )(implicit ev: Ask[IO, TraceId]): IO[Option[ClusterError]] =
         IO.pure(Some(ClusterError(4, "time out")))
     }
+    val dataprocMap = Map(RegionName("fake") -> dataproc)
     val res = for {
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))),
-                                       dataprocService = dataproc)(failureToolDao)
+                                       dataprocService = dataprocMap)(failureToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
@@ -569,7 +571,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 
   def dataprocRuntimeMonitor(
     googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
-    dataprocService: GoogleDataprocService[IO] = FakeGoogleDataprocService
+    dataprocService: Map[RegionName, GoogleDataprocService[IO]] = Map(RegionName("fake") -> FakeGoogleDataprocService)
   )(implicit ev: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType]): DataprocRuntimeMonitor[IO] =
     new DataprocRuntimeMonitor[IO](
       Config.dataprocMonitorConfig,
