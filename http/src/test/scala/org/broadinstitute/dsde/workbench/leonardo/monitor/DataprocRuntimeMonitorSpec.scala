@@ -571,7 +571,9 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 
   def dataprocRuntimeMonitor(
     googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
-    dataprocService: Map[RegionName, GoogleDataprocService[IO]] = Map(RegionName("us-central1") -> FakeGoogleDataprocService)
+    dataprocService: Map[RegionName, GoogleDataprocService[IO]] = Map(
+      RegionName("us-central1") -> FakeGoogleDataprocService
+    )
   )(implicit ev: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType]): DataprocRuntimeMonitor[IO] =
     new DataprocRuntimeMonitor[IO](
       Config.dataprocMonitorConfig,
