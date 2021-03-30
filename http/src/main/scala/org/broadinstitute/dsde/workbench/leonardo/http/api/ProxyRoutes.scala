@@ -215,9 +215,11 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
 
       _ <- if (resp.status.isSuccess()) {
-        metrics.incrementCounter("proxy", tags = Map("action" -> "requestApp", "result" -> "success"))
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "success", "action" -> "appRequest", "tool" -> s"${appName}"))
       } else {
-        metrics.incrementCounter("proxy", tags = Map("action" -> "requestApp", "result" -> "failure"))
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "failure", "action" -> "appRequest", "tool" -> s"${appName}"))
       }
 
     } yield resp
@@ -233,11 +235,18 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
+      tool = if (request.uri.toString.contains("jupyter/terminals/")) {
+        "Jupyter"
+      } else {
+        "NA"
+      }
 
       _ <- if (resp.status.isSuccess()) {
-        metrics.incrementCounter("proxy", tags = Map("action" -> "openTerminal", "result" -> "success"))
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "success", "action" -> "openTerminal", "tool" -> s"${tool}"))
       } else {
-        metrics.incrementCounter("proxy", tags = Map("action" -> "openTerminal", "result" -> "failure"))
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "failure", "action" -> "openTerminal", "tool" -> s"${tool}"))
       }
     } yield resp
 
@@ -251,6 +260,11 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
+      tool = if (request.uri.toString.endsWith("jupyter")) {
+        "Jupyter"
+      } else if (request.uri.toString.endsWith("rstudio")) {
+        "Rstudio"
+      }
 
       _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
         val contentLengthOpt = request.header[`Content-Length`].flatMap(h => Try(h.length.toDouble).toOption)
@@ -258,19 +272,21 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       } else IO.unit
 
       _ <- if (resp.status.isSuccess()) {
-        metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest", "result" -> "success"))
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "success", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
       } else {
-        metrics.incrementCounter("proxy", tags = Map("action" -> "runtimeRequest", "result" -> "failure"))
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "failure", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
       }
     } yield resp
 
   private[api] def setCookieHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("proxy", tags = Map("action" -> "setCookie")) >>
+    metrics.incrementCounter("proxyAuthRequest", tags = Map("type" -> "setCookie")) >>
       IO(logger.debug(s"Successfully set cookie for user $userInfoOpt"))
         .as(StatusCodes.NoContent)
 
   private[api] def invalidateTokenHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("proxy", tags = Map("action" -> "invalidateToken")) >>
+    metrics.incrementCounter("proxyAuthRequest", tags = Map("type" -> "invalidateToken")) >>
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)
