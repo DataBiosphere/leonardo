@@ -25,7 +25,6 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import scala.util.Try
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
   cs: ContextShift[IO],
@@ -213,8 +212,6 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
         }
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
 
-      _ = logger.info(s"apps: ${resp.toString()}")
-
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "appRequest", "tool" -> s"${appName}"))
@@ -241,10 +238,6 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       } else {
         "other"
       }
-
-      _ = logger.info(s"does reques jupyter: ${request.uri.toString.contains("jupyter/terminals/")}")
-      _ = logger.info(s"tool: ${tool}")
-
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "openTerminal", "tool" -> s"${tool}"))
@@ -266,18 +259,13 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
       tool = if (request.uri.toString.contains("jupyter")) {
         "Jupyter"
-      } else if (request.uri.toString.endsWith("rstudio")) {
+      } else if (request.uri.toString.contains("rstudio")) {
         "Rstudio"
+      } else if (request.uri.toString.contains("welder")) {
+        "Welder"
+      } else {
+        "other"
       }
-
-      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
-        logger.info("INSIDE THE IF")
-
-        val contentLengthOpt = request.header[`Content-Length`].flatMap(h => Try(h.length.toDouble).toOption)
-        logger.info(s"contentLengthOpt: ${contentLengthOpt}")
-
-        contentLengthOpt.traverse(size => metrics.gauge("proxy/notebooksSize", size))
-      } else IO.unit
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
@@ -313,17 +301,16 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
 
   private[api] def checkReferer: Directive0 =
     optionalHeaderValueByType(Referer) flatMap {
-      case Some(referer) =>
-        val authority = referer.uri.authority
-        if (refererConfig.validHosts.contains(authority.toString())
-            || refererConfig.validHosts.contains("*")) {
-          pass
-        } else {
+      case Some(referer) => {
+        if (refererConfig.validHosts.contains(referer.uri.authority.toString())) pass
+        else {
           logger.info(s"Referer ${referer.uri.toString} is not allowed")
           logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
         }
-      case None =>
+      }
+      case None => {
         logger.info(s"Referer header is missing")
         logRequestPath.tflatMap(_ => failWith(AuthenticationError()))
+      }
     }
 }
