@@ -26,7 +26,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.util.Try
-
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
   cs: ContextShift[IO],
@@ -214,6 +213,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
         }
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
 
+      _ = logger.info(s"apps: ${resp.toString()}")
+
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "appRequest", "tool" -> s"${appName}"))
@@ -238,8 +239,11 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       tool = if (request.uri.toString.contains("jupyter/terminals/")) {
         "Jupyter"
       } else {
-        "NA"
+        "other"
       }
+
+      _ = logger.info(s"does reques jupyter: ${request.uri.toString.contains("jupyter/terminals/")}")
+      _ = logger.info(s"tool: ${tool}")
 
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
@@ -260,11 +264,20 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
-      tool = if (request.uri.toString.endsWith("jupyter")) {
+      tool = if (request.uri.toString.contains("jupyter")) {
         "Jupyter"
       } else if (request.uri.toString.endsWith("rstudio")) {
         "Rstudio"
       }
+
+      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
+        logger.info("INSIDE THE IF")
+
+        val contentLengthOpt = request.header[`Content-Length`].flatMap(h => Try(h.length.toDouble).toOption)
+        logger.info(s"contentLengthOpt: ${contentLengthOpt}")
+
+        contentLengthOpt.traverse(size => metrics.gauge("proxy/notebooksSize", size))
+      } else IO.unit
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
