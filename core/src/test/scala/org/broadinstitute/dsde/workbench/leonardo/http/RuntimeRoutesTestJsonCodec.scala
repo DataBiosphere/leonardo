@@ -45,14 +45,14 @@ object RuntimeRoutesTestJsonCodec {
      x.numberOfPreemptibleWorkers,
      x.region)
   )
-  implicit val gceRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct4(
+  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct4(
     "cloudService",
     "machineType",
     "diskSize",
     "zone"
   )(x => (x.cloudService, x.machineType, x.diskSize, x.zone))
 
-  implicit val gceWithPdRuntimConfigEncoder: Encoder[RuntimeConfigRequest.GceWithPdConfig] = Encoder.forProduct4(
+  implicit val gceWithPdRuntimeConfigEncoder: Encoder[RuntimeConfigRequest.GceWithPdConfig] = Encoder.forProduct4(
     "cloudService",
     "machineType",
     "persistentDisk",
