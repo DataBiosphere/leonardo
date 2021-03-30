@@ -265,12 +265,6 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       } else if (request.uri.toString.endsWith("rstudio")) {
         "Rstudio"
       }
-
-      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
-        val contentLengthOpt = request.header[`Content-Length`].flatMap(h => Try(h.length.toDouble).toOption)
-        contentLengthOpt.traverse(size => metrics.gauge("proxy/notebooksSize", size))
-      } else IO.unit
-
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
