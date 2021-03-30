@@ -68,6 +68,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
+      ctx <- ev.ask
       dataprocConfig <- runtimeAndRuntimeConfig.runtimeConfig match {
         case x: RuntimeConfig.DataprocConfig => F.pure(x)
         case _ =>
@@ -75,13 +76,13 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             new RuntimeException("DataprocRuntimeMonitor should not get a GCE request")
           )
       }
-      cluster <- googleDataprocService
-        .getOrElse(dataprocConfig.region, throw new Exception("Invalid region"))
-        .getCluster(
-          runtimeAndRuntimeConfig.runtime.googleProject,
-          dataprocConfig.region,
-          DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-        )
+      dataproc <- F.fromOption(googleDataprocService.get(dataprocConfig.region),
+                               RegionNotSupportedException(dataprocConfig.region, ctx.traceId))
+      cluster <- dataproc.getCluster(
+        runtimeAndRuntimeConfig.runtime.googleProject,
+        dataprocConfig.region,
+        DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+      )
       result <- runtimeAndRuntimeConfig.runtime.status match {
         case RuntimeStatus.Creating =>
           creatingRuntime(cluster, monitorContext, runtimeAndRuntimeConfig)
@@ -187,11 +188,9 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                       LeoLenses.dataprocPrism.getOption(runtimeAndRuntimeConfig.runtimeConfig),
                       new RuntimeException("DataprocRuntimeMonitor shouldn't get a GCE request")
                     )
-                    error <- operationName.flatTraverse(o =>
-                      googleDataprocService
-                        .getOrElse(dataprocConfig.region, throw new Exception("Invalid region"))
-                        .getClusterError(google2.OperationName(o.value))
-                    )
+                    dataproc <- F.fromOption(googleDataprocService.get(dataprocConfig.region),
+                                             RegionNotSupportedException(dataprocConfig.region, ctx.traceId))
+                    error <- operationName.flatTraverse(o => dataproc.getClusterError(google2.OperationName(o.value)))
                     r <- failedRuntime(
                       monitorContext,
                       runtimeAndRuntimeConfig,

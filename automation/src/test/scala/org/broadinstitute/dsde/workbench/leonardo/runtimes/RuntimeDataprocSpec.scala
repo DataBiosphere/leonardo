@@ -75,7 +75,7 @@ class RuntimeDataprocSpec
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
         // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 1, 1, "europe-west1")
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 1, 1, RegionName("europe-west1"))
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
@@ -113,7 +113,7 @@ class RuntimeDataprocSpec
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
         // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, "us-central1")
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
         // check output of yarn node -list command
         _ <- IO(
@@ -185,19 +185,19 @@ class RuntimeDataprocSpec
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
         // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, "us-central1")
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
         // stop the cluster
         _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be removed in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0, "us-central1")
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0, RegionName("us-central1"))
 
         // start the cluster
         _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be added in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, "us-central1")
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
         // check output of yarn node -list command
         _ <- IO(
@@ -218,13 +218,15 @@ class RuntimeDataprocSpec
 
   private def verifyDataproc(project: GoogleProject,
                              runtimeName: RuntimeName,
-                             dataproc: GoogleDataprocService[IO],
+                             dataprocMap: Map[RegionName, GoogleDataprocService[IO]],
                              expectedNumWorkers: Int,
                              expectedPreemptibles: Int,
-                             expectedRegion: String): IO[Unit] =
+                             expectedRegion: RegionName): IO[Unit] =
     for {
+      // get correct dataproc client for the region
+      dataproc <- IO.fromOption(dataprocMap.get(expectedRegion))(fail(s"Unknown Dataproc region: ${expectedRegion}"))
       // check cluster status in Dataproc
-      clusterOpt <- dataproc.getCluster(project, RegionName(expectedRegion), DataprocClusterName(runtimeName.asString))
+      clusterOpt <- dataproc.getCluster(project, expectedRegion, DataprocClusterName(runtimeName.asString))
       cluster <- IO.fromOption(clusterOpt)(
         fail(s"Cluster not found in dataproc: ${project.value}/${runtimeName.asString}")
       )
@@ -256,4 +258,5 @@ class RuntimeDataprocSpec
 
 }
 
-final case class RuntimeDataprocSpecDependencies(httpClient: Client[IO], dataproc: GoogleDataprocService[IO])
+final case class RuntimeDataprocSpecDependencies(httpClient: Client[IO],
+                                                 dataproc: Map[RegionName, GoogleDataprocService[IO]])

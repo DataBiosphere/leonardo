@@ -94,7 +94,8 @@ object Config {
       config.as[DataprocCustomImage]("legacyCustomDataprocImage"),
       config.as[DataprocCustomImage]("customDataprocImage"),
       config.getAs[MemorySize]("dataprocReservedMemory"),
-      config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults")
+      config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
+      config.as[Set[RegionName]]("supportedRegions")
     )
   }
 
