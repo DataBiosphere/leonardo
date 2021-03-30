@@ -1,9 +1,9 @@
-name: Dependency Bot
+name: dependency-bot
 
 on:
   # Remove before merging
   push:
-    branches: [ develop ]
+    branches: [ workflow ]
 
   workflow_dispatch:
   # Allows manually triggering of workflow on a selected branch via the GitHub Actions tab.
@@ -15,26 +15,30 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-
     - name: Merge scala-steward PRs
+      id: msp
       run: |
-        git remote add scala-steward	git@github.com:scala-steward/leonardo
-
-        while IFS= read -r branch
+        export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+        while IFS= read -r pr
         do
-          eval "$branch"
-          git merge $branch
-        done <<< `git for-each-ref --format='%(authorname),%(refname)' --sort=authorname |grep heads|grep "Scala Steward"|cut -b 26-`
-    - name: Create Pull Request
-      id: cpr
-      uses: peter-evans/create-pull-request@v3
-      with:
-        token: ${{ secrets.BROADBOT_GITHUB_TOKEN }}
-        commit-message: Update dependencies
-        committer: broadbot <broadbot@broadinstitute.org>
-        author: broadbot <broadbot@broadinstitute.org>
-        branch: merged-scala-steward-prs
-        delete-branch: true
-        title: 'Bump dependencies'
-        body: |
-          *This PR was opened by the [${{ github.workflow }} GitHub Actions workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).*
+          echo "$pr"
+          gh pr checkout $pr
+          curBranch=`git branch --show-current`
+          git checkout -b merged-scala-steward-prs
+          git merge -m "merging" $curBranch
+        done <<< `gh pr list | grep scala-steward | cut -d$'\t'  -f 1`
+        git push origin merged-scala-steward-prs
+#    - name: Create Pull Request
+#      id: cpr
+#      uses: peter-evans/create-pull-request@v3
+#      with:
+#        token: ${{ secrets.BROADBOT_GITHUB_TOKEN }}
+#        commit-message: Update dependencies
+#        committer: broadbot <broadbot@broadinstitute.org>
+#        author: broadbot <broadbot@broadinstitute.org>
+#        base: develop
+#        branch: merged-scala-steward-prs
+#        delete-branch: true
+#        title: 'Bump dependencies'
+#        body: |
+#          *This PR was opened by the [${{ github.workflow }} GitHub Actions workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).*
