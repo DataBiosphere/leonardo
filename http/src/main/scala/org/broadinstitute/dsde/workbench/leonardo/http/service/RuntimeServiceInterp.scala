@@ -271,9 +271,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- if (hasStatusPermission) F.unit
       else
-        F.raiseError[Unit](
-          RuntimeNotFoundException(req.googleProject, req.runtimeName, "no active runtime record in database")
-        )
+        log.info(ctx.loggingCtx)(s"${req.userInfo.userEmail.value} has no permission to get runtime status") >> F
+          .raiseError[Unit](
+            RuntimeNotFoundException(req.googleProject,
+                                     req.runtimeName,
+                                     "no active runtime record in database",
+                                     Some(ctx.traceId))
+          )
 
       // throw 403 if no DeleteCluster permission
       hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
