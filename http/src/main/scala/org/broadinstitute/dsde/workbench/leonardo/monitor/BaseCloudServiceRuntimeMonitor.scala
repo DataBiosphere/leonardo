@@ -85,7 +85,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           logger
             .error(ctx.loggingCtx)(s"disappeared from database in the middle of status transition!")
             .as(((), None))
-        case Some(status) if (status != monitorContext.action) && monitorState.newTransition.isEmpty =>
+        case Some(status) if (status != monitorContext.action) =>
           val tags = Map("original_status" -> monitorContext.action.toString, "interrupted_by" -> status.toString)
           openTelemetry.incrementCounter("earlyTerminationOfMonitoring", 1, tags) >> logger
             .warn(ctx.loggingCtx)(
