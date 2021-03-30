@@ -38,10 +38,13 @@ case class ForbiddenError(email: WorkbenchEmail)
       traceId = None
     )
 
-case class RuntimeNotFoundException(googleProject: GoogleProject, runtimeName: RuntimeName, msg: String)
+case class RuntimeNotFoundException(googleProject: GoogleProject,
+                                    runtimeName: RuntimeName,
+                                    msg: String,
+                                    traceId: Option[TraceId] = None)
     extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found. Details: ${msg}",
                          StatusCodes.NotFound,
-                         traceId = None)
+                         traceId = traceId)
 
 case class RuntimeNotFoundByIdException(id: Long, msg: String)
     extends LeoException(s"Runtime with id ${id} not found. Details: ${msg}", StatusCodes.NotFound, traceId = None)
