@@ -1,0 +1,40 @@
+name: Dependency Bot
+
+on:
+  # Remove before merging
+  push:
+    branches: [ develop ]
+
+  workflow_dispatch:
+  # Allows manually triggering of workflow on a selected branch via the GitHub Actions tab.
+  # GitHub blog demo: https://github.blog/changelog/2020-07-06-github-actions-manual-triggers-with-workflow_dispatch/.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Merge scala-steward PRs
+      run: |
+        git remote add scala-steward	git@github.com:scala-steward/leonardo
+
+        while IFS= read -r branch
+        do
+          eval "$branch"
+          git merge $branch
+        done <<< `git for-each-ref --format='%(authorname),%(refname)' --sort=authorname |grep heads|grep "Scala Steward"|cut -b 26-`
+    - name: Create Pull Request
+      id: cpr
+      uses: peter-evans/create-pull-request@v3
+      with:
+        token: ${{ secrets.BROADBOT_GITHUB_TOKEN }}
+        commit-message: Update dependencies
+        committer: broadbot <broadbot@broadinstitute.org>
+        author: broadbot <broadbot@broadinstitute.org>
+        branch: merged-scala-steward-prs
+        delete-branch: true
+        title: 'Bump dependencies'
+        body: |
+          *This PR was opened by the [${{ github.workflow }} GitHub Actions workflow](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).*
