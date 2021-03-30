@@ -7,7 +7,7 @@ object Dependencies {
   val akkaHttpV = "10.2.4"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
-  val scalaLoggingV = "3.9.2"
+  val scalaLoggingV = "3.9.3"
   val scalaTestV = "3.2.6"
   val slickV = "3.3.3"
   val http4sVersion = "0.21.20"
@@ -69,7 +69,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore, excludeGoogleApiClient)
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.36.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.36.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
   val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 
@@ -107,13 +107,14 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.3.1"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.3.2"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.11" % Test // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.13.1"
   val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
+  val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
@@ -173,7 +174,7 @@ object Dependencies {
 
     // Dependent on the trace exporters you want to use add one or more of the following
     "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
-    "org.http4s" %% "http4s-blaze-server" % http4sVersion % Test,
+    http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito
   )
@@ -198,6 +199,7 @@ object Dependencies {
     akkaHttpSprayJson,
     scalaTest,
     scalaTestSelenium,
-    scalaTestMockito
+    scalaTestMockito,
+    http4sBlazeServer % Test
   )
 }
