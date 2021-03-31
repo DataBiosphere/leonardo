@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleDataprocInterpreter,
   GoogleDataprocService,
   GoogleStorageService,
-  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
@@ -40,7 +39,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   authProvider: LeoAuthProvider[F],
   googleStorageService: GoogleStorageService[F],
   override val runtimeAlg: RuntimeAlgebra[F],
-  googleDataprocService: Map[RegionName, GoogleDataprocService[F]]
+  googleDataprocService: GoogleDataprocService[F]
 )(implicit override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   override val F: Async[F],
@@ -76,9 +75,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             new RuntimeException("DataprocRuntimeMonitor should not get a GCE request")
           )
       }
-      dataproc <- F.fromOption(googleDataprocService.get(dataprocConfig.region),
-                               RegionNotSupportedException(dataprocConfig.region, ctx.traceId))
-      cluster <- dataproc.getCluster(
+      cluster <- googleDataprocService.getCluster(
         runtimeAndRuntimeConfig.runtime.googleProject,
         dataprocConfig.region,
         DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
@@ -188,9 +185,9 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                       LeoLenses.dataprocPrism.getOption(runtimeAndRuntimeConfig.runtimeConfig),
                       new RuntimeException("DataprocRuntimeMonitor shouldn't get a GCE request")
                     )
-                    dataproc <- F.fromOption(googleDataprocService.get(dataprocConfig.region),
-                                             RegionNotSupportedException(dataprocConfig.region, ctx.traceId))
-                    error <- operationName.flatTraverse(o => dataproc.getClusterError(google2.OperationName(o.value)))
+                    error <- operationName.flatTraverse(o =>
+                      googleDataprocService.getClusterError(dataprocConfig.region, google2.OperationName(o.value))
+                    )
                     r <- failedRuntime(
                       monitorContext,
                       runtimeAndRuntimeConfig,

@@ -60,7 +60,7 @@ object DbReference extends LazyLogging {
       initLiquibase = if (config.initWithLiquibase)
         Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
       else Async[F].unit
-      _ <- Resource.liftF(initLiquibase)
+      _ <- Resource.eval(initLiquibase)
     } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits, blocker)
   }
 }

@@ -35,7 +35,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   MockGoogleDiskService,
   OperationName,
-  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
@@ -120,7 +119,7 @@ class LeoPubsubMessageSubscriberSpec
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
-                                                   Map(RegionName("us-central1") -> FakeGoogleDataprocService),
+                                                   FakeGoogleDataprocService,
                                                    FakeGoogleComputeService,
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,

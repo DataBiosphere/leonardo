@@ -9,7 +9,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.{MockGoogleDiskService, RegionName}
+import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGoogleDataprocService,
@@ -78,7 +78,7 @@ trait TestLeoRoutes {
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
                                 vpcInterp,
-                                Map(RegionName("Fake") -> FakeGoogleDataprocService),
+                                FakeGoogleDataprocService,
                                 FakeGoogleComputeService,
                                 MockGoogleDiskService,
                                 mockGoogleDirectoryDAO,

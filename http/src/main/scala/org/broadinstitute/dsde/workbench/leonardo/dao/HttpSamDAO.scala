@@ -288,7 +288,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
       )
       scopedCredential = credential.createScoped(saScopes.asJava)
-      _ <- Resource.liftF(Effect[F].delay(scopedCredential.refresh))
+      _ <- Resource.eval(Effect[F].delay(scopedCredential.refresh))
     } yield scopedCredential.getAccessToken.getTokenValue
 
   private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(

@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
 import cats.effect.concurrent.Semaphore
-import cats.effect.{IO, Resource}
+import cats.effect.IO
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
@@ -96,21 +96,16 @@ trait LeonardoTestUtils
 
   val googleComputeService =
     GoogleComputeService.resource(LeonardoConfig.GCS.pathToQAJson, blocker, Semaphore[IO](10).unsafeRunSync())
-  val googleDataprocService: Resource[IO, Map[RegionName, GoogleDataprocService[IO]]] = for {
+  val googleDataprocService = for {
     compute <- googleComputeService
-    dp <- List(RegionName("us-central1"), RegionName("europe-west1"))
-      .traverse { r =>
-        GoogleDataprocService
-          .resource(
-            compute,
-            LeonardoConfig.GCS.pathToQAJson,
-            blocker,
-            semaphore,
-            r
-          )
-          .map(r -> _)
-      }
-      .map(_.toMap)
+    dp <- GoogleDataprocService
+      .resource(
+        compute,
+        LeonardoConfig.GCS.pathToQAJson,
+        blocker,
+        semaphore,
+        Set(RegionName("us-central1"), RegionName("europe-west1"))
+      )
   } yield dp
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio

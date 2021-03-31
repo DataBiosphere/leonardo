@@ -42,8 +42,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GooglePublisher,
   GoogleResourceService,
   GoogleStorageService,
-  GoogleSubscriber,
-  RegionName
+  GoogleSubscriber
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.{PetClusterServiceAccountProvider, SamAuthProvider}
@@ -331,12 +330,12 @@ object Boot extends IOApp {
   )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
-      semaphore <- Resource.liftF(Semaphore[F](255L))
+      semaphore <- Resource.eval(Semaphore[F](255L))
       blocker = Blocker.liftExecutionContext(blockingEc)
       storage <- GoogleStorageService.resource[F](pathToCredentialJson, blocker, Some(semaphore))
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
-      sslContext <- Resource.liftF(SslContextReader.getSSLContext())
+      sslContext <- Resource.eval(SslContextReader.getSSLContext())
       httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
@@ -350,7 +349,7 @@ object Boot extends IOApp {
       // Note the Sam client intentionally doesn't use clientWithRetryAndLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
       samDao = HttpSamDAO[F](clientWithRetryWithCustomSSL, httpSamDaoConfig, blocker)
-      concurrentDbAccessPermits <- Resource.liftF(Semaphore[F](dbConcurrency))
+      concurrentDbAccessPermits <- Resource.eval(Semaphore[F](dbConcurrency))
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
@@ -364,7 +363,7 @@ object Boot extends IOApp {
       credential <- credentialResource(pathToCredentialJson)
       scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
       kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
-      credentialJson <- Resource.liftF(
+      credentialJson <- Resource.eval(
         readFileToString(applicationConfig.leoServiceAccountJsonFile, blocker)
       )
       json = Json(credentialJson)
@@ -381,8 +380,8 @@ object Boot extends IOApp {
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
       cryptoMiningUserPublisher <- GooglePublisher.resource[F](cryptominingTopicPublisherConfig)
 
-      publisherQueue <- Resource.liftF(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
-      dataAccessedUpdater <- Resource.liftF(
+      publisherQueue <- Resource.eval(InspectableQueue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
+      dataAccessedUpdater <- Resource.eval(
         InspectableQueue.bounded[F, UpdateDateAccessMessage](dateAccessUpdaterConfig.queueSize)
       )
 
@@ -395,10 +394,10 @@ object Boot extends IOApp {
 
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)
 
-      subscriberQueue <- Resource.liftF(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
+      subscriberQueue <- Resource.eval(InspectableQueue.bounded[F, Event[LeoPubsubMessage]](pubsubConfig.queueSize))
       subscriber <- GoogleSubscriber.resource(subscriberConfig, subscriberQueue)
 
-      nonLeoMessageSubscriberQueue <- Resource.liftF(
+      nonLeoMessageSubscriberQueue <- Resource.eval(
         InspectableQueue.bounded[F, Event[NonLeoMessage]](pubsubConfig.queueSize)
       )
       nonLeoMessageSubscriber <- GoogleSubscriber.resource(nonLeoMessageSubscriberConfig, nonLeoMessageSubscriberQueue)
@@ -413,21 +412,16 @@ object Boot extends IOApp {
                                                                   blocker,
                                                                   semaphore,
                                                                   googleComputeRetryPolicy)
-      dataprocServiceMap <- dataprocConfig.supportedRegions.toList
-        .traverse { r =>
-          GoogleDataprocService
-            .resource(
-              googleComputeService,
-              pathToCredentialJson,
-              blocker,
-              semaphore,
-              r
-            )
-            .map(r -> _)
-        }
-        .map(_.toMap)
+      dataprocService <- GoogleDataprocService
+        .resource(
+          googleComputeService,
+          pathToCredentialJson,
+          blocker,
+          semaphore,
+          dataprocConfig.supportedRegions
+        )
 
-      asyncTasksQueue <- Resource.liftF(InspectableQueue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
+      asyncTasksQueue <- Resource.eval(InspectableQueue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson), blocker)
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, blocker, semaphore)
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, blocker, semaphore)
@@ -435,7 +429,7 @@ object Boot extends IOApp {
                                                       applicationConfig.applicationName,
                                                       ProjectName.of(applicationConfig.leoGoogleProject.value))
       googleOauth2DAO <- GoogleOAuth2Service.resource(blocker, semaphore)
-      nodepoolLock <- Resource.liftF(
+      nodepoolLock <- Resource.eval(
         KeyLock[F, KubernetesClusterId](gkeClusterConfig.nodepoolLockCacheExpiryTime,
                                         gkeClusterConfig.nodepoolLockCacheMaxSize,
                                         blocker)
@@ -450,7 +444,7 @@ object Boot extends IOApp {
         googleDirectoryDAO,
         cryptoMiningUserPublisher,
         googleIamDAO,
-        dataprocServiceMap,
+        dataprocService,
         kubernetesDnsCache,
         gkeService,
         kubeService,
@@ -498,7 +492,7 @@ final case class GoogleDependencies[F[_]](
   googleDirectoryDAO: HttpGoogleDirectoryDAO,
   cryptoMiningUserPublisher: GooglePublisher[F],
   googleIamDAO: HttpGoogleIamDAO,
-  googleDataproc: Map[RegionName, GoogleDataprocService[F]],
+  googleDataproc: GoogleDataprocService[F],
   kubernetesDnsCache: KubernetesDnsCache[F],
   gkeService: GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],

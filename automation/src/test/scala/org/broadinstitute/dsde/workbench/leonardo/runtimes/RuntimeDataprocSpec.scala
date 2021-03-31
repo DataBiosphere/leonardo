@@ -218,13 +218,11 @@ class RuntimeDataprocSpec
 
   private def verifyDataproc(project: GoogleProject,
                              runtimeName: RuntimeName,
-                             dataprocMap: Map[RegionName, GoogleDataprocService[IO]],
+                             dataproc: GoogleDataprocService[IO],
                              expectedNumWorkers: Int,
                              expectedPreemptibles: Int,
                              expectedRegion: RegionName): IO[Unit] =
     for {
-      // get correct dataproc client for the region
-      dataproc <- IO.fromOption(dataprocMap.get(expectedRegion))(fail(s"Unknown Dataproc region: ${expectedRegion}"))
       // check cluster status in Dataproc
       clusterOpt <- dataproc.getCluster(project, expectedRegion, DataprocClusterName(runtimeName.asString))
       cluster <- IO.fromOption(clusterOpt)(
@@ -258,5 +256,4 @@ class RuntimeDataprocSpec
 
 }
 
-final case class RuntimeDataprocSpecDependencies(httpClient: Client[IO],
-                                                 dataproc: Map[RegionName, GoogleDataprocService[IO]])
+final case class RuntimeDataprocSpecDependencies(httpClient: Client[IO], dataproc: GoogleDataprocService[IO])
