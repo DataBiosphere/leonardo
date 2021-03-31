@@ -33,7 +33,7 @@ class RuntimeGceSpec
         RuntimeConfigRequest.GceConfig(
           Some(MachineTypeName("n1-standard-4")),
           Some(DiskSize(10)),
-          Some(ZoneName("europe-west1-a"))
+          Some(ZoneName("europe-west1-b"))
         )
       )
     )

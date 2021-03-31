@@ -565,7 +565,7 @@ class HttpRoutesSpec
     val test =
       RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-8")),
                                      Some(DiskSize(100)),
-                                     Some(ZoneName("europe-west1-a")))
+                                     Some(ZoneName("europe-west1-b")))
     decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
   }
 
@@ -573,7 +573,7 @@ class HttpRoutesSpec
     val test = RuntimeConfigRequest.GceWithPdConfig(
       Some(MachineTypeName("n1-standard-8")),
       PersistentDiskRequest(DiskName("disk"), Some(DiskSize(100)), Some(DiskType.Standard), Map.empty),
-      Some(ZoneName("europe-west1-a"))
+      Some(ZoneName("europe-west1-b"))
     )
     decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
   }
