@@ -280,12 +280,12 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     } yield resp
 
   private[api] def setCookieHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("proxyAuthRequest", tags = Map("type" -> "setCookie")) >>
+    metrics.incrementCounter("proxyAuthRequest", tags = Map("api" -> "setCookie")) >>
       IO(logger.debug(s"Successfully set cookie for user $userInfoOpt"))
         .as(StatusCodes.NoContent)
 
   private[api] def invalidateTokenHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("proxyAuthRequest", tags = Map("type" -> "invalidateToken")) >>
+    metrics.incrementCounter("proxyAuthRequest", tags = Map("api" -> "invalidateToken")) >>
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)
