@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleResourceService,
   NetworkName,
+  RegionName,
   SubnetworkName
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.FirewallRuleConfig
@@ -89,12 +90,10 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
               // create the subnet
               createIfAbsent(
                 params.project,
-                googleComputeService.getSubnetwork(params.project,
-                                                   config.vpcConfig.subnetworkRegion,
-                                                   config.vpcConfig.subnetworkName),
+                googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName),
                 googleComputeService.createSubnetwork(params.project,
-                                                      config.vpcConfig.subnetworkRegion,
-                                                      buildSubnetwork(params.project)),
+                                                      params.region,
+                                                      buildSubnetwork(params.project, params.region)),
                 SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
                 s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
               ).as(config.vpcConfig.subnetworkName)
@@ -160,11 +159,11 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
       .setAutoCreateSubnetworks(config.vpcConfig.autoCreateSubnetworks)
       .build
 
-  private[util] def buildSubnetwork(project: GoogleProject): Subnetwork =
+  private[util] def buildSubnetwork(project: GoogleProject, region: RegionName): Subnetwork =
     Subnetwork
       .newBuilder()
       .setName(config.vpcConfig.subnetworkName.value)
-      .setRegion(config.vpcConfig.subnetworkRegion.value)
+      .setRegion(region.value)
       .setNetwork(buildNetworkUri(project, config.vpcConfig.networkName))
       .setIpCidrRange(config.vpcConfig.subnetworkIpRange.value)
       .build

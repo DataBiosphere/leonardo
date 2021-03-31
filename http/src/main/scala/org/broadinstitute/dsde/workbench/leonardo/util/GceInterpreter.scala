@@ -61,13 +61,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     // TODO clean up on error
     for {
       ctx <- ev.ask
-      // Set up VPC and firewall
-      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
-      )
-      _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
-      )
 
       zoneParam <- params.runtimeConfig match {
         case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.zone)
@@ -79,6 +72,15 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
             )
           )
       }
+
+      // Set up VPC and firewall
+      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
+        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject,
+                                  RegionName(zoneParam.value.substring(0, zoneParam.value.length - 2)))
+      )
+      _ <- vpcAlg.setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
+      )
 
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
@@ -392,11 +394,13 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
                                      subnetwork: SubnetworkName,
                                      zone: ZoneName): NetworkInterface =
-    // TODO get region from zome
+    // We get region by removing the last two characters of zone
     NetworkInterface
       .newBuilder()
       .setSubnetwork(
-        buildSubnetworkUri(runtimeProjectAndName.googleProject, RegionName("us-central1"), subnetwork)
+        buildSubnetworkUri(runtimeProjectAndName.googleProject,
+                           RegionName(zone.value.substring(0, zone.value.length - 2)),
+                           subnetwork)
       )
       .addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build)
       .build

@@ -101,7 +101,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Set up VPC and firewall
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-        SetUpProjectNetworkParams(params.googleProject)
+        SetUpProjectNetworkParams(params.googleProject, dbCluster.region)
       )
       _ <- vpcAlg.setUpProjectFirewalls(
         SetUpProjectFirewallsParams(params.googleProject, network)
