@@ -18,7 +18,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeContainerServiceType, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -233,11 +233,11 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
-      tool = if (request.uri.toString.contains("jupyter/terminals/")) {
-        "Jupyter"
-      } else {
-        "other"
-      }
+      tool = RuntimeContainerServiceType.values
+        .find(s => request.uri.toString.contains(s.proxySegment))
+        .map(_.imageType.entryName)
+        .getOrElse("other")
+
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "openTerminal", "tool" -> s"${tool}"))
@@ -257,23 +257,20 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
-      tool = if (request.uri.toString.contains("jupyter")) {
-        "Jupyter"
-      } else if (request.uri.toString.contains("rstudio")) {
-        "Rstudio"
-      } else if (request.uri.toString.contains("welder")) {
-        "Welder"
-      } else {
-        "other"
-      }
+
+      tool = RuntimeContainerServiceType.values
+        .find(s => request.uri.toString.contains(s.proxySegment))
+        .map(_.imageType.entryName)
+        .getOrElse("other")
+
+      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
+        request.entity.contentLengthOption.traverse(size => metrics.gauge("proxy/notebooksSize", size.toDouble))
+
+      } else IO.unit
 
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
-
-        if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
-          metrics.gauge("proxy/notebooksSize", resp.entity.getContentLengthOption().getAsLong.toDouble)
-        } else IO.unit
 
       } else {
         metrics.incrementCounter("proxyRequest",
