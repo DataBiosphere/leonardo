@@ -264,8 +264,9 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
         .getOrElse("other")
 
       _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
-        request.entity.contentLengthOption.traverse(size => metrics.gauge("proxy/notebooksSize", size.toDouble))
-
+        request.entity.contentLengthOption.traverse(size =>
+          metrics.gauge("notebooksSize", size.toDouble, tags = Map("source" -> "proxy"))
+        )
       } else IO.unit
 
       _ <- if (resp.status.isSuccess()) {
