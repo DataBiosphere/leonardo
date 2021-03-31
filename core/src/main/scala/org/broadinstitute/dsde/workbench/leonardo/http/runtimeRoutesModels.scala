@@ -34,7 +34,6 @@ object RuntimeConfigRequest {
   final case class GceConfig(
     machineType: Option[MachineTypeName],
     diskSize: Option[DiskSize],
-    region: Option[ZoneName] = None,
     zone: Option[ZoneName] = None
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE

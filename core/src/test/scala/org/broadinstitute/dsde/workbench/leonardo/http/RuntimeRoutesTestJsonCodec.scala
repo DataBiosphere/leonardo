@@ -23,7 +23,7 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 object RuntimeRoutesTestJsonCodec {
-  implicit val dataprocConfigEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct9(
+  implicit val dataprocConfigRequestEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct9(
     "cloudService",
     "numberOfWorkers",
     "masterMachineType",
@@ -45,19 +45,20 @@ object RuntimeRoutesTestJsonCodec {
      x.numberOfPreemptibleWorkers,
      x.region)
   )
-  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct4(
+  implicit val gceRuntimeConfigRequestEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct4(
     "cloudService",
     "machineType",
     "diskSize",
     "zone"
   )(x => (x.cloudService, x.machineType, x.diskSize, x.zone))
 
-  implicit val gceWithPdRuntimeConfigEncoder: Encoder[RuntimeConfigRequest.GceWithPdConfig] = Encoder.forProduct4(
-    "cloudService",
-    "machineType",
-    "persistentDisk",
-    "zone"
-  )(x => (x.cloudService, x.machineType, x.persistentDisk, x.zone))
+  implicit val gceWithPdRuntimeConfigRequestEncoder: Encoder[RuntimeConfigRequest.GceWithPdConfig] =
+    Encoder.forProduct4(
+      "cloudService",
+      "machineType",
+      "persistentDisk",
+      "zone"
+    )(x => (x.cloudService, x.machineType, x.persistentDisk, x.zone))
 
   implicit val runtimeConfigRequestEncoder: Encoder[RuntimeConfigRequest] = Encoder.instance { x =>
     x match {
