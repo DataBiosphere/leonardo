@@ -18,8 +18,8 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.devtools.clouderrorreporting.v1beta1.ProjectName
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.StructuredLogger
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.StructuredLogger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}

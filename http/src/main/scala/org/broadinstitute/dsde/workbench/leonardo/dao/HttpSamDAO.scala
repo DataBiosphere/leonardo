@@ -8,7 +8,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import _root_.fs2._
-import _root_.io.chrisdavenport.log4cats.Logger
+import _root_.org.typelevel.log4cats.Logger
 import _root_.io.circe._
 import _root_.io.circe.syntax._
 import akka.http.scaladsl.model.StatusCode._

@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}

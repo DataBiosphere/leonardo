@@ -15,7 +15,7 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
-  private val workbenchLibsHash = "1ad35551-SNAP"
+  private val workbenchLibsHash = "0adbb3b"
   val serviceTestV = s"0.18-$workbenchLibsHash"
   val workbenchModelV = s"0.14-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
@@ -23,7 +23,7 @@ object Dependencies {
   val workbenchOpenTelemetryV = s"0.1-$workbenchLibsHash"
   val workbenchErrorReportingV = s"0.1-$workbenchLibsHash"
 
-  val helmScalaSdkV = "0.0.1"
+  val helmScalaSdkV = "0.0.2"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")

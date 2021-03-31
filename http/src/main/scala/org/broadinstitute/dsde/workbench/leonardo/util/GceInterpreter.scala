@@ -6,7 +6,7 @@ import cats.effect.{Async, Blocker, ContextShift}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.{Operation, _}
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDiskService,

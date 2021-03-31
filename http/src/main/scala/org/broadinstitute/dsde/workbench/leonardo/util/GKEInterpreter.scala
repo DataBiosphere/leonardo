@@ -3,7 +3,7 @@ package leonardo
 package util
 
 import java.util.Base64
-import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.mtl.Ask

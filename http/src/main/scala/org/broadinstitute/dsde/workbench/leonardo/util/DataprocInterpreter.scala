@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.effect.{Async, _}

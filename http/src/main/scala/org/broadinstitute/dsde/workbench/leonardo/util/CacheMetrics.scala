@@ -4,7 +4,7 @@ import cats.effect.{Async, Effect, Timer}
 import cats.syntax.all._
 import com.google.common.cache.CacheStats
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.duration._

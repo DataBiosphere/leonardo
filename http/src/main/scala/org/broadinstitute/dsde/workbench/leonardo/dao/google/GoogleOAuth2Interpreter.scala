@@ -8,7 +8,7 @@ import cats.effect.{Async, Blocker, ContextShift, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.api.services.oauth2.Oauth2
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.withLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}

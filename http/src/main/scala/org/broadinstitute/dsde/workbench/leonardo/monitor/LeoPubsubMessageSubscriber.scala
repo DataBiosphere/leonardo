@@ -4,7 +4,7 @@ package monitor
 import java.time.Instant
 import java.util.concurrent.TimeoutException
 
-import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}

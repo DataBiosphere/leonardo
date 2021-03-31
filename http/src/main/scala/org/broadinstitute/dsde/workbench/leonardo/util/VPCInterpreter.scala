@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, ContextShift, Timer}
 import cats.syntax.all._

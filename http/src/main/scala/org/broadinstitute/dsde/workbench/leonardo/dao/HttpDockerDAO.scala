@@ -4,7 +4,7 @@ package dao
 import cats.effect.Concurrent
 import cats.syntax.all._
 import cats.mtl.Ask
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import io.circe.{Decoder, DecodingFailure}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}

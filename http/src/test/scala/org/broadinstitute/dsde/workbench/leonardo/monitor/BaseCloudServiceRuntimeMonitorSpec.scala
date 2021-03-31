@@ -8,7 +8,7 @@ import cats.effect.{Async, IO, Timer}
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import fs2.Stream
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}

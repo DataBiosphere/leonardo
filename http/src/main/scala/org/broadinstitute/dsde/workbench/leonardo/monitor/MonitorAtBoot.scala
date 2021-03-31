@@ -5,7 +5,7 @@ import cats.effect.{ConcurrentEffect, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.leonardo.db._

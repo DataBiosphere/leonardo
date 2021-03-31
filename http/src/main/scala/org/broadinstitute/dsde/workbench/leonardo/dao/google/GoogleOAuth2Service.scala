@@ -7,7 +7,7 @@ import cats.effect.{Async, Blocker, ContextShift, Resource, Sync, Timer}
 import cats.mtl.Ask
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.services.oauth2.Oauth2
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 trait GoogleOAuth2Service[F[_]] {

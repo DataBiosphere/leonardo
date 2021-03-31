@@ -4,7 +4,7 @@ package util
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 
-import _root_.io.chrisdavenport.log4cats.Logger
+import _root_.org.typelevel.log4cats.Logger
 import cats.data.NonEmptyList
 import cats.effect.{Async, Blocker, Concurrent, ContextShift}
 import cats.syntax.all._
