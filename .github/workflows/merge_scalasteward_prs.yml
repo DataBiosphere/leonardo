@@ -24,4 +24,4 @@ jobs:
           git merge -m "merging" $curBranch
         done <<< `gh pr list | grep scala-steward | cut -d$'\t'  -f 1`
         git push origin merged-scala-steward-prs
-        gh pr create --title "Bump dependencies" --body "Consolidate scala-steward PRs"
+        gh pr create --title "[No Ticket] Bump dependencies" --body "Consolidate scala-steward PRs"
