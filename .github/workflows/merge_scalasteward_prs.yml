@@ -14,7 +14,7 @@ jobs:
     - name: Merge scala-steward PRs
       id: msp
       run: |
-        export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
+        export GITHUB_TOKEN=${{ secrets.BROADBOT_GITHUB_TOKEN }}
         while IFS= read -r pr
         do
           echo "$pr"
