@@ -266,9 +266,15 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       } else {
         "other"
       }
+
       _ <- if (resp.status.isSuccess()) {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "success", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
+
+        if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
+          metrics.gauge("proxy/notebooksSize", resp.entity.getContentLengthOption().getAsLong.toDouble)
+        } else IO.unit
+
       } else {
         metrics.incrementCounter("proxyRequest",
                                  tags = Map("result" -> "failure", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
