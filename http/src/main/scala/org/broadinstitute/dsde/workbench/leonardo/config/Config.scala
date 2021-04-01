@@ -401,6 +401,7 @@ object Config {
     config =>
       Map(
         RegionName("us-central1") -> config.as[IpRange]("us-central1"),
+        RegionName("us-west2") -> config.as[IpRange]("us-west2"),
         RegionName("europe-west1") -> config.as[IpRange]("europe-west1")
       )
   }
