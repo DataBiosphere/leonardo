@@ -158,6 +158,9 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
     # update container MEM_LIMIT to reflect VM's MEM_LIMIT
     docker update $RSTUDIO_SERVER_NAME --memory $MEM_LIMIT
 
+    # Warm up R before starting the RStudio session (see above comment).
+    docker exec $RSTUDIO_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
+
     # Start RStudio server
     docker exec -d $RSTUDIO_SERVER_NAME /init
 fi
