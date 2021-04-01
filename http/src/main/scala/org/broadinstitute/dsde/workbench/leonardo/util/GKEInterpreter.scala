@@ -214,6 +214,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // and users can no longer create apps in the cluster's project
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
+      ipRange <- F.fromOption(Config.vpcConfig.subnetworkRegionIpRangeMap.get(dbCluster.region),
+                              new RegionNotSupportedException(dbCluster.region, ctx.traceId))
 
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
@@ -224,7 +226,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             NetworkFields(
               params.createResult.network.name,
               params.createResult.subnetwork.name,
-              Config.vpcConfig.subnetworkIpRange
+              ipRange
             )
           )
         )

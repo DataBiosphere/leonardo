@@ -132,8 +132,7 @@ object Config {
       config.as[NetworkTag]("networkTag"),
       config.as[Boolean]("autoCreateSubnetworks"),
       config.as[SubnetworkName]("subnetworkName"),
-      config.as[RegionName]("subnetworkRegion"),
-      config.as[IpRange]("subnetworkIpRange"),
+      config.as[Map[RegionName, IpRange]]("subnetworkRegionIpRangeMap"),
       config.as[List[FirewallRuleConfig]]("firewallsToAdd"),
       config.as[List[FirewallRuleName]]("firewallsToRemove"),
       config.as[FiniteDuration]("pollPeriod"),
@@ -397,6 +396,14 @@ object Config {
   implicit private val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
   implicit private val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
   implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
+  // TODO(wnojopra): Support the other regions and make this more FP-friendly
+  implicit private val subnetworkRegionIpRangeMap: ValueReader[Map[RegionName, IpRange]] = ValueReader.relative {
+    config =>
+      Map(
+        RegionName("us-central1") -> config.as[IpRange]("us-central1"),
+        RegionName("europe-west1") -> config.as[IpRange]("europe-west1")
+      )
+  }
   implicit private val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
   implicit private val firewallRuleNameValueReader: ValueReader[FirewallRuleName] =
     stringValueReader.map(FirewallRuleName)

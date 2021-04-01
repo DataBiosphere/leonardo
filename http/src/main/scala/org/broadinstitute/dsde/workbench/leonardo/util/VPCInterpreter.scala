@@ -165,7 +165,11 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
       .setName(config.vpcConfig.subnetworkName.value)
       .setRegion(region.value)
       .setNetwork(buildNetworkUri(project, config.vpcConfig.networkName))
-      .setIpCidrRange(config.vpcConfig.subnetworkIpRange.value)
+      .setIpCidrRange(
+        config.vpcConfig.subnetworkRegionIpRangeMap
+          .getOrElse(region, throw new Exception(s"Unsupported Region ${region.value}"))
+          .value
+      )
       .build
 
   private[util] def buildFirewall(googleProject: GoogleProject,

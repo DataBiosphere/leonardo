@@ -42,7 +42,7 @@ class RuntimeGceSpec
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].zone shouldBe ZoneName(
-          "europe-west1-a"
+          "europe-west1-b"
         )
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
