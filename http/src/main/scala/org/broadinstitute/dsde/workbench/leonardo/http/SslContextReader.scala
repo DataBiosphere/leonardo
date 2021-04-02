@@ -10,11 +10,13 @@ import com.typesafe.sslconfig.ssl.{
   DefaultTrustManagerFactoryWrapper,
   SSLConfigFactory
 }
-import javax.net.ssl.SSLContext
+
+import javax.net.ssl.{HostnameVerifier, SSLContext, SSLSession}
 
 object SslContextReader {
   def getSSLContext[F[_]: Sync]()(implicit as: ActorSystem): F[SSLContext] = Sync[F].delay {
     val akkaOverrides = as.settings.config.getConfig("akka.ssl-config")
+
     val defaults = as.settings.config.getConfig("ssl-config")
     //
     val sslConfigSettings = SSLConfigFactory.parse(akkaOverrides.withFallback(defaults))
@@ -26,4 +28,9 @@ object SslContextReader {
                                 keyManagerAlgorithm,
                                 trustManagerAlgorithm).build()
   }
+}
+
+class MyHostnameVerifier extends HostnameVerifier {
+  override def verify(hostname: String, session: SSLSession): Boolean =
+    true
 }
