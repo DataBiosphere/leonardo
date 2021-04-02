@@ -10,6 +10,7 @@ import com.typesafe.sslconfig.ssl.{
   DefaultTrustManagerFactoryWrapper,
   SSLConfigFactory
 }
+import org.broadinstitute.dsde.workbench.leonardo.dns.ProxyHostnameVerifier
 
 import javax.net.ssl.SSLContext
 
@@ -19,7 +20,9 @@ object SslContextReader {
 
     val defaults = as.settings.config.getConfig("ssl-config")
     //
-    val sslConfigSettings = SSLConfigFactory.parse(akkaOverrides.withFallback(defaults))
+    val sslConfigSettings = SSLConfigFactory
+      .parse(akkaOverrides.withFallback(defaults))
+      .withHostnameVerifierClass(classOf[ProxyHostnameVerifier])
     val keyManagerAlgorithm = new DefaultKeyManagerFactoryWrapper(sslConfigSettings.keyManagerConfig.algorithm)
     val trustManagerAlgorithm = new DefaultTrustManagerFactoryWrapper(sslConfigSettings.trustManagerConfig.algorithm)
 
