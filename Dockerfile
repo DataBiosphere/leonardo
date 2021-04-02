@@ -20,6 +20,7 @@ EXPOSE 5050
 
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
+# WARNING: If you are changing any versions here, update it in the reference.conf
 ENV TERRA_APP_SETUP_VERSION 0.0.2
 ENV TERRA_APP_VERSION 0.3.0
 ENV GALAXY_VERSION 0.8.0
@@ -47,7 +48,6 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # Leonardo will install the chart from local version.
 # We are also cacheing charts so they are not downloaded with every helm-install
 
-# WARNING: If you are changing any versions here, update it in the reference.conf
 RUN pushd /leonardo && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
