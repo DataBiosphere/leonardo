@@ -343,7 +343,7 @@ class GceRuntimeMonitorSpec
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli),
                                   monitorStatusTimeouts = Some(Map(RuntimeStatus.Starting -> 2.seconds)))
-      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).save())
+      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).saveWithRuntimeConfig(gceRuntimeConfig))
       assersions = for {
         status <- clusterQuery.getClusterStatus(runtime.id).transaction
       } yield status.get shouldBe RuntimeStatus.Stopped
@@ -378,7 +378,7 @@ class GceRuntimeMonitorSpec
     val res = for {
       start <- nowInstant[IO]
       monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
-      savedRuntime <- IO(runtime.save())
+      savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
       afterMonitor <- nowInstant
       status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
