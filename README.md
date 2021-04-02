@@ -20,14 +20,6 @@ It is recommended to consume these APIs and functionality via the [Terra UI](htt
 
 We use JIRA instead of the issues page on Github. If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account to access, but it is open to the public.
 
-### Authorization provider
-
-Leo provides two modes of authorization out of the box:
-1. By whitelist
-2. Through [Sam](github.com/broadinstitute/sam), the Workbench IAM service
-
-Users wanting to roll their own authorization mechanism can do so by subclassing `LeoAuthProvider` and setting up the Leo configuration file appropriately.
-
 ### Service account provider
 
 There are (up to) three service accounts used in the process of spinning up a notebook cluster:
