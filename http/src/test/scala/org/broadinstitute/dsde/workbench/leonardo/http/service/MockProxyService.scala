@@ -46,10 +46,12 @@ class MockProxyService(
                          googleOauth2Service,
                          Blocker.liftExecutionContext(ExecutionContext.global)) {
 
+  // TODO: 'localhost' is not a IP but is needed for the TestProxy to work
+
   override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
-    IO.pure(HostReady(Host("localhost"), IP("1.2.3.4")))
+    IO.pure(HostReady(Host("localhost"), IP("localhost")))
 
   override def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
-    IO.pure(HostReady(Host("localhost"), IP("1.2.3.4")))
+    IO.pure(HostReady(Host("localhost"), IP("localhost")))
 
 }

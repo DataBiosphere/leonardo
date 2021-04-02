@@ -346,7 +346,9 @@ class ProxyService(
     } yield res
 
   private def handleHttpRequest(targetHost: Host, ip: IP, request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
+    logger.info(
+      s"Opening https connection to ${ip.asString}:${proxyConfig.proxyPort} with host ${targetHost.address}"
+    )
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
     // in as a Source[HttpRequest] and responses are returned as a Sink[HttpResponse]. The transformation
