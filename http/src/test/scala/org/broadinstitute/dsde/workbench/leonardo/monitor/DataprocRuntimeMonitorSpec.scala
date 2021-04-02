@@ -53,7 +53,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.creatingRuntime(None, monitorContext, savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
     } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
+      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
     res.unsafeRunSync()
@@ -84,8 +84,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
                                     savedRuntime,
                                     CommonTestData.defaultDataprocRuntimeConfig)
     } yield {
-      r1._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
-      r2._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
+      r1._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
+      r2._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
     res.unsafeRunSync()
@@ -111,7 +111,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
                                    savedRuntime,
                                    CommonTestData.defaultDataprocRuntimeConfig)
     } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
+      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
     res.unsafeRunSync()
@@ -281,7 +281,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
+      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
     res.unsafeRunSync()
@@ -306,7 +306,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.startingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
+      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
     res.unsafeRunSync()
@@ -355,7 +355,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.stoppingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
-      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig)))
+      r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
     res.unsafeRunSync()
@@ -455,7 +455,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
-      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
+      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig, None))
     }
 
     res.unsafeRunSync()
@@ -480,7 +480,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
-      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
+      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig, None))
     }
 
     res.unsafeRunSync()
@@ -505,7 +505,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.updatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
-      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
+      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig, None))
     }
 
     res.unsafeRunSync()
@@ -555,7 +555,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.deletedRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
     } yield {
-      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig))
+      r._2 shouldBe Some(Check(runtimeAndRuntimeConfig, None))
     }
 
     res.unsafeRunSync()

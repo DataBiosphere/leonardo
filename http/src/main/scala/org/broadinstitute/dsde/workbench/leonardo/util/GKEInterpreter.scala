@@ -186,13 +186,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       else
         logger.error(ctx.loggingCtx)(
-          s"Create cluster operation has failed for cluster ${dbCluster.getGkeClusterId.toString}"
+          s"Create cluster operation timed out or failed for cluster ${dbCluster.getGkeClusterId.toString}"
         ) >>
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](
             ClusterCreationException(
               ctx.traceId,
-              s"Failed to poll cluster creation operation to completion for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+              s"Cluster creation timed out or failed for ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
             )
           )
 
