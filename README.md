@@ -9,7 +9,7 @@ Leonardo supports launching the following services for compute:
 - Virtual machines through [Google Compute Engine](https://cloud.google.com/compute)
 - Kubernetes 'apps' through [Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine)
 
-Currently, leonardo supports the launching of custom docker images in virtual machines and dataproc. It also supports launching applications in kubernetes, with a spotlight on galaxy. 
+Currently, leonardo supports the launching of custom docker images for jupyter and rstudio in virtual machines and dataproc. It also supports launching applications in kubernetes, with a spotlight on galaxy. 
 
 - For more information on APIs, see [swagger](http/src/main/resources/swagger/api-docs.yaml).
 - For more information on custom docker images, see the [terra-docker repo](https://github.com/DataBiosphere/terra-docker)
