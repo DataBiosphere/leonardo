@@ -7,7 +7,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
