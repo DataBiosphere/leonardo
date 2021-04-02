@@ -104,7 +104,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         SetUpProjectNetworkParams(params.googleProject, dbCluster.region)
       )
       _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.googleProject, network)
+        SetUpProjectFirewallsParams(params.googleProject, network, dbCluster.region)
       )
 
       kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network)

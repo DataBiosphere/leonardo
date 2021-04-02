@@ -83,7 +83,9 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   computeService,
                                   new MockComputePollOperation)
 
-    test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
+    test
+      .setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1")))
+      .unsafeRunSync()
     computeService.firewallMap.size shouldBe 3
     vpcConfig.firewallsToAdd.foreach { fwConfig =>
       val fw = computeService.firewallMap.get(fwConfig.name)
@@ -106,7 +108,9 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   stubResourceService(Map.empty),
                                   computeService,
                                   new MockComputePollOperation)
-    test.setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName)).unsafeRunSync()
+    test
+      .setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1")))
+      .unsafeRunSync()
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
   }
 

@@ -115,7 +115,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject, machineConfig.region)
         )
         _ <- vpcAlg.setUpProjectFirewalls(
-          SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
+          SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network, machineConfig.region)
         )
         resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                             machineConfig.masterMachineType,

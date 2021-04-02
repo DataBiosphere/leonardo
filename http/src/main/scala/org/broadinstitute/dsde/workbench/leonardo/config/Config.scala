@@ -119,7 +119,7 @@ object Config {
   implicit private val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
     FirewallRuleConfig(
       config.as[FirewallRuleName]("name"),
-      config.as[List[IpRange]]("sourceRanges"),
+      config.as[Map[RegionName, List[IpRange]]]("sourceRanges"),
       config.as[List[Allowed]]("allowed")
     )
   }
@@ -396,13 +396,65 @@ object Config {
   implicit private val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
   implicit private val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
   implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
-  // TODO(wnojopra): Support the other regions and make this more FP-friendly
-  implicit private val subnetworkRegionIpRangeMap: ValueReader[Map[RegionName, IpRange]] = ValueReader.relative {
+  // TODO(wnojopra): Make these more FP-friendly
+  implicit private val subnetworkRegionIpRangeMapReader: ValueReader[Map[RegionName, IpRange]] = ValueReader.relative {
     config =>
       Map(
+        RegionName("northamerica-northeast1") -> config.as[IpRange]("northamerica-northeast1"),
+        RegionName("southamerica-east1") -> config.as[IpRange]("southamerica-east1"),
         RegionName("us-central1") -> config.as[IpRange]("us-central1"),
+        RegionName("us-east1") -> config.as[IpRange]("us-east1"),
+        RegionName("us-east4") -> config.as[IpRange]("us-east4"),
+        RegionName("us-west1") -> config.as[IpRange]("us-west1"),
         RegionName("us-west2") -> config.as[IpRange]("us-west2"),
-        RegionName("europe-west1") -> config.as[IpRange]("europe-west1")
+        RegionName("us-west3") -> config.as[IpRange]("us-west3"),
+        RegionName("us-west4") -> config.as[IpRange]("us-west4"),
+        RegionName("europe-central2") -> config.as[IpRange]("europe-central2"),
+        RegionName("europe-north1") -> config.as[IpRange]("europe-north1"),
+        RegionName("europe-west1") -> config.as[IpRange]("europe-west1"),
+        RegionName("europe-west2") -> config.as[IpRange]("europe-west2"),
+        RegionName("europe-west3") -> config.as[IpRange]("europe-west3"),
+        RegionName("europe-west4") -> config.as[IpRange]("europe-west4"),
+        RegionName("europe-west6") -> config.as[IpRange]("europe-west6"),
+        RegionName("asia-east1") -> config.as[IpRange]("asia-east1"),
+        RegionName("asia-east2") -> config.as[IpRange]("asia-east2"),
+        RegionName("asia-northeast1") -> config.as[IpRange]("asia-northeast1"),
+        RegionName("asia-northeast2") -> config.as[IpRange]("asia-northeast2"),
+        RegionName("asia-northeast3") -> config.as[IpRange]("asia-northeast3"),
+        RegionName("asia-south1") -> config.as[IpRange]("asia-south1"),
+        RegionName("asia-southeast1") -> config.as[IpRange]("asia-southeast1"),
+        RegionName("asia-southeast2") -> config.as[IpRange]("asia-southeast1"),
+        RegionName("australia-southeast1") -> config.as[IpRange]("australia-southeast1")
+      )
+  }
+  implicit private val sourceRangesReader: ValueReader[Map[RegionName, List[IpRange]]] = ValueReader.relative {
+    config =>
+      Map(
+        RegionName("northamerica-northeast1") -> config.as[List[IpRange]]("northamerica-northeast1"),
+        RegionName("southamerica-east1") -> config.as[List[IpRange]]("southamerica-east1"),
+        RegionName("us-central1") -> config.as[List[IpRange]]("us-central1"),
+        RegionName("us-east1") -> config.as[List[IpRange]]("us-east1"),
+        RegionName("us-east4") -> config.as[List[IpRange]]("us-east4"),
+        RegionName("us-west1") -> config.as[List[IpRange]]("us-west1"),
+        RegionName("us-west2") -> config.as[List[IpRange]]("us-west2"),
+        RegionName("us-west3") -> config.as[List[IpRange]]("us-west3"),
+        RegionName("us-west4") -> config.as[List[IpRange]]("us-west4"),
+        RegionName("europe-central2") -> config.as[List[IpRange]]("europe-central2"),
+        RegionName("europe-north1") -> config.as[List[IpRange]]("europe-north1"),
+        RegionName("europe-west1") -> config.as[List[IpRange]]("europe-west1"),
+        RegionName("europe-west2") -> config.as[List[IpRange]]("europe-west2"),
+        RegionName("europe-west3") -> config.as[List[IpRange]]("europe-west3"),
+        RegionName("europe-west4") -> config.as[List[IpRange]]("europe-west4"),
+        RegionName("europe-west6") -> config.as[List[IpRange]]("europe-west6"),
+        RegionName("asia-east1") -> config.as[List[IpRange]]("asia-east1"),
+        RegionName("asia-east2") -> config.as[List[IpRange]]("asia-east2"),
+        RegionName("asia-northeast1") -> config.as[List[IpRange]]("asia-northeast1"),
+        RegionName("asia-northeast2") -> config.as[List[IpRange]]("asia-northeast2"),
+        RegionName("asia-northeast3") -> config.as[List[IpRange]]("asia-northeast3"),
+        RegionName("asia-south1") -> config.as[List[IpRange]]("asia-south1"),
+        RegionName("asia-southeast1") -> config.as[List[IpRange]]("asia-southeast1"),
+        RegionName("asia-southeast2") -> config.as[List[IpRange]]("asia-southeast1"),
+        RegionName("australia-southeast1") -> config.as[List[IpRange]]("australia-southeast1")
       )
   }
   implicit private val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)

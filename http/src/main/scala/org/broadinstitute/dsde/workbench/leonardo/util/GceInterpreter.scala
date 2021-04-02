@@ -73,13 +73,15 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           )
       }
 
+      // We get region by removing the last two characters of zone
+      regionParam = RegionName(zoneParam.value.substring(0, zoneParam.value.length - 2))
+
       // Set up VPC and firewall
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject,
-                                  RegionName(zoneParam.value.substring(0, zoneParam.value.length - 2)))
+        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject, regionParam)
       )
       _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
+        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network, regionParam)
       )
 
       // Get resource (e.g. memory) constraints for the instance

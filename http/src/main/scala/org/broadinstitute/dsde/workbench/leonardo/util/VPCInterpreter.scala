@@ -113,7 +113,8 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
         createIfAbsent(
           params.project,
           googleComputeService.getFirewallRule(params.project, fw.name),
-          googleComputeService.addFirewallRule(params.project, buildFirewall(params.project, params.networkName, fw)),
+          googleComputeService.addFirewallRule(params.project,
+                                               buildFirewall(params.project, params.networkName, params.region, fw)),
           FirewallNotReadyException(params.project, fw.name),
           s"get or create firewall rule (${params.project} / ${fw.name.value})"
         )
@@ -174,12 +175,18 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
 
   private[util] def buildFirewall(googleProject: GoogleProject,
                                   networkName: NetworkName,
+                                  region: RegionName,
                                   fwConfig: FirewallRuleConfig): Firewall =
     Firewall
       .newBuilder()
       .setName(fwConfig.name.value)
       .setNetwork(buildNetworkUri(googleProject, networkName))
-      .addAllSourceRanges(fwConfig.sourceRanges.map(_.value).asJava)
+      .addAllSourceRanges(
+        fwConfig.sourceRanges
+          .getOrElse(region, throw new Exception(s"Unsupported Region ${region.value}"))
+          .map(_.value)
+          .asJava
+      )
       .addTargetTags(config.vpcConfig.networkTag.value)
       .addAllAllowed(
         fwConfig.allowed

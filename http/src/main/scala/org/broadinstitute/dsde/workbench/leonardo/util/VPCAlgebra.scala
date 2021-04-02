@@ -18,4 +18,4 @@ trait VPCAlgebra[F[_]] {
 
 final case class VPCInterpreterConfig(vpcConfig: VPCConfig)
 final case class SetUpProjectNetworkParams(project: GoogleProject, region: RegionName)
-final case class SetUpProjectFirewallsParams(project: GoogleProject, networkName: NetworkName)
+final case class SetUpProjectFirewallsParams(project: GoogleProject, networkName: NetworkName, region: RegionName)
