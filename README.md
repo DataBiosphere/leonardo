@@ -11,7 +11,7 @@ Leonardo supports launching the following services for compute:
 
 Currently, leonardo supports the launching of custom docker images for Jupyter and Rstudio in virtual machines and Dataproc. It also supports launching applications in Kubernetes, with a spotlight on Galaxy. 
 
-- For more information on APIs, see [swagger](http/src/main/resources/swagger/api-docs.yaml).
+- For more information on APIs, see [swagger](https://notebooks.firecloud.org/)
 - For more information on custom docker images, see the [terra-docker repo](https://github.com/DataBiosphere/terra-docker)
 - For more information on applications we support in Kubernetes, see the [terra-apps repo](https://github.com/DataBiosphere/terra-app)
 - For more information on Galaxy, see the [Galaxy Project](https://github.com/galaxyproject)
@@ -19,16 +19,6 @@ Currently, leonardo supports the launching of custom docker images for Jupyter a
 It is recommended to consume these APIs and functionality via the [Terra UI](https://terra.bio/) 
 
 We use JIRA instead of the issues page on Github. If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account to access, but it is open to the public.
-
-### Service account provider
-
-There are (up to) three service accounts used in the process of spinning up a notebook cluster:
-
-1. The Leo service account itself, used to _make_ the call to Google Dataproc
-2. The service account _passed_ to [dataproc clusters create](https://cloud.google.com/sdk/gcloud/reference/dataproc/clusters/create) via the `--service-account` parameter, whose credentials will be used to set up the instance and localized into the [GCE metadata server](https://cloud.google.com/compute/docs/storing-retrieving-metadata)
-3. The service account that will be localized into the user environment and returned when any application asks [for application default credentials](https://developers.google.com/identity/protocols/application-default-credentials).
-
-Currently, Leo uses its own SA for #1, and the same per-user project-specific SA for #2 and #3, which it fetches from [Sam](github.com/broadinstitute/sam). Users wanting to roll their own service account provision mechanism by subclassing `ServiceAccountProvider` and setting up the Leo configuration file appropriately.
 
 ## Building and running Leonardo
 Clone the repo.
