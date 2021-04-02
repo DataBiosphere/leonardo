@@ -2,13 +2,23 @@
 
 # Leonardo
 
-Leo provisions Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/) and installs [Jupyter notebooks](http://jupyter.org/) and [Hail](https://hail.is/) on them. It can also proxy end-user connections to the Jupyter interface in order to provide authorization for particular users.
+Leonardo serves as a way to launch compute within the terra security boundary. It does so via multiple different cloud backends, currently leveraging only the Google cloud platform.
 
-For more information and an overview, see the [wiki](https://github.com/broadinstitute/leonardo/wiki).
+Leonardo supports launching the following 'hardware' for compute:
+- Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/)
+- Virtual machines through [Google Compute Engine](https://cloud.google.com/compute)
+- Kubernetes 'apps' through [Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine)
+
+Currently, leonardo supports the launching of custom docker images in virtual machines and dataproc. It also supports launching applications in kubernetes, with a spotlight on galaxy. 
+
+- For more information on APIs, see [swagger](http/src/main/resources/swagger/api-docs.yaml).
+- For more information on custom docker images, see the [terra-docker repo](https://github.com/DataBiosphere/terra-docker)
+- For more information on applications we support in kubernetes, see the [terra-apps repo](https://github.com/DataBiosphere/terra-app)
+- For more information on galaxy, see the [galaxy project](https://github.com/galaxyproject)
+
+It is recommended to consume these APIs and functionality via the [Terra UI](https://terra.bio/) 
 
 We use JIRA instead of the issues page on Github. If you would like to see what we are working you can visit our [active sprint](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA) or our [backlog](https://broadworkbench.atlassian.net/secure/RapidBoard.jspa?rapidView=35&projectKey=IA&view=planning&selectedIssue=IA-1753&epics=visible&issueLimit=100&selectedEpic=IA-1715) on JIRA. You will need to set-up an account to access, but it is open to the public.
-
-Swagger API documentation: https://notebooks.firecloud.org/
 
 ### Authorization provider
 
