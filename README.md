@@ -2,19 +2,19 @@
 
 # Leonardo
 
-Leonardo serves as a way to launch compute within the terra security boundary. It does so via multiple different cloud hardware virtualization mechanisms, currently leveraging only the Google cloud platform.
+Leonardo serves as a way to launch compute within the Terra security boundary. It does so via multiple different cloud hardware virtualization mechanisms, currently leveraging only the Google Cloud Platform.
 
 Leonardo supports launching the following services for compute:
 - Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/)
 - Virtual machines through [Google Compute Engine](https://cloud.google.com/compute)
 - Kubernetes 'apps' through [Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine)
 
-Currently, leonardo supports the launching of custom docker images for jupyter and rstudio in virtual machines and dataproc. It also supports launching applications in kubernetes, with a spotlight on galaxy. 
+Currently, leonardo supports the launching of custom docker images for Jupyter and Rstudio in virtual machines and Dataproc. It also supports launching applications in Kubernetes, with a spotlight on Galaxy. 
 
 - For more information on APIs, see [swagger](http/src/main/resources/swagger/api-docs.yaml).
 - For more information on custom docker images, see the [terra-docker repo](https://github.com/DataBiosphere/terra-docker)
-- For more information on applications we support in kubernetes, see the [terra-apps repo](https://github.com/DataBiosphere/terra-app)
-- For more information on galaxy, see the [galaxy project](https://github.com/galaxyproject)
+- For more information on applications we support in Kubernetes, see the [terra-apps repo](https://github.com/DataBiosphere/terra-app)
+- For more information on Galaxy, see the [Galaxy Project](https://github.com/galaxyproject)
 
 It is recommended to consume these APIs and functionality via the [Terra UI](https://terra.bio/) 
 
