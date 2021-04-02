@@ -336,7 +336,10 @@ object Boot extends IOApp {
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
-      httpClientWithCustomSSL <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource
+      httpClientWithCustomSSL <- blaze
+        .BlazeClientBuilder[F](blockingEc, Some(sslContext))
+        .withCheckEndpointAuthentication(false)
+        .resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
       clientWithRetryAndLogging = Http4sLogger[F](logHeaders = true, logBody = false)(clientWithRetryWithCustomSSL)
 

@@ -11,7 +11,7 @@ import com.typesafe.sslconfig.ssl.{
   SSLConfigFactory
 }
 
-import javax.net.ssl.{HostnameVerifier, SSLContext, SSLSession}
+import javax.net.ssl.SSLContext
 
 object SslContextReader {
   def getSSLContext[F[_]: Sync]()(implicit as: ActorSystem): F[SSLContext] = Sync[F].delay {
@@ -28,9 +28,4 @@ object SslContextReader {
                                 keyManagerAlgorithm,
                                 trustManagerAlgorithm).build()
   }
-}
-
-class MyHostnameVerifier extends HostnameVerifier {
-  override def verify(hostname: String, session: SSLSession): Boolean =
-    true
 }
