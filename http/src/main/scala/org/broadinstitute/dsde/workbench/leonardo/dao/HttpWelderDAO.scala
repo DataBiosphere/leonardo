@@ -4,16 +4,19 @@ package dao
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
 import org.typelevel.log4cats.Logger
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.Client
-import org.http4s.{Method, Request, Uri}
+import org.http4s.headers._
+import org.http4s.{Headers, Method, Request, Uri}
 
 class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
   val runtimeDnsCache: RuntimeDnsCache[F],
-  client: Client[F]
+  client: Client[F],
+  proxyConfig: ProxyConfig
 )(
   implicit metrics: OpenTelemetryMetrics[F]
 ) extends WelderDAO[F] {
@@ -22,12 +25,13 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, googleProject, runtimeName)
       res <- host match {
-        case HostReady(targetHost) =>
+        case HostReady(targetHost, ip) =>
           client.successful(
             Request[F](
               method = Method.POST,
+              headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
+                s"https://${ip.asString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
               )
             )
           )
@@ -48,13 +52,14 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, googleProject, runtimeName)
       res <- host match {
-        case HostReady(targetHost) =>
+        case HostReady(targetHost, ip) =>
           client
             .successful(
               Request[F](
                 method = Method.GET,
+                headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
                 uri = Uri.unsafeFromString(
-                  s"https://${targetHost.toString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
+                  s"https://${ip.asString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
                 )
               )
             )

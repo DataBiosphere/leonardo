@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
-import java.util.concurrent.TimeUnit
-
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
@@ -18,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{GoogleId, Runtime, RuntimeNam
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
 
 final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
@@ -29,12 +28,12 @@ final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: R
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
  */
-class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMetrics](
+class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
   blocker: Blocker
-)(implicit ec: ExecutionContext) {
+)(implicit F: Effect[F], ec: ExecutionContext) {
 
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
     blocker.blockOn(Effect[F].delay(projectClusterToHostStatus.get(key)))
@@ -54,11 +53,11 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMe
             runtimeOpt <- dbRef.inTransaction {
               clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
             }
-            hostStatus <- runtimeOpt match {
+            hostStatus = runtimeOpt match {
               case Some(runtime) =>
                 hostStatusByProjectAndCluster(runtime)
               case None =>
-                Effect[F].pure[HostStatus](HostNotFound)
+                HostNotFound
             }
           } yield hostStatus
 
@@ -75,21 +74,21 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMe
   private def host(googleId: GoogleId): Host =
     Host(googleId.value + proxyConfig.proxyDomain)
 
-  private def hostStatusByProjectAndCluster(r: Runtime): F[HostStatus] = {
-    val hostAndIp = for {
+  private def hostStatusByProjectAndCluster(r: Runtime): HostStatus = {
+    val hostAndIpOpt = for {
       a <- r.asyncRuntimeFields
       h = host(a.googleId)
       ip <- a.hostIp
     } yield (h, ip)
 
-    hostAndIp match {
+    hostAndIpOpt match {
       case Some((h, ip)) =>
-        HostToIpMapping.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h)).to[F]
+        HostReady(h, ip)
       case None =>
         if (r.status.isStartable)
-          Effect[F].pure(HostPaused)
+          HostPaused
         else
-          Effect[F].pure(HostNotReady)
+          HostNotReady
     }
   }
 }

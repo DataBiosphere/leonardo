@@ -353,10 +353,10 @@ object Boot extends IOApp {
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
-      welderDao = new HttpWelderDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
+      welderDao = new HttpWelderDAO[F](runtimeDnsCache, clientWithRetryAndLogging, proxyConfig)
       dockerDao = HttpDockerDAO[F](clientWithRetryAndLogging)
-      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, clientWithRetryAndLogging)
-      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, clientWithRetryAndLogging)
+      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, clientWithRetryAndLogging, proxyConfig)
+      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, clientWithRetryAndLogging, proxyConfig)
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, blocker)
 
@@ -389,7 +389,7 @@ object Boot extends IOApp {
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
       helmClient = new HelmInterpreter[F](blocker, semaphore)
-      appDAO = new HttpAppDAO(kubernetesDnsCache, clientWithRetryAndLogging)
+      appDAO = new HttpAppDAO(kubernetesDnsCache, clientWithRetryAndLogging, proxyConfig)
       appDescriptorDAO = new HttpAppDescriptorDAO(clientWithRetryAndLogging)
 
       leoPublisher = new LeoPublisher(publisherQueue, googlePublisher)

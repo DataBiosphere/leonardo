@@ -2,27 +2,24 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.time.Instant
-import java.util.UUID
-import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
-import akka.http.scaladsl.{ConnectionContext, Http}
-import akka.http.scaladsl.model.Uri.Host
+import akka.http.scaladsl.model.Uri.{Authority, Host}
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.`Content-Disposition`
+import akka.http.scaladsl.model.headers.{`Content-Disposition`, Host => HostHeader}
 import akka.http.scaladsl.model.ws._
+import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.typelevel.log4cats.StructuredLogger
 import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
@@ -35,12 +32,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
-import akka.http.scaladsl.unmarshalling.Unmarshal
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-
+import org.typelevel.log4cats.StructuredLogger
+import java.time.Instant
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -243,7 +242,7 @@ class ProxyService(
       } else IO.unit
       hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
       _ <- hostStatus match {
-        case HostReady(_) =>
+        case HostReady(_, _) =>
           dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
         case _ => IO.unit
       }
@@ -304,16 +303,16 @@ class ProxyService(
         s"Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
       )
       res <- hostContext.status match {
-        case HostReady(targetHost) =>
+        case HostReady(targetHost, ip) =>
           // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
           // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
           // The presence of this header distinguishes WebSocket from http requests.
           val res = for {
             response <- request.attribute(AttributeKeys.webSocketUpgrade) match {
               case Some(upgrade) =>
-                IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
+                IO.fromFuture(IO(handleWebSocketRequest(targetHost, ip, request, upgrade)))
               case None =>
-                IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
+                IO.fromFuture(IO(handleHttpRequest(targetHost, ip, request)))
             }
             r <- if (response.status.isFailure())
               loggerIO
@@ -346,7 +345,7 @@ class ProxyService(
       }
     } yield res
 
-  private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
+  private def handleHttpRequest(targetHost: Host, ip: IP, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
@@ -356,7 +355,11 @@ class ProxyService(
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http().outgoingConnectionHttps(targetHost.address, proxyConfig.proxyPort, httpsConnectionContext)
+    val flow = Http()
+      .connectionTo(ip.asString)
+      .toPort(proxyConfig.proxyPort)
+      .withCustomHttpsConnectionContext(httpsConnectionContext)
+      .https()
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -365,7 +368,7 @@ class ProxyService(
     val rewrittenPath = rewriteJupyterPath(request.uri.path)
 
     // 1. filter out headers not needed for the backend server
-    val newHeaders = filterHeaders(request.headers)
+    val newHeaders = modifyHeaders(request.headers, targetHost)
     // 2. strip out Uri.Authority:
     val newUri = Uri(path = rewrittenPath, queryString = request.uri.rawQueryString)
     // 3. build a new HttpRequest
@@ -414,6 +417,7 @@ class ProxyService(
     }
 
   private def handleWebSocketRequest(targetHost: Host,
+                                     ip: IP,
                                      request: HttpRequest,
                                      upgrade: WebSocketUpgrade): Future[HttpResponse] = {
     logger.info(s"Opening websocket connection to ${targetHost.address}")
@@ -434,9 +438,9 @@ class ProxyService(
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
       WebSocketRequest(
         request.uri.copy(path = rewriteJupyterPath(request.uri.path),
-                         authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
+                         authority = request.uri.authority.copy(host = Host(ip.asString), port = proxyConfig.proxyPort),
                          scheme = "wss"),
-        extraHeaders = filterHeaders(request.headers),
+        extraHeaders = modifyHeaders(request.headers, targetHost),
         upgrade.requestedProtocols.headOption
       ),
       flow,
@@ -452,7 +456,7 @@ class ProxyService(
           Flow.fromSinkAndSource(Sink.fromSubscriber(subscriber), Source.fromPublisher(publisher)),
           chosenSubprotocol
         )
-        webSocketResponse.withHeaders(webSocketResponse.headers ++ filterHeaders(response.headers))
+        webSocketResponse.withHeaders(webSocketResponse.headers ++ modifyHeaders(response.headers, targetHost))
 
       case InvalidUpgradeResponse(response, cause) =>
         logger.warn("WebSocket upgrade response was invalid: {}", cause)
@@ -460,8 +464,14 @@ class ProxyService(
     }
   }
 
-  private def filterHeaders(headers: immutable.Seq[HttpHeader]) =
-    headers.filterNot(header => HeadersToFilter(header.lowercaseName()))
+  private def modifyHeaders(headers: immutable.Seq[HttpHeader], host: Host): immutable.Seq[HttpHeader] =
+    headers
+      .filterNot(header => HeadersToFilter(header.lowercaseName()))
+      .prepended(
+        HostHeader(
+          Authority(host, proxyConfig.proxyPort)
+        )
+      )
 
   private val HeadersToFilter = Set(
     "Host",
@@ -478,19 +488,18 @@ class ProxyService(
 }
 
 object ProxyService {
+  val proxyPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
+  val notebooksPattern = "\\/notebooks\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
+
   // From the outside, we are going to support TWO paths to access Jupyter:
   // 1)   /notebooks/{googleProject}/{clusterName}/
   // 2)   /proxy/{googleProject}/{clusterName}/jupyter/
-  // 3)   /notebooks/{googleProject}/{clusterName}/jupyter/
   //
   // To greatly simplify things on the backend, we will funnel all requests into path #1. Eventually
   // we will remove that path and #2 will be the sole entry point for users. At that point, we can
   // update the code in here to not rewrite any paths for Jupyter. We will also need to update the
   // paths in related areas like jupyter_notebook_config.py
-  def rewriteJupyterPath(path: Uri.Path): Uri.Path = {
-    val proxyPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
-    val notebooksPattern = "\\/notebooks\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
-
+  def rewriteJupyterPath(path: Uri.Path): Uri.Path =
     path.toString match {
       case proxyPattern(project, cluster, path) => {
         Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
@@ -500,5 +509,4 @@ object ProxyService {
       }
       case _ => path
     }
-  }
 }

@@ -1,7 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
-import java.util.concurrent.TimeUnit
-
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.syntax.all._
@@ -18,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
 
 final case class KubernetesDnsCacheKey(googleProject: GoogleProject, appName: AppName)
@@ -52,8 +51,8 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTe
               appResultOpt <- dbRef.inTransaction {
                 KubernetesServiceDbQueries.getActiveFullAppByName(key.googleProject, key.appName)
               }
-              hostStatus <- appResultOpt match {
-                case None            => Effect[F].pure[HostStatus](HostNotFound)
+              hostStatus = appResultOpt match {
+                case None            => HostNotFound
                 case Some(appResult) => hostStatusByAppResult(appResult)
               }
             } yield hostStatus
@@ -67,11 +66,11 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTe
     CacheMetrics("kubernetesDnsCache")
       .process(() => Effect[F].delay(hostStatusCache.size), () => Effect[F].delay(hostStatusCache.stats))
 
-  private def hostStatusByAppResult(appResult: GetAppResult): F[HostStatus] =
+  private def hostStatusByAppResult(appResult: GetAppResult): HostStatus =
     appResult.cluster.asyncFields.map(_.loadBalancerIp) match {
-      case None => Effect[F].pure(HostNotReady)
+      case None => HostNotReady
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
-        HostToIpMapping.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h)).to[F]
+        HostReady(h, ip)
     }
 }
