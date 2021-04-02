@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartVersion, Release}
@@ -90,23 +89,36 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      //We want to know if the user already has an app to re-use that nodepool
-      userNodepoolOpt <- nodepoolQuery.getMinimalByUser(userInfo.userEmail, googleProject).transaction
+      machineConfig = req.kubernetesRuntimeConfig.getOrElse(
+        KubernetesRuntimeConfig(
+          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
+          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
+          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
+        )
+      )
 
-      //A claimed nodepool is either the user's existing nodepool, or a pre-created one in that order of precedence
+      // We want to know if the user already has a nodepool with the requested config that can be re-used
+      userNodepoolOpt <- nodepoolQuery
+        .getMinimalByUserAndConfig(userInfo.userEmail, googleProject, machineConfig)
+        .transaction
+
+      // A claimed nodepool is either the user's existing nodepool or a pre-created one, in that order of precedence
       claimedNodepoolOpt <- if (userNodepoolOpt.isDefined) F.pure(userNodepoolOpt)
-      else nodepoolQuery.claimNodepool(clusterId, userInfo.userEmail).transaction
+      else nodepoolQuery.claimNodepoolWithConfig(clusterId, userInfo.userEmail, machineConfig).transaction
 
       nodepool <- claimedNodepoolOpt match {
+        case Some(n) =>
+          log.info(
+            s"Claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject} with ${machineConfig}"
+          ) >> F.pure(n)
         case None =>
           for {
+            _ <- log.info(
+              s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.googleProject}. Will create a new nodepool."
+            )
             saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
-        case Some(n) =>
-          log.info(s"claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject}") >> F.pure(
-            n
-          )
       }
 
       runtimeServiceAccountOpt <- serviceAccountProvider
@@ -245,8 +257,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           // then we build back up by filtering nodepools without apps and clusters without nodepools
           allClusters
             .map { c =>
-              c.copy(nodepools =
-                c.nodepools
+              c.copy(
+                nodepools = c.nodepools
                   .map { n =>
                     n.copy(apps = n.apps.filter { a =>
                       // Making the assumption that users will always be able to access apps that they create
