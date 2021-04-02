@@ -4,7 +4,7 @@
 
 Leonardo serves as a way to launch compute within the terra security boundary. It does so via multiple different cloud hardware virtualization mechanisms, currently leveraging only the Google cloud platform.
 
-Leonardo supports launching the following 'hardware' for compute:
+Leonardo supports launching the following services for compute:
 - Spark clusters through [Google Dataproc](https://cloud.google.com/dataproc/)
 - Virtual machines through [Google Compute Engine](https://cloud.google.com/compute)
 - Kubernetes 'apps' through [Google Kubernetes Engine](https://cloud.google.com/kubernetes-engine)
