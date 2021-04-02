@@ -20,6 +20,10 @@ EXPOSE 5050
 
 ENV GIT_HASH $GIT_HASH
 ENV HELM_DEBUG 1
+ENV TERRA_APP_SETUP_VERSION 0.0.2
+ENV TERRA_APP_VERSION 0.3.0
+ENV GALAXY_VERSION 0.8.0
+ENV NGINX_VERSION 3.23.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -45,10 +49,10 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 
 # WARNING: If you are changing any versions here, update it in the reference.conf
 RUN pushd /leonardo && \
-    helm pull terra-app-setup-charts/terra-app-setup --version 0.0.2 --untar && \
-    helm pull galaxy/galaxykubeman --version 0.8.0 --untar && \
-    helm pull terra/terra-app --version 0.3.0 --untar  && \
-    helm pull ingress-nginx/ingress-nginx --version 3.23.0 --untar && \
+    helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
+    helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
+    helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
+    helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     popd
 
 # Add Leonardo as a service (it will start when the container starts)
