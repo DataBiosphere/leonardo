@@ -296,7 +296,7 @@ class GceRuntimeMonitorSpec
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val beforeInstance = Instance.newBuilder().setStatus("TERMINATED").build()
+        val beforeInstance = Instance.newBuilder().setStatus("Stopping").build()
 
         for {
           now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
@@ -317,6 +317,76 @@ class GceRuntimeMonitorSpec
     } yield {
       (afterMonitor.toEpochMilli - start.toEpochMilli > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
       status shouldBe Some(RuntimeStatus.Running)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "transition gce runtime to Stopping if Starting times out" in isolatedDbTest {
+    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[Instance]] = {
+        val beforeInstance = Instance.newBuilder().setStatus("Provisioning").build()
+        val afterInstance = Instance.newBuilder().setStatus("Stopped").build()
+
+        for {
+          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
+          res <- if (now - start < 5000)
+            IO.pure(Some(beforeInstance))
+          else IO.pure(Some(afterInstance))
+        } yield res
+      }
+    }
+
+    val res = for {
+      start <- nowInstant[IO]
+      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli),
+                                  monitorStatusTimeouts = Some(Map(RuntimeStatus.Starting -> 2.seconds)))
+      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).save())
+      assersions = for {
+        status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      } yield status.get shouldBe RuntimeStatus.Stopped
+      _ <- withInfiniteStream(monitor.process(runtime.id, RuntimeStatus.Starting), assersions)
+    } yield ()
+    res.unsafeRunSync()
+  }
+
+  it should "terminate if instance is terminated after 5 seconds when trying to Starting one" in isolatedDbTest {
+    val runtime = makeCluster(1).copy(
+      serviceAccount = clusterServiceAccountFromProject(project).get,
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+      status = RuntimeStatus.Starting
+    )
+
+    def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
+      override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[Instance]] = {
+        val beforeInstance = Instance.newBuilder().setStatus("STOPPING").build()
+        val terminatedInstance = Instance.newBuilder().setStatus("TERMINATED").build()
+
+        for {
+          now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
+          res <- if (now - start < 4000)
+            IO.pure(Some(beforeInstance))
+          else IO.pure(Some(terminatedInstance))
+        } yield res
+      }
+    }
+
+    val res = for {
+      start <- nowInstant[IO]
+      monitor = gceRuntimeMonitor(googleComputeService = computeService(start.toEpochMilli))
+      savedRuntime <- IO(runtime.save())
+      _ <- monitor.process(savedRuntime.id, RuntimeStatus.Starting).compile.drain //start monitoring process
+      afterMonitor <- nowInstant
+      status <- clusterQuery.getClusterStatus(savedRuntime.id).transaction
+    } yield {
+      val delay = afterMonitor.toEpochMilli - start.toEpochMilli
+      (delay > 5000) shouldBe true // For 5 seconds, google is returning terminated no instance found
+      (delay < 10000) shouldBe true
+      status shouldBe Some(RuntimeStatus.Stopped)
     }
 
     res.unsafeRunSync()
@@ -683,12 +753,15 @@ class GceRuntimeMonitorSpec
   def gceRuntimeMonitor(
     googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
     computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
-    publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue()
+    publisherQueue: fs2.concurrent.Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue(),
+    monitorStatusTimeouts: Option[Map[RuntimeStatus, FiniteDuration]] = None
   ): GceRuntimeMonitor[IO] = {
     val config =
       Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollingInterval = 1 seconds, pollCheckMaxAttempts = 5)
+    val configWithCustomTimeouts =
+      monitorStatusTimeouts.fold(config)(timeouts => config.copy(monitorStatusTimeouts = timeouts))
     new GceRuntimeMonitor[IO](
-      config,
+      configWithCustomTimeouts,
       googleComputeService,
       computePollOperation,
       MockAuthProvider,

@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import cats.Parallel
+import cats.effect.concurrent.Ref
 import cats.effect.{Async, Sync, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
 import io.chrisdavenport.log4cats.StructuredLogger
-import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -20,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.{
   recordStatusTransitionMetrics,
   CheckResult
 }
+import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteRuntimeParams, RuntimeAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
@@ -50,10 +51,20 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- Stream.eval(ev.ask)
       startMonitoring <- Stream.eval(nowInstant[F])
-      monitorContext = MonitorContext(startMonitoring, runtimeId, traceId, runtimeStatus)
-      _ <- Stream.sleep(monitorConfig.initialDelay) ++ Stream.unfoldLoopEval[F, MonitorState, Unit](Initial)(s =>
-        Timer[F].sleep(monitorConfig.pollingInterval) >> handler(monitorContext, s)
+      monitorContextRef <- Stream.eval(
+        Ref.of[F, MonitorContext](MonitorContext(startMonitoring, runtimeId, traceId, runtimeStatus))
       )
+      _ <- Stream.sleep(monitorConfig.initialDelay) ++ Stream.unfoldLoopEval[F, MonitorState, Unit](Initial) { s =>
+        for {
+          _ <- s.newTransition.traverse(newStatus => monitorContextRef.modify(x => (x.copy(action = newStatus), ())))
+          monitorContext <- monitorContextRef.get
+          _ <- Timer[F].sleep(monitorConfig.pollingInterval)
+          res <- handler(
+            monitorContext,
+            s
+          )
+        } yield res
+      }
     } yield ()
 
   def pollCheck(googleProject: GoogleProject,
@@ -83,8 +94,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             .as(((), None))
         case Some(_) =>
           monitorState match {
-            case MonitorState.Initial                        => handleInitial(monitorContext)
-            case MonitorState.Check(runtimeAndRuntimeConfig) => handleCheck(monitorContext, runtimeAndRuntimeConfig)
+            case MonitorState.Initial => handleInitial(monitorContext)
+            case MonitorState.Check(runtimeAndRuntimeConfig, _) =>
+              handleCheck(monitorContext, runtimeAndRuntimeConfig)
           }
       }
     } yield res
@@ -217,6 +229,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         ctx
       )
       timeElapsed = (now.toEpochMilli - monitorContext.start.toEpochMilli).millis
+
       res <- monitorConfig.monitorStatusTimeouts.get(runtimeAndRuntimeConfig.runtime.status) match {
         case Some(timeLimit) if timeElapsed > timeLimit =>
           for {
@@ -239,7 +252,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                   LeoLenses.ipRuntimeAndRuntimeConfig.set(i)(runtimeAndRuntimeConfig)
                 )
                 rrc = runtimeAndRuntimeConfigAfterSetIp.lens(_.runtime.status).set(RuntimeStatus.Stopping)
-              } yield ((), Some(MonitorState.Check(rrc))): CheckResult
+              } yield ((), Some(MonitorState.Check(rrc, Some(RuntimeStatus.Stopping)))): CheckResult
             } else
               failedRuntime(
                 monitorContext,
@@ -253,10 +266,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         case _ =>
           logger
             .info(monitorContext.loggingContext)(
-              s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is not in final state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
+              s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is still in ${runtimeAndRuntimeConfig.runtime.status}, not in ${runtimeAndRuntimeConfig.runtime.status.terminalStatus
+                .getOrElse("final")} state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
                 .getOrElse("")}"
             )
-            .as(((), Some(Check(runtimeAndRuntimeConfig))))
+            .as(((), Some(Check(runtimeAndRuntimeConfig, None))))
       }
     } yield res
 
@@ -488,7 +502,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     val result = for {
       ctx <- ev.ask
       _ <- clusterErrorQuery
-        .save(runtimeId, RuntimeError(errorDetails.longMessage, errorDetails.code, ctx.now))
+        .save(runtimeId, RuntimeError(errorDetails.longMessage, errorDetails.code, ctx.now, Some(ctx.traceId)))
         .transaction
         .void
         .adaptError {
