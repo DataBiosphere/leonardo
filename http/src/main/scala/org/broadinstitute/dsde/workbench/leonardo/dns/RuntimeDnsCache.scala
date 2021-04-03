@@ -53,11 +53,11 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
             runtimeOpt <- dbRef.inTransaction {
               clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
             }
-            hostStatus = runtimeOpt match {
+            hostStatus <- runtimeOpt match {
               case Some(runtime) =>
                 hostStatusByProjectAndCluster(runtime)
               case None =>
-                HostNotFound
+                F.pure[HostStatus](HostNotFound)
             }
           } yield hostStatus
 
@@ -74,7 +74,7 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
   private def host(googleId: GoogleId): Host =
     Host(googleId.value + proxyConfig.proxyDomain)
 
-  private def hostStatusByProjectAndCluster(r: Runtime): HostStatus = {
+  private def hostStatusByProjectAndCluster(r: Runtime): F[HostStatus] = {
     val hostAndIpOpt = for {
       a <- r.asyncRuntimeFields
       h = host(a.googleId)
@@ -83,12 +83,12 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
 
     hostAndIpOpt match {
       case Some((h, ip)) =>
-        HostReady(h, ip)
+        IPToHostMapping.ipToHostMapping.getAndUpdate(_ + (ip -> h)).as[HostStatus](HostReady(h, ip)).to[F]
       case None =>
         if (r.status.isStartable)
-          HostPaused
+          F.pure[HostStatus](HostPaused)
         else
-          HostNotReady
+          F.pure[HostStatus](HostNotReady)
     }
   }
 }

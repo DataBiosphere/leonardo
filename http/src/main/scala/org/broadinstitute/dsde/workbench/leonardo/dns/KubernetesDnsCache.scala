@@ -27,12 +27,12 @@ final case class KubernetesDnsCacheKey(googleProject: GoogleProject, appName: Ap
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
  */
-final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMetrics](
+final class KubernetesDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
   blocker: Blocker
-)(implicit ec: ExecutionContext) {
+)(implicit F: Effect[F], ec: ExecutionContext) {
 
   def getHostStatus(key: KubernetesDnsCacheKey): F[HostStatus] =
     blocker.blockOn(Effect[F].delay(hostStatusCache.get(key)))
@@ -51,8 +51,8 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTe
               appResultOpt <- dbRef.inTransaction {
                 KubernetesServiceDbQueries.getActiveFullAppByName(key.googleProject, key.appName)
               }
-              hostStatus = appResultOpt match {
-                case None            => HostNotFound
+              hostStatus <- appResultOpt match {
+                case None            => F.pure[HostStatus](HostNotFound)
                 case Some(appResult) => hostStatusByAppResult(appResult)
               }
             } yield hostStatus
@@ -66,11 +66,11 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTe
     CacheMetrics("kubernetesDnsCache")
       .process(() => Effect[F].delay(hostStatusCache.size), () => Effect[F].delay(hostStatusCache.stats))
 
-  private def hostStatusByAppResult(appResult: GetAppResult): HostStatus =
+  private def hostStatusByAppResult(appResult: GetAppResult): F[HostStatus] =
     appResult.cluster.asyncFields.map(_.loadBalancerIp) match {
-      case None => HostNotReady
+      case None => F.pure[HostStatus](HostNotReady)
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
-        HostReady(h, ip)
+        IPToHostMapping.ipToHostMapping.getAndUpdate(_ + (ip -> h)).as[HostStatus](HostReady(h, ip)).to[F]
     }
 }
