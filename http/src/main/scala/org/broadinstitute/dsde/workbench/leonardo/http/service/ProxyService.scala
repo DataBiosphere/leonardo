@@ -100,6 +100,7 @@ class ProxyService(
   loggerIO: StructuredLogger[IO])
     extends LazyLogging {
   // Using deprecated AkkaSSLConfig to use HostnameVerifier which isn't supported in SSLEngine
+  // See akka issue <tbd>
   val httpsConnectionContext = ConnectionContext.https(
     sslContext,
     Some(AkkaSSLConfig().mapSettings(_.withHostnameVerifierClass(classOf[ProxyHostnameVerifier])))
@@ -351,7 +352,7 @@ class ProxyService(
     } yield res
 
   private def handleHttpRequest(targetHost: Host, ip: IP, request: HttpRequest): Future[HttpResponse] = {
-    logger.info(
+    logger.debug(
       s"Opening https connection to ${ip.asString}:${proxyConfig.proxyPort} with host ${targetHost.address}"
     )
     // A note on akka-http philosophy:
