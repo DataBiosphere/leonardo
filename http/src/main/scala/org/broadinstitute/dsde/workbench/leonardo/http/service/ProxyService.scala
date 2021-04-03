@@ -15,6 +15,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
+import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import javax.net.ssl.SSLContext
@@ -25,7 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyHostnameVerifier, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -98,7 +99,11 @@ class ProxyService(
   metrics: OpenTelemetryMetrics[IO],
   loggerIO: StructuredLogger[IO])
     extends LazyLogging {
-  val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
+  // Using deprecated AkkaSSLConfig to use HostnameVerifier which isn't supported in SSLEngine
+  val httpsConnectionContext = ConnectionContext.https(
+    sslContext,
+    Some(AkkaSSLConfig().mapSettings(_.withHostnameVerifierClass(classOf[ProxyHostnameVerifier])))
+  )
 
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
   logger.info(s"Leo proxy request timeout is $requestTimeout")

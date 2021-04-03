@@ -338,6 +338,7 @@ object Boot extends IOApp {
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
       httpClientWithCustomSSL <- blaze
         .BlazeClientBuilder[F](blockingEc, Some(sslContext))
+        // needed because hostname verification doesn't work
         .withCheckEndpointAuthentication(false)
         .resource
       clientWithRetryWithCustomSSL = Retry(retryPolicy)(httpClientWithCustomSSL)
