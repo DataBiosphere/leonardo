@@ -19,8 +19,12 @@ EXPOSE 8080
 EXPOSE 5050
 
 ENV GIT_HASH $GIT_HASH
-# TODO: remove this
 ENV HELM_DEBUG 1
+# WARNING: If you are changing any versions here, update it in the reference.conf
+ENV TERRA_APP_SETUP_VERSION 0.0.1
+ENV TERRA_APP_VERSION 0.3.0
+ENV GALAXY_VERSION 0.8.0
+ENV NGINX_VERSION 3.23.0
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -43,11 +47,12 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # pulling `terra-app-setup` locally and add cert files to the chart.
 # Leonardo will install the chart from local version.
 # We are also cacheing charts so they are not downloaded with every helm-install
+
 RUN pushd /leonardo && \
-    helm pull terra-app-setup-charts/terra-app-setup --untar && \
-    helm pull galaxy/galaxykubeman --untar && \
-    helm pull terra/terra-app --untar && \
-    helm pull ingress-nginx/ingress-nginx --untar && \
+    helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
+    helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
+    helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
+    helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     popd
 
 # Add Leonardo as a service (it will start when the container starts)
