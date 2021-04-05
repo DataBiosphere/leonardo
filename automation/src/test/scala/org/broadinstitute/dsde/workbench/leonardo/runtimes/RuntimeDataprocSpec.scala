@@ -75,7 +75,7 @@ class RuntimeDataprocSpec
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
         // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 1, 1, RegionName("europe-west1"))
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 1, RegionName("europe-west1"))
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)

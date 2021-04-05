@@ -17,7 +17,7 @@ final case class VPCConfig(highSecurityProjectNetworkLabel: NetworkLabel,
                            pollPeriod: FiniteDuration,
                            maxAttempts: Int)
 
-final case class FirewallRuleConfig(name: FirewallRuleName,
+final case class FirewallRuleConfig(namePrefix: String,
                                     sourceRanges: Map[RegionName, List[IpRange]],
                                     allowed: List[Allowed])
 

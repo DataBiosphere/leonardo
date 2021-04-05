@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
+import org.broadinstitute.dsde.workbench.leonardo.IpRange
 import org.broadinstitute.dsde.workbench.leonardo.config.FirewallRuleConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -62,6 +63,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
     params: SetUpProjectNetworkParams
   )(implicit ev: Ask[F, TraceId]): F[(NetworkName, SubnetworkName)] =
     for {
+      ctx <- ev.ask
       // For high-security projects, the network and subnetwork are pre-created and specified by project label.
       // See https://github.com/broadinstitute/gcp-dm-templates/blob/44b13216e5284d1ce46f58514fe51404cdf8f393/firecloud_project.py#L355-L359
       projectLabels <- googleResourceService.getLabels(params.project)
@@ -74,6 +76,11 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
         // Otherwise, we potentially need to create the network and subnet
         case (None, None) =>
           for {
+            regionalIpRange <- F.fromOption(
+              config.vpcConfig.subnetworkRegionIpRangeMap.get(params.region),
+              new LeoException(s"Unable to create subnetwork due to unsupported region ${params.region.value}",
+                               traceId = Some(ctx))
+            )
             // create the network
             _ <- createIfAbsent(
               params.project,
@@ -93,7 +100,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
                 googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName),
                 googleComputeService.createSubnetwork(params.project,
                                                       params.region,
-                                                      buildSubnetwork(params.project, params.region)),
+                                                      buildSubnetwork(params.project, params.region, regionalIpRange)),
                 SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
                 s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
               ).as(config.vpcConfig.subnetworkName)
@@ -108,16 +115,27 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
     params: SetUpProjectFirewallsParams
   )(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
+      ctx <- ev.ask
       // create firewalls in the Leonardo network
       _ <- config.vpcConfig.firewallsToAdd.parTraverse_ { fw =>
-        createIfAbsent(
-          params.project,
-          googleComputeService.getFirewallRule(params.project, fw.name),
-          googleComputeService.addFirewallRule(params.project,
-                                               buildFirewall(params.project, params.networkName, params.region, fw)),
-          FirewallNotReadyException(params.project, fw.name),
-          s"get or create firewall rule (${params.project} / ${fw.name.value})"
-        )
+        for {
+          firewallRegionalIprange <- F.fromOption(
+            fw.sourceRanges.get(params.region),
+            new LeoException(s"Fail to create firewall due to unsupported Region ${params.region.value}",
+                             traceId = Some(ctx))
+          )
+          firewallName = buildFirewallName(fw.namePrefix, params.region)
+          _ <- createIfAbsent(
+            params.project,
+            googleComputeService.getFirewallRule(params.project, firewallName),
+            googleComputeService.addFirewallRule(
+              params.project,
+              buildFirewall(params.project, params.networkName, firewallName, fw, firewallRegionalIprange)
+            ),
+            FirewallNotReadyException(params.project, firewallName),
+            s"get or create firewall rule (${params.project} / ${firewallName.value})"
+          )
+        } yield ()
       }
       // if the default network exists, remove configured firewalls
       defaultNetwork <- googleComputeService.getNetwork(params.project, defaultNetworkName)
@@ -160,32 +178,30 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
       .setAutoCreateSubnetworks(config.vpcConfig.autoCreateSubnetworks)
       .build
 
-  private[util] def buildSubnetwork(project: GoogleProject, region: RegionName): Subnetwork =
+  private[util] def buildSubnetwork(project: GoogleProject,
+                                    region: RegionName,
+                                    subnetRegionIpRange: IpRange): Subnetwork =
     Subnetwork
       .newBuilder()
       .setName(config.vpcConfig.subnetworkName.value)
       .setRegion(region.value)
       .setNetwork(buildNetworkUri(project, config.vpcConfig.networkName))
       .setIpCidrRange(
-        config.vpcConfig.subnetworkRegionIpRangeMap
-          .getOrElse(region, throw new Exception(s"Unsupported Region ${region.value}"))
-          .value
+        subnetRegionIpRange.value
       )
       .build
 
   private[util] def buildFirewall(googleProject: GoogleProject,
                                   networkName: NetworkName,
-                                  region: RegionName,
-                                  fwConfig: FirewallRuleConfig): Firewall =
+                                  firewallRuleName: FirewallRuleName,
+                                  fwConfig: FirewallRuleConfig,
+                                  regionalSources: List[IpRange]): Firewall =
     Firewall
       .newBuilder()
-      .setName(fwConfig.name.value)
+      .setName(s"${firewallRuleName.value}")
       .setNetwork(buildNetworkUri(googleProject, networkName))
       .addAllSourceRanges(
-        fwConfig.sourceRanges
-          .getOrElse(region, throw new Exception(s"Unsupported Region ${region.value}"))
-          .map(_.value)
-          .asJava
+        regionalSources.map(_.value).asJava
       )
       .addTargetTags(config.vpcConfig.networkTag.value)
       .addAllAllowed(
@@ -200,4 +216,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
           .asJava
       )
       .build
+
+  private def buildFirewallName(prefix: String, regionName: RegionName): FirewallRuleName =
+    FirewallRuleName(s"${prefix}-${regionName.value}")
 }
