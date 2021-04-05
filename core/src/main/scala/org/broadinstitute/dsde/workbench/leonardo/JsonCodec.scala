@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   NetworkName,
   OperationName,
+  RegionName,
   SubnetworkName,
   ZoneName
 }
@@ -65,6 +66,7 @@ object JsonCodec {
   implicit val runtimeSamResourceIdEncoder: Encoder[RuntimeSamResourceId] = Encoder.encodeString.contramap(_.resourceId)
   implicit val urlEncoder: Encoder[URL] = Encoder.encodeString.contramap(_.toString)
   implicit val zoneNameEncoder: Encoder[ZoneName] = Encoder.encodeString.contramap(_.value)
+  implicit val regionNameEncoder: Encoder[RegionName] = Encoder.encodeString.contramap(_.value)
   implicit val diskNameEncoder: Encoder[DiskName] = Encoder.encodeString.contramap(_.value)
   implicit val diskSamResourceIdEncoder: Encoder[PersistentDiskSamResourceId] =
     Encoder.encodeString.contramap(_.resourceId)
@@ -74,7 +76,7 @@ object JsonCodec {
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.entryName)
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.asString)
 
-  implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct8(
+  implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct9(
     "numberOfWorkers",
     "masterMachineType",
     "masterDiskSize",
@@ -83,7 +85,8 @@ object JsonCodec {
     "workerDiskSize",
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers",
-    "cloudService"
+    "cloudService",
+    "region"
   )(x =>
     (x.numberOfWorkers,
      x.machineType,
@@ -92,14 +95,16 @@ object JsonCodec {
      x.workerDiskSize,
      x.numberOfWorkerLocalSSDs,
      x.numberOfPreemptibleWorkers,
-     x.cloudService)
+     x.cloudService,
+     x.region)
   )
-  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct4(
+  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct5(
     "machineType",
     "diskSize",
     "cloudService",
-    "bootDiskSize"
-  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize))
+    "bootDiskSize",
+    "zone"
+  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone))
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
     "serverExtensions",
@@ -120,12 +125,13 @@ object JsonCodec {
     "imageUrl",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
-  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct4(
+  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct5(
     "machineType",
     "persistentDiskId",
     "cloudService",
-    "bootDiskSize"
-  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize))
+    "bootDiskSize",
+    "zone"
+  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone))
 
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {
@@ -270,14 +276,18 @@ object JsonCodec {
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
-    } yield RuntimeConfig.DataprocConfig(numberOfWorkers,
-                                         masterMachineType,
-                                         masterDiskSize,
-                                         workerMachineType,
-                                         workerDiskSize,
-                                         numberOfWorkerLocalSSDs,
-                                         numberOfPreemptibleWorkers,
-                                         properties)
+      region <- c.downField("region").as[RegionName]
+    } yield RuntimeConfig.DataprocConfig(
+      numberOfWorkers,
+      masterMachineType,
+      masterDiskSize,
+      workerMachineType,
+      workerDiskSize,
+      numberOfWorkerLocalSSDs,
+      numberOfPreemptibleWorkers,
+      properties,
+      region
+    )
   }
 
   implicit val runtimeConfigDecoder: Decoder[RuntimeConfig] = Decoder.instance { x =>
@@ -321,6 +331,7 @@ object JsonCodec {
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)
 
   implicit val zoneDecoder: Decoder[ZoneName] = Decoder.decodeString.map(ZoneName(_))
+  implicit val regionDecoder: Decoder[RegionName] = Decoder.decodeString.map(RegionName(_))
   implicit val diskNameDecoder: Decoder[DiskName] = Decoder.decodeString.emap(s => validateName(s).map(DiskName))
   implicit val diskIdDecoder: Decoder[DiskId] = Decoder.decodeLong.map(DiskId)
   implicit val diskStatusDecoder: Decoder[DiskStatus] =
@@ -328,16 +339,18 @@ object JsonCodec {
   implicit val diskTypeDecoder: Decoder[DiskType] =
     Decoder.decodeString.emap(x => DiskType.stringToObject.get(x).toRight(s"Invalid disk type: $x"))
 
-  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct3(
+  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct4(
     "machineType",
     "persistentDiskId",
-    "bootDiskSize"
+    "bootDiskSize",
+    "zone"
   )(RuntimeConfig.GceWithPdConfig.apply)
-  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct3(
+  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct4(
     "machineType",
     "diskSize",
-    "bootDiskSize"
-  )((mt, ds, bds) => RuntimeConfig.GceConfig(mt, ds, bds))
+    "bootDiskSize",
+    "zone"
+  )((mt, ds, bds, z) => RuntimeConfig.GceConfig(mt, ds, bds, z))
 
   implicit val persistentDiskRequestDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
     for {

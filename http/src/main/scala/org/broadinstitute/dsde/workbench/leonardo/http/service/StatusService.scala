@@ -10,7 +10,7 @@ import akka.util.Timeout
 import cats.effect.{ContextShift, IO}
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference

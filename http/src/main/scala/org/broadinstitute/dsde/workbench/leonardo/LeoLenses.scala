@@ -1,15 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.time.Instant
+
 import monocle.macros.GenLens
 import monocle.{Lens, Optional, Prism}
+import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
   dataprocRuntimeToDataprocInCreateRuntimeMsg
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, RuntimeConfigInCreateRuntimeMessage}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-
-import java.time.Instant
 
 object LeoLenses {
   val runtimeToRuntimeImages: Lens[Runtime, Set[RuntimeImage]] = GenLens[Runtime](_.runtimeImages)
@@ -49,7 +50,8 @@ object LeoLenses {
               throw new Exception(
                 "Can't use this RuntimeConfig as RuntimeConfigInCreateRuntimeMessage due to bootDiskSize not defined"
               )
-            )
+            ),
+          x.zone
         )
       )
     case x: RuntimeConfig.GceWithPdConfig =>
@@ -61,7 +63,8 @@ object LeoLenses {
               "Can't use this RuntimeConfig as RuntimeConfigInCreateRuntimeMessage due to persistentDiskId not defined"
             )
           ),
-          x.bootDiskSize
+          x.bootDiskSize,
+          x.zone
         )
       )
     case x: RuntimeConfig.DataprocConfig =>
@@ -71,13 +74,15 @@ object LeoLenses {
       RuntimeConfig.GceConfig(
         x.machineType,
         x.diskSize,
-        Some(x.bootDiskSize)
+        Some(x.bootDiskSize),
+        x.zone
       )
     case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
       RuntimeConfig.GceWithPdConfig(
         x.machineType,
         Some(x.persistentDiskId),
-        x.bootDiskSize
+        x.bootDiskSize,
+        x.zone
       )
     case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
       dataprocInCreateRuntimeMsgToDataprocRuntime(x)
@@ -103,4 +108,28 @@ object LeoLenses {
     GenLens[KubernetesCluster](_.auditInfo.destroyedDate)
 
   val nodepoolToDestroyedDate: Lens[Nodepool, Option[Instant]] = GenLens[Nodepool](_.auditInfo.destroyedDate)
+
+  val dataprocRegion: Optional[RuntimeConfig, RegionName] = Optional[RuntimeConfig, RegionName] {
+    case x: RuntimeConfig.DataprocConfig => Some(x.region)
+    case _                               => None
+  }(r =>
+    x =>
+      x match {
+        case x: RuntimeConfig.DataprocConfig => x.copy(region = r)
+        case x                               => x
+      }
+  )
+
+  val gceZone: Optional[RuntimeConfig, ZoneName] = Optional[RuntimeConfig, ZoneName] {
+    case x: RuntimeConfig.GceConfig       => Some(x.zone)
+    case x: RuntimeConfig.GceWithPdConfig => Some(x.zone)
+    case _                                => None
+  }(z =>
+    x =>
+      x match {
+        case x: RuntimeConfig.GceConfig       => x.copy(zone = z)
+        case x: RuntimeConfig.GceWithPdConfig => x.copy(zone = z)
+        case x                                => x
+      }
+  )
 }

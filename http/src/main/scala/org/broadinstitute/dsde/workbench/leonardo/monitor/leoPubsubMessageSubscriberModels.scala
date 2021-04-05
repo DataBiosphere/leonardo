@@ -9,7 +9,7 @@ import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, traceIdEncoder}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
@@ -34,12 +34,16 @@ object RuntimeConfigInCreateRuntimeMessage {
   final case class GceConfig(
     machineType: MachineTypeName,
     diskSize: DiskSize,
-    bootDiskSize: DiskSize
+    bootDiskSize: DiskSize,
+    zone: ZoneName
   ) extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
 
-  final case class GceWithPdConfig(machineType: MachineTypeName, persistentDiskId: DiskId, bootDiskSize: DiskSize)
+  final case class GceWithPdConfig(machineType: MachineTypeName,
+                                   persistentDiskId: DiskId,
+                                   bootDiskSize: DiskSize,
+                                   zone: ZoneName)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -52,7 +56,8 @@ object RuntimeConfigInCreateRuntimeMessage {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
+                                  properties: Map[String, String],
+                                  region: RegionName)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
@@ -75,7 +80,8 @@ object RuntimeConfigInCreateRuntimeMessage {
           None,
           None,
           None,
-          dataproc.properties
+          dataproc.properties,
+          dataproc.region.getOrElse(default.region)
         )
       case Some(numWorkers) =>
         val wds = dataproc.workerDiskSize.orElse(default.workerDiskSize)
@@ -87,7 +93,8 @@ object RuntimeConfigInCreateRuntimeMessage {
           wds.map(s => DiskSize(math.max(minimumDiskSize, s.gb))),
           dataproc.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
           dataproc.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
-          dataproc.properties
+          dataproc.properties,
+          dataproc.region.getOrElse(default.region)
         )
     }
   }
@@ -477,21 +484,23 @@ object LeoPubsubCodec {
     dataprocConfigEncoder.contramap(x => dataprocInCreateRuntimeMsgToDataprocRuntime(x))
 
   implicit val gceRuntimeConfigInCreateRuntimeMessageEncoder: Encoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =
-    Encoder.forProduct4(
+    Encoder.forProduct5(
       "machineType",
       "diskSize",
       "cloudService",
-      "bootDiskSize"
-    )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize))
+      "bootDiskSize",
+      "zone"
+    )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone))
 
   implicit val gceWithPdConfigInCreateRuntimeMessageEncoder
     : Encoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] =
-    Encoder.forProduct4(
+    Encoder.forProduct5(
       "machineType",
       "persistentDiskId",
       "cloudService",
-      "bootDiskSize"
-    )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize))
+      "bootDiskSize",
+      "zone"
+    )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone))
 
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfigInCreateRuntimeMessage] = Encoder.instance {
     case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig  => x.asJson
@@ -548,28 +557,34 @@ object LeoPubsubCodec {
       numberOfPreemptibleWorkers <- c.downField("numberOfPreemptibleWorkers").as[Option[Int]]
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
-    } yield RuntimeConfigInCreateRuntimeMessage.DataprocConfig(numberOfWorkers,
-                                                               masterMachineType,
-                                                               masterDiskSize,
-                                                               workerMachineType,
-                                                               workerDiskSize,
-                                                               numberOfWorkerLocalSSDs,
-                                                               numberOfPreemptibleWorkers,
-                                                               properties)
+      region <- c.downField("region").as[RegionName]
+    } yield RuntimeConfigInCreateRuntimeMessage.DataprocConfig(
+      numberOfWorkers,
+      masterMachineType,
+      masterDiskSize,
+      workerMachineType,
+      workerDiskSize,
+      numberOfWorkerLocalSSDs,
+      numberOfPreemptibleWorkers,
+      properties,
+      region
+    )
   }
 
   implicit val gceConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =
-    Decoder.forProduct3(
+    Decoder.forProduct4(
       "machineType",
       "diskSize",
-      "bootDiskSize"
+      "bootDiskSize",
+      "zone"
     )(RuntimeConfigInCreateRuntimeMessage.GceConfig.apply)
 
   implicit val gceWithPdConfigInCreateRuntimeMessageDecoder
-    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct3(
+    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct4(
     "machineType",
     "persistentDiskId",
-    "bootDiskSize"
+    "bootDiskSize",
+    "zone"
   )(RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig.apply)
 
   implicit val runtimeConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage] =

@@ -11,7 +11,7 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._

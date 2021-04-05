@@ -5,7 +5,7 @@ import cats.effect.{ConcurrentEffect, Timer}
 import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -204,7 +204,8 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
               } yield RuntimeConfigInCreateRuntimeMessage.GceConfig(
                 x.machineType,
                 x.diskSize,
-                bootDiskSize
+                bootDiskSize,
+                x.zone
               ): RuntimeConfigInCreateRuntimeMessage
             case x: RuntimeConfig.GceWithPdConfig =>
               for {
@@ -214,7 +215,8 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
               } yield RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
                 x.machineType,
                 diskId,
-                x.bootDiskSize
+                x.bootDiskSize,
+                x.zone
               ): RuntimeConfigInCreateRuntimeMessage
             case _: RuntimeConfig.DataprocConfig =>
               Right(

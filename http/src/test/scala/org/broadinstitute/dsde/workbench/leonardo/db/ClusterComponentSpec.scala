@@ -7,7 +7,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 import cats.effect.IO
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimePatchDetails, RuntimeToMonitor}
@@ -58,7 +58,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(DiskSize(200)),
         Some(2),
         Some(1),
-        Map.empty
+        Map.empty,
+        RegionName("test-region")
       )
     )
     savedCluster3.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster3
@@ -231,7 +232,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           Some(DiskSize(200)),
           Some(2),
           Some(1),
-          Map.empty
+          Map.empty,
+          RegionName("test-region")
         )
       )
 
@@ -252,7 +254,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(DiskSize(200)),
         Some(2),
         Some(1),
-        Map.empty
+        Map.empty,
+        RegionName("test-region")
       )
     )
 
@@ -308,7 +311,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       Some(DiskSize(200)),
       Some(2),
       Some(1),
-      Map.empty
+      Map.empty,
+      RegionName("test-region")
     )
 
     val savedCluster = makeCluster(1)
@@ -322,14 +326,20 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       savedDisk <- makePersistentDisk(None).save()
       savedRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                        Some(savedDisk.id),
+                                        bootDiskSize = DiskSize(50),
+                                        zone = ZoneName("us-west2-b"))
         )
       )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(retrievedRuntime.get.runtimeConfigId).transaction
       error <- IO(
         makeCluster(2).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(DiskId(-1)), bootDiskSize = DiskSize(50))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                        Some(DiskId(-1)),
+                                        bootDiskSize = DiskSize(50),
+                                        zone = ZoneName("us-west2-b"))
         )
       ).attempt
     } yield {

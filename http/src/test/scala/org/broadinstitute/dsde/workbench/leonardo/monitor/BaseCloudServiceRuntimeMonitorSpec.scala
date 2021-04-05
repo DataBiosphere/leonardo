@@ -2,13 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
+
 import cats.Parallel
 import cats.effect.{Async, IO, Timer}
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import fs2.Stream
-import io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.{GoogleStorageService, ZoneName}
+import org.typelevel.log4cats.StructuredLogger
+import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
@@ -173,7 +174,6 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       10,
       RuntimeBucketConfig(3 seconds),
       timeouts,
-      ZoneName("zoneName"),
       Config.imageConfig
     )
 

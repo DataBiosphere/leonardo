@@ -6,7 +6,7 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{
   Event,

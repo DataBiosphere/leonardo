@@ -6,7 +6,7 @@ import cats.effect.{Async, ContextShift, Timer}
 import cats.syntax.all._
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
