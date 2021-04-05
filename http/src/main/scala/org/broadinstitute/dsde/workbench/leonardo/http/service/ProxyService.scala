@@ -99,7 +99,9 @@ class ProxyService(
   metrics: OpenTelemetryMetrics[IO],
   loggerIO: StructuredLogger[IO])
     extends LazyLogging {
-  // Using deprecated AkkaSSLConfig to use HostnameVerifier which isn't supported in SSLEngine
+
+  // Note: we are intentionally using the deprecated AkkaSSLConfig class in order to use
+  // HostnameVerifier which isn't supported in SSLEngine.
   // See akka issue <tbd>
   val httpsConnectionContext = ConnectionContext.https(
     sslContext,

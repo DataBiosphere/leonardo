@@ -22,9 +22,9 @@ object Settings {
   val commonBuildSettings = Defaults.coreDefaultSettings ++ Defaults.defaultConfigs ++ Seq(
     javaOptions += "-Xmx2G",
     javacOptions ++= Seq("--release", "11"),
-    scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt console`
-    scalacOptions in (Test, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
-    scalacOptions in Test --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
+    Compile / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt console`
+    Test / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
+    Test / scalacOptions --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
     addCompilerPlugin(scalafixSemanticdb)
   )
@@ -71,15 +71,15 @@ object Settings {
 
   //sbt assembly settings
   val commonAssemblySettings = Seq(
-    assemblyMergeStrategy in assembly := customMergeStrategy((assemblyMergeStrategy in assembly).value),
+    assembly / assemblyMergeStrategy := customMergeStrategy((assembly / assemblyMergeStrategy).value),
   //  Try to fix the following error. We're not using akka-stream, so it should be safe to exclude `akka-protobuf`
   //  [error] /Users/qi/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/com/google/protobuf/protobuf-java/3.11.4/protobuf-java-3.11.4.jar:google/protobuf/field_mask.proto
   //  [error] /Users/qi/Library/Caches/Coursier/v1/https/repo1.maven.org/maven2/com/typesafe/akka/akka-protobuf-v3_2.12/2.6.1/akka-protobuf-v3_2.12-2.6.1.jar:google/protobuf/field_mask.proto
-    assemblyExcludedJars in assembly := {
-      val cp = (fullClasspath in assembly).value
+    assembly / assemblyExcludedJars := {
+      val cp = (assembly / fullClasspath).value
       cp filter {_.data.getName == "akka-protobuf-v3_2.13-2.6.3.jar"}
     },
-    test in assembly := {}
+    assembly / test := {}
   )
 
   //common settings for all sbt subprojects
@@ -132,7 +132,7 @@ object Settings {
     /**
       * When forking, use the base directory as the working directory
       */
-    Test / baseDirectory := (baseDirectory in ThisBuild).value,
+    Test / baseDirectory := (ThisBuild / baseDirectory).value,
 
     /*
      * Enables (true) or disables (false) parallel execution of tasks (test classes).
@@ -166,8 +166,8 @@ object Settings {
       props.stringPropertyNames().asScala.toList.map { key => s"-D$key=${props.getProperty(key)}"}.mkString(" ")
     }),
 
-    testGrouping in Test := {
-      (definedTests in Test).value.map { test =>
+    Test / testGrouping := {
+      (Test / definedTests).value.map { test =>
         /**
           * debugging print out:
           *
@@ -202,6 +202,6 @@ object Settings {
       }
     },
 
-    testOptions in Test += Tests.Argument("-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log")
+    Test / testOptions += Tests.Argument("-oFD", "-u", "test-reports", "-fW", "test-reports/TEST-summary.log")
   )
 }
