@@ -153,7 +153,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
             notebookPage.executeCell(
               "import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)"
-            ) shouldBe Some("1.23.1")
+            ) shouldBe Some("2.13.0")
             notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some(
               "1.10.0"
             )
