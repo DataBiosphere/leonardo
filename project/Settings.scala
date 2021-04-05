@@ -21,7 +21,7 @@ object Settings {
   //coreDefaultSettings + defaultConfigs = the now deprecated defaultSettings
   val commonBuildSettings = Defaults.coreDefaultSettings ++ Defaults.defaultConfigs ++ Seq(
     javaOptions += "-Xmx2G",
-    javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
+    javacOptions ++= Seq("--release", "11"),
     scalacOptions in (Compile, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt console`
     scalacOptions in (Test, console) --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
     scalacOptions in Test --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
