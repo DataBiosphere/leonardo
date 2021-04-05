@@ -151,7 +151,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
         clusterResult.serviceAccountKey,
         msg.runtimeId,
-        Some(clusterResult.asyncRuntimeFields),
+        clusterResult.asyncRuntimeFields,
         ctx.now
       )
       // Save the VM image and async fields in the database

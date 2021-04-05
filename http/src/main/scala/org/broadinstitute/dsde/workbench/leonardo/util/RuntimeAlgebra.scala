@@ -66,7 +66,7 @@ object CreateRuntimeParams {
       message.runtimeConfig
     )
 }
-final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
+final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: Option[AsyncRuntimeFields],
                                              initBucket: GcsBucketName,
                                              serviceAccountKey: Option[ServiceAccountKey],
                                              customImage: CustomImage)
