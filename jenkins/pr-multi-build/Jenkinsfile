@@ -17,7 +17,7 @@ pipeline {
                             def numRuns = Integer.parseInt("$NUM_RUNS")
 
                             for (int i = 0; i < numRuns; i++) {
-                            def params = [
+                                def params = [
                                     string(name: "RUN_ID", value: "$i"),
                                     string(name: "leonardo_img", value: "$ghprbSourceBranch"),
                                     booleanParam(name: "build_leonardo", value: true),
@@ -30,6 +30,7 @@ pipeline {
                                 }
                                 tests.put(i,run)
                             }
+
                             println("Running swatomation tests $NUM_RUNS times")
                             parallel(tests)
                         }
