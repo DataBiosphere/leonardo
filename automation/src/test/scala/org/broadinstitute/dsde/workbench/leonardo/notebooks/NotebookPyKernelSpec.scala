@@ -151,15 +151,17 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           withNewNotebook(runtimeFixture.runtime, kernel) { notebookPage =>
             //all other packages cannot be tested for their versions in this manner
             //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-            notebookPage.executeCell(
-              "import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)"
-            ) shouldBe Some("2.13.1")
-            notebookPage.executeCell("from google.cloud import datastore\nprint(datastore.__version__)") shouldBe Some(
-              "1.10.0"
-            )
-            notebookPage.executeCell("from google.cloud import storage\nprint(storage.__version__)") shouldBe Some(
-              "1.23.0"
-            )
+            notebookPage
+              .executeCell(
+                "import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)"
+              )
+              .get should not include "Error"
+            notebookPage
+              .executeCell("from google.cloud import datastore\nprint(datastore.__version__)")
+              .get should not include "Error"
+            notebookPage
+              .executeCell("from google.cloud import storage\nprint(storage.__version__)")
+              .get should not include "Error"
           }
         }
       }
@@ -169,7 +171,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     s"should be able to import ggplot for ${Python3.toString}" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
-          notebookPage.executeCell("from ggplot import *").get should not include ("ImportError")
+          notebookPage.executeCell("from ggplot import *") shouldBe None
           notebookPage.executeCell("ggplot") shouldBe Some("ggplot.ggplot.ggplot")
         }
       }
