@@ -176,7 +176,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   /**
-   * When createRuntime gets 409. We don't attempt to update AsyncRuntimeFields.
+   * When createRuntime gets 409, we shouldn't attempt to update AsyncRuntimeFields.
    * These fields should've been updated in a previous createRuntime request, and
    * this test is to make sure we're not wiping out that info.
    */

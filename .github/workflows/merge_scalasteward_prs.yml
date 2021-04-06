@@ -29,7 +29,7 @@ jobs:
         do
           echo "Merging $pr"
           git fetch origin pull/${pr}/head:pr_${pr}
-          git merge -m "merging" $curBranch && EXIT_CODE=$? || EXIT_CODE=$?
+          git merge -m "merging" pr_${pr} && EXIT_CODE=$? || EXIT_CODE=$?
 
           if [ "${EXIT_CODE}" == "0" ]
           then
