@@ -5,7 +5,7 @@ package service
 import java.time.Instant
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGooglePublisher
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -89,7 +89,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
-  it should "create an app in a users existing nodepool" in isolatedDbTest {
+  it should "create an app in a user's existing nodepool" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -125,6 +125,69 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }.get
 
     app1.nodepool.id shouldBe app2.nodepool.id
+  }
+
+  it should "result in new nodepool creations when apps request distinct nodepool configurations" in isolatedDbTest {
+    val defaultNodepoolConfig = KubernetesRuntimeConfig(
+      NumNodes(1),
+      MachineTypeName("n1-standard-8"),
+      autoscalingEnabled = true
+    )
+    val nodepoolConfigWithMoreNodes = defaultNodepoolConfig.copy(numNodes = NumNodes(2))
+    val nodepoolConfigWithMoreCpuAndMem = defaultNodepoolConfig.copy(machineType = MachineTypeName("n1-highmem-32"))
+    val nodepoolConfigWithAutoscalingDisabled = defaultNodepoolConfig.copy(autoscalingEnabled = false)
+
+    val appName1 = AppName("app-default-config")
+    val appName2 = AppName("app-more-nodes")
+    val appName3 = AppName("app-more-cpu-mem")
+    val appName4 = AppName("app-autoscaling-disabled")
+
+    val diskConfig1 = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
+    val diskConfig2 = PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty)
+    val diskConfig3 = PersistentDiskRequest(DiskName("disk3"), None, None, Map.empty)
+    val diskConfig4 = PersistentDiskRequest(DiskName("disk4"), None, None, Map.empty)
+
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+
+    val defaultAppReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = Some(defaultNodepoolConfig),
+                            diskConfig = Some(diskConfig1),
+                            customEnvironmentVariables = customEnvVars)
+    val appReqWithMoreNodes =
+      defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithMoreNodes), diskConfig = Some(diskConfig2))
+    val appReqWithMoreCpuAndMem = defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithMoreCpuAndMem),
+                                                     diskConfig = Some(diskConfig3))
+    val appReqWithAutoscalingDisabled =
+      defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithAutoscalingDisabled),
+                         diskConfig = Some(diskConfig4))
+
+    kubeServiceInterp.createApp(userInfo, project, appName1, defaultAppReq).unsafeRunSync()
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    kubeServiceInterp.createApp(userInfo, project, appName2, appReqWithMoreNodes).unsafeRunSync()
+    kubeServiceInterp.createApp(userInfo, project, appName3, appReqWithMoreCpuAndMem).unsafeRunSync()
+    kubeServiceInterp.createApp(userInfo, project, appName4, appReqWithAutoscalingDisabled).unsafeRunSync()
+
+    val clusters = dbFutureValue {
+      KubernetesServiceDbQueries.listFullApps(Some(project))
+    }
+
+    clusters.flatMap(_.nodepools).length shouldBe 4
+    clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 4
+
+    val nodepoolId1 =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(project, appName1)).get.nodepool.id
+    val nodepoolId2 =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(project, appName2)).get.nodepool.id
+    val nodepoolId3 =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(project, appName3)).get.nodepool.id
+    val nodepoolId4 =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(project, appName4)).get.nodepool.id
+
+    Set(nodepoolId1, nodepoolId2, nodepoolId3, nodepoolId4).size shouldBe 4 // each app has a distinct nodepool
   }
 
   it should "queue the proper message when creating an app and a new disk" in isolatedDbTest {
