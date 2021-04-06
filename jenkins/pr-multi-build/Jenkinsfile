@@ -7,7 +7,6 @@ pipeline {
 
     stages {
         stage('Run tests') {
-            failFast true
             parallel {
                 stage('Run tests in parallel') {
                     steps {
