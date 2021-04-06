@@ -83,8 +83,8 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     val savedNodepool1 = makeNodepool(3, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
 
     val claims = for {
-      claim1 <- nodepoolQuery.claimNodepool(savedCluster1.id, auditInfo.creator)
-      claim2 <- nodepoolQuery.claimNodepool(savedCluster1.id, auditInfo.creator)
+      claim1 <- nodepoolQuery.claimNodepool(savedCluster1.id, auditInfo.creator, kubernetesRuntimeConfig)
+      claim2 <- nodepoolQuery.claimNodepool(savedCluster1.id, auditInfo.creator, kubernetesRuntimeConfig)
     } yield (claim1, claim2)
 
     val (claim1, claim2) = dbFutureValue(claims)

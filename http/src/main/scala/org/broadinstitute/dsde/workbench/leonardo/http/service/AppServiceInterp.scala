@@ -104,7 +104,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
       // A claimed nodepool is either the user's existing nodepool or a pre-created one, in that order of precedence
       claimedNodepoolOpt <- if (userNodepoolOpt.isDefined) F.pure(userNodepoolOpt)
-      else nodepoolQuery.claimNodepoolWithConfig(clusterId, userInfo.userEmail, machineConfig).transaction
+      else nodepoolQuery.claimNodepool(clusterId, userInfo.userEmail, machineConfig).transaction
 
       nodepool <- claimedNodepoolOpt match {
         case Some(n) =>

@@ -120,20 +120,9 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     n.isDefault
   )
 
-  def claimNodepool(clusterId: KubernetesClusterLeoId,
-                    userEmail: WorkbenchEmail)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
-    for {
-      unclaimedNodepoolOpt <- findActiveByClusterIdQuery(clusterId)
-        .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
-        .result
-        .headOption
-      _ <- unclaimedNodepoolOpt.traverse(rec => updateStatusAndCreator(rec.id, NodepoolStatus.Running, userEmail))
-      claimedNodepoolOpt <- unclaimedNodepoolOpt.flatTraverse(n => getMinimalById(n.id))
-    } yield claimedNodepoolOpt
-
-  def claimNodepoolWithConfig(clusterId: KubernetesClusterLeoId,
-                              userEmail: WorkbenchEmail,
-                              config: KubernetesRuntimeConfig)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+  def claimNodepool(clusterId: KubernetesClusterLeoId, userEmail: WorkbenchEmail, config: KubernetesRuntimeConfig)(
+    implicit ec: ExecutionContext
+  ): DBIO[Option[Nodepool]] =
     for {
       unclaimedNodepoolOpt <- findActiveByClusterIdQuery(clusterId)
         .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
