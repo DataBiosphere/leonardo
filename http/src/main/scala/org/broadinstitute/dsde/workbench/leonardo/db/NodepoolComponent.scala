@@ -187,15 +187,6 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       nodepools <- findByNodepoolIdQuery(id).result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
 
-  def getMinimalByUser(creator: WorkbenchEmail,
-                       project: GoogleProject)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
-    for {
-      clusters <- kubernetesClusterQuery.joinMinimalClusterAndUnmarshal(
-        kubernetesClusterQuery.findActiveByNameQuery(project),
-        nodepoolQuery.filter(_.destroyedDate === dummyDate).filterNot(_.isDefault).filter(_.creator === creator)
-      )
-    } yield clusters.flatMap(_.nodepools).headOption
-
   def getMinimalByUserAndConfig(creator: WorkbenchEmail, project: GoogleProject, config: KubernetesRuntimeConfig)(
     implicit ec: ExecutionContext
   ): DBIO[Option[Nodepool]] =
