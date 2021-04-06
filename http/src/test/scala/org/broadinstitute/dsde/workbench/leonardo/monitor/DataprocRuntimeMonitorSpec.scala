@@ -649,7 +649,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
-  ): IO[CreateGoogleRuntimeResponse] = ???
+  ): IO[Option[CreateGoogleRuntimeResponse]] = ???
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
     implicit ev: Ask[IO, AppContext]

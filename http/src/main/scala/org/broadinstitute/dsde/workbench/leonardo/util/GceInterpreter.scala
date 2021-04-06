@@ -57,7 +57,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     with RuntimeAlgebra[F] {
   override def createRuntime(
     params: CreateRuntimeParams
-  )(implicit ev: Ask[F, AppContext]): F[CreateGoogleRuntimeResponse] =
+  )(implicit ev: Ask[F, AppContext]): F[Option[CreateGoogleRuntimeResponse]] =
     // TODO clean up on error
     for {
       ctx <- ev.ask
@@ -258,10 +258,14 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
 
       operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, zoneParam, instance)
 
-      asyncRuntimeFields = operation.map(o =>
-        AsyncRuntimeFields(GoogleId(o.getTargetId), OperationName(o.getName), stagingBucketName, None)
+      res = operation.map(o =>
+        CreateGoogleRuntimeResponse(
+          AsyncRuntimeFields(GoogleId(o.getTargetId), OperationName(o.getName), stagingBucketName, None),
+          initBucketName,
+          config.gceConfig.customGceImage
+        )
       )
-    } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, config.gceConfig.customGceImage)
+    } yield res
 
   override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
     implicit ev: Ask[F, AppContext]

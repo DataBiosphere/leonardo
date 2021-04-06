@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
 import scala.concurrent.duration.FiniteDuration
 
@@ -22,7 +22,7 @@ import scala.concurrent.duration.FiniteDuration
 trait RuntimeAlgebra[F[_]] {
   def createRuntime(params: CreateRuntimeParams)(
     implicit ev: Ask[F, AppContext]
-  ): F[CreateGoogleRuntimeResponse]
+  ): F[Option[CreateGoogleRuntimeResponse]]
   def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit]
   def stopRuntime(params: StopRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
@@ -66,9 +66,8 @@ object CreateRuntimeParams {
       message.runtimeConfig
     )
 }
-final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: Option[AsyncRuntimeFields],
+final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                              initBucket: GcsBucketName,
-                                             serviceAccountKey: Option[ServiceAccountKey],
                                              customImage: CustomImage)
 final case class DeleteRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
 final case class FinalizeDeleteParams(runtime: Runtime)
