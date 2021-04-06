@@ -70,8 +70,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       _ <- authProvider
         .notifyResourceCreated(samResourceId, userInfo.userEmail, googleProject)
         .handleErrorWith { t =>
-          log.error(t)(
-            s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
+          log.error(ctx.loggingCtx, t)(
+            s"Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
           ) >> F.raiseError(t)
         }
 
@@ -108,12 +108,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
       nodepool <- claimedNodepoolOpt match {
         case Some(n) =>
-          log.info(
+          log.info(ctx.loggingCtx)(
             s"Claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject} with ${machineConfig}"
           ) >> F.pure(n)
         case None =>
           for {
-            _ <- log.info(
+            _ <- log.info(ctx.loggingCtx)(
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.googleProject}. Will create a new nodepool."
             )
             saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
@@ -233,7 +233,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
       _ <- if (hasPermission) F.unit
       else
-        log.info(s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404") >> F
+        log.info(ctx.loggingCtx)(
+          s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
+        ) >> F
           .raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
