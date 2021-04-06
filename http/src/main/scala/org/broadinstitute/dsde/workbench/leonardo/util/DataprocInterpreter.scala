@@ -259,11 +259,13 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           Some(createClusterConfig)
         )
 
-        asyncRuntimeFields = AsyncRuntimeFields(
-          GoogleId(op.metadata.getClusterUuid),
-          op.name,
-          stagingBucketName,
-          None
+        asyncRuntimeFields = op.map(o =>
+          AsyncRuntimeFields(
+            GoogleId(o.metadata.getClusterUuid),
+            o.name,
+            stagingBucketName,
+            None
+          )
         )
       } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, dataprocImage)
 

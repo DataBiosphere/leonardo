@@ -258,10 +258,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
 
       operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, zoneParam, instance)
 
-      asyncRuntimeFields = AsyncRuntimeFields(GoogleId(operation.getTargetId),
-                                              OperationName(operation.getName),
-                                              stagingBucketName,
-                                              None)
+      asyncRuntimeFields = operation.map(o =>
+        AsyncRuntimeFields(GoogleId(o.getTargetId), OperationName(o.getName), stagingBucketName, None)
+      )
     } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, config.gceConfig.customGceImage)
 
   override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
