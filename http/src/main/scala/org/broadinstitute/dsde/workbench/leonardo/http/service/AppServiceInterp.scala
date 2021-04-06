@@ -28,7 +28,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AppService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartVersion, Release}
@@ -71,8 +70,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       _ <- authProvider
         .notifyResourceCreated(samResourceId, userInfo.userEmail, googleProject)
         .handleErrorWith { t =>
-          log.error(t)(
-            s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
+          log.error(ctx.loggingCtx, t)(
+            s"Failed to notify the AuthProvider for creation of kubernetes app ${googleProject.value} / ${appName.value}"
           ) >> F.raiseError(t)
         }
 
@@ -90,23 +89,36 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
       clusterId = saveClusterResult.minimalCluster.id
 
-      //We want to know if the user already has an app to re-use that nodepool
-      userNodepoolOpt <- nodepoolQuery.getMinimalByUser(userInfo.userEmail, googleProject).transaction
+      machineConfig = req.kubernetesRuntimeConfig.getOrElse(
+        KubernetesRuntimeConfig(
+          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
+          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
+          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
+        )
+      )
 
-      //A claimed nodepool is either the user's existing nodepool, or a pre-created one in that order of precedence
+      // We want to know if the user already has a nodepool with the requested config that can be re-used
+      userNodepoolOpt <- nodepoolQuery
+        .getMinimalByUserAndConfig(userInfo.userEmail, googleProject, machineConfig)
+        .transaction
+
+      // A claimed nodepool is either the user's existing nodepool or a pre-created one, in that order of precedence
       claimedNodepoolOpt <- if (userNodepoolOpt.isDefined) F.pure(userNodepoolOpt)
-      else nodepoolQuery.claimNodepool(clusterId, userInfo.userEmail).transaction
+      else nodepoolQuery.claimNodepool(clusterId, userInfo.userEmail, machineConfig).transaction
 
       nodepool <- claimedNodepoolOpt match {
+        case Some(n) =>
+          log.info(ctx.loggingCtx)(
+            s"Claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject} with ${machineConfig}"
+          ) >> F.pure(n)
         case None =>
           for {
+            _ <- log.info(ctx.loggingCtx)(
+              s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.googleProject}. Will create a new nodepool."
+            )
             saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
-        case Some(n) =>
-          log.info(s"claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject}") >> F.pure(
-            n
-          )
       }
 
       runtimeServiceAccountOpt <- serviceAccountProvider
@@ -221,7 +233,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       hasPermission <- authProvider.hasPermission(app.app.samResourceId, AppAction.GetAppStatus, userInfo)
       _ <- if (hasPermission) F.unit
       else
-        log.info(s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404") >> F
+        log.info(ctx.loggingCtx)(
+          s"User ${userInfo} tried to access app ${appName.value} without proper permissions. Returning 404"
+        ) >> F
           .raiseError[Unit](AppNotFoundException(googleProject, appName, ctx.traceId))
     } yield GetAppResponse.fromDbResult(app, Config.proxyConfig.proxyUrlBase)
 
@@ -245,8 +259,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           // then we build back up by filtering nodepools without apps and clusters without nodepools
           allClusters
             .map { c =>
-              c.copy(nodepools =
-                c.nodepools
+              c.copy(
+                nodepools = c.nodepools
                   .map { n =>
                     n.copy(apps = n.apps.filter { a =>
                       // Making the assumption that users will always be able to access apps that they create

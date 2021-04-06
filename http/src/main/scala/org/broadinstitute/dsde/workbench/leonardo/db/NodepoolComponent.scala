@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -11,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AutoscalingMax,
   AutoscalingMin,
   KubernetesClusterLeoId,
+  KubernetesRuntimeConfig,
   Nodepool,
   NodepoolLeoId,
   NodepoolStatus,
@@ -120,11 +120,15 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     n.isDefault
   )
 
-  def claimNodepool(clusterId: KubernetesClusterLeoId,
-                    userEmail: WorkbenchEmail)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+  def claimNodepool(clusterId: KubernetesClusterLeoId, userEmail: WorkbenchEmail, config: KubernetesRuntimeConfig)(
+    implicit ec: ExecutionContext
+  ): DBIO[Option[Nodepool]] =
     for {
       unclaimedNodepoolOpt <- findActiveByClusterIdQuery(clusterId)
         .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
+        .filter(_.machineType === config.machineType)
+        .filter(_.numNodes === config.numNodes)
+        .filter(_.autoscalingEnabled === config.autoscalingEnabled)
         .result
         .headOption
       _ <- unclaimedNodepoolOpt.traverse(rec => updateStatusAndCreator(rec.id, NodepoolStatus.Running, userEmail))
@@ -172,12 +176,19 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       nodepools <- findByNodepoolIdQuery(id).result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
 
-  def getMinimalByUser(creator: WorkbenchEmail,
-                       project: GoogleProject)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+  def getMinimalByUserAndConfig(creator: WorkbenchEmail, project: GoogleProject, config: KubernetesRuntimeConfig)(
+    implicit ec: ExecutionContext
+  ): DBIO[Option[Nodepool]] =
     for {
       clusters <- kubernetesClusterQuery.joinMinimalClusterAndUnmarshal(
         kubernetesClusterQuery.findActiveByNameQuery(project),
-        nodepoolQuery.filter(_.destroyedDate === dummyDate).filterNot(_.isDefault).filter(_.creator === creator)
+        nodepoolQuery
+          .filter(_.destroyedDate === dummyDate)
+          .filterNot(_.isDefault)
+          .filter(_.creator === creator)
+          .filter(_.machineType === config.machineType)
+          .filter(_.numNodes === config.numNodes)
+          .filter(_.autoscalingEnabled === config.autoscalingEnabled)
       )
     } yield clusters.flatMap(_.nodepools).headOption
 
