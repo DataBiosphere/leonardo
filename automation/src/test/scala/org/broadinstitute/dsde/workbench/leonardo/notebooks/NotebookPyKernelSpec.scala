@@ -149,7 +149,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       s"should preinstall google cloud subpackages for ${kernel.string}" in { runtimeFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(runtimeFixture.runtime, kernel) { notebookPage =>
-            //all other packages cannot be tested for their versions in this manner
+            //we can no longer test for the version explicitly for packages because we will always have the newest versions
+            // as they become available. see https://github.com/DataBiosphere/terra-docker/pull/207
             //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
             notebookPage
               .executeCell(
