@@ -104,7 +104,7 @@ class DataprocInterpreterSpec
         .futureValue
 
     // verify the returned cluster
-    val dpInfo = clusterCreationRes.asyncRuntimeFields
+    val dpInfo = clusterCreationRes.asyncRuntimeFields.get
     dpInfo.operationName.value shouldBe "opName"
     dpInfo.googleId.value shouldBe "clusterUuid"
     dpInfo.hostIp shouldBe None
