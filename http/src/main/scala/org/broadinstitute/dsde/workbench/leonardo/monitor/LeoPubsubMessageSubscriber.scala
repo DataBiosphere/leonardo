@@ -4,16 +4,16 @@ package monitor
 import java.time.Instant
 import java.util.concurrent.TimeoutException
 
-import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.{DoneCheckable}
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
@@ -40,9 +40,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   config: LeoPubsubMessageSubscriberConfig,
@@ -192,7 +192,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
-        DeleteRuntimeParams(runtime)
+        DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig))
       )
       poll = op match {
         case Some(o) =>
@@ -266,7 +266,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-        StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now)
+        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now)
       )
       poll = op match {
         case Some(o) =>
@@ -307,7 +307,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
       bucketName <- F.fromOption(initBucket.map(_.bucketName),
                                  new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
-      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, bucketName))
+      _ <- runtimeConfig.cloudService.interpreter
+        .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
       _ <- asyncTasks.enqueue1(
         Task(
           ctx.traceId,
@@ -337,7 +338,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       hasResizedCluster <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
         for {
           _ <- runtimeConfig.cloudService.interpreter
-            .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
+            .resizeCluster(
+              ResizeClusterParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+                                  msg.newNumWorkers,
+                                  msg.newNumPreemptibles)
+            )
           _ <- msg.newNumWorkers.traverse_(a =>
             RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, ctx.now).transaction
           )
@@ -351,21 +356,28 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // Update the disk size
       _ <- msg.diskUpdate
         .traverse { d =>
-          val updateDiskSize = d match {
-            case DiskUpdate.PdSizeUpdate(_, diskName, targetSize) =>
-              UpdateDiskSizeParams.Gce(runtime.googleProject, diskName, targetSize)
-            case DiskUpdate.NoPdSizeUpdate(targetSize) =>
-              UpdateDiskSizeParams.Gce(
-                runtime.googleProject,
-                DiskName(
-                  s"${runtime.runtimeName.asString}-1"
-                ), // user disk's diskname is always postfixed with -1 for non-pd runtimes
-                targetSize
-              )
-            case DiskUpdate.Dataproc(size, masterInstance) =>
-              UpdateDiskSizeParams.Dataproc(size, masterInstance)
-          }
           for {
+            updateDiskSize <- d match {
+              case DiskUpdate.PdSizeUpdate(_, diskName, targetSize) =>
+                for {
+                  zone <- F.fromOption(LeoLenses.gceZone.getOption(runtimeConfig),
+                                       new RuntimeException("GCE runtime must have a zone"))
+                } yield UpdateDiskSizeParams.Gce(runtime.googleProject, diskName, targetSize, zone)
+              case DiskUpdate.NoPdSizeUpdate(targetSize) =>
+                for {
+                  zone <- F.fromOption(LeoLenses.gceZone.getOption(runtimeConfig),
+                                       new RuntimeException("GCE runtime must have a zone"))
+                } yield UpdateDiskSizeParams.Gce(
+                  runtime.googleProject,
+                  DiskName(
+                    s"${runtime.runtimeName.asString}-1"
+                  ), // user disk's diskname is always postfixed with -1 for non-pd runtimes
+                  targetSize,
+                  zone
+                )
+              case DiskUpdate.Dataproc(size, masterInstance) =>
+                F.pure(UpdateDiskSizeParams.Dataproc(size, masterInstance))
+            }
             _ <- runtimeConfig.cloudService.interpreter.updateDiskSize(updateDiskSize)
             _ <- LeoLenses.pdSizeUpdatePrism
               .getOption(d)
@@ -383,7 +395,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
           _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
           operation <- runtimeConfig.cloudService.interpreter
-            .stopRuntime(StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now))(
+            .stopRuntime(
+              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now)
+            )(
               ctxStopping
             )
           task = for {
@@ -416,7 +430,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       } else {
         for {
           _ <- msg.newMachineType.traverse_(m =>
-            runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+            runtimeConfig.cloudService.interpreter
+              .updateMachineType(UpdateMachineTypeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), m, ctx.now))
           )
           _ <- if (hasResizedCluster) {
             asyncTasks.enqueue1(
@@ -441,12 +456,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- targetMachineType.traverse(m =>
         runtimeConfig.cloudService.interpreter
-          .updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+          .updateMachineType(UpdateMachineTypeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), m, ctx.now))
       )
       initBucket <- clusterQuery.getInitBucket(runtime.id).transaction
       bucketName <- F.fromOption(initBucket.map(_.bucketName),
                                  new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
-      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, bucketName))
+      _ <- runtimeConfig.cloudService.interpreter
+        .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
       _ <- dbRef.inTransaction {
         clusterQuery.updateClusterStatus(
           runtime.id,

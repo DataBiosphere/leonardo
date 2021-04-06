@@ -1,15 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.{ByteArrayInputStream, File, FileOutputStream}
-import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-
 import akka.actor.ActorSystem
-import cats.effect.IO
 import cats.effect.concurrent.Semaphore
+import cats.effect.IO
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
@@ -29,14 +24,18 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpec}
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
+import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
+import org.scalatest.Suite
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
-import org.scalatest.time.{Minutes, Seconds, Span}
-import org.scalatest.Suite
 import org.scalatest.matchers.should.Matchers
+import org.scalatest.time.{Minutes, Seconds, Span}
 
+import java.io.{ByteArrayInputStream, File, FileOutputStream}
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
 import scala.concurrent.duration._
 import scala.util.{Failure, Random, Success, Try}
 
@@ -99,11 +98,14 @@ trait LeonardoTestUtils
     GoogleComputeService.resource(LeonardoConfig.GCS.pathToQAJson, blocker, Semaphore[IO](10).unsafeRunSync())
   val googleDataprocService = for {
     compute <- googleComputeService
-    dp <- GoogleDataprocService.resource(compute,
-                                         LeonardoConfig.GCS.pathToQAJson,
-                                         blocker,
-                                         Semaphore[IO](10).unsafeRunSync(),
-                                         RegionName("us-central1"))
+    dp <- GoogleDataprocService
+      .resource(
+        compute,
+        LeonardoConfig.GCS.pathToQAJson,
+        blocker,
+        semaphore,
+        Set(RegionName("us-central1"), RegionName("europe-west1"))
+      )
   } yield dp
 
   // TODO: move this to NotebookTestUtils and chance cluster-specific functions to only call if necessary after implementing RStudio

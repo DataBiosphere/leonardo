@@ -55,7 +55,6 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         RuntimeStatus.Starting -> 20.minutes,
         RuntimeStatus.Deleting -> 30.minutes
       ),
-      ZoneName("us-central1-a"),
       Config.imageConfig
     )
 
@@ -82,7 +81,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "69.173.127.240/28",
         "69.173.112.0/21"
       ).map(CidrIP),
-      KubernetesClusterVersion("1.16.15-gke.12500"),
+      KubernetesClusterVersion("1.18"),
       1 hour,
       200
     )

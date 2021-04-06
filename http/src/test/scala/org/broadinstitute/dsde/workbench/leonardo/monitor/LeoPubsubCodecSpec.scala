@@ -7,7 +7,7 @@ import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateRuntimeMessage}
@@ -46,7 +46,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       Map.empty,
       RuntimeConfigInCreateRuntimeMessage.GceConfig(MachineTypeName("n1-standard-4"),
                                                     DiskSize(50),
-                                                    bootDiskSize = DiskSize(50)),
+                                                    bootDiskSize = DiskSize(50),
+                                                    zone = ZoneName("us-central1-a")),
       None
     )
 
@@ -73,7 +74,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       Map.empty,
       RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                           DiskId(2),
-                                                          bootDiskSize = DiskSize(50)),
+                                                          bootDiskSize = DiskSize(50),
+                                                          zone = ZoneName("us-central1-a")),
       None
     )
 

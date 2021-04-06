@@ -4,7 +4,7 @@ import java.util.UUID
 import java.util.concurrent.TimeoutException
 import cats.effect.{IO, Resource, Timer}
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}

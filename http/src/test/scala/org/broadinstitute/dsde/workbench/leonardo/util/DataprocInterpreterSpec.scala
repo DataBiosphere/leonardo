@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleResourceService,
   MockComputePollOperation
 }
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -201,9 +201,12 @@ class DataprocInterpreterSpec
                                                      None,
                                                      None,
                                                      None,
-                                                     Map.empty[String, String])
+                                                     Map.empty[String, String],
+                                                     RegionName("us-central1"))
     val resourceConstraints = dataprocInterp
-      .getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType)
+      .getClusterResourceContraints(testClusterClusterProjectAndName,
+                                    runtimeConfig.machineType,
+                                    RegionName("us-central1"))
       .unsafeRunSync()
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m

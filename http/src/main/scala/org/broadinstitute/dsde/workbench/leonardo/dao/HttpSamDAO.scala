@@ -8,7 +8,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 import _root_.fs2._
-import _root_.io.chrisdavenport.log4cats.Logger
+import _root_.org.typelevel.log4cats.Logger
 import _root_.io.circe._
 import _root_.io.circe.syntax._
 import akka.http.scaladsl.model.StatusCode._
@@ -288,7 +288,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
       )
       scopedCredential = credential.createScoped(saScopes.asJava)
-      _ <- Resource.liftF(Effect[F].delay(scopedCredential.refresh))
+      _ <- Resource.eval(Effect[F].delay(scopedCredential.refresh))
     } yield scopedCredential.getAccessToken.getTokenValue
 
   private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(

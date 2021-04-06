@@ -3,7 +3,7 @@ package leonardo
 package util
 
 import java.util.Base64
-import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.mtl.Ask
@@ -101,10 +101,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Set up VPC and firewall
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-        SetUpProjectNetworkParams(params.googleProject)
+        SetUpProjectNetworkParams(params.googleProject, dbCluster.region)
       )
       _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.googleProject, network)
+        SetUpProjectFirewallsParams(params.googleProject, network, dbCluster.region)
       )
 
       kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network)
@@ -214,6 +214,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // and users can no longer create apps in the cluster's project
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
+      ipRange <- F.fromOption(Config.vpcConfig.subnetworkRegionIpRangeMap.get(dbCluster.region),
+                              new RegionNotSupportedException(dbCluster.region, ctx.traceId))
 
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
@@ -224,7 +226,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             NetworkFields(
               params.createResult.network.name,
               params.createResult.subnetwork.name,
-              Config.vpcConfig.subnetworkIpRange
+              ipRange
             )
           )
         )

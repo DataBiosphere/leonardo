@@ -5,7 +5,7 @@ import java.nio.file.Paths
 
 import cats.effect.IO
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.slf4j.Slf4jLogger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail

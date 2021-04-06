@@ -13,7 +13,7 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
@@ -112,7 +112,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             defaultRuntimeConfig = RuntimeConfigInCreateRuntimeMessage.GceConfig(
               config.gceConfig.runtimeConfigDefaults.machineType,
               config.gceConfig.runtimeConfigDefaults.diskSize,
-              bootDiskSize
+              bootDiskSize,
+              config.gceConfig.runtimeConfigDefaults.zone
             )
             runtimeConfig <- req.runtimeConfig
               .fold[F[RuntimeConfigInCreateRuntimeMessage]](F.pure(defaultRuntimeConfig)) { // default to gce if no runtime specific config is provided
@@ -123,7 +124,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                         RuntimeConfigInCreateRuntimeMessage.GceConfig(
                           gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
                           gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize),
-                          bootDiskSize
+                          bootDiskSize,
+                          gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone)
                         ): RuntimeConfigInCreateRuntimeMessage
                       )
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
@@ -144,7 +146,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                           RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
                             gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
                             diskResult.disk.id,
-                            bootDiskSize
+                            bootDiskSize,
+                            gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone)
                           ): RuntimeConfigInCreateRuntimeMessage
                         )
                   }
@@ -618,7 +621,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
-        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _),
+        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
           for {
             targetDiskSize <- traverseIfChanged(diskSizeInRequest, existngDiskSize) { d =>
@@ -637,7 +640,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                targetDiskSize,
                                                context.traceId)
           } yield r
-        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _),
+        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
           for {
             // should disk size be updated?
@@ -661,7 +664,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                diskUpdate,
                                                context.traceId)
           } yield r
-        case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _),
+        case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _),
               req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)) =>
           processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig)
 
