@@ -14,17 +14,6 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.devtools.clouderrorreporting.v1beta1.ProjectName
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.typelevel.log4cats.StructuredLogger
-import org.typelevel.log4cats.slf4j.Slf4jLogger
-import javax.net.ssl.SSLContext
-import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
-import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.{Json, Token}
-import org.broadinstitute.dsde.workbench.google.{
-  GoogleStorageDAO,
-  HttpGoogleDirectoryDAO,
-  HttpGoogleIamDAO,
-  HttpGoogleStorageDAO
-}
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
@@ -64,6 +53,8 @@ import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
 import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
+import org.typelevel.log4cats.StructuredLogger
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import java.nio.file.Paths
 import java.time.Instant
@@ -400,10 +391,17 @@ object Boot extends IOApp {
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
       cryptoMiningUserPublisher <- GooglePublisher.resource[F](cryptominingTopicPublisherConfig)
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
-      googleComputeService <- GoogleComputeService.fromCredential(scopedCredential,
-                                                                  blocker,
-                                                                  semaphore,
-                                                                  googleComputeRetryPolicy)
+      // Retry 400 responses from Google, as those can occur when resources aren't ready yet
+      // (e.g. if the subnet isn't ready when creating an instance).
+      googleComputeService <- GoogleComputeService.fromCredential(
+        scopedCredential,
+        blocker,
+        semaphore,
+        RetryPredicates.retryConfigWithPredicates(
+          RetryPredicates.standardRetryPredicate,
+          RetryPredicates.whenStatusCode(400)
+        )
+      )
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,

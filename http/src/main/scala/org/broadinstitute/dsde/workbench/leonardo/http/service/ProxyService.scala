@@ -18,7 +18,6 @@ import com.typesafe.scalalogging.LazyLogging
 import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -37,6 +36,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.typelevel.log4cats.StructuredLogger
+
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
