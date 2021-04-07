@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.model.IP
 import org.http4s.client.RequestKey
 
-import java.net.InetSocketAddress
+import java.net.{InetAddress, InetSocketAddress}
 import scala.concurrent.Future
 
 trait ProxyResolver[F[_]] {
@@ -37,7 +37,7 @@ class ProxyResolverInterp[F[_]](proxyConfig: ProxyConfig, hostToIpMapping: Ref[F
     hostToIpMapping.get.map { mapping =>
       mapping.get(Host(host)) match {
         case Some(ip) => InetSocketAddress.createUnresolved(ip.asString, port)
-        case _        => InetSocketAddress.createUnresolved(host, port)
+        case _        => new InetSocketAddress(InetAddress.getByName(host), port)
       }
     }
 }
