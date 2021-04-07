@@ -2,15 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.time.Instant
-import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.typelevel.log4cats.StructuredLogger
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
@@ -31,7 +28,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartVersion, Release}
+import org.typelevel.log4cats.StructuredLogger
 
+import java.time.Instant
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](
@@ -304,13 +304,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           AppCannotBeDeletedException(request.googleProject, request.appName, appResult.app.status, ctx.traceId)
         )
 
-      diskOpt <- if (request.deleteDisk)
-        appResult.app.appResources.disk.fold(
-          F.raiseError[Option[DiskId]](
-            NoDiskForAppException(appResult.cluster.googleProject, appResult.app.appName, ctx.traceId)
-          )
-        )(d => F.pure(Some(d.id)))
-      else F.pure[Option[DiskId]](None)
+      // Get the disk to delete if specified
+      diskOpt = if (request.deleteDisk) appResult.app.appResources.disk.map(_.id) else None
 
       // If the app status is Error, we can assume that the underlying app/nodepool
       // has already been deleted. So we just transition the app to Deleted status
@@ -676,13 +671,6 @@ case class AppCannotBeDeletedException(googleProject: GoogleProject,
       s"App ${googleProject.value}/${appName.value} cannot be deleted in ${status} status." +
         (if (status == AppStatus.Stopped) " Please start the app first." else ""),
       StatusCodes.Conflict,
-      traceId = Some(traceId)
-    )
-
-case class NoDiskForAppException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
-    extends LeoException(
-      s"Specified delete disk for app ${googleProject.value}/${appName.value}, but this app does not have a disk.",
-      StatusCodes.BadRequest,
       traceId = Some(traceId)
     )
 
