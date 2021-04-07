@@ -1,9 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
-import cats.data.NonEmptyList
-
+import java.nio.charset.Charset
 import java.util.UUID
+
+import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
@@ -19,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   StorageRole
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -28,8 +30,6 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
-
-import java.nio.charset.Charset
 
 @DoNotDiscover
 class RuntimeDataprocSpec
@@ -45,6 +45,45 @@ class RuntimeDataprocSpec
     dataprocService <- googleDataprocService
     httpClient <- LeonardoApiClient.client
   } yield RuntimeDataprocSpecDependencies(httpClient, dataprocService)
+
+  "should create a Dataproc cluster in a non-default region" in { project =>
+    val runtimeName = randomClusterName
+
+    // In a europe region
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.DataprocConfig(
+          Some(2),
+          Some(MachineTypeName("n1-standard-4")),
+          Some(DiskSize(100)),
+          Some(MachineTypeName("n1-standard-4")),
+          Some(DiskSize(100)),
+          None,
+          Some(1),
+          Map.empty,
+          Some(RegionName("europe-west1"))
+        )
+      ),
+      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
+    )
+
+    val res = dependencies.use { dep =>
+      implicit val client = dep.httpClient
+      for {
+        // create runtime
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
+        runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
+
+        // check cluster status in Dataproc
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 1, RegionName("europe-west1"))
+        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
+
+        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
+      } yield ()
+    }
+
+    res.unsafeRunSync()
+  }
 
   "should create a Dataproc cluster with workers and preemptible workers" in { project =>
     val runtimeName = randomClusterName
@@ -74,7 +113,7 @@ class RuntimeDataprocSpec
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
         // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
         // check output of yarn node -list command
         _ <- IO(
@@ -146,19 +185,19 @@ class RuntimeDataprocSpec
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
         // check cluster status in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
         // stop the cluster
         _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be removed in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0)
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0, RegionName("us-central1"))
 
         // start the cluster
         _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be added in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5)
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
         // check output of yarn node -list command
         _ <- IO(
@@ -181,10 +220,11 @@ class RuntimeDataprocSpec
                              runtimeName: RuntimeName,
                              dataproc: GoogleDataprocService[IO],
                              expectedNumWorkers: Int,
-                             expectedPreemptibles: Int): IO[Unit] =
+                             expectedPreemptibles: Int,
+                             expectedRegion: RegionName): IO[Unit] =
     for {
       // check cluster status in Dataproc
-      clusterOpt <- dataproc.getCluster(project, RegionName("us-central1"), DataprocClusterName(runtimeName.asString))
+      clusterOpt <- dataproc.getCluster(project, expectedRegion, DataprocClusterName(runtimeName.asString))
       cluster <- IO.fromOption(clusterOpt)(
         fail(s"Cluster not found in dataproc: ${project.value}/${runtimeName.asString}")
       )

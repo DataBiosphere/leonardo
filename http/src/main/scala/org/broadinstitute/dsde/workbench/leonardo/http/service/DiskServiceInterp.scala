@@ -8,7 +8,7 @@ import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig

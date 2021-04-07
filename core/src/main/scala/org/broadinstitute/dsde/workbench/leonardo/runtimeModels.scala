@@ -6,7 +6,7 @@ import cats.syntax.all._
 import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
@@ -227,7 +227,8 @@ object RuntimeConfig {
     diskSize: DiskSize,
     bootDiskSize: Option[
       DiskSize
-    ] //This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
+    ], //This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
+    zone: ZoneName
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -235,7 +236,8 @@ object RuntimeConfig {
   // When persistentDiskId is None, then we don't have any disk attached to the runtime
   final case class GceWithPdConfig(machineType: MachineTypeName,
                                    persistentDiskId: Option[DiskId],
-                                   bootDiskSize: DiskSize)
+                                   bootDiskSize: DiskSize,
+                                   zone: ZoneName)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -248,7 +250,8 @@ object RuntimeConfig {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
+                                  properties: Map[String, String],
+                                  region: RegionName)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType

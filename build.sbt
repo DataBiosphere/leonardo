@@ -4,7 +4,7 @@ import Testing._
 lazy val root = project.in(file("."))
   .settings(
     name := "leonardo",
-    skip in publish := true
+    publish / skip := true
   ).aggregate(core, http, automation)
 
 lazy val core = project.in(file("core"))
@@ -19,4 +19,4 @@ lazy val automation = project.in(file("automation"))
   .settings(automationSettings)
   .dependsOn(core % "test->test;compile->compile")
 
-scalafixDependencies in ThisBuild += "org.scalatest" %% "autofix" % "3.1.0.1"
+ThisBuild / scalafixDependencies += "org.scalatest" %% "autofix" % "3.1.0.1"

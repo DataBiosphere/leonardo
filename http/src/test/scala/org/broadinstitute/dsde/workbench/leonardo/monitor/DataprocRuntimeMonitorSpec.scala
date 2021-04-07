@@ -19,6 +19,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDataprocService,
   InstanceName,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -50,7 +51,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(successToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(None, monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.creatingRuntime(None, monitorContext, savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
     } yield {
       r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
@@ -74,8 +75,14 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor()(successToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r1 <- monitor.creatingRuntime(Some(cluster1), monitorContext, runtimeAndRuntimeConfig)
-      r2 <- monitor.creatingRuntime(Some(cluster2), monitorContext, runtimeAndRuntimeConfig)
+      r1 <- monitor.creatingRuntime(Some(cluster1),
+                                    monitorContext,
+                                    savedRuntime,
+                                    CommonTestData.defaultDataprocRuntimeConfig)
+      r2 <- monitor.creatingRuntime(Some(cluster2),
+                                    monitorContext,
+                                    savedRuntime,
+                                    CommonTestData.defaultDataprocRuntimeConfig)
     } yield {
       r1._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
       r2._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
@@ -99,7 +106,10 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Provisioning))(successToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.creatingRuntime(Some(cluster),
+                                   monitorContext,
+                                   savedRuntime,
+                                   CommonTestData.defaultDataprocRuntimeConfig)
     } yield {
       r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
@@ -121,8 +131,10 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.creatingRuntime(Some(cluster),
+                                   monitorContext,
+                                   savedRuntime,
+                                   CommonTestData.defaultDataprocRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
@@ -146,8 +158,10 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.creatingRuntime(Some(cluster),
+                                   monitorContext,
+                                   savedRuntime,
+                                   CommonTestData.defaultDataprocRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
@@ -171,8 +185,10 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.creatingRuntime(Some(cluster),
+                                   monitorContext,
+                                   savedRuntime,
+                                   CommonTestData.defaultDataprocRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
@@ -196,8 +212,10 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Starting)
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))))(failureToolDao)
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.creatingRuntime(Some(cluster),
+                                   monitorContext,
+                                   savedRuntime,
+                                   CommonTestData.defaultDataprocRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
@@ -219,6 +237,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
 
     val dataproc = new BaseFakeGoogleDataprocService {
       override def getClusterError(
+        region: RegionName,
         operationName: google2.OperationName
       )(implicit ev: Ask[IO, TraceId]): IO[Option[ClusterError]] =
         IO.pure(Some(ClusterError(4, "time out")))
@@ -229,8 +248,10 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       savedRuntime <- IO(runtime.save())
       monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Running, Some(IP("fakeIp"))),
                                        dataprocService = dataproc)(failureToolDao)
-      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
-      r <- monitor.creatingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
+      r <- monitor.creatingRuntime(Some(cluster),
+                                   monitorContext,
+                                   savedRuntime,
+                                   CommonTestData.defaultDataprocRuntimeConfig)
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       r._2 shouldBe None
@@ -629,10 +650,6 @@ class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
   ): IO[CreateGoogleRuntimeResponse] = ???
-
-  override def getRuntimeStatus(params: GetRuntimeStatusParams)(
-    implicit ev: Ask[IO, AppContext]
-  ): IO[RuntimeStatus] = ???
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
     implicit ev: Ask[IO, AppContext]

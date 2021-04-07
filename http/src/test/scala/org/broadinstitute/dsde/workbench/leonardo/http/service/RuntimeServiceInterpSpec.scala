@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
@@ -10,53 +11,39 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGooglePublisher,
   FakeGoogleStorageInterpreter,
   MockComputePollOperation
 }
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, userInfo, testCluster, _}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  BucketObjectException,
-  ForbiddenError,
-  LeoException,
-  ParseLabelsException,
-  RuntimeAlreadyExistsException,
-  RuntimeCannotBeDeletedException,
-  RuntimeCannotBeUpdatedException,
-  RuntimeDiskSizeCannotBeChangedException,
-  RuntimeDiskSizeCannotBeDecreasedException,
-  RuntimeMachineTypeCannotBeChangedException,
-  RuntimeNotFoundException
-}
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.calculateAutopauseThreshold
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,
   LeoPubsubMessage,
   RuntimeConfigInCreateRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatestplus.mockito.MockitoSugar
-import java.net.URL
-
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
@@ -539,7 +526,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
-        bootDiskSize = DiskSize(50)
+        bootDiskSize = DiskSize(50),
+        zone = ZoneName("us-central1-a")
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
@@ -553,7 +541,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(50))
+                                                                              bootDiskSize = DiskSize(50),
+                                                                              zone = ZoneName("us-central1-a"))
         )
       message shouldBe expectedMessage
     }
@@ -829,7 +818,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       testRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig
-            .GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(pd.id), bootDiskSize = DiskSize(50))
+            .GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                             Some(pd.id),
+                             bootDiskSize = DiskSize(50),
+                             zone = ZoneName("us-central1-a"))
         )
       )
 
@@ -1207,7 +1199,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1261,7 +1253,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(
         dataprocInstances = Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1299,7 +1291,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1336,7 +1328,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1395,7 +1387,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       ctx <- appContext.ask[AppContext]
       masterInstance = DataprocInstance(
-        DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+        DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
         1,
         GceInstanceStatus.Running,
         Some(IP("")),
@@ -1432,7 +1424,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1536,7 +1528,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       savedDisk <- makePersistentDisk(None).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                        Some(savedDisk.id),
+                                        bootDiskSize = DiskSize(50),
+                                        ZoneName("us-central1-a"))
         )
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)

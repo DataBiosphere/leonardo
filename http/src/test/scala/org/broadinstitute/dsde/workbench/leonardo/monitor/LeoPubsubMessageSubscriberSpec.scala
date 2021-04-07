@@ -35,6 +35,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   MockGoogleDiskService,
   OperationName,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
@@ -215,7 +216,8 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
-                                                    persistentDiskId = Some(disk.id))
+                                                    persistentDiskId = Some(disk.id),
+                                                    zone = ZoneName("us-central1-a"))
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]
@@ -247,7 +249,8 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
-                                                    persistentDiskId = Some(disk.id))
+                                                    persistentDiskId = Some(disk.id),
+                                                    zone = ZoneName("us-cetnral1-a"))
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]
@@ -625,6 +628,8 @@ class LeoPubsubMessageSubscriberSpec
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
       galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(savedApp1.appResources.disk.get.id).transaction
+      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
@@ -641,7 +646,7 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   ipRange))
       )
       getDisk.status shouldBe DiskStatus.Ready
       galaxyRestore shouldBe Some(
@@ -710,6 +715,8 @@ class LeoPubsubMessageSubscriberSpec
         .transaction
       getApp1 = getAppOpt1.get
       getApp2 = getAppOpt2.get
+      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getApp1.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp2.cluster.status shouldBe KubernetesClusterStatus.Running
@@ -725,7 +732,7 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   ipRange))
       )
       getApp2.app.errors shouldBe List()
       getApp2.app.status shouldBe AppStatus.Running
@@ -1669,6 +1676,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
+      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
@@ -1685,7 +1694,7 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   ipRange))
       )
       getDisk.status shouldBe DiskStatus.Ready
     }

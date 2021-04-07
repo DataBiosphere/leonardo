@@ -4,7 +4,7 @@ package dao
 import cats.effect.{Effect, Timer}
 import cats.implicits._
 import cats.mtl.Ask
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import io.circe.Decoder
 import io.circe.yaml.parser
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._

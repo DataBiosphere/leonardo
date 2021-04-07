@@ -3,11 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import cats.Parallel
 import cats.effect.concurrent.Ref
 import cats.effect.{Async, Sync, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -113,9 +113,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
-            DeleteRuntimeParams(
-              runtimeAndRuntimeConfig.runtime
-            )
+            DeleteRuntimeParams(runtimeAndRuntimeConfig)
           )
           .void, //TODO is this right when deleting or stopping fails?
         //save cluster error in the DB
@@ -240,9 +238,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Starting) {
               for {
                 _ <- runtimeAlg.stopRuntime(
-                  StopRuntimeParams(runtimeAndRuntimeConfig.runtime,
-                                    LeoLenses.dataprocPrism.getOption(runtimeAndRuntimeConfig.runtimeConfig),
-                                    now)
+                  StopRuntimeParams(runtimeAndRuntimeConfig, now)
                 )
                 // Stopping the runtime
                 _ <- clusterQuery
