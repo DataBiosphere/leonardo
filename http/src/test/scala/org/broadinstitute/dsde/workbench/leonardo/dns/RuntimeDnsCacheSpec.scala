@@ -7,7 +7,6 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfigId, RuntimeStatus}
-import org.broadinstitute.dsde.workbench.model.IP
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -24,14 +23,10 @@ class RuntimeDnsCacheSpec
   override def afterAll(): Unit =
     super.afterAll()
 
-  val runningClusterIp = IP("1.2.3.4")
-  val runningCluster: Runtime = makeCluster(1).copy(
-    status = RuntimeStatus.Running,
-    asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = Some(runningClusterIp)))
-  )
   val clusterBeingCreated: Runtime =
     makeCluster(2)
       .copy(status = RuntimeStatus.Creating, asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)))
+  val runningCluster: Runtime = makeCluster(1).copy(status = RuntimeStatus.Running)
   val stoppedCluster: Runtime =
     makeCluster(3)
       .copy(status = RuntimeStatus.Stopped, asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)))
@@ -75,6 +70,12 @@ class RuntimeDnsCacheSpec
     runtimeDnsCache.stats.missCount shouldBe 3
     runtimeDnsCache.stats.loadCount shouldBe 3
     runtimeDnsCache.stats.evictionCount shouldBe 0
+
+    hostToIpMapping.get
+      .unsafeRunSync()
+      .get(runningClusterHost) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
+    hostToIpMapping.get.unsafeRunSync().get(clusterBeingCreatedHost) shouldBe None
+    hostToIpMapping.get.unsafeRunSync().get(stoppedClusterHost) shouldBe None
 
     val cacheKeys = Set(cacheKeyForClusterBeingCreated, cacheKeyForRunningCluster, cacheKeyForStoppedCluster)
 

@@ -375,7 +375,7 @@ class ProxyService(
     val rewrittenPath = rewriteJupyterPath(request.uri.path)
 
     // 1. filter out headers not needed for the backend server
-    val newHeaders = filterHeaders(request.headers, targetHost)
+    val newHeaders = filterHeaders(request.headers)
     // 2. strip out Uri.Authority:
     val newUri = Uri(path = rewrittenPath, queryString = request.uri.rawQueryString)
     // 3. build a new HttpRequest
@@ -446,7 +446,7 @@ class ProxyService(
         request.uri.copy(path = rewriteJupyterPath(request.uri.path),
                          authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
                          scheme = "wss"),
-        extraHeaders = filterHeaders(request.headers, targetHost),
+        extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption
       ),
       flow,
@@ -463,7 +463,7 @@ class ProxyService(
           Flow.fromSinkAndSource(Sink.fromSubscriber(subscriber), Source.fromPublisher(publisher)),
           chosenSubprotocol
         )
-        webSocketResponse.withHeaders(webSocketResponse.headers ++ filterHeaders(response.headers, targetHost))
+        webSocketResponse.withHeaders(webSocketResponse.headers ++ filterHeaders(response.headers))
 
       case InvalidUpgradeResponse(response, cause) =>
         logger.warn("WebSocket upgrade response was invalid: {}", cause)
@@ -471,7 +471,7 @@ class ProxyService(
     }
   }
 
-  private def filterHeaders(headers: immutable.Seq[HttpHeader], host: Host): immutable.Seq[HttpHeader] =
+  private def filterHeaders(headers: immutable.Seq[HttpHeader]): immutable.Seq[HttpHeader] =
     headers.filterNot(header => HeadersToFilter(header.lowercaseName()))
 
   private val HeadersToFilter = Set(
