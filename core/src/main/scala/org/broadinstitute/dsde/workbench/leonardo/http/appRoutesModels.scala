@@ -14,7 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,
-  Nodepool,
+  Nodepool
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject

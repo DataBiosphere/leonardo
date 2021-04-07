@@ -4,10 +4,7 @@ import cats.effect.IO
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.apps.{
-  AppCreationSpec,
-  CustomAppCreationSpec
-}
+import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, CustomAppCreationSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec

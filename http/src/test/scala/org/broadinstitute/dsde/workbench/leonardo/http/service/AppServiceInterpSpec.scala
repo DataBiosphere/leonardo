@@ -16,10 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   persistentDiskQuery,
   _
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAppMessage,
-  DeleteAppMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
   LeoPubsubMessage,
