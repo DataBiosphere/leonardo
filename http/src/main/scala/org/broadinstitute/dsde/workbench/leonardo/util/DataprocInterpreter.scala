@@ -95,7 +95,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
 
   override def createRuntime(
     params: CreateRuntimeParams
-  )(implicit ev: Ask[F, AppContext]): F[CreateGoogleRuntimeResponse] = {
+  )(implicit ev: Ask[F, AppContext]): F[Option[CreateGoogleRuntimeResponse]] = {
     for {
       ctx <- ev.ask
       machineConfig <- params.runtimeConfig match {
@@ -267,7 +267,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
             None
           )
         )
-      } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, dataprocImage)
+      } yield asyncRuntimeFields.map(s => CreateGoogleRuntimeResponse(s, initBucketName, dataprocImage))
 
       res <- createOp.handleErrorWith { throwable =>
         cleanUpGoogleResourcesOnError(
@@ -276,7 +276,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           initBucketName,
           params.serviceAccountInfo,
           machineConfig.region
-        ) >> F.raiseError[CreateGoogleRuntimeResponse](throwable)
+        ) >> F.raiseError[Option[CreateGoogleRuntimeResponse]](throwable)
       }
     } yield res
   }

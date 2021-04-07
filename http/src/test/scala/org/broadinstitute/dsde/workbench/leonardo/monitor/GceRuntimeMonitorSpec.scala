@@ -790,10 +790,10 @@ class GceRuntimeMonitorSpec
   }
 }
 
-object GceInterp extends RuntimeAlgebra[IO] {
+class BaseFakeGceInterp extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
-  ): IO[CreateGoogleRuntimeResponse] = ???
+  ): IO[Option[CreateGoogleRuntimeResponse]] = ???
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
@@ -816,3 +816,5 @@ object GceInterp extends RuntimeAlgebra[IO] {
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 }
+
+object GceInterp extends BaseFakeGceInterp

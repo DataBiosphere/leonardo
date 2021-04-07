@@ -138,7 +138,7 @@ class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
 object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
   override def createRuntime(params: CreateRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
-  ): IO[CreateGoogleRuntimeResponse] = ???
+  ): IO[Option[CreateGoogleRuntimeResponse]] = ???
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
     implicit ev: Ask[IO, AppContext]

@@ -136,8 +136,6 @@ class LeoPubsubMessageSubscriberSpec
                                          mockWelderDAO,
                                          blocker)
 
-  implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
-
   val runningCluster = makeCluster(1).copy(
     serviceAccount = serviceAccount,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
@@ -172,6 +170,41 @@ class LeoPubsubMessageSubscriberSpec
       updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
       updatedRuntime.get.asyncRuntimeFields.get.googleId.value shouldBe "target"
       updatedRuntime.get.runtimeImages.map(_.imageType) should contain(VM)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  /**
+   * When createRuntime gets 409, we shouldn't attempt to update AsyncRuntimeFields.
+   * These fields should've been updated in a previous createRuntime request, and
+   * this test is to make sure we're not wiping out that info.
+   */
+  it should "handle CreateRuntimeMessage properly when google returns 409" in isolatedDbTest {
+    val runtimeAlgebra = new BaseFakeGceInterp {
+      override def createRuntime(params: CreateRuntimeParams)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[Option[CreateGoogleRuntimeResponse]] = IO.pure(None)
+    }
+    val leoSubscriber = makeLeoSubscriber(gceRuntimeAlgebra = runtimeAlgebra)
+
+    val asyncFields = makeAsyncRuntimeFields(1)
+    val res = for {
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Creating,
+                serviceAccount = serviceAccount,
+                asyncRuntimeFields = Some(asyncFields))
+          .save()
+      )
+      tr <- traceId.ask[TraceId]
+      gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
+      _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr)))
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe Symbol("defined")
+      updatedRuntime.get.asyncRuntimeFields shouldBe Some(asyncFields)
+      updatedRuntime.get.runtimeImages shouldBe runtime.runtimeImages
     }
 
     res.unsafeRunSync()
@@ -1815,9 +1848,13 @@ class LeoPubsubMessageSubscriberSpec
     asyncTaskQueue: InspectableQueue[IO, Task[IO]] = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
     computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     gkeInterpreter: GKEInterpreter[IO] = makeGKEInterp(nodepoolLock.unsafeRunSync(), appRelease = List.empty),
-    diskInterp: GoogleDiskService[IO] = MockGoogleDiskService
+    diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
+    dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
+    gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp
   ): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
+
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
 

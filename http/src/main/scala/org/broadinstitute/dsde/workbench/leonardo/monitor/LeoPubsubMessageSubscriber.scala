@@ -147,19 +147,22 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       ctx <- ev.ask
       clusterResult <- msg.runtimeConfig.cloudService.interpreter
         .createRuntime(CreateRuntimeParams.fromCreateRuntimeMessage(msg))
-      updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-        Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
-        clusterResult.serviceAccountKey,
-        msg.runtimeId,
-        clusterResult.asyncRuntimeFields,
-        ctx.now
-      )
-      // Save the VM image and async fields in the database
-      clusterImage = RuntimeImage(RuntimeImageType.VM, clusterResult.customImage.asString, ctx.now)
-      _ <- (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
-        msg.runtimeId,
-        clusterImage
-      )).transaction
+
+      _ <- clusterResult.traverse { createRuntimeResponse =>
+        val updateAsyncClusterCreationFields =
+          UpdateAsyncClusterCreationFields(
+            Some(GcsPath(createRuntimeResponse.initBucket, GcsObjectName(""))),
+            msg.runtimeId,
+            Some(createRuntimeResponse.asyncRuntimeFields),
+            ctx.now
+          )
+        // Save the VM image and async fields in the database
+        val clusterImage = RuntimeImage(RuntimeImageType.VM, createRuntimeResponse.customImage.asString, ctx.now)
+        (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
+          msg.runtimeId,
+          clusterImage
+        )).transaction
+      }
       taskToRun = for {
         _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Creating).compile.drain
       } yield ()
