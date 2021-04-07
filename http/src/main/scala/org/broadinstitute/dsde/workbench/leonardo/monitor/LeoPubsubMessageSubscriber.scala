@@ -84,8 +84,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         handleCreateAppMessage(msg)
       case msg: DeleteAppMessage =>
         handleDeleteAppMessage(msg)
-      case msg: BatchNodepoolCreateMessage =>
-        handleBatchNodepoolCreateMessage(msg)
       case msg: StopAppMessage =>
         handleStopAppMessage(msg)
       case msg: StartAppMessage =>
@@ -747,7 +745,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             // initial the createCluster call synchronously
             createClusterResultOpt <- gkeInterp
               .createCluster(
-                CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId), false)
+                CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId))
               )
               .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
               .adaptError {
@@ -770,7 +768,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             // monitor cluster creation asynchronously
             monitorOp = createClusterResultOpt.traverse_(createClusterResult =>
               gkeInterp
-                .pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
+                .pollCluster(PollClusterParams(clusterId, msg.project, createClusterResult))
                 .adaptError {
                   case e =>
                     PubsubKubernetesError(
@@ -873,47 +871,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
       )
-    } yield ()
-
-  private[monitor] def handleBatchNodepoolCreateMessage(msg: BatchNodepoolCreateMessage)(
-    implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-
-      // Unlike handleCreateAppMessage, here we assume that the cluster does not exist so we always create it.
-
-      // Create the cluster synchronously
-      createResultOpt <- gkeInterp
-        .createCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
-              None,
-              false,
-              None,
-              Some(msg.clusterId)
-            )
-        }
-
-      // Poll the cluster asynchronously
-      task = createResultOpt.traverse_(createResult =>
-        gkeInterp
-          .pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult))
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
-                None,
-                false,
-                None,
-                Some(msg.clusterId)
-              )
-          }
-      )
-
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now))
     } yield ()
 
   private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(

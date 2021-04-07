@@ -6,7 +6,6 @@ import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{
   AppCreationSpec,
-  BatchNodepoolCreationSpec,
   CustomAppCreationSpec
 }
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
@@ -190,7 +189,6 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
 
 final class LeonardoSuite
     extends Suites(
-      new BatchNodepoolCreationSpec,
       new AppCreationSpec,
       new CustomAppCreationSpec,
       new RuntimeCreationDiskSpec,

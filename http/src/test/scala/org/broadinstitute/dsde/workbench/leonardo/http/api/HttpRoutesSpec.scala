@@ -506,14 +506,6 @@ class HttpRoutesSpec
     }
   }
 
-  it should "batch nodepool create" in {
-    Post("/api/google/v1/apps/googleProject1/batchNodepoolCreate")
-      .withEntity(ContentTypes.`application/json`, batchNodepoolCreateRequest.asJson.spaces2) ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
   it should "delete app" in {
     Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted

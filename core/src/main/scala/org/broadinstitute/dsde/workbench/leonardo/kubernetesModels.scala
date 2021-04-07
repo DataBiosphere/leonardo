@@ -151,15 +151,11 @@ object NodepoolStatus {
     override def toString: String = "PRECREATING"
   }
 
-  final case object Unclaimed extends NodepoolStatus {
-    override def toString: String = "UNCLAIMED"
-  }
-
   def values: Set[NodepoolStatus] = sealerate.values[NodepoolStatus]
   def stringToObject: Map[String, NodepoolStatus] = values.map(v => v.toString -> v).toMap
 
   val deletableStatuses: Set[NodepoolStatus] =
-    Set(Unspecified, Running, Reconciling, Unclaimed, Error, RunningWithError)
+    Set(Unspecified, Running, Reconciling, Error, RunningWithError)
 
   val nonParellizableStatuses: Set[NodepoolStatus] =
     Set(Deleting, Provisioning)

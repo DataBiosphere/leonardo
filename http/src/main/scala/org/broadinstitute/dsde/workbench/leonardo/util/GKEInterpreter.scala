@@ -232,13 +232,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
         .transaction
       _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
-      _ <- if (params.isNodepoolPrecreate) {
-        (nodepoolQuery.updateStatus(defaultNodepool.id, NodepoolStatus.Running) >>
-          nodepoolQuery.updateStatuses(dbCluster.nodepools.filterNot(_.isDefault).map(_.id), NodepoolStatus.Unclaimed)).transaction
-      } else {
-        nodepoolQuery.updateStatuses(dbCluster.nodepools.map(_.id), NodepoolStatus.Running).transaction
-      }
-
+      _ <- nodepoolQuery.updateStatuses(dbCluster.nodepools.map(_.id), NodepoolStatus.Running).transaction
     } yield ()
 
   override def createAndPollNodepool(params: CreateNodepoolParams)(

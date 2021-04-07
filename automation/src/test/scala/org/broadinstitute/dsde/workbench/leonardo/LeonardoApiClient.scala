@@ -104,12 +104,6 @@ object LeonardoApiClient {
     List.empty
   )
 
-  val defaultBatchNodepoolRequest = BatchNodepoolCreateRequest(
-    NumNodepools(2),
-    None,
-    None
-  )
-
   def createRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
@@ -535,30 +529,6 @@ object LeonardoApiClient {
       )(onError(s"Failed to list apps in project ${googleProject.value}"))
     } yield r
   }
-
-  def batchNodepoolCreate(
-    googleProject: GoogleProject,
-    req: BatchNodepoolCreateRequest = defaultBatchNodepoolRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    for {
-      traceIdHeader <- genTraceIdHeader()
-      r <- client
-        .run(
-          Request[IO](
-            method = Method.POST,
-            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/batchNodepoolCreate"),
-            body = req
-          )
-        )
-        .use { resp =>
-          if (!resp.status.isSuccess) {
-            onError(s"Failed to batch create node pools in project ${googleProject.value}")(resp)
-              .flatMap(IO.raiseError)
-          } else
-            IO.unit
-        }
-    } yield r
 
   def stopApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                               authHeader: Authorization): IO[Unit] =

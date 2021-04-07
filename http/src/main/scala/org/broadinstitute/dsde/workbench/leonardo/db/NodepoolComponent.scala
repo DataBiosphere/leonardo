@@ -20,8 +20,6 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
-import cats.syntax.all._
-import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
@@ -119,21 +117,6 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     n.autoscalingConfig.map(_.autoscalingMax),
     n.isDefault
   )
-
-  def claimNodepool(clusterId: KubernetesClusterLeoId, userEmail: WorkbenchEmail, config: KubernetesRuntimeConfig)(
-    implicit ec: ExecutionContext
-  ): DBIO[Option[Nodepool]] =
-    for {
-      unclaimedNodepoolOpt <- findActiveByClusterIdQuery(clusterId)
-        .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
-        .filter(_.machineType === config.machineType)
-        .filter(_.numNodes === config.numNodes)
-        .filter(_.autoscalingEnabled === config.autoscalingEnabled)
-        .result
-        .headOption
-      _ <- unclaimedNodepoolOpt.traverse(rec => updateStatusAndCreator(rec.id, NodepoolStatus.Running, userEmail))
-      claimedNodepoolOpt <- unclaimedNodepoolOpt.flatTraverse(n => getMinimalById(n.id))
-    } yield claimedNodepoolOpt
 
   def updateStatus(id: NodepoolLeoId, status: NodepoolStatus): DBIO[Int] =
     findByNodepoolIdQuery(id)
