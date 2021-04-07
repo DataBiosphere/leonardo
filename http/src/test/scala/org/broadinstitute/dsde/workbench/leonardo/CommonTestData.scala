@@ -1,7 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
+import cats.effect.concurrent.Ref
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.compute.v1._
@@ -161,6 +163,7 @@ object CommonTestData {
   val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
+  val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(

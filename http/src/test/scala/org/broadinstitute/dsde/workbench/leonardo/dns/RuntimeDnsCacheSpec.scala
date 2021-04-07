@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.{LocalProxyResolver, Runtime, RuntimeConfigId, RuntimeStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfigId, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
@@ -52,7 +52,7 @@ class RuntimeDnsCacheSpec
   )
 
   val runtimeDnsCache =
-    new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, LocalProxyResolver, blocker)
+    new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, hostToIpMapping, blocker)
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db

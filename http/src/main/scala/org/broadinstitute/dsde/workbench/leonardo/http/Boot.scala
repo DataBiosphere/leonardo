@@ -3,9 +3,10 @@ package http
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.Uri.Host
 import cats.Parallel
 import cats.effect._
-import cats.effect.concurrent.Semaphore
+import cats.effect.concurrent.{Ref, Semaphore}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.compute.ComputeScopes
@@ -52,7 +53,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
@@ -344,9 +345,14 @@ object Boot extends IOApp {
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
 
       // Set up DNS caches
-      proxyResolver <- Resource.eval(ProxyResolverInterp(proxyConfig))
-      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, proxyResolver, blocker)
-      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, proxyResolver, blocker)
+      hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
+      proxyResolver = new ProxyResolverInterp(proxyConfig, hostToIpMapping)
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, hostToIpMapping, blocker)
+      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig,
+                                                  dbRef,
+                                                  kubernetesDnsCacheConfig,
+                                                  hostToIpMapping,
+                                                  blocker)
 
       // Set up SSL context and http clients
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))

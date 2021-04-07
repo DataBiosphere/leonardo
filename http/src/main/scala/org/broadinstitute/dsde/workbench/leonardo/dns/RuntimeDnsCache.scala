@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import akka.http.scaladsl.model.Uri.Host
+import cats.effect.concurrent.Ref
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.syntax.all._
@@ -13,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.leonardo.{GoogleId, Runtime, RuntimeName}
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
@@ -32,7 +34,7 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
-  proxyResolver: ProxyResolver[F],
+  hostToIpMapping: Ref[F, Map[Host, IP]],
   blocker: Blocker
 )(implicit F: Effect[F], ec: ExecutionContext) {
 
@@ -84,7 +86,7 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
 
     hostAndIpOpt match {
       case Some((h, ip)) =>
-        proxyResolver.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
+        hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
       case None =>
         if (r.status.isStartable)
           F.pure[HostStatus](HostPaused)

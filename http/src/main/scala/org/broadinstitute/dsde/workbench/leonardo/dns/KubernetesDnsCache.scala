@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
+import akka.http.scaladsl.model.Uri.Host
+import cats.effect.concurrent.Ref
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.syntax.all._
@@ -13,6 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, 
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.{kubernetesProxyHost, GetAppResult}
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
@@ -31,7 +34,7 @@ final class KubernetesDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryM
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
-  proxyResolver: ProxyResolver[F],
+  hostToIpMapping: Ref[F, Map[Host, IP]],
   blocker: Blocker
 )(implicit F: Effect[F], ec: ExecutionContext) {
 
@@ -72,6 +75,6 @@ final class KubernetesDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryM
       case None => F.pure[HostStatus](HostNotReady)
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
-        proxyResolver.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
+        hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
     }
 }

@@ -14,8 +14,6 @@ import java.net.InetSocketAddress
 import scala.concurrent.Future
 
 trait ProxyResolver[F[_]] {
-  protected[dns] def hostToIpMapping: Ref[F, Map[Host, IP]]
-
   // http4s API
   def resolveHttp4s(requestKey: RequestKey): Either[Throwable, InetSocketAddress]
 
@@ -23,7 +21,7 @@ trait ProxyResolver[F[_]] {
   def resolveAkka(host: String, port: Int): Future[InetSocketAddress]
 }
 
-class ProxyResolverInterp[F[_]] private (proxyConfig: ProxyConfig, val hostToIpMapping: Ref[F, Map[Host, IP]])(
+class ProxyResolverInterp[F[_]](proxyConfig: ProxyConfig, hostToIpMapping: Ref[F, Map[Host, IP]])(
   implicit F: Effect[F]
 ) extends ProxyResolver[F] {
 
@@ -47,11 +45,6 @@ class ProxyResolverInterp[F[_]] private (proxyConfig: ProxyConfig, val hostToIpM
     } yield res
     res.toIO.unsafeToFuture()
   }
-}
-
-object ProxyResolverInterp {
-  def apply[F[_]: Effect](config: ProxyConfig): F[ProxyResolver[F]] =
-    Ref.of(Map.empty[Host, IP]).map(ref => new ProxyResolverInterp(config, ref))
 }
 
 case class IpNotFoundException(hostname: String)
