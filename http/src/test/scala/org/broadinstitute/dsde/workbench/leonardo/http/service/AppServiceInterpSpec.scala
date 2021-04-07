@@ -2,11 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.time.Instant
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGooglePublisher
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{
@@ -36,6 +35,7 @@ import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
 final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
@@ -449,21 +449,25 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
     }
 
-    // Set the app status to Error and the nodepool status to Deleted to simulate an error during
-    // app creation.
+    // Set the app status to Error, nodepool status to Running, and the disk status to Deleted to
+    // simulate an error during app creation.
+    // Note: if an app with a newly-created disk errors out, Leo will delete the disk along with the app.
     dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Error))
-    dbFutureValue(nodepoolQuery.markAsDeleted(appResultPreStatusUpdate.get.nodepool.id, Instant.now))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(persistentDiskQuery.delete(appResultPreStatusUpdate.get.app.appResources.disk.get.id, Instant.now))
 
     val appResultPreDelete = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
     }
     appResultPreDelete.get.app.status shouldEqual AppStatus.Error
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
-    appResultPreDelete.get.nodepool.status shouldBe NodepoolStatus.Deleted
-    appResultPreDelete.get.nodepool.auditInfo.destroyedDate shouldBe 'defined
+    appResultPreDelete.get.nodepool.status shouldBe NodepoolStatus.Running
+    appResultPreDelete.get.nodepool.auditInfo.destroyedDate shouldBe None
+    appResultPreDelete.get.app.appResources.disk.get.status shouldBe DiskStatus.Deleted
+    appResultPreDelete.get.app.appResources.disk.get.auditInfo.destroyedDate shouldBe defined
 
     // Call deleteApp
-    val params = DeleteAppRequest(userInfo, project, appName, false)
+    val params = DeleteAppRequest(userInfo, project, appName, true)
     kubeServiceInterp.deleteApp(params).unsafeRunSync()
 
     // Verify database state
@@ -472,11 +476,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     clusterPostDelete.length shouldEqual 1
     val nodepool = clusterPostDelete.head.nodepools.head
-    nodepool.status shouldEqual NodepoolStatus.Deleted
-    nodepool.auditInfo.destroyedDate shouldBe 'defined
+    nodepool.status shouldEqual NodepoolStatus.Running
+    nodepool.auditInfo.destroyedDate shouldBe None
     val app = nodepool.apps.head
     app.status shouldEqual AppStatus.Deleted
-    app.auditInfo.destroyedDate shouldBe 'defined
+    app.auditInfo.destroyedDate shouldBe defined
+    val disk = app.appResources.disk
+    disk shouldBe None
 
     // throw away create message
     publisherQueue.dequeue1.unsafeRunSync() shouldBe a[CreateAppMessage]
