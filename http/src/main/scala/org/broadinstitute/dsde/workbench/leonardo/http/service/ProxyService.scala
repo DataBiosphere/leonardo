@@ -3,19 +3,19 @@ package http
 package service
 
 import akka.actor.ActorSystem
-import akka.http.scaladsl.model.Uri.{Authority, Host}
+import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.{`Content-Disposition`, Host => HostHeader}
+import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
+import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import akka.http.scaladsl.{ConnectionContext, Http}
+import akka.http.scaladsl.{ClientTransport, ConnectionContext, Http}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
-import com.typesafe.sslconfig.akka.AkkaSSLConfig
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
@@ -25,14 +25,14 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyHostnameVerifier, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.typelevel.log4cats.StructuredLogger
@@ -90,6 +90,7 @@ class ProxyService(
   authProvider: LeoAuthProvider[IO],
   dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
   googleOauth2Service: GoogleOAuth2Service[IO],
+  proxyResolver: ProxyResolver[IO],
   blocker: Blocker
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
@@ -100,13 +101,9 @@ class ProxyService(
   loggerIO: StructuredLogger[IO])
     extends LazyLogging {
 
-  // Note: we are intentionally using the deprecated AkkaSSLConfig class in order to use
-  // HostnameVerifier which isn't supported in SSLEngine.
-  // See akka issue <tbd>
-  val httpsConnectionContext = ConnectionContext.https(
-    sslContext,
-    Some(AkkaSSLConfig().mapSettings(_.withHostnameVerifierClass(classOf[ProxyHostnameVerifier])))
-  )
+  val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
+  val clientConnectionSettings =
+    ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))
 
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
   logger.info(s"Leo proxy request timeout is $requestTimeout")
@@ -250,7 +247,7 @@ class ProxyService(
       } else IO.unit
       hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
       _ <- hostStatus match {
-        case HostReady(_, _) =>
+        case HostReady(_) =>
           dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
         case _ => IO.unit
       }
@@ -311,16 +308,16 @@ class ProxyService(
         s"Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
       )
       res <- hostContext.status match {
-        case HostReady(targetHost, ip) =>
+        case HostReady(targetHost) =>
           // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
           // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
           // The presence of this header distinguishes WebSocket from http requests.
           val res = for {
             response <- request.attribute(AttributeKeys.webSocketUpgrade) match {
               case Some(upgrade) =>
-                IO.fromFuture(IO(handleWebSocketRequest(targetHost, ip, request, upgrade)))
+                IO.fromFuture(IO(handleWebSocketRequest(targetHost, request, upgrade)))
               case None =>
-                IO.fromFuture(IO(handleHttpRequest(targetHost, ip, request)))
+                IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
             }
             r <- if (response.status.isFailure())
               loggerIO
@@ -353,10 +350,9 @@ class ProxyService(
       }
     } yield res
 
-  private def handleHttpRequest(targetHost: Host, ip: IP, request: HttpRequest): Future[HttpResponse] = {
-    logger.debug(
-      s"Opening https connection to ${ip.asString}:${proxyConfig.proxyPort} with host ${targetHost.address}"
-    )
+  private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
+    logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
+
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
     // in as a Source[HttpRequest] and responses are returned as a Sink[HttpResponse]. The transformation
@@ -366,9 +362,10 @@ class ProxyService(
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
     val flow = Http()
-      .connectionTo(ip.asString)
+      .connectionTo(targetHost.address)
       .toPort(proxyConfig.proxyPort)
       .withCustomHttpsConnectionContext(httpsConnectionContext)
+      .withClientConnectionSettings(clientConnectionSettings)
       .https()
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
@@ -378,7 +375,7 @@ class ProxyService(
     val rewrittenPath = rewriteJupyterPath(request.uri.path)
 
     // 1. filter out headers not needed for the backend server
-    val newHeaders = modifyHeaders(request.headers, targetHost)
+    val newHeaders = filterHeaders(request.headers, targetHost)
     // 2. strip out Uri.Authority:
     val newUri = Uri(path = rewrittenPath, queryString = request.uri.rawQueryString)
     // 3. build a new HttpRequest
@@ -427,7 +424,6 @@ class ProxyService(
     }
 
   private def handleWebSocketRequest(targetHost: Host,
-                                     ip: IP,
                                      request: HttpRequest,
                                      upgrade: WebSocketUpgrade): Future[HttpResponse] = {
     logger.info(s"Opening websocket connection to ${targetHost.address}")
@@ -448,13 +444,14 @@ class ProxyService(
     val (responseFuture, (publisher, subscriber)) = Http().singleWebSocketRequest(
       WebSocketRequest(
         request.uri.copy(path = rewriteJupyterPath(request.uri.path),
-                         authority = request.uri.authority.copy(host = Host(ip.asString), port = proxyConfig.proxyPort),
+                         authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
                          scheme = "wss"),
-        extraHeaders = modifyHeaders(request.headers, targetHost),
+        extraHeaders = filterHeaders(request.headers, targetHost),
         upgrade.requestedProtocols.headOption
       ),
       flow,
-      httpsConnectionContext
+      httpsConnectionContext,
+      settings = clientConnectionSettings
     )
 
     // If we got a valid WebSocketUpgradeResponse, call handleMessages with our publisher/subscriber, which are
@@ -466,7 +463,7 @@ class ProxyService(
           Flow.fromSinkAndSource(Sink.fromSubscriber(subscriber), Source.fromPublisher(publisher)),
           chosenSubprotocol
         )
-        webSocketResponse.withHeaders(webSocketResponse.headers ++ modifyHeaders(response.headers, targetHost))
+        webSocketResponse.withHeaders(webSocketResponse.headers ++ filterHeaders(response.headers, targetHost))
 
       case InvalidUpgradeResponse(response, cause) =>
         logger.warn("WebSocket upgrade response was invalid: {}", cause)
@@ -474,14 +471,8 @@ class ProxyService(
     }
   }
 
-  private def modifyHeaders(headers: immutable.Seq[HttpHeader], host: Host): immutable.Seq[HttpHeader] =
-    headers
-      .filterNot(header => HeadersToFilter(header.lowercaseName()))
-      .prepended(
-        HostHeader(
-          Authority(host, proxyConfig.proxyPort)
-        )
-      )
+  private def filterHeaders(headers: immutable.Seq[HttpHeader], host: Host): immutable.Seq[HttpHeader] =
+    headers.filterNot(header => HeadersToFilter(header.lowercaseName()))
 
   private val HeadersToFilter = Set(
     "Host",

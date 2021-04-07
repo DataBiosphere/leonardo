@@ -32,6 +32,7 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
+  proxyResolver: ProxyResolver[F],
   blocker: Blocker
 )(implicit F: Effect[F], ec: ExecutionContext) {
 
@@ -83,7 +84,7 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
 
     hostAndIpOpt match {
       case Some((h, ip)) =>
-        IPToHostMapping.ipToHostMapping.getAndUpdate(_ + (ip -> h)).as[HostStatus](HostReady(h, ip)).to[F]
+        proxyResolver.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
       case None =>
         if (r.status.isStartable)
           F.pure[HostStatus](HostPaused)

@@ -9,8 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.client.Client
-import org.http4s.headers.Host
-import org.http4s.{Headers, Method, Request, Uri}
+import org.http4s.{Method, Request, Uri}
 
 class HttpRStudioDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache: RuntimeDnsCache[F],
                                                             client: Client[F],
@@ -19,14 +18,13 @@ class HttpRStudioDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache:
     with LazyLogging {
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
-      case HostReady(targetHost, ip) =>
+      case HostReady(targetHost) =>
         client
           .successful(
             Request[F](
               method = Method.GET,
-              headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
               uri = Uri.unsafeFromString(
-                s"https://${ip.asString}/proxy/${googleProject.value}/${runtimeName.asString}/rstudio/"
+                s"https://${targetHost.address()}:${proxyConfig.proxyPort}/proxy/${googleProject.value}/${runtimeName.asString}/rstudio/"
               )
             )
           )

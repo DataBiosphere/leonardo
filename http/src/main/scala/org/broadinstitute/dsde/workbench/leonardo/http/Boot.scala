@@ -39,7 +39,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoAppServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
@@ -133,6 +133,7 @@ object Boot extends IOApp {
         appDependencies.authProvider,
         appDependencies.dateAccessedUpdaterQueue,
         googleDependencies.googleOauth2DAO,
+        appDependencies.proxyResolver,
         appDependencies.blocker
       )
       val statusService = new StatusService(appDependencies.samDAO, appDependencies.dbReference, applicationConfig)
@@ -338,32 +339,27 @@ object Boot extends IOApp {
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
 
       // Set up DNS caches
-      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, blocker)
-      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, blocker)
+      proxyResolver <- Resource.eval(ProxyResolver(proxyConfig))
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, proxyResolver, blocker)
+      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, proxyResolver, blocker)
 
       // Set up SSL context and http clients
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
-      httpClient <- blaze.BlazeClientBuilder[F](blockingEc, Some(sslContext)).resource.map(Retry(retryPolicy))
-      httpClientNoEndpointAuth <- blaze
+      httpClient <- blaze
         .BlazeClientBuilder[F](blockingEc, Some(sslContext))
-        .withCheckEndpointAuthentication(false)
+        .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
         .map(Retry(retryPolicy))
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false)(httpClient)
-      httpClientNoEndpointAuthWithLogging = Http4sLogger[F](logHeaders = true, logBody = false)(
-        httpClientNoEndpointAuth
-      )
 
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
       samDao = HttpSamDAO[F](httpClient, httpSamDaoConfig, blocker)
-
-      // Note the DAOs accessed through the Leo proxy use httpClientNoEndpointAuthWithLogging
-      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientNoEndpointAuthWithLogging, proxyConfig)
-      welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientNoEndpointAuthWithLogging, proxyConfig)
-      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientNoEndpointAuthWithLogging, proxyConfig)
-      appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientNoEndpointAuthWithLogging, proxyConfig)
+      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging, proxyConfig)
+      welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientWithLogging, proxyConfig)
+      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientWithLogging, proxyConfig)
+      appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientWithLogging, proxyConfig)
       dockerDao = HttpDockerDAO[F](httpClientWithLogging)
       appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithLogging)
 
@@ -484,7 +480,8 @@ object Boot extends IOApp {
       helmClient,
       appDAO,
       nodepoolLock,
-      appDescriptorDAO
+      appDescriptorDAO,
+      proxyResolver
     )
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
@@ -532,5 +529,6 @@ final case class AppDependencies[F[_]](
   helmClient: HelmAlgebra[F],
   appDAO: AppDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
-  appDescriptorDAO: AppDescriptorDAO[F]
+  appDescriptorDAO: AppDescriptorDAO[F],
+  proxyResolver: ProxyResolver[F]
 )

@@ -103,8 +103,10 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue()
   )
 
-  val runtimeDnsCache = new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, blocker)
-  val kubernetesDnsCache = new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, blocker)
+  val runtimeDnsCache =
+    new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, proxyResolver, blocker)
+  val kubernetesDnsCache =
+    new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, proxyResolver, blocker)
 
   val proxyService =
     new MockProxyService(proxyConfig,
@@ -112,7 +114,8 @@ trait TestLeoRoutes {
                          whitelistAuthProvider,
                          runtimeDnsCache,
                          kubernetesDnsCache,
-                         MockGoogleOAuth2Service)
+                         MockGoogleOAuth2Service,
+                         proxyResolver)
   val statusService =
     new StatusService(mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)

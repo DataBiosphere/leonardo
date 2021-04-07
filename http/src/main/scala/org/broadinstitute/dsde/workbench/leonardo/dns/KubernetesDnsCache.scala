@@ -31,6 +31,7 @@ final class KubernetesDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryM
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
+  proxyResolver: ProxyResolver[F],
   blocker: Blocker
 )(implicit F: Effect[F], ec: ExecutionContext) {
 
@@ -71,6 +72,6 @@ final class KubernetesDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryM
       case None => F.pure[HostStatus](HostNotReady)
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
-        IPToHostMapping.ipToHostMapping.getAndUpdate(_ + (ip -> h)).as[HostStatus](HostReady(h, ip)).to[F]
+        proxyResolver.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
     }
 }

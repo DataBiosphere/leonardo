@@ -10,7 +10,6 @@ import com.typesafe.sslconfig.ssl.{
   DefaultTrustManagerFactoryWrapper,
   SSLConfigFactory
 }
-import org.broadinstitute.dsde.workbench.leonardo.dns.ProxyHostnameVerifier
 
 import javax.net.ssl.SSLContext
 
@@ -19,10 +18,7 @@ object SslContextReader {
     val akkaOverrides = as.settings.config.getConfig("akka.ssl-config")
 
     val defaults = as.settings.config.getConfig("ssl-config")
-    val sslConfigSettings = SSLConfigFactory
-      .parse(akkaOverrides.withFallback(defaults))
-      // Note: this doesn't seem to have any effect. See akka-http issue: <tbd>
-      .withHostnameVerifierClass(classOf[ProxyHostnameVerifier])
+    val sslConfigSettings = SSLConfigFactory.parse(akkaOverrides.withFallback(defaults))
     val keyManagerAlgorithm = new DefaultKeyManagerFactoryWrapper(sslConfigSettings.keyManagerConfig.algorithm)
     val trustManagerAlgorithm = new DefaultTrustManagerFactoryWrapper(sslConfigSettings.trustManagerConfig.algorithm)
 

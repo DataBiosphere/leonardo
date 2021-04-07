@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
-import org.typelevel.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -13,8 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
-import org.http4s.headers.Host
-import org.http4s.{Headers, Method, Request, Uri}
+import org.http4s.{Method, Request, Uri}
+import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
 class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F],
@@ -25,14 +24,13 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
 ) extends JupyterDAO[F] {
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
-      case HostReady(targetHost, ip) =>
+      case HostReady(targetHost) =>
         client
           .successful(
             Request[F](
               method = Method.GET,
-              headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
               uri = Uri.unsafeFromString(
-                s"https://${ip.asString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/status"
+                s"https://${targetHost.address()}:${proxyConfig.proxyPort}/notebooks/${googleProject.value}/${runtimeName.asString}/api/status"
               )
             )
           )
@@ -44,14 +42,13 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName)
       resp <- hostStatus match {
-        case HostReady(targetHost, ip) =>
+        case HostReady(targetHost) =>
           for {
             res <- client.expect[List[Session]](
               Request[F](
                 method = Method.GET,
-                headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
                 uri = Uri.unsafeFromString(
-                  s"https://${ip.asString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/sessions"
+                  s"https://${targetHost.address()}:${proxyConfig.proxyPort}/notebooks/${googleProject.value}/${runtimeName.asString}/api/sessions"
                 )
               )
             )
@@ -62,14 +59,13 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
 
   override def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
-      case HostReady(targetHost, ip) =>
+      case HostReady(targetHost) =>
         client
           .successful(
             Request[F](
               method = Method.POST,
-              headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
               uri = Uri.unsafeFromString(
-                s"https://${ip.asString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals"
+                s"https://${targetHost.address()}${proxyConfig.proxyPort}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals"
               )
             )
           )
@@ -81,14 +77,13 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
                               runtimeName: RuntimeName,
                               terminalName: TerminalName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
-      case HostReady(targetHost, ip) =>
+      case HostReady(targetHost) =>
         client
           .successful(
             Request[F](
               method = Method.GET,
-              headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
               uri = Uri.unsafeFromString(
-                s"https://${ip.asString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals/${terminalName.asString}" // this returns 404 if the terminal doesn't exist
+                s"https://${targetHost.address()}:${proxyConfig.proxyPort}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals/${terminalName.asString}" // this returns 404 if the terminal doesn't exist
               )
             )
           )

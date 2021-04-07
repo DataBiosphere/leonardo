@@ -51,7 +51,8 @@ class RuntimeDnsCacheSpec
     s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
   )
 
-  val runtimeDnsCache = new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, blocker)
+  val runtimeDnsCache =
+    new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, proxyResolver, blocker)
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db
@@ -66,8 +67,7 @@ class RuntimeDnsCacheSpec
       runtimeDnsCache.getHostStatus(cacheKeyForClusterBeingCreated).unsafeRunSync() shouldEqual HostNotReady
     }
     eventually {
-      runtimeDnsCache.getHostStatus(cacheKeyForRunningCluster).unsafeRunSync() shouldEqual HostReady(runningClusterHost,
-                                                                                                     runningClusterIp)
+      runtimeDnsCache.getHostStatus(cacheKeyForRunningCluster).unsafeRunSync() shouldEqual HostReady(runningClusterHost)
     }
     eventually(runtimeDnsCache.getHostStatus(cacheKeyForStoppedCluster).unsafeRunSync() shouldEqual HostPaused)
 

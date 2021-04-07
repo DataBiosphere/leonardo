@@ -9,8 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.Client
-import org.http4s.headers._
-import org.http4s.{Headers, Method, Request, Uri}
+import org.http4s.{Method, Request, Uri}
 import org.typelevel.log4cats.Logger
 
 class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
@@ -25,13 +24,12 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, googleProject, runtimeName)
       res <- host match {
-        case HostReady(targetHost, ip) =>
+        case HostReady(targetHost) =>
           client.successful(
             Request[F](
               method = Method.POST,
-              headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
               uri = Uri.unsafeFromString(
-                s"https://${ip.asString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
+                s"https://${targetHost.address()}:${proxyConfig.proxyPort}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
               )
             )
           )
@@ -52,14 +50,13 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, googleProject, runtimeName)
       res <- host match {
-        case HostReady(targetHost, ip) =>
+        case HostReady(targetHost) =>
           client
             .successful(
               Request[F](
                 method = Method.GET,
-                headers = Headers.of(Host(targetHost.address(), proxyConfig.proxyPort)),
                 uri = Uri.unsafeFromString(
-                  s"https://${ip.asString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
+                  s"https://${targetHost.address()}:${proxyConfig.proxyPort}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
                 )
               )
             )

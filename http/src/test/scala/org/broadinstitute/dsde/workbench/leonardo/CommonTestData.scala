@@ -1,9 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
-import java.time.temporal.ChronoUnit
-import java.util.{Date, UUID}
-import org.broadinstitute.dsde.workbench.leonardo
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
 import cats.mtl.Ask
@@ -23,11 +19,15 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, VM, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
+import org.broadinstitute.dsde.workbench.leonardo.dns.ProxyResolver
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
   CreateRuntime2Request,
@@ -40,10 +40,11 @@ import org.broadinstitute.dsde.workbench.model.google.{
   ServiceAccountPrivateKeyData,
   _
 }
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.model._
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import java.util.{Date, UUID}
 import scala.concurrent.duration._
 
 object CommonTestData {
@@ -161,6 +162,7 @@ object CommonTestData {
   val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
+  val proxyResolver = ProxyResolver[IO](proxyConfig).unsafeRunSync()
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(

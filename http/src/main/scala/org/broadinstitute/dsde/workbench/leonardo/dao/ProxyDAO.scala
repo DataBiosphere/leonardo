@@ -5,7 +5,6 @@ import akka.http.scaladsl.model.Uri.Host
 import cats.effect.implicits._
 import cats.effect.{Concurrent, ContextShift, Timer}
 import org.broadinstitute.dsde.workbench.leonardo.dns._
-import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.duration._
@@ -15,7 +14,7 @@ object HostStatus {
   final case object HostNotFound extends HostStatus
   final case object HostNotReady extends HostStatus
   final case object HostPaused extends HostStatus
-  final case class HostReady(hostname: Host, ip: IP) extends HostStatus
+  final case class HostReady(hostname: Host) extends HostStatus
 }
 
 object Proxy {
