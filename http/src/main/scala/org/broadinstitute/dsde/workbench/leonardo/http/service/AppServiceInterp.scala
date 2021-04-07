@@ -674,13 +674,6 @@ case class AppCannotBeDeletedException(googleProject: GoogleProject,
       traceId = Some(traceId)
     )
 
-case class NoDiskForAppException(googleProject: GoogleProject, appName: AppName, traceId: TraceId)
-    extends LeoException(
-      s"Specified delete disk for app ${googleProject.value}/${appName.value}, but this app does not have a disk.",
-      StatusCodes.BadRequest,
-      traceId = Some(traceId)
-    )
-
 case class AppCannotBeCreatedException(googleProject: GoogleProject,
                                        appName: AppName,
                                        status: AppStatus,
