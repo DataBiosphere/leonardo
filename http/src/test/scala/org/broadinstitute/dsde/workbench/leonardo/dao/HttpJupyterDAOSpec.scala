@@ -49,7 +49,7 @@ class HttpJupyterDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuit
 
   it should "return true for isAllKernelsIdle if host is down" in {
     val clusterDnsCache =
-      new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, proxyResolver, blocker)
+      new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, LocalProxyResolver, blocker)
 
     val jupyterDAO = new HttpJupyterDAO(clusterDnsCache, FakeHttpClient.client)
     val res = jupyterDAO.isAllKernelsIdle(GoogleProject("project1"), RuntimeName("rt"))

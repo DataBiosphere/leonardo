@@ -104,9 +104,9 @@ trait TestLeoRoutes {
   )
 
   val runtimeDnsCache =
-    new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, proxyResolver, blocker)
+    new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, LocalProxyResolver, blocker)
   val kubernetesDnsCache =
-    new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, proxyResolver, blocker)
+    new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, LocalProxyResolver, blocker)
 
   val proxyService =
     new MockProxyService(proxyConfig,
@@ -114,8 +114,7 @@ trait TestLeoRoutes {
                          whitelistAuthProvider,
                          runtimeDnsCache,
                          kubernetesDnsCache,
-                         MockGoogleOAuth2Service,
-                         proxyResolver)
+                         MockGoogleOAuth2Service)
   val statusService =
     new StatusService(mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)

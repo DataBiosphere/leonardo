@@ -13,12 +13,21 @@ import org.http4s.client.RequestKey
 import java.net.InetSocketAddress
 import scala.concurrent.Future
 
-class ProxyResolver[F[_]] private (proxyConfig: ProxyConfig, private[dns] val hostToIpMapping: Ref[F, Map[Host, IP]])(
-  implicit F: Effect[F]
-) {
+trait ProxyResolver[F[_]] {
+  protected[dns] def hostToIpMapping: Ref[F, Map[Host, IP]]
 
   // http4s API
-  def resolveHttp4s(requestKey: RequestKey): Either[Throwable, InetSocketAddress] = {
+  def resolveHttp4s(requestKey: RequestKey): Either[Throwable, InetSocketAddress]
+
+  // akka-http API
+  def resolveAkka(host: String, port: Int): Future[InetSocketAddress]
+}
+
+class ProxyResolverInterp[F[_]] private (proxyConfig: ProxyConfig, val hostToIpMapping: Ref[F, Map[Host, IP]])(
+  implicit F: Effect[F]
+) extends ProxyResolver[F] {
+
+  override def resolveHttp4s(requestKey: RequestKey): Either[Throwable, InetSocketAddress] = {
     val res = hostToIpMapping.get.map { mapping =>
       mapping
         .get(Host(requestKey.authority.host.value))
@@ -30,8 +39,7 @@ class ProxyResolver[F[_]] private (proxyConfig: ProxyConfig, private[dns] val ho
     res.toIO.unsafeRunSync()
   }
 
-  // akka-http API
-  def resolveAkka(host: String, port: Int): Future[InetSocketAddress] = {
+  override def resolveAkka(host: String, port: Int): Future[InetSocketAddress] = {
     val res = for {
       mapping <- hostToIpMapping.get
       ipOpt = mapping.get(Host(host)).map(ip => InetSocketAddress.createUnresolved(ip.asString, port))
@@ -41,9 +49,9 @@ class ProxyResolver[F[_]] private (proxyConfig: ProxyConfig, private[dns] val ho
   }
 }
 
-object ProxyResolver {
+object ProxyResolverInterp {
   def apply[F[_]: Effect](config: ProxyConfig): F[ProxyResolver[F]] =
-    Ref.of(Map.empty[Host, IP]).map(ref => new ProxyResolver(config, ref))
+    Ref.of(Map.empty[Host, IP]).map(ref => new ProxyResolverInterp(config, ref))
 }
 
 case class IpNotFoundException(hostname: String)

@@ -168,7 +168,6 @@ class ProxyRoutesSpec
                            runtimeDnsCache,
                            kubernetesDnsCache,
                            MockGoogleOAuth2Service,
-                           proxyResolver,
                            Some(queue))
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
                                       Some(runtimeSamResource.resourceId))
@@ -498,8 +497,7 @@ class ProxyRoutesSpec
                            whitelistAuthProvider,
                            runtimeDnsCache,
                            kubernetesDnsCache,
-                           MockGoogleOAuth2Service,
-                           proxyResolver)
+                           MockGoogleOAuth2Service)
     proxyService.samResourceCache
       .put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)), Some(runtimeSamResource.resourceId))
     proxyService.samResourceCache

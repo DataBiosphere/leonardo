@@ -27,12 +27,12 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAcc
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
-import org.broadinstitute.dsde.workbench.leonardo.dns.ProxyResolver
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
   CreateRuntime2Request,
   RuntimeConfigRequest
 }
+import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey,
@@ -40,7 +40,6 @@ import org.broadinstitute.dsde.workbench.model.google.{
   ServiceAccountPrivateKeyData,
   _
 }
-import org.broadinstitute.dsde.workbench.model._
 
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -162,7 +161,6 @@ object CommonTestData {
   val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
-  val proxyResolver = ProxyResolver[IO](proxyConfig).unsafeRunSync()
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(

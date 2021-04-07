@@ -39,7 +39,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{
+  KubernetesDnsCache,
+  ProxyResolver,
+  ProxyResolverInterp,
+  RuntimeDnsCache
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoAppServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
@@ -339,7 +344,7 @@ object Boot extends IOApp {
       implicit0(dbRef: DbReference[F]) <- DbReference.init(liquibaseConfig, concurrentDbAccessPermits, blocker)
 
       // Set up DNS caches
-      proxyResolver <- Resource.eval(ProxyResolver(proxyConfig))
+      proxyResolver <- Resource.eval(ProxyResolverInterp(proxyConfig))
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, proxyResolver, blocker)
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, proxyResolver, blocker)
 

@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, MockJupyterDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -27,7 +27,6 @@ class MockProxyService(
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   googleOauth2Service: GoogleOAuth2Service[IO],
-  proxyResolver: ProxyResolver[IO],
   queue: Option[InspectableQueue[IO, UpdateDateAccessMessage]] = None
 )(implicit system: ActorSystem,
   executionContext: ExecutionContext,
@@ -44,7 +43,7 @@ class MockProxyService(
                          authProvider,
                          queue.getOrElse(InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
                          googleOauth2Service,
-                         proxyResolver,
+                         LocalProxyResolver,
                          Blocker.liftExecutionContext(ExecutionContext.global)) {
 
   override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
