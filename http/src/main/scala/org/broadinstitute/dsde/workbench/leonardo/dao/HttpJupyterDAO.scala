@@ -30,7 +30,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.address()}:${proxyConfig.proxyPort}/notebooks/${googleProject.value}/${runtimeName.asString}/api/status"
+                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/status"
               )
             )
           )
@@ -48,7 +48,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
               Request[F](
                 method = Method.GET,
                 uri = Uri.unsafeFromString(
-                  s"https://${targetHost.address()}:${proxyConfig.proxyPort}/notebooks/${googleProject.value}/${runtimeName.asString}/api/sessions"
+                  s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/sessions"
                 )
               )
             )
@@ -65,7 +65,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
             Request[F](
               method = Method.POST,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.address()}${proxyConfig.proxyPort}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals"
+                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals"
               )
             )
           )
@@ -83,7 +83,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.address()}:${proxyConfig.proxyPort}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals/${terminalName.asString}" // this returns 404 if the terminal doesn't exist
+                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals/${terminalName.asString}" // this returns 404 if the terminal doesn't exist
               )
             )
           )

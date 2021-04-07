@@ -29,7 +29,7 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
             Request[F](
               method = Method.POST,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.address()}:${proxyConfig.proxyPort}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
+                s"https://${targetHost.address}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
               )
             )
           )
@@ -56,7 +56,7 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
               Request[F](
                 method = Method.GET,
                 uri = Uri.unsafeFromString(
-                  s"https://${targetHost.address()}:${proxyConfig.proxyPort}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
+                  s"https://${targetHost.address}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
                 )
               )
             )

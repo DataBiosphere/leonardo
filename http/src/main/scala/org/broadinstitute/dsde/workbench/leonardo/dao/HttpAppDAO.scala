@@ -24,8 +24,7 @@ class HttpAppDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCache: 
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost
-                  .address()}:${proxyConfig.proxyPort}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
+                s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
               )
             )
           )

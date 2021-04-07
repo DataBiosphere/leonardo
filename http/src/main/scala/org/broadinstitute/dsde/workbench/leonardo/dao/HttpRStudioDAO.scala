@@ -24,7 +24,7 @@ class HttpRStudioDAO[F[_]: Timer: ContextShift: Concurrent](val runtimeDnsCache:
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.address()}:${proxyConfig.proxyPort}/proxy/${googleProject.value}/${runtimeName.asString}/rstudio/"
+                s"https://${targetHost.address}/proxy/${googleProject.value}/${runtimeName.asString}/rstudio/"
               )
             )
           )
