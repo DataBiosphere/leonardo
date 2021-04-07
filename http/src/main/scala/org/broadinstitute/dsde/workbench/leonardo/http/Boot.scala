@@ -356,10 +356,10 @@ object Boot extends IOApp {
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
       samDao = HttpSamDAO[F](httpClient, httpSamDaoConfig, blocker)
-      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging, proxyConfig)
-      welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientWithLogging, proxyConfig)
-      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientWithLogging, proxyConfig)
-      appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientWithLogging, proxyConfig)
+      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging)
+      welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientWithLogging)
+      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientWithLogging)
+      appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientWithLogging)
       dockerDao = HttpDockerDAO[F](httpClientWithLogging)
       appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithLogging)
 

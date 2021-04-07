@@ -51,7 +51,7 @@ class HttpJupyterDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuit
     val clusterDnsCache =
       new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, proxyResolver, blocker)
 
-    val jupyterDAO = new HttpJupyterDAO(clusterDnsCache, FakeHttpClient.client, proxyConfig)
+    val jupyterDAO = new HttpJupyterDAO(clusterDnsCache, FakeHttpClient.client)
     val res = jupyterDAO.isAllKernelsIdle(GoogleProject("project1"), RuntimeName("rt"))
     res.unsafeRunSync() shouldBe (true)
   }

@@ -3,7 +3,6 @@ package dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -14,8 +13,7 @@ import org.typelevel.log4cats.Logger
 
 class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
   val runtimeDnsCache: RuntimeDnsCache[F],
-  client: Client[F],
-  proxyConfig: ProxyConfig
+  client: Client[F]
 )(
   implicit metrics: OpenTelemetryMetrics[F]
 ) extends WelderDAO[F] {

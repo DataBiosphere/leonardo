@@ -4,7 +4,6 @@ package dao
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.KubernetesDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -12,8 +11,7 @@ import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
 
 class HttpAppDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCache: KubernetesDnsCache[F],
-                                                        client: Client[F],
-                                                        proxyConfig: ProxyConfig)
+                                                        client: Client[F])
     extends AppDAO[F] {
 
   def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean] =

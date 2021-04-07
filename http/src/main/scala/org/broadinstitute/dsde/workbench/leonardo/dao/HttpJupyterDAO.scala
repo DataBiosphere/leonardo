@@ -4,7 +4,6 @@ import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
@@ -16,9 +15,7 @@ import org.http4s.{Method, Request, Uri}
 import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
-class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F],
-                                                client: Client[F],
-                                                proxyConfig: ProxyConfig)(
+class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
   implicit F: Concurrent[F],
   logger: Logger[F]
 ) extends JupyterDAO[F] {
