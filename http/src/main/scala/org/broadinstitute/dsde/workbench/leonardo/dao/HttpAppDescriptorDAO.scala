@@ -12,8 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpAppDescriptorDAO._
 import org.http4s.{Method, Request, Response, Uri}
 import org.http4s.client.Client
 
-class HttpAppDescriptorDAO[F[_]](httpClient: Client[F])(implicit logger: StructuredLogger[F],
-                                                        F: Effect[F])
+class HttpAppDescriptorDAO[F[_]](httpClient: Client[F])(implicit logger: StructuredLogger[F], F: Effect[F])
     extends AppDescriptorDAO[F] {
   override def getDescriptor(path: Uri)(implicit ev: Ask[F, AppContext]): F[AppDescriptor] =
     for {
