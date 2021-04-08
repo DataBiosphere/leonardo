@@ -36,6 +36,7 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 import java.io.{ByteArrayInputStream, File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 import scala.util.{Failure, Random, Success, Try}
 

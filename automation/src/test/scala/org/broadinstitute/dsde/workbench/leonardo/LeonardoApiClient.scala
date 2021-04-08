@@ -1,10 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.util.UUID
-import java.util.concurrent.TimeoutException
 import cats.effect.{IO, Resource, Timer}
 import cats.syntax.all._
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}
@@ -21,6 +18,8 @@ import org.http4s.client.middleware.Logger
 import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
 
+import java.util.UUID
+import java.util.concurrent.TimeoutException
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
@@ -232,8 +231,7 @@ object LeonardoApiClient {
   def waitUntilAppRunning(googleProject: GoogleProject, appName: AppName)(
     implicit timer: Timer[IO],
     client: Client[IO],
-    authHeader: Authorization,
-    logger: StructuredLogger[IO]
+    authHeader: Authorization
   ): IO[GetAppResponse] = {
     val ioa = getApp(googleProject, appName)
     implicit val doneCheckeable: DoneCheckable[GetAppResponse] = x =>
@@ -258,8 +256,7 @@ object LeonardoApiClient {
   def waitUntilAppStopped(googleProject: GoogleProject, appName: AppName)(
     implicit timer: Timer[IO],
     client: Client[IO],
-    authHeader: Authorization,
-    logger: StructuredLogger[IO]
+    authHeader: Authorization
   ): IO[GetAppResponse] = {
     val ioa = getApp(googleProject, appName)
     implicit val doneCheckeable: DoneCheckable[GetAppResponse] = x =>
@@ -284,8 +281,7 @@ object LeonardoApiClient {
   def waitUntilAppDeleted(googleProject: GoogleProject, appName: AppName)(
     implicit timer: Timer[IO],
     client: Client[IO],
-    authHeader: Authorization,
-    logger: StructuredLogger[IO]
+    authHeader: Authorization
   ): IO[Unit] = {
     val ioa = getApp(googleProject, appName).attempt
     for {
