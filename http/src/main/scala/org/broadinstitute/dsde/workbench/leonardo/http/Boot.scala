@@ -40,12 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{
-  KubernetesDnsCache,
-  ProxyResolver,
-  ProxyResolverInterp,
-  RuntimeDnsCache
-}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoAppServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
@@ -346,7 +341,7 @@ object Boot extends IOApp {
 
       // Set up DNS caches
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
-      proxyResolver = new ProxyResolverInterp(hostToIpMapping)
+      proxyResolver = ProxyResolver(hostToIpMapping)
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, hostToIpMapping, blocker)
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig,
                                                   dbRef,
@@ -359,6 +354,9 @@ object Boot extends IOApp {
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
       httpClient <- blaze
         .BlazeClientBuilder[F](blockingEc, Some(sslContext))
+        // Note a custom resolver is needed for making requests through the Leo proxy
+        // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
+        // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
         .map(Retry(retryPolicy))

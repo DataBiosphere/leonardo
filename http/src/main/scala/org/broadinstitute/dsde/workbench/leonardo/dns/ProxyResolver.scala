@@ -26,29 +26,34 @@ trait ProxyResolver[F[_]] {
   def resolveAkka(host: String, port: Int): Future[InetSocketAddress]
 }
 
-/**
- * Implementation of ProxyResolver using a Map[Host, IP] stored in a Ref.
- */
-class ProxyResolverInterp[F[_]](hostToIpMapping: Ref[F, Map[Host, IP]])(
-  implicit F: Effect[F]
-) extends ProxyResolver[F] {
+object ProxyResolver {
+  def apply[F[_]: Effect](hostToIpMapping: Ref[F, Map[Host, IP]]): ProxyResolver[F] =
+    new ProxyResolverInterp(hostToIpMapping)
 
-  override def resolveHttp4s(requestKey: RequestKey): Either[Throwable, InetSocketAddress] =
-    requestKey match {
-      case RequestKey(s, auth) =>
-        val port = auth.port.getOrElse(if (s == Uri.Scheme.https) 443 else 80)
-        val host = auth.host.value
-        Either.catchNonFatal(resolveInternal(host, port).toIO.unsafeRunSync())
-    }
+  /**
+   * Implementation of ProxyResolver using a Map[Host, IP] stored in a Ref.
+   */
+  private class ProxyResolverInterp[F[_]](hostToIpMapping: Ref[F, Map[Host, IP]])(
+    implicit F: Effect[F]
+  ) extends ProxyResolver[F] {
 
-  override def resolveAkka(host: String, port: Int): Future[InetSocketAddress] =
-    resolveInternal(host, port).toIO.unsafeToFuture()
+    override def resolveHttp4s(requestKey: RequestKey): Either[Throwable, InetSocketAddress] =
+      requestKey match {
+        case RequestKey(s, auth) =>
+          val port = auth.port.getOrElse(if (s == Uri.Scheme.https) 443 else 80)
+          val host = auth.host.value
+          Either.catchNonFatal(resolveInternal(host, port).toIO.unsafeRunSync())
+      }
 
-  private def resolveInternal(host: String, port: Int): F[InetSocketAddress] =
-    for {
-      mapping <- hostToIpMapping.get
-      // Use the IP if we have a mapping for it; otherwise fall back to default host name resolution
-      h = mapping.get(Host(host)).map(_.asString).getOrElse(host)
-      res <- F.delay(new InetSocketAddress(h, port))
-    } yield res
+    override def resolveAkka(host: String, port: Int): Future[InetSocketAddress] =
+      resolveInternal(host, port).toIO.unsafeToFuture()
+
+    private def resolveInternal(host: String, port: Int): F[InetSocketAddress] =
+      for {
+        mapping <- hostToIpMapping.get
+        // Use the IP if we have a mapping for it; otherwise fall back to default host name resolution
+        h = mapping.get(Host(host)).map(_.asString).getOrElse(host)
+        res <- F.delay(new InetSocketAddress(h, port))
+      } yield res
+  }
 }
