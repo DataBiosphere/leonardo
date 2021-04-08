@@ -5,11 +5,11 @@ import cats.effect.Effect
 import cats.effect.concurrent.Ref
 import cats.effect.implicits._
 import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.model.IP
+import org.http4s.Uri
 import org.http4s.client.RequestKey
 
-import java.net.{InetAddress, InetSocketAddress}
+import java.net.InetSocketAddress
 import scala.concurrent.Future
 
 /**
@@ -29,26 +29,26 @@ trait ProxyResolver[F[_]] {
 /**
  * Implementation of ProxyResolver using a Map[Host, IP] stored in a Ref.
  */
-class ProxyResolverInterp[F[_]](proxyConfig: ProxyConfig, hostToIpMapping: Ref[F, Map[Host, IP]])(
+class ProxyResolverInterp[F[_]](hostToIpMapping: Ref[F, Map[Host, IP]])(
   implicit F: Effect[F]
 ) extends ProxyResolver[F] {
 
   override def resolveHttp4s(requestKey: RequestKey): Either[Throwable, InetSocketAddress] =
-    resolveInternal(requestKey.authority.host.value, requestKey.authority.port.getOrElse(proxyConfig.proxyPort))
-      .map(_.asRight)
-      .toIO
-      .unsafeRunSync()
+    requestKey match {
+      case RequestKey(s, auth) =>
+        val port = auth.port.getOrElse(if (s == Uri.Scheme.https) 443 else 80)
+        val host = auth.host.value
+        Either.catchNonFatal(resolveInternal(host, port).toIO.unsafeRunSync())
+    }
 
   override def resolveAkka(host: String, port: Int): Future[InetSocketAddress] =
     resolveInternal(host, port).toIO.unsafeToFuture()
 
   private def resolveInternal(host: String, port: Int): F[InetSocketAddress] =
-    hostToIpMapping.get.map { mapping =>
-      // If we have the mapping stored in the Ref, use IP without resolving the host
-      // Otherwise, fall back to default hostname resolution
-      mapping.get(Host(host)) match {
-        case Some(ip) => InetSocketAddress.createUnresolved(ip.asString, port)
-        case _        => new InetSocketAddress(InetAddress.getByName(host), port)
-      }
-    }
+    for {
+      mapping <- hostToIpMapping.get
+      // Use the IP if we have a mapping for it; otherwise fall back to default host name resolution
+      h = mapping.get(Host(host)).map(_.asString).getOrElse(host)
+      res <- F.delay(new InetSocketAddress(h, port))
+    } yield res
 }

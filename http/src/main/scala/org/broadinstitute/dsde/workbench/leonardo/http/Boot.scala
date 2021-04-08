@@ -346,7 +346,7 @@ object Boot extends IOApp {
 
       // Set up DNS caches
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
-      proxyResolver = new ProxyResolverInterp(proxyConfig, hostToIpMapping)
+      proxyResolver = new ProxyResolverInterp(hostToIpMapping)
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, hostToIpMapping, blocker)
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig,
                                                   dbRef,
