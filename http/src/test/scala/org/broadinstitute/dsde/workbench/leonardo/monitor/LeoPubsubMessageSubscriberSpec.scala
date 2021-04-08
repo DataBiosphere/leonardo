@@ -1173,47 +1173,6 @@ class LeoPubsubMessageSubscriberSpec
     verify(mockAckConsumer, times(1)).ack()
   }
 
-  it should "be able to handle batchCreateNodepool message" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Precreating).save()
-    val savedNodepool2 = makeNodepool(3, savedCluster1.id).copy(status = NodepoolStatus.Precreating).save()
-
-    val mockAckConsumer = mock[AckReplyConsumer]
-
-    val assertions = for {
-      getMinimalCluster <- kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject).transaction
-    } yield {
-      getMinimalCluster.get.status shouldBe KubernetesClusterStatus.Running
-      getMinimalCluster.get.nodepools.size shouldBe 3
-      getMinimalCluster.get.nodepools.filter(_.isDefault).size shouldBe 1
-      getMinimalCluster.get.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).size shouldBe 2
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.size shouldBe 1
-      getMinimalCluster.get.nodepools
-        .filterNot(_.isDefault)
-        .map(_.status)
-        .distinct
-        .head shouldBe NodepoolStatus.Unclaimed
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = BatchNodepoolCreateMessage(savedCluster1.id,
-                                       List(savedNodepool1.id, savedNodepool2.id),
-                                       savedCluster1.googleProject,
-                                       Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-    assertions.unsafeRunSync()
-    verify(mockAckConsumer, times(1)).ack()
-  }
-
   it should "be able to create app with a pre-created nodepool" in isolatedDbTest {
     val disk = makePersistentDisk(None).save().unsafeRunSync()
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
@@ -1270,48 +1229,6 @@ class LeoPubsubMessageSubscriberSpec
                                         gkeInterpreter = makeGKEInterp(lock, List(savedApp1.release)))
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-    assertions.unsafeRunSync()
-  }
-
-  it should "error if nodepools in batch create nodepool message are not in db" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedCluster2 = makeKubeCluster(2).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Precreating).save()
-    val savedNodepool2 = makeNodepool(3, savedCluster1.id).copy(status = NodepoolStatus.Precreating).save()
-    val savedNodepool3 = makeNodepool(4, savedCluster2.id).copy(status = NodepoolStatus.Unspecified).save()
-
-    val mockAckConsumer = mock[AckReplyConsumer]
-
-    val assertions = for {
-      getMinimalCluster <- kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject).transaction
-    } yield {
-      getMinimalCluster.get.status shouldBe KubernetesClusterStatus.Error
-      getMinimalCluster.get.nodepools.size shouldBe 3
-      getMinimalCluster.get.nodepools.count(_.isDefault) shouldBe 1
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).size shouldBe 2
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.size shouldBe 1
-      //we should not have updated the status here, since the nodepools given were faulty
-      getMinimalCluster.get.nodepools
-        .filterNot(_.isDefault)
-        .map(_.status)
-        .distinct
-        .head shouldBe NodepoolStatus.Precreating
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = BatchNodepoolCreateMessage(savedCluster1.id,
-                                       List(savedNodepool1.id, savedNodepool2.id, savedNodepool3.id),
-                                       savedCluster1.googleProject,
-                                       Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
     } yield ()
 

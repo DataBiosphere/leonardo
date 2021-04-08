@@ -7,13 +7,7 @@ import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.model.IP
-import org.broadinstitute.dsde.workbench.leonardo.http.{
-  BatchNodepoolCreateRequest,
-  CreateAppRequest,
-  GetAppResponse,
-  GetAppResult,
-  ListAppResponse
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
@@ -65,8 +59,6 @@ object KubernetesTestData {
     None,
     List.empty
   )
-
-  val batchNodepoolCreateRequest = BatchNodepoolCreateRequest(NumNodepools(100), Some(kubernetesRuntimeConfig), None)
 
   val testCluster = makeKubeCluster(1)
   val testNodepool = makeNodepool(1, testCluster.id)

@@ -102,14 +102,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         .getMinimalByUserAndConfig(userInfo.userEmail, googleProject, machineConfig)
         .transaction
 
-      // A claimed nodepool is either the user's existing nodepool or a pre-created one, in that order of precedence
-      claimedNodepoolOpt <- if (userNodepoolOpt.isDefined) F.pure(userNodepoolOpt)
-      else nodepoolQuery.claimNodepool(clusterId, userInfo.userEmail, machineConfig).transaction
-
-      nodepool <- claimedNodepoolOpt match {
+      nodepool <- userNodepoolOpt match {
         case Some(n) =>
           log.info(ctx.loggingCtx)(
-            s"Claimed nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject} with ${machineConfig}"
+            s"Reusing user's nodepool ${n.id} in project ${saveClusterResult.minimalCluster.googleProject} with ${machineConfig}"
           ) >> F.pure(n)
         case None =>
           for {
@@ -200,8 +196,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
       clusterNodepoolAction = saveClusterResult match {
         case ClusterExists(_) =>
-          // If we're claiming a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
-          if (claimedNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
+          // If we're using a pre-existing nodepool then don't specify CreateNodepool in the pubsub message
+          if (userNodepoolOpt.isDefined) None else Some(ClusterNodepoolAction.CreateNodepool(nodepool.id))
         case ClusterDoesNotExist(c, n) => Some(ClusterNodepoolAction.CreateClusterAndNodepool(c.id, n.id, nodepool.id))
       }
       createAppMessage = CreateAppMessage(
@@ -334,42 +330,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           _ <- publisherQueue.enqueue1(deleteMessage)
         } yield ()
       }
-    } yield ()
-
-  override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
-    implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-      hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
-                                                  ProjectAction.CreateApp,
-                                                  userInfo)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-
-      // create default nodepool with size dependant on number of nodes requested
-      saveCluster <- F.fromEither(
-        getSavableCluster(userInfo, googleProject, ctx.now, Some(req.numNodepools), req.clusterName)
-      )
-      saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
-
-      // check if the cluster exists (we reject this request if it does)
-      clusterId <- saveClusterResult match {
-        case _: ClusterExists         => F.raiseError[KubernetesClusterLeoId](ClusterExistsException(googleProject))
-        case res: ClusterDoesNotExist => F.pure(res.minimalCluster.id)
-      }
-      // create list of Precreating nodepools
-      eitherNodepoolsOrError = List.tabulate(req.numNodepools.value) { _ =>
-        getUserNodepool(clusterId,
-                        userInfo.copy(userEmail = WorkbenchEmail("nouserassigned@gmail.com")),
-                        req.kubernetesRuntimeConfig,
-                        ctx.now)
-      }
-      nodepools <- eitherNodepoolsOrError.traverse(n => F.fromEither(n))
-      _ <- nodepoolQuery.saveAllForCluster(nodepools).transaction
-      dbNodepools <- KubernetesServiceDbQueries.getAllNodepoolsForCluster(clusterId).transaction
-      allNodepoolIds = dbNodepools.map(_.id)
-      msg = BatchNodepoolCreateMessage(clusterId, allNodepoolIds, googleProject, Some(ctx.traceId))
-      _ <- publisherQueue.enqueue1(msg)
     } yield ()
 
   def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(

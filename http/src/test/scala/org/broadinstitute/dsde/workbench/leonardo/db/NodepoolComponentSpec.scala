@@ -77,22 +77,6 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
     )
   }
 
-  it should "claim nodepool properly" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-
-    val savedNodepool1 = makeNodepool(3, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
-
-    val claims = for {
-      claim1 <- nodepoolQuery.claimNodepool(savedCluster1.id, auditInfo.creator, kubernetesRuntimeConfig)
-      claim2 <- nodepoolQuery.claimNodepool(savedCluster1.id, auditInfo.creator, kubernetesRuntimeConfig)
-    } yield (claim1, claim2)
-
-    val (claim1, claim2) = dbFutureValue(claims)
-    claim1 shouldBe Some(savedNodepool1.copy(status = NodepoolStatus.Running))
-    claim1.get.status shouldBe NodepoolStatus.Running
-    claim2 shouldBe None
-  }
-
   it should "return a nodepool by user" in isolatedDbTest {
     val cluster1 = makeKubeCluster(1).save()
     val realUser = WorkbenchEmail("real@gmail.com")

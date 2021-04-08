@@ -84,8 +84,6 @@ final class LeoPublisher[F[_]: Logger: Timer](
                 .markPendingCreating(m.appId, None, None, None)
                 .transaction
           }
-        case m: LeoPubsubMessage.BatchNodepoolCreateMessage =>
-          KubernetesServiceDbQueries.markPendingBatchCreating(m.clusterId, m.nodepools).transaction
         case m: LeoPubsubMessage.StopAppMessage =>
           appQuery.updateStatus(m.appId, AppStatus.Stopping).transaction
         case m: LeoPubsubMessage.StartAppMessage =>

@@ -44,8 +44,7 @@ trait GKEAlgebra[F[_]] {
 
 final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,
                                      googleProject: GoogleProject,
-                                     nodepoolsToCreate: List[NodepoolLeoId],
-                                     isNodepoolPrecreate: Boolean)
+                                     nodepoolsToCreate: List[NodepoolLeoId])
 
 final case class CreateClusterResult(op: KubernetesOperationId,
                                      network: KubernetesNetwork,
@@ -53,7 +52,6 @@ final case class CreateClusterResult(op: KubernetesOperationId,
 
 final case class PollClusterParams(clusterId: KubernetesClusterLeoId,
                                    googleProject: GoogleProject,
-                                   isNodepoolPrecreate: Boolean,
                                    createResult: CreateClusterResult)
 
 final case class CreateNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
