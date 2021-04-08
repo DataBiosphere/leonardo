@@ -7,11 +7,11 @@ import io.circe.DecodingFailure
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, GCR, GHCR}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
 import org.scalatest.BeforeAndAfterAll
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -32,18 +32,17 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     ContainerImage("us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:dev", GCR),
     ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.4", GCR),
     ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.5", GCR),
-    ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.4", GCR)
+    ContainerImage("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:0.0.4", GCR),
     // gcr with sha
     // TODO shas are currently not working
 //    GCR(
 //      "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter@sha256:fa11b7c528304726985b4ad4cb4cb4d8b9a2fbf7c5547671ef495f414564727c"
 //    ),
     // ghcr with tag
-    // TODO GHCR currently not working
     // Taken from workspace https://app.terra.bio/#workspaces/uk-biobank-sek/ml4h-toolkit-for-machine-learning-on-clinical-data
-//    ContainerImage("ghcr.io/broadinstitute/ml4h/ml4h_terra:20201119_180431", GHCR),
+    ContainerImage("ghcr.io/broadinstitute/ml4h/ml4h_terra:20210104_224422", GHCR),
     // ghcr no tag
-//    ContainerImage("ghcr.io/lucidtronix/ml4h/ml4h_terra", GHCR)
+    ContainerImage("ghcr.io/lucidtronix/ml4h/ml4h_terra", GHCR)
   )
 
   val rstudioImages = List(
