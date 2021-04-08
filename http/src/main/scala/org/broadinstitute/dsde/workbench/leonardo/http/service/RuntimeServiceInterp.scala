@@ -4,7 +4,6 @@ package service
 
 import java.time.Instant
 import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
@@ -24,7 +23,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   InstanceName,
   MachineTypeName,
   OperationName,
-  PollError
+  PollError,
+  ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
@@ -135,13 +135,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       )
                     case gce: RuntimeConfigRequest.GceWithPdConfig =>
                       RuntimeServiceInterp
-                        .processPersistentDiskRequest(gce.persistentDisk,
-                                                      googleProject,
-                                                      userInfo,
-                                                      petSA,
-                                                      FormattedBy.GCE,
-                                                      authProvider,
-                                                      diskConfig)
+                        .processPersistentDiskRequest(
+                          gce.persistentDisk,
+                          gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
+                          googleProject,
+                          userInfo,
+                          petSA,
+                          FormattedBy.GCE,
+                          authProvider,
+                          diskConfig
+                        )
                         .map(diskResult =>
                           RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
                             gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
@@ -612,7 +615,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
    * and potentially sends a PubSub message (or throws an error). The PubSub receiver does not
    * do validation; it is assumed all validation happens here.
    */
-  private[service] def processUpdateRuntimeConfigRequest(
+  def processUpdateRuntimeConfigRequest(
     request: UpdateRuntimeConfigRequest,
     allowStop: Boolean,
     runtime: ClusterRecord,
@@ -886,6 +889,7 @@ object RuntimeServiceInterp {
 
   def processPersistentDiskRequest[F[_]](
     req: PersistentDiskRequest,
+    targetZone: ZoneName,
     googleProject: GoogleProject,
     userInfo: UserInfo,
     serviceAccount: WorkbenchEmail,
@@ -903,6 +907,14 @@ object RuntimeServiceInterp {
       disk <- diskOpt match {
         case Some(pd) =>
           for {
+            _ <- if (pd.zone == targetZone) F.unit
+            else
+              F.raiseError(
+                BadRequestException(
+                  s"existing disk ${pd.name.value} is in zone ${pd.zone.value} while the target zone ${targetZone.value}. They have to be in the same zone",
+                  Some(ctx.traceId)
+                )
+              )
             isAttached <- pd.formattedBy match {
               // TODO: it seems like this can be refactored to follow the below format
               //case Some(x) => if x is willBeUsedBy, check if its attached
@@ -962,7 +974,7 @@ object RuntimeServiceInterp {
                 req.name,
                 samResource,
                 diskConfig,
-                CreateDiskRequest.fromDiskConfigRequest(req),
+                CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
                 ctx.now,
                 if (willBeUsedBy == FormattedBy.Galaxy) true else false
               )

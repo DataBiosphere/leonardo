@@ -145,7 +145,7 @@ object Boot extends IOApp {
         dataprocConfig,
         gceConfig
       )
-      val runtimeService = new RuntimeServiceInterp[IO](
+      val runtimeService = RuntimeService(
         runtimeServiceConfig,
         persistentDiskConfig,
         appDependencies.authProvider,

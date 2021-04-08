@@ -120,7 +120,7 @@ trait TestLeoRoutes {
     override val userInfo: UserInfo = timedUserInfo
   }
 
-  val runtimeService = new RuntimeServiceInterp(
+  val runtimeService = RuntimeService(
     RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
                          imageConfig,
                          autoFreezeConfig,

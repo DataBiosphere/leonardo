@@ -9,11 +9,12 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSa
 final case class CreateDiskRequest(labels: LabelMap,
                                    size: Option[DiskSize],
                                    diskType: Option[DiskType],
-                                   blockSize: Option[BlockSize])
+                                   blockSize: Option[BlockSize],
+                                   zone: Option[ZoneName])
 
 object CreateDiskRequest {
-  def fromDiskConfigRequest(create: PersistentDiskRequest): CreateDiskRequest =
-    CreateDiskRequest(create.labels, create.size, create.diskType, None)
+  def fromDiskConfigRequest(create: PersistentDiskRequest, zone: Option[ZoneName]): CreateDiskRequest =
+    CreateDiskRequest(create.labels, create.size, create.diskType, None, zone)
 }
 
 final case class PersistentDiskRequest(name: DiskName,

@@ -127,6 +127,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
         RuntimeServiceInterp.processPersistentDiskRequest(
           diskReq,
+          leoKubernetesConfig.diskConfig.zone, //this need to be updated if we support non-default zone for k8s apps
           googleProject,
           userInfo,
           petSA,

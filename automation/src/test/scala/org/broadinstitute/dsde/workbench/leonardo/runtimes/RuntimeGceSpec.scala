@@ -26,6 +26,9 @@ class RuntimeGceSpec
 
   "should create a GCE instance in a non-default zone" in { project =>
     val runtimeName = randomClusterName
+    val targetZone = ZoneName(
+      "europe-west1-b"
+    )
 
     // In a europe zone
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
@@ -33,7 +36,7 @@ class RuntimeGceSpec
         RuntimeConfigRequest.GceConfig(
           Some(MachineTypeName("n1-standard-4")),
           Some(DiskSize(10)),
-          Some(ZoneName("europe-west1-b"))
+          Some(targetZone)
         )
       )
     )
@@ -41,10 +44,9 @@ class RuntimeGceSpec
       implicit val httpClient = c
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
-        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].zone shouldBe ZoneName(
-          "europe-west1-b"
-        )
-
+        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].zone shouldBe targetZone
+        disk <- LeonardoApiClient.getDisk(project, getRuntimeResponse.diskConfig.get.name)
+        _ = disk.zone shouldBe targetZone
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
     }

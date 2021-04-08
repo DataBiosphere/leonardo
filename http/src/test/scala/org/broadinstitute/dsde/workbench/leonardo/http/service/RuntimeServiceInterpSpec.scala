@@ -1357,7 +1357,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     }
     res.unsafeRunSync()
   }
-
   it should "fail to update a Dataproc machine type in Running state with allowStop set to false" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
@@ -1449,6 +1448,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       context <- ctx.ask[AppContext]
       diskResult <- RuntimeServiceInterp.processPersistentDiskRequest(req,
+                                                                      zone,
                                                                       project,
                                                                       userInfo,
                                                                       serviceAccount,
@@ -1482,6 +1482,57 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
+  it should "reject a request if requested PD's zone is different from target zone" in isolatedDbTest {
+    val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
+    val res = for {
+      context <- ctx.ask[AppContext]
+      _ <- makePersistentDisk(Some(req.name), Some(FormattedBy.GCE), None, Some(zone), Some(project)).save()
+      // save a PD with default zone
+      targetZone = ZoneName("europe-west2-c")
+      diskResult <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      targetZone,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      FormattedBy.GCE,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+        .attempt
+    } yield {
+      diskResult shouldBe (Left(
+        BadRequestException(
+          s"existing disk ${req.name.value} is in zone ${zone.value} while the target zone ${targetZone.value}. They have to be in the same zone",
+          Some(context.traceId)
+        )
+      ))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "persist non-default zone disk properly" in isolatedDbTest {
+    val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
+    val targetZone = ZoneName("europe-west2-c")
+
+    val res = for {
+      diskResult <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      targetZone,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      FormattedBy.GCE,
+                                      whitelistAuthProvider,
+                                      Config.persistentDiskConfig)
+      persistedDisk <- persistentDiskQuery.getById(diskResult.disk.id).transaction
+    } yield {
+      persistedDisk.get.zone shouldBe (targetZone)
+    }
+
+    res.unsafeRunSync()
+  }
+
   it should "return existing disk if a disk with the same name already exists" in isolatedDbTest {
     val res = for {
       t <- ctx.ask[AppContext]
@@ -1489,6 +1540,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, Map("foo" -> "bar"))
       returnedDisk <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
@@ -1510,6 +1562,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val thrown = the[ForbiddenError] thrownBy {
       RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
@@ -1537,6 +1590,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       err <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
@@ -1558,6 +1612,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       req = PersistentDiskRequest(gceDisk.name, Some(gceDisk.size), Some(gceDisk.diskType), gceDisk.labels)
       formatGceDiskError <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
@@ -1569,6 +1624,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       req = PersistentDiskRequest(galaxyDisk.name, Some(galaxyDisk.size), Some(galaxyDisk.diskType), galaxyDisk.labels)
       formatGalaxyDiskError <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
@@ -1594,6 +1650,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       savedDisk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       _ <- RuntimeServiceInterp.processPersistentDiskRequest(req,
+                                                             zone,
                                                              project,
                                                              userInfo,
                                                              serviceAccount,

@@ -36,6 +36,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     Map.empty,
     None,
     None,
+    None,
     None
   )
 
