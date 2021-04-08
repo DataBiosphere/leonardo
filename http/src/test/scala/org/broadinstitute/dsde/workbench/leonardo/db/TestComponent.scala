@@ -80,7 +80,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     } catch {
       case t: Throwable => t.printStackTrace(); throw t
     } finally {
-      dbFutureValue(testDbRef.dataAccess.truncateAll)
+//      dbFutureValue(testDbRef.dataAccess.truncateAll)
     }
 
   protected def getClusterId(getClusterIdRequest: GetClusterKey): Long =

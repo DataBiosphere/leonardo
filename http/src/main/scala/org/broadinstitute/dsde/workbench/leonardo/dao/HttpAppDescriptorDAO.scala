@@ -32,19 +32,12 @@ class HttpAppDescriptorDAO[F[_]](httpClient: Client[F])(implicit logger: Structu
 
   private[dao] def resolveUri(path: String)(implicit ev: Ask[F, AppContext]): F[String] =
     for {
-      resp <- fs2.Stream
-        .retry(httpClient.expectOr[String](
-                 Request[F](
-                   method = Method.GET,
-                   uri = Uri.unsafeFromString(path)
-                 )
-               )(onError(path)),
-               5 seconds,
-               delay => delay * 2,
-               5,
-               e => true)
-        .compile
-        .lastOrError
+      resp <- httpClient.expectOr[String](
+        Request[F](
+          method = Method.GET,
+          uri = Uri.unsafeFromString(path)
+        )
+      )(onError(path))
     } yield resp
 
   private def onError(path: String)(response: Response[F])(implicit ev: Ask[F, AppContext]): F[Throwable] =

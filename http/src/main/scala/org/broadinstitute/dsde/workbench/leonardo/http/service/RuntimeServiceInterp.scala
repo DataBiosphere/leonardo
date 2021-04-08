@@ -582,7 +582,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         val accessToken = new AccessToken(userToken, null) // we currently don't get expiration time from sam
         val credentials = GoogleCredentials.create(accessToken)
         val retryPolicy = RetryPredicates.retryConfigWithPredicates(
-          RetryPredicates.standardRetryPredicate,
+          RetryPredicates.standardGoogleRetryPredicate,
           RetryPredicates.whenStatusCode(401)
         )
 

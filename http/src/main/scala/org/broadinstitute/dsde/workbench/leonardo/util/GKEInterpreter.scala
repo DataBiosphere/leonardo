@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
   streamUntilDoneOrTimeout,
-  tracedRetryGoogleF,
+  tracedRetryF,
   DiskName,
   KubernetesClusterNotFoundException,
   PvName,
@@ -364,17 +364,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       retryConfig = RetryPredicates.retryConfigWithPredicates(
         when409
       )
-      _ <- tracedRetryGoogleF(retryConfig)(
+      _ <- tracedRetryF(retryConfig)(
         call,
         s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
       ).compile.lastOrError
 
-      // helm install galaxy and wait
       //TODO: validate app release is the same as retore release
       galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(diskId).transaction
 
       // helm install and wait
-      _ <- app.appType match {
+      installApp = app.appType match {
         case AppType.Galaxy =>
           installGalaxy(
             helmAuthContext,
@@ -405,6 +404,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             app.customEnvironmentVariables
           )
       }
+
+      // Currently we always retry.
+      // The main failure mode here is helm install, which does not have easily interpretable error codes
+      retryConfig = RetryPredicates.standardRetryConfig
+      _ <- tracedRetryF(retryConfig)(
+        installApp,
+        s"install for app ${app.appName.value} in project ${googleProject.value}"
+      ).compile.lastOrError
+
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
