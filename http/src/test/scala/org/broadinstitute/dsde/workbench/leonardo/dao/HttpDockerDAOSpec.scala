@@ -7,11 +7,11 @@ import io.circe.DecodingFailure
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, GCR, GHCR}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
 import org.http4s.client.blaze.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
 import org.scalatest.BeforeAndAfterAll
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
@@ -40,7 +40,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 //    ),
     // ghcr with tag
     // Taken from workspace https://app.terra.bio/#workspaces/uk-biobank-sek/ml4h-toolkit-for-machine-learning-on-clinical-data
-    ContainerImage("ghcr.io/broadinstitute/ml4h/ml4h_terra:20201119_180431", GHCR),
+    ContainerImage("ghcr.io/broadinstitute/ml4h/ml4h_terra:20210104_224422", GHCR),
     // ghcr no tag
     ContainerImage("ghcr.io/lucidtronix/ml4h/ml4h_terra", GHCR)
   )

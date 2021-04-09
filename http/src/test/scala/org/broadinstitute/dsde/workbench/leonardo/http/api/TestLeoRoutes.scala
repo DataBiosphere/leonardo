@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import java.io.ByteArrayInputStream
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
@@ -10,21 +9,14 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGoogleDataprocService,
-  FakeGoogleResourceService,
-  FakeGoogleStorageInterpreter,
-  MockComputePollOperation
-}
+import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockJupyterDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
-import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.MockDiskServiceInterp
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockDiskServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
@@ -33,6 +25,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Seconds, Span}
 
+import java.io.ByteArrayInputStream
 import scala.concurrent.duration._
 import scala.util.matching.Regex
 
@@ -103,8 +96,10 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue()
   )
 
-  val runtimeDnsCache = new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, blocker)
-  val kubernetesDnsCache = new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, blocker)
+  val runtimeDnsCache =
+    new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, hostToIpMapping, blocker)
+  val kubernetesDnsCache =
+    new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, hostToIpMapping, blocker)
 
   val proxyService =
     new MockProxyService(proxyConfig,

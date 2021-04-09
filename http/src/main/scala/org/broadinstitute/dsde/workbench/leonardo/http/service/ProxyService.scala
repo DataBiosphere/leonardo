@@ -2,33 +2,30 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.time.Instant
-import java.util.UUID
-import java.util.concurrent.TimeUnit
-
 import akka.actor.ActorSystem
-import akka.http.scaladsl.{ConnectionContext, Http}
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.`Content-Disposition`
 import akka.http.scaladsl.model.ws._
+import akka.http.scaladsl.settings.ClientConnectionSettings
+import akka.http.scaladsl.unmarshalling.Unmarshal
+import akka.http.scaladsl.{ClientTransport, ConnectionContext, Http}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
 import cats.effect.{Blocker, ContextShift, IO, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.typelevel.log4cats.StructuredLogger
-import javax.net.ssl.SSLContext
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -38,9 +35,12 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
-import akka.http.scaladsl.unmarshalling.Unmarshal
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.typelevel.log4cats.StructuredLogger
 
+import java.time.Instant
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+import javax.net.ssl.SSLContext
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -90,6 +90,7 @@ class ProxyService(
   authProvider: LeoAuthProvider[IO],
   dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
   googleOauth2Service: GoogleOAuth2Service[IO],
+  proxyResolver: ProxyResolver[IO],
   blocker: Blocker
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
@@ -99,7 +100,10 @@ class ProxyService(
   metrics: OpenTelemetryMetrics[IO],
   loggerIO: StructuredLogger[IO])
     extends LazyLogging {
+
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
+  val clientConnectionSettings =
+    ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))
 
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
   logger.info(s"Leo proxy request timeout is $requestTimeout")
@@ -348,6 +352,7 @@ class ProxyService(
 
   private def handleHttpRequest(targetHost: Host, request: HttpRequest): Future[HttpResponse] = {
     logger.debug(s"Opening https connection to ${targetHost.address}:${proxyConfig.proxyPort}")
+
     // A note on akka-http philosophy:
     // The Akka HTTP server is implemented on top of Streams and makes heavy use of it. Requests come
     // in as a Source[HttpRequest] and responses are returned as a Sink[HttpResponse]. The transformation
@@ -356,7 +361,12 @@ class ProxyService(
 
     // Initializes a Flow representing a prospective connection to the given endpoint. The connection
     // is not made until a Source and Sink are plugged into the Flow (i.e. it is materialized).
-    val flow = Http().outgoingConnectionHttps(targetHost.address, proxyConfig.proxyPort, httpsConnectionContext)
+    val flow = Http()
+      .connectionTo(targetHost.address)
+      .toPort(proxyConfig.proxyPort)
+      .withCustomHttpsConnectionContext(httpsConnectionContext)
+      .withClientConnectionSettings(clientConnectionSettings)
+      .https()
 
     // Now build a Source[Request] out of the original HttpRequest. We need to make some modifications
     // to the original request in order for the proxy to work:
@@ -440,7 +450,8 @@ class ProxyService(
         upgrade.requestedProtocols.headOption
       ),
       flow,
-      httpsConnectionContext
+      httpsConnectionContext,
+      settings = clientConnectionSettings
     )
 
     // If we got a valid WebSocketUpgradeResponse, call handleMessages with our publisher/subscriber, which are
@@ -460,7 +471,7 @@ class ProxyService(
     }
   }
 
-  private def filterHeaders(headers: immutable.Seq[HttpHeader]) =
+  private def filterHeaders(headers: immutable.Seq[HttpHeader]): immutable.Seq[HttpHeader] =
     headers.filterNot(header => HeadersToFilter(header.lowercaseName()))
 
   private val HeadersToFilter = Set(
@@ -478,19 +489,18 @@ class ProxyService(
 }
 
 object ProxyService {
+  val proxyPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
+  val notebooksPattern = "\\/notebooks\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
+
   // From the outside, we are going to support TWO paths to access Jupyter:
   // 1)   /notebooks/{googleProject}/{clusterName}/
   // 2)   /proxy/{googleProject}/{clusterName}/jupyter/
-  // 3)   /notebooks/{googleProject}/{clusterName}/jupyter/
   //
   // To greatly simplify things on the backend, we will funnel all requests into path #1. Eventually
   // we will remove that path and #2 will be the sole entry point for users. At that point, we can
   // update the code in here to not rewrite any paths for Jupyter. We will also need to update the
   // paths in related areas like jupyter_notebook_config.py
-  def rewriteJupyterPath(path: Uri.Path): Uri.Path = {
-    val proxyPattern = "\\/proxy\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
-    val notebooksPattern = "\\/notebooks\\/([^\\/]*)\\/([^\\/]*)\\/jupyter\\/?(.*)?".r
-
+  def rewriteJupyterPath(path: Uri.Path): Uri.Path =
     path.toString match {
       case proxyPattern(project, cluster, path) => {
         Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
@@ -500,5 +510,4 @@ object ProxyService {
       }
       case _ => path
     }
-  }
 }

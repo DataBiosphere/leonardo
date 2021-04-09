@@ -4,7 +4,6 @@ package dao
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.AppName
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.KubernetesDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -23,7 +22,7 @@ class HttpAppDAO[F[_]: Timer: ContextShift: Concurrent](val kubernetesDnsCache: 
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
+                s"https://${targetHost.address}/proxy/google/v1/apps/${googleProject.value}/${appName.value}/${serviceName.value}/"
               )
             )
           )

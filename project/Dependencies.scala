@@ -3,14 +3,14 @@ import sbt._
 object Dependencies {
   val scalaV = "2.13"
 
-  val akkaV = "2.6.13"
+  val akkaV = "2.6.14"
   val akkaHttpV = "10.2.4"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.3"
   val scalaTestV = "3.2.7"
   val slickV = "3.3.3"
-  val http4sVersion = "0.21.20"
+  val http4sVersion = "0.21.22"
   val guavaV = "30.1.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
@@ -70,7 +70,7 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore, excludeGoogleApiClient)
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.36.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.37.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
   val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
   val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 

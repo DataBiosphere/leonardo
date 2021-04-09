@@ -2,15 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import io.circe.parser
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.proxyConfig
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.Idle
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO.sessionDecoder
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO.sessionDecoder
-import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -48,7 +48,8 @@ class HttpJupyterDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuit
   }
 
   it should "return true for isAllKernelsIdle if host is down" in {
-    val clusterDnsCache = new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, blocker)
+    val clusterDnsCache =
+      new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, hostToIpMapping, blocker)
 
     val jupyterDAO = new HttpJupyterDAO(clusterDnsCache, FakeHttpClient.client)
     val res = jupyterDAO.isAllKernelsIdle(GoogleProject("project1"), RuntimeName("rt"))
