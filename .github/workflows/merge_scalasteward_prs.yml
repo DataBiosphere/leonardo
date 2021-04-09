@@ -28,19 +28,10 @@ jobs:
         while IFS= read -r pr
         do
           echo "Merging $pr"
-          git fetch origin pull/${pr}/head:pr_${pr}
-          git merge -m "merging" pr_${pr} && EXIT_CODE=$? || EXIT_CODE=$?
-
-          if [ "${EXIT_CODE}" == "0" ]
-          then
-            SUCCESSFUL_PRS+=( "
-        * #$pr" )
-          else
-            echo "Unexpected exit code: ${EXIT_CODE}"
-            git rebase --abort
-            UNSUCCESSFUL_PRS+=( "
-        * #$pr" )
-          fi
+          gh pr checkout $pr
+          curBranch=`git branch --show-current`
+          git checkout merged-scala-steward-prs 2>/dev/null || git checkout -b merged-scala-steward-prs
+          git merge -m "merging" $curBranch
         done <<< `gh pr list | grep scala-steward | cut -d$'\t'  -f 1`
         git push origin merged-scala-steward-prs
         gh pr create --title "[No Ticket] Bump dependencies" --body "Consolidate scala-steward PRs"
