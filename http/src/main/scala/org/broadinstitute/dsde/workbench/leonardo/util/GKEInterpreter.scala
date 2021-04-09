@@ -37,7 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO,
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, LeoException}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmAlgebra, Release}
@@ -76,8 +76,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(params.clusterId).transaction
       dbCluster <- F.fromOption(
         clusterOpt,
-        KubernetesClusterNotFoundException(
-          s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId.id} not found in database | trace id: ${ctx.traceId}"
+        BadRequestException(
+          s"Failed kubernetes cluster creation. Cluster with id ${params.clusterId.id} not found in database.",
+          Some(ctx.traceId)
         )
       )
 
@@ -202,7 +203,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         googleClusterOpt,
         ClusterCreationException(
           ctx.traceId,
-          s"Cluster not found in Google: ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+          s"Cluster not found in Google: ${dbCluster.getGkeClusterId.toString}"
         )
       )
 
@@ -245,8 +246,9 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       dbClusterOpt <- kubernetesClusterQuery.getMinimalClusterById(dbNodepool.clusterId).transaction
       dbCluster <- F.fromOption(
         dbClusterOpt,
-        KubernetesClusterNotFoundException(
-          s"Cluster with id ${dbNodepool.clusterId} not found in database | trace id: ${ctx.traceId}"
+        BadRequestException(
+          s"Cluster with id ${dbNodepool.clusterId} not found in database.",
+          Some(ctx.traceId)
         )
       )
 
@@ -323,8 +325,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       googleClusterOpt <- gkeService.getCluster(gkeClusterId)
       googleCluster <- F.fromOption(
         googleClusterOpt,
-        ClusterCreationException(ctx.traceId,
-                                 s"Cluster not found in Google: ${gkeClusterId} | trace id: ${ctx.traceId}")
+        ClusterCreationException(ctx.traceId, s"Cluster not found in Google: ${gkeClusterId}")
       )
 
       nfsDisk <- F.fromOption(
