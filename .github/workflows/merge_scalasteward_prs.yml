@@ -37,7 +37,6 @@ jobs:
         * #$pr" )
           else
             echo "Unexpected exit code: ${EXIT_CODE}"
-            git rebase --abort
             UNSUCCESSFUL_PRS+=( "
         * #$pr" )
           fi
