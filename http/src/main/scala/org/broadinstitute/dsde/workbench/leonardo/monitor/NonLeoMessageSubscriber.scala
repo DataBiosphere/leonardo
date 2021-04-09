@@ -86,7 +86,7 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
     for {
       ctx <- ev.ask
       clusterId = msg.clusterId
-      _ <- logger.info(s"Beginning to delete kubernetes cluster ${clusterId} in project ${msg.project} from NonLeoMessageSubscriber | trace id: ${ctx.traceId}")
+      _ <- logger.info(ctx.loggingCtx)(s"Beginning to delete kubernetes cluster ${clusterId} in project ${msg.project} from NonLeoMessageSubscriber")
       _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
       _ <- gkeAlg
       // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
