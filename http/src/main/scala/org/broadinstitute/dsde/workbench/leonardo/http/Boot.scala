@@ -399,9 +399,8 @@ object Boot extends IOApp {
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
       // (e.g. if the subnet isn't ready when creating an instance).
 
-      googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(
-        RetryPredicates.standardGoogleRetryPredicate,
-        RetryPredicates.whenStatusCode(400))
+      googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(RetryPredicates.standardGoogleRetryPredicate,
+                                                                           RetryPredicates.whenStatusCode(400))
 
       googleComputeService <- GoogleComputeService.fromCredential(
         scopedCredential,
