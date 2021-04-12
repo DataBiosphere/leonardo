@@ -407,7 +407,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Currently we always retry.
       // The main failure mode here is helm install, which does not have easily interpretable error codes
-      retryConfig = RetryPredicates.standardRetryConfig
+      retryConfig = RetryPredicates.standardRetryAllConfig
       _ <- tracedRetryF(retryConfig)(
         installApp,
         s"install for app ${app.appName.value} in project ${googleProject.value}"
