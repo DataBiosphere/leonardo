@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import java.nio.file.{Path, Paths}
+
 import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
@@ -26,6 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomIma
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
@@ -261,16 +263,6 @@ object Config {
       toScalaDuration(config.getDuration("autoFreezeAfter")),
       toScalaDuration(config.getDuration("autoFreezeCheckScheduler")),
       toScalaDuration(config.getDuration("maxKernelBusyLimit"))
-    )
-  }
-
-  implicit private val persistentDiskConfigReader: ValueReader[PersistentDiskConfig] = ValueReader.relative { config =>
-    PersistentDiskConfig(
-      config.as[DiskSize]("defaultDiskSizeGB"),
-      config.as[DiskType]("defaultDiskType"),
-      config.as[BlockSize]("defaultBlockSizeBytes"),
-      config.as[ZoneName]("zone"),
-      config.as[DiskSize]("defaultGalaxyNFSDiskSizeGB")
     )
   }
 
@@ -660,7 +652,7 @@ object Config {
                                                 gkeNodepoolConfig,
                                                 gkeIngressConfig,
                                                 gkeGalaxyAppConfig,
-                                                persistentDiskConfig)
+                                                ConfigReader.appConfig.persistentDiskConfig)
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val vpcConfig = config.as[VPCConfig]("vpc")

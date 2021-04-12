@@ -7,6 +7,6 @@ final case class PersistentDiskConfig(
   defaultDiskSizeGB: DiskSize,
   defaultDiskType: DiskType,
   defaultBlockSizeBytes: BlockSize,
-  zone: ZoneName,
+  defaultZone: ZoneName,
   defaultGalaxyNFSDiskSizeGB: DiskSize
 )

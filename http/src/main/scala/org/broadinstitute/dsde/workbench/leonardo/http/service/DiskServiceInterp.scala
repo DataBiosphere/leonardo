@@ -254,7 +254,7 @@ object DiskServiceInterp {
     } yield PersistentDisk(
       DiskId(0),
       googleProject,
-      req.zone.getOrElse(config.zone),
+      req.zone.getOrElse(config.defaultZone),
       diskName,
       None,
       serviceAccount,

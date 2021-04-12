@@ -911,7 +911,7 @@ object RuntimeServiceInterp {
             else
               F.raiseError(
                 BadRequestException(
-                  s"existing disk ${pd.name.value} is in zone ${pd.zone.value} while the target zone ${targetZone.value}. They have to be in the same zone",
+                  s"existing disk ${pd.projectNameString} is in zone ${pd.zone.value}, and cannot be attached to a runtime in zone ${targetZone.value}. Please create a your runtime in zone ${pd.zone.value} if you'd like to use this disk; or opt to use a new disk",
                   Some(ctx.traceId)
                 )
               )

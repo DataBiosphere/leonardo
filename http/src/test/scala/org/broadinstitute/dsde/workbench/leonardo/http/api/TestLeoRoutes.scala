@@ -126,7 +126,7 @@ trait TestLeoRoutes {
                          autoFreezeConfig,
                          dataprocConfig,
                          Config.gceConfig),
-    Config.persistentDiskConfig,
+    ConfigReader.appConfig.persistentDiskConfig,
     whitelistAuthProvider,
     serviceAccountProvider,
     new MockDockerDAO,
