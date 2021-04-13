@@ -1,12 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.nio.file.{Files, Path}
-import java.sql.SQLDataException
-
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Blocker, ContextShift, Resource, Sync}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
@@ -24,6 +21,10 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
 import shapeless._
 import slick.dbio.DBIO
+
+import java.nio.file.{Files, Path}
+import java.sql.SQLDataException
+import java.util.Objects
 
 package object http {
   val includeDeletedKey = "includeDeleted"
@@ -61,6 +62,11 @@ package object http {
   // This hostname is used by the ProxyService and also needs to be specified in the Galaxy ingress resource
   def kubernetesProxyHost(cluster: KubernetesCluster, proxyDomain: String): Host = {
     val prefix = Math.abs(cluster.getGkeClusterId.toString.hashCode).toString
+    Host(prefix + proxyDomain)
+  }
+
+  def runtimeProxyHost(googleProject: GoogleProject, runtimeName: RuntimeName, proxyDomain: String): Host = {
+    val prefix = Math.abs(Objects.hash(googleProject.value, runtimeName.asString)).toString
     Host(prefix + proxyDomain)
   }
 

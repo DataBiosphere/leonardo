@@ -7,16 +7,17 @@ import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import fs2.Stream
-import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.http.runtimeProxyHost
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
-import org.broadinstitute.dsde.workbench.leonardo.{GoogleId, Runtime, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.Logger
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
@@ -74,24 +75,11 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
       .process(() => Effect[F].delay(projectClusterToHostStatus.size),
                () => Effect[F].delay(projectClusterToHostStatus.stats))
 
-  private def host(googleId: GoogleId): Host =
-    Host(googleId.value + proxyConfig.proxyDomain)
-
-  private def hostStatusByProjectAndCluster(r: Runtime): F[HostStatus] = {
-    val hostAndIpOpt = for {
-      a <- r.asyncRuntimeFields
-      h = host(a.googleId)
-      ip <- a.hostIp
-    } yield (h, ip)
-
-    hostAndIpOpt match {
-      case Some((h, ip)) =>
+  private def hostStatusByProjectAndCluster(r: Runtime): F[HostStatus] =
+    r.asyncRuntimeFields.flatMap(_.hostIp) match {
+      case None => F.pure[HostStatus](HostNotReady)
+      case Some(ip) =>
+        val h = runtimeProxyHost(r.googleProject, r.runtimeName, proxyConfig.proxyDomain)
         hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
-      case None =>
-        if (r.status.isStartable)
-          F.pure[HostStatus](HostPaused)
-        else
-          F.pure[HostStatus](HostNotReady)
     }
-  }
 }
