@@ -214,7 +214,7 @@ sealed abstract class NonLeoMessage extends Product with Serializable {
 object NonLeoMessage {
   final case class DeleteKubernetesClusterMessage(clusterId: KubernetesClusterLeoId, project: GoogleProject)
       extends NonLeoMessage {
-    val messageType: String = "delete-k8s-cluster"
+    val messageType: String = "deleteKubernetesCluster"
   }
   final case class CryptoMining(textPayload: String, resource: GoogleResource, googleProject: GoogleProject)
       extends NonLeoMessage {
