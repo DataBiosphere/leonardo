@@ -7,7 +7,6 @@ import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import fs2.Stream
-import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
@@ -17,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{GoogleId, Runtime, RuntimeNam
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.Logger
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
