@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import java.nio.file.{Path, Paths}
-
 import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
@@ -32,6 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderCo
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DateAccessedUpdaterConfig,
+  InterruptablePollMonitorConfig,
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
   PollMonitorConfig
@@ -274,12 +274,21 @@ object Config {
     )
   }
 
-  implicit private val persistentDiskMonitorReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
+  implicit private val pollMonitorConfigReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
     PollMonitorConfig(
       config.as[Int]("max-attempts"),
       config.as[FiniteDuration]("interval")
     )
   }
+
+  implicit private val interruptablePollMonitorConfigReader: ValueReader[InterruptablePollMonitorConfig] =
+    ValueReader.relative { config =>
+      InterruptablePollMonitorConfig(
+        config.as[Int]("max-attempts"),
+        config.as[FiniteDuration]("interval"),
+        config.as[FiniteDuration]("interruptAfter")
+      )
+    }
 
   implicit private val persistentDiskMonitorConfigReader: ValueReader[PersistentDiskMonitorConfig] =
     ValueReader.relative { config =>
@@ -734,11 +743,11 @@ object Config {
       config.as[PollMonitorConfig]("createCluster"),
       config.as[PollMonitorConfig]("deleteCluster"),
       config.as[PollMonitorConfig]("createIngress"),
-      config.as[PollMonitorConfig]("createApp"),
+      config.as[InterruptablePollMonitorConfig]("createApp"),
       config.as[PollMonitorConfig]("deleteApp"),
       config.as[PollMonitorConfig]("scaleNodepool"),
       config.as[PollMonitorConfig]("setNodepoolAutoscaling"),
-      config.as[PollMonitorConfig]("startApp")
+      config.as[InterruptablePollMonitorConfig]("startApp")
     )
   }
 

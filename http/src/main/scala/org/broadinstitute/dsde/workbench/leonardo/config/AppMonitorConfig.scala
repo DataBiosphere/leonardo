@@ -1,15 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
 
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{InterruptablePollMonitorConfig, PollMonitorConfig}
 
 case class AppMonitorConfig(nodepoolCreate: PollMonitorConfig,
                             clusterCreate: PollMonitorConfig,
                             nodepoolDelete: PollMonitorConfig,
                             clusterDelete: PollMonitorConfig,
                             createIngress: PollMonitorConfig,
-                            createApp: PollMonitorConfig,
+                            createApp: InterruptablePollMonitorConfig,
                             deleteApp: PollMonitorConfig,
                             scaleNodepool: PollMonitorConfig,
                             setNodepoolAutoscaling: PollMonitorConfig,
-                            startApp: PollMonitorConfig)
+                            startApp: InterruptablePollMonitorConfig)

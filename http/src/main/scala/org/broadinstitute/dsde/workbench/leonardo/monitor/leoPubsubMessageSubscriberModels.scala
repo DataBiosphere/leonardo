@@ -817,6 +817,12 @@ final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration) {
   def totalDuration: FiniteDuration = interval * maxAttempts
 }
 
+final case class InterruptablePollMonitorConfig(maxAttempts: Int,
+                                                interval: FiniteDuration,
+                                                interruptAfter: FiniteDuration) {
+  def totalDuration: FiniteDuration = interruptAfter
+}
+
 final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
                                              delete: PollMonitorConfig,
                                              update: PollMonitorConfig)
