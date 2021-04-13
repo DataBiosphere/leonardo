@@ -261,8 +261,8 @@ object DiskServiceInterp {
       samResource,
       DiskStatus.Creating,
       AuditInfo(userInfo.userEmail, now, None, now),
-      if (willBeUsedByGalaxy) req.size.getOrElse(config.defaultGalaxyNFSDiskSizeGB)
-      else req.size.getOrElse(config.defaultDiskSizeGB),
+      if (willBeUsedByGalaxy) req.size.getOrElse(config.defaultGalaxyNfsdiskSizeGb)
+      else req.size.getOrElse(config.defaultDiskSizeGb),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
       None,

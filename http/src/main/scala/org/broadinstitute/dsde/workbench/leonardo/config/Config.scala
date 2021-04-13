@@ -652,7 +652,7 @@ object Config {
                                                 gkeNodepoolConfig,
                                                 gkeIngressConfig,
                                                 gkeGalaxyAppConfig,
-                                                ConfigReader.appConfig.persistentDiskConfig)
+                                                ConfigReader.appConfig.persistentDisk)
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val vpcConfig = config.as[VPCConfig]("vpc")

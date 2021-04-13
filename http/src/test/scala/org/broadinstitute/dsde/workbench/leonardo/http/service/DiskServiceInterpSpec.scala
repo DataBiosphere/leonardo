@@ -26,7 +26,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
   val diskService = new DiskServiceInterp(
-    ConfigReader.appConfig.persistentDiskConfig,
+    ConfigReader.appConfig.persistentDisk,
     whitelistAuthProvider,
     serviceAccountProvider,
     publisherQueue

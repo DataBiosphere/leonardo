@@ -22,6 +22,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       )
     )
 
-    config shouldBe Right(expectedConfig)
+    config shouldBe expectedConfig
   }
 }

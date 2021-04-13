@@ -54,7 +54,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                            autoFreezeConfig,
                            dataprocConfig,
                            Config.gceConfig),
-      ConfigReader.appConfig.persistentDiskConfig,
+      ConfigReader.appConfig.persistentDisk,
       whitelistAuthProvider,
       serviceAccountProvider,
       new MockDockerDAO,
@@ -1454,13 +1454,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                                       serviceAccount,
                                                                       FormattedBy.GCE,
                                                                       whitelistAuthProvider,
-                                                                      ConfigReader.appConfig.persistentDiskConfig)
+                                                                      ConfigReader.appConfig.persistentDisk)
       disk = diskResult.disk
       persistedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
       diskResult.creationNeeded shouldBe true
       disk.googleProject shouldBe project
-      disk.zone shouldBe ConfigReader.appConfig.persistentDiskConfig.defaultZone
+      disk.zone shouldBe ConfigReader.appConfig.persistentDisk.defaultZone
       disk.name shouldBe diskName
       disk.googleId shouldBe None
       disk.status shouldBe DiskStatus.Creating
@@ -1469,8 +1469,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       disk.auditInfo.destroyedDate shouldBe None
       disk.auditInfo.dateAccessed shouldBe context.now
       disk.size shouldBe DiskSize(500)
-      disk.diskType shouldBe ConfigReader.appConfig.persistentDiskConfig.defaultDiskType
-      disk.blockSize shouldBe ConfigReader.appConfig.persistentDiskConfig.defaultBlockSizeBytes
+      disk.diskType shouldBe ConfigReader.appConfig.persistentDisk.defaultDiskType
+      disk.blockSize shouldBe ConfigReader.appConfig.persistentDisk.defaultBlockSizeBytes
       disk.labels shouldBe DefaultDiskLabels(diskName, project, userInfo.userEmail, serviceAccount).toMap ++ Map(
         "foo" -> "bar"
       )
@@ -1497,7 +1497,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      ConfigReader.appConfig.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
     } yield {
       diskResult shouldBe (Left(
@@ -1524,7 +1524,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      ConfigReader.appConfig.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
       persistedDisk <- persistentDiskQuery.getById(diskResult.disk.id).transaction
     } yield {
       persistedDisk.get.zone shouldBe (targetZone)
@@ -1546,7 +1546,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      ConfigReader.appConfig.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
     } yield {
       returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
@@ -1568,7 +1568,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      ConfigReader.appConfig.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .unsafeRunSync()
     }
 
@@ -1596,7 +1596,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      ConfigReader.appConfig.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
     } yield {
       err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
@@ -1618,7 +1618,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.Galaxy,
                                       whitelistAuthProvider,
-                                      ConfigReader.appConfig.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
       galaxyDisk <- makePersistentDisk(Some(DiskName("galaxyDisk")), Some(FormattedBy.Galaxy)).save()
       req = PersistentDiskRequest(galaxyDisk.name, Some(galaxyDisk.size), Some(galaxyDisk.diskType), galaxyDisk.labels)
@@ -1630,7 +1630,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      ConfigReader.appConfig.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
     } yield {
       formatGceDiskError shouldBe Left(
@@ -1656,7 +1656,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                              serviceAccount,
                                                              FormattedBy.GCE,
                                                              whitelistAuthProvider,
-                                                             ConfigReader.appConfig.persistentDiskConfig)
+                                                             ConfigReader.appConfig.persistentDisk)
     } yield ()
 
     val thrown = the[ForbiddenError] thrownBy {
