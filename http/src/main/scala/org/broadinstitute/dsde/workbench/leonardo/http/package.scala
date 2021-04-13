@@ -24,7 +24,6 @@ import slick.dbio.DBIO
 
 import java.nio.file.{Files, Path}
 import java.sql.SQLDataException
-import java.util.Objects
 
 package object http {
   val includeDeletedKey = "includeDeleted"
@@ -62,11 +61,6 @@ package object http {
   // This hostname is used by the ProxyService and also needs to be specified in the Galaxy ingress resource
   def kubernetesProxyHost(cluster: KubernetesCluster, proxyDomain: String): Host = {
     val prefix = Math.abs(cluster.getGkeClusterId.toString.hashCode).toString
-    Host(prefix + proxyDomain)
-  }
-
-  def runtimeProxyHost(googleProject: GoogleProject, runtimeName: RuntimeName, proxyDomain: String): Host = {
-    val prefix = Math.abs(Objects.hash(googleProject.value, runtimeName.asString)).toString
     Host(prefix + proxyDomain)
   }
 
