@@ -450,7 +450,6 @@ object Config {
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
-  val persistentDiskConfig = config.as[PersistentDiskConfig]("persistentDisk")
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString

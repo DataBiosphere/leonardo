@@ -1502,7 +1502,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       diskResult shouldBe (Left(
         BadRequestException(
-          s"existing disk ${req.name.value} is in zone ${zone.value} while the target zone ${targetZone.value}. They have to be in the same zone",
+          s"existing disk ${project.value}/${req.name.value} is in zone ${zone.value}, and cannot be attached to a runtime in zone ${targetZone.value}. Please create your runtime in zone us-central1-a if you'd like to use this disk; or opt to use a new disk",
           Some(context.traceId)
         )
       ))
