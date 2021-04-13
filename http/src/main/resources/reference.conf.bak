@@ -392,7 +392,7 @@ gke {
 image {
   welderGcrUri = "us.gcr.io/broad-dsp-gcr-public/welder-server"
   welderDockerHubUri = "broadinstitute/welder-server"
-  welderHash = "abc"
+  welderHash = "e8828dd"
   jupyterImage =  "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:1.0.15"
   legacyJupyterImage = "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da"
   proxyImage = "broadinstitute/openidc-proxy:2.3.1_2"
@@ -457,17 +457,13 @@ clusterFiles {
   rstudioLicenseFile = "/etc/rstudio-license-file.lic"
 }
 
-# The expiration is low because the IP changes when a runtime is pause/resumed,
-# so we need to ensure we don't use stale cache entries.
 runtimeDnsCache {
   cacheExpiryTime = 5 seconds
   cacheMaxSize = 10000
 }
 
-# Kubernetes expiration can be higher because the IP is at the cluster level, which is
-# consistent across app pause/resume. Clusters are garbage collected ~1 hour after app deletion.
 kubernetesDnsCache {
-  cacheExpiryTime = 10 minutes
+  cacheExpiryTime = 5 seconds
   cacheMaxSize = 10000
 }
 
@@ -632,7 +628,6 @@ pubsub {
     createApp {
       interval = 10 seconds
       max-attempts = 120 # 10 seconds * 120 = 20 min
-      interruptAfter = 20 minutes
     }
     deleteApp {
       interval = 10 seconds
@@ -647,9 +642,8 @@ pubsub {
       interval = 10 seconds
     }
     startApp {
-      max-attempts = 200 # 3 seconds * 200 is 10 min
+      max-attempts = 100 # 3 seconds * 100 is 5 min
       interval = 3 seconds
-      interruptAfter = 10 minutes
     }
   }
 
@@ -704,12 +698,12 @@ zombieRuntimeMonitor {
   concurrency = 100
 }
 
-persistent-disk {
-  default-disk-size-gb = 30
-  default-disk-type = "pd-standard"
-  default-block-size-bytes = 4096
-  default-zone = "us-central1-a"
-  default-galaxy-nfsdisk-size-gb = 250
+persistentDisk {
+  defaultDiskSizeGB = 30
+  defaultDiskType = "pd-standard"
+  defaultBlockSizeBytes = 4096
+  zone = "us-central1-a"
+  defaultGalaxyNFSDiskSizeGB = 250
 }
 
 clusterToolMonitor {

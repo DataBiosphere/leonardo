@@ -373,7 +373,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(diskId).transaction
 
       // helm install and wait
-      installApp = app.appType match {
+      _ <- app.appType match {
         case AppType.Galaxy =>
           installGalaxy(
             helmAuthContext,
@@ -404,14 +404,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             app.customEnvironmentVariables
           )
       }
-
-      // Currently we always retry.
-      // The main failure mode here is helm install, which does not have easily interpretable error codes
-      retryConfig = RetryPredicates.standardRetryAllConfig
-      _ <- tracedRetryF(retryConfig)(
-        installApp,
-        s"install for app ${app.appName.value} in project ${googleProject.value}"
-      ).compile.lastOrError
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
@@ -926,7 +918,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // Invoke helm
-      _ <- helmClient
+      helmInstall = helmClient
         .installChart(
           release,
           chart.name,
@@ -935,6 +927,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           false
         )
         .run(helmAuthContext)
+
+      // Currently we always retry.
+      // The main failure mode here is helm install, which does not have easily interpretable error codes
+      retryConfig = RetryPredicates.standardRetryAllConfig
+      _ <- tracedRetryF(retryConfig)(
+        helmInstall,
+        s"helm install for app ${appName.value} in project ${dbCluster.googleProject.value}"
+      ).compile.lastOrError
 
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
@@ -978,13 +978,24 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(ctx.loggingCtx)(
         s"about to process descriptor for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
       )
+      // Currently we always retry.
+      // The main failure mode here is helm install, which does not have easily interpretable error codes
+      retryConfig = RetryPredicates.standardRetryAllConfig
 
-      descriptor <- appDescriptorDAO.getDescriptor(desc).adaptError {
+      getDescriptor = appDescriptorDAO.getDescriptor(desc).adaptError {
         case e =>
           AppCreationException(
             s"Failed to process descriptor: $desc. Please ensure it is a valid descriptor, and that the remote file is valid yaml following the schema detailed here: https://github.com/DataBiosphere/terra-app#app-schema. \n\tOriginal message: ${e.getMessage}"
           )
       }
+
+      // Currently we always retry.
+      // This delays error reporting if the descriptor doesn't exist, but this shouldn't be a common failure mode except for very early in development
+      // We expect the majority of failures are due to intermittent network errors
+      descriptor <- tracedRetryF(retryConfig)(
+        getDescriptor,
+        s"getting descriptor ${desc.toString} for app ${appName.value} in project ${dbCluster.googleProject.value}"
+      ).compile.lastOrError
 
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished processing descriptor for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
@@ -1023,7 +1034,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // Invoke helm
-      _ <- helmClient
+      helmInstall = helmClient
         .installChart(
           release,
           config.customAppConfig.chartName,
@@ -1031,6 +1042,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           org.broadinstitute.dsp.Values(chartValues)
         )
         .run(helmAuthContext)
+
+      // Currently we always retry.
+      // The main failure mode here is helm install, which does not have easily interpretable error codes
+      _ <- tracedRetryF(retryConfig)(
+        helmInstall,
+        s"helm install for app ${appName.value} in project ${dbCluster.googleProject.value}"
+      ).compile.lastOrError
 
       // Poll app until it starts up
       last <- streamFUntilDone(
