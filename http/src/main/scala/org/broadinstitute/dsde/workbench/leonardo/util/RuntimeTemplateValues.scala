@@ -37,6 +37,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           jupyterStartUserScriptUri: String,
                                           jupyterStartUserScriptOutputUri: String,
                                           jupyterServiceAccountCredentials: String,
+                                          jupyterHomeDirectory: String,
                                           loginHint: String,
                                           jupyterServerExtensions: String,
                                           jupyterNbExtensions: String,
@@ -168,7 +169,12 @@ object RuntimeTemplateValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
   val customEnvVarFilename = "custom_env_vars.env"
 
-  def apply(config: RuntimeTemplateValuesConfig, now: Option[Instant]): RuntimeTemplateValues =
+  def apply(config: RuntimeTemplateValuesConfig, now: Option[Instant]): RuntimeTemplateValues = {
+    val jupyterUserhome =
+      config.runtimeImages
+        .find(_.imageType == Jupyter)
+        .flatMap(_.homeDirectory.map(_.toString))
+        .getOrElse("/home/jupyter-user")
     RuntimeTemplateValues(
       config.runtimeProjectAndName.googleProject.value,
       config.runtimeProjectAndName.runtimeName.asString,
@@ -223,6 +229,7 @@ object RuntimeTemplateValues {
         _ <- config.serviceAccountKey
         n <- config.initBucketName
       } yield GcsPath(n, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
+      jupyterUserhome,
       config.auditInfo.creator.value,
       config.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
       config.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
@@ -238,8 +245,7 @@ object RuntimeTemplateValues {
         .getOrElse(""),
       config.defaultClientId.getOrElse(""),
       config.welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
-      if (config.welderEnabled) config.welderConfig.welderEnabledNotebooksDir.toString
-      else config.welderConfig.welderDisabledNotebooksDir.toString,
+      s"${jupyterUserhome}/notebooks",
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)
         .getOrElse(""),
@@ -255,6 +261,7 @@ object RuntimeTemplateValues {
       config.isGceFormatted.toString,
       config.useGceStartupScript.toString
     )
+  }
 
   def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath =
     GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt"))
