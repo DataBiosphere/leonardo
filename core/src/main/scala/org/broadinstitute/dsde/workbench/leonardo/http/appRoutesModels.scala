@@ -3,7 +3,6 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 import java.net.URL
 
 import org.broadinstitute.dsde.workbench.google2.DiskName
-import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
@@ -15,8 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesCluster,
   KubernetesRuntimeConfig,
   LabelMap,
-  Nodepool,
-  NumNodepools
+  Nodepool
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -51,10 +49,6 @@ final case class ListAppResponse(googleProject: GoogleProject,
                                  appName: AppName,
                                  diskName: Option[DiskName],
                                  auditInfo: AuditInfo)
-
-final case class BatchNodepoolCreateRequest(numNodepools: NumNodepools,
-                                            kubernetesRuntimeConfig: Option[KubernetesRuntimeConfig],
-                                            clusterName: Option[KubernetesClusterName])
 
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 

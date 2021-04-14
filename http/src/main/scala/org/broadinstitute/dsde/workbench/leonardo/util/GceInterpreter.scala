@@ -6,13 +6,14 @@ import cats.effect.{Async, Blocker, ContextShift}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.{Operation, _}
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDiskService,
   InstanceName,
   MachineTypeName,
   OperationName,
+  RegionName,
   SubnetworkName,
   ZoneName
 }
@@ -22,7 +23,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbRef
 import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.GceInterpreter._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
@@ -57,21 +57,36 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     with RuntimeAlgebra[F] {
   override def createRuntime(
     params: CreateRuntimeParams
-  )(implicit ev: Ask[F, AppContext]): F[CreateGoogleRuntimeResponse] =
+  )(implicit ev: Ask[F, AppContext]): F[Option[CreateGoogleRuntimeResponse]] =
     // TODO clean up on error
     for {
       ctx <- ev.ask
+
+      zoneParam <- params.runtimeConfig match {
+        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.zone)
+        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure(x.zone)
+        case _ =>
+          F.raiseError[ZoneName](
+            new RuntimeException(
+              "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+            )
+          )
+      }
+
+      // We get region by removing the last two characters of zone
+      regionParam = RegionName(zoneParam.value.substring(0, zoneParam.value.length - 2))
+
       // Set up VPC and firewall
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject)
+        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject, regionParam)
       )
       _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network)
+        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network, regionParam)
       )
 
       // Get resource (e.g. memory) constraints for the instance
       resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
-                                                    config.gceConfig.zoneName,
+                                                    zoneParam,
                                                     params.runtimeConfig.machineType)
 
       // Create the bucket in the cluster's google project and populate with initialization files.
@@ -209,8 +224,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .setName(params.runtimeProjectAndName.runtimeName.asString)
         .setDescription("Leonardo Managed VM")
         .setTags(Tags.newBuilder().addItems(config.vpcConfig.networkTag.value).build())
-        .setMachineType(buildMachineTypeUri(config.gceConfig.zoneName, params.runtimeConfig.machineType))
-        .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, subnetwork))
+        .setMachineType(buildMachineTypeUri(zoneParam, params.runtimeConfig.machineType))
+        .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, subnetwork, zoneParam))
         .addAllDisks(
           List(bootDisk, userDisk).asJava
         )
@@ -241,40 +256,37 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
         .build()
 
-      operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject,
-                                                       config.gceConfig.zoneName,
-                                                       instance)
+      operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, zoneParam, instance)
 
-      asyncRuntimeFields = AsyncRuntimeFields(GoogleId(operation.getTargetId),
-                                              OperationName(operation.getName),
-                                              stagingBucketName,
-                                              None)
-    } yield CreateGoogleRuntimeResponse(asyncRuntimeFields, initBucketName, None, config.gceConfig.customGceImage)
-
-  override def getRuntimeStatus(
-    params: GetRuntimeStatusParams
-  )(implicit ev: Ask[F, AppContext]): F[RuntimeStatus] =
-    for {
-      zoneName <- F.fromEither(
-        params.zoneName.toRight(new Exception("Missing zone name for getting GCE runtime status"))
+      res = operation.map(o =>
+        CreateGoogleRuntimeResponse(
+          AsyncRuntimeFields(GoogleId(o.getTargetId), OperationName(o.getName), stagingBucketName, None),
+          initBucketName,
+          config.gceConfig.customGceImage
+        )
       )
-      status <- googleComputeService
-        .getInstance(params.googleProject, zoneName, InstanceName(params.runtimeName.asString))
-        .map(instanceStatusToRuntimeStatus)
-    } yield status
+    } yield res
 
-  override protected def stopGoogleRuntime(runtime: Runtime, runtimeConfig: Option[RuntimeConfig.DataprocConfig])(
+  override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
-      metadata <- getShutdownScript(runtime, blocker)
-      _ <- googleComputeService.addInstanceMetadata(runtime.googleProject,
-                                                    config.gceConfig.zoneName,
-                                                    InstanceName(runtime.runtimeName.asString),
-                                                    metadata)
-      r <- googleComputeService.stopInstance(runtime.googleProject,
-                                             config.gceConfig.zoneName,
-                                             InstanceName(runtime.runtimeName.asString))
+      zoneParam <- F.fromOption(
+        LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
+        new RuntimeException(
+          "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+        )
+      )
+      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
+      _ <- googleComputeService.addInstanceMetadata(
+        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        zoneParam,
+        InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+        metadata
+      )
+      r <- googleComputeService.stopInstance(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                                             zoneParam,
+                                             InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
     } yield Some(r)
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
@@ -282,10 +294,16 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
   ): F[Unit] =
     for {
       ctx <- ev.ask
-      resourceConstraints <- getResourceConstraints(params.runtime.googleProject,
-                                                    config.gceConfig.zoneName,
-                                                    params.runtimeConfig.machineType)
-      metadata <- getStartupScript(params.runtime,
+      zoneParam <- F.fromOption(
+        LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
+        new RuntimeException(
+          "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+        )
+      )
+      resourceConstraints <- getResourceConstraints(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                                                    zoneParam,
+                                                    params.runtimeAndRuntimeConfig.runtimeConfig.machineType)
+      metadata <- getStartupScript(params.runtimeAndRuntimeConfig.runtime,
                                    params.welderAction,
                                    params.initBucket,
                                    blocker,
@@ -293,39 +311,57 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                                    true)
       // remove the startup-script-url metadata entry if present which is only used at creation time
       _ <- googleComputeService.modifyInstanceMetadata(
-        params.runtime.googleProject,
-        config.gceConfig.zoneName,
-        InstanceName(params.runtime.runtimeName.asString),
+        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        zoneParam,
+        InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
-      _ <- googleComputeService.startInstance(params.runtime.googleProject,
-                                              config.gceConfig.zoneName,
-                                              InstanceName(params.runtime.runtimeName.asString))
+      _ <- googleComputeService.startInstance(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                                              zoneParam,
+                                              InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
     } yield ()
 
-  override protected def setMachineTypeInGoogle(runtime: Runtime, machineType: MachineTypeName)(
+  override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
-    googleComputeService.setMachineType(runtime.googleProject,
-                                        config.gceConfig.zoneName,
-                                        InstanceName(runtime.runtimeName.asString),
-                                        machineType)
+    for {
+      zoneParam <- F.fromOption(
+        LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
+        new RuntimeException(
+          "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+        )
+      )
+      _ <- googleComputeService.setMachineType(
+        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        zoneParam,
+        InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+        params.machineType
+      )
+    } yield ()
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
   )(implicit ev: Ask[F, AppContext]): F[Option[Operation]] =
-    if (params.runtime.asyncRuntimeFields.isDefined) {
+    if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) {
       for {
-        metadata <- getShutdownScript(params.runtime, blocker)
-        _ <- googleComputeService.addInstanceMetadata(params.runtime.googleProject,
-                                                      config.gceConfig.zoneName,
-                                                      InstanceName(params.runtime.runtimeName.asString),
-                                                      metadata)
+        zoneParam <- F.fromOption(
+          LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
+          new RuntimeException(
+            "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+          )
+        )
+        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
+        _ <- googleComputeService.addInstanceMetadata(
+          params.runtimeAndRuntimeConfig.runtime.googleProject,
+          zoneParam,
+          InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+          metadata
+        )
         op <- googleComputeService
-          .deleteInstance(params.runtime.googleProject,
-                          config.gceConfig.zoneName,
-                          InstanceName(params.runtime.runtimeName.asString))
+          .deleteInstance(params.runtimeAndRuntimeConfig.runtime.googleProject,
+                          zoneParam,
+                          InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
       } yield op
     } else F.pure(None)
 
@@ -337,7 +373,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       .getOption(params)
       .traverse_(p =>
         googleDiskService
-          .resizeDisk(p.googleProject, config.gceConfig.zoneName, p.diskName, p.diskSize.gb)
+          .resizeDisk(p.googleProject, p.zone, p.diskName, p.diskSize.gb)
       )
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -361,10 +397,16 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     } yield RuntimeResourceConstraints(result)
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
-                                     subnetwork: SubnetworkName): NetworkInterface =
+                                     subnetwork: SubnetworkName,
+                                     zone: ZoneName): NetworkInterface =
+    // We get region by removing the last two characters of zone
     NetworkInterface
       .newBuilder()
-      .setSubnetwork(buildSubnetworkUri(runtimeProjectAndName.googleProject, config.gceConfig.regionName, subnetwork))
+      .setSubnetwork(
+        buildSubnetworkUri(runtimeProjectAndName.googleProject,
+                           RegionName(zone.value.substring(0, zone.value.length - 2)),
+                           subnetwork)
+      )
       .addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build)
       .build
 }

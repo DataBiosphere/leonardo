@@ -2,13 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
+
 import cats.Parallel
 import cats.effect.{Async, IO, Timer}
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import fs2.Stream
-import io.chrisdavenport.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.{GoogleStorageService, ZoneName}
+import org.typelevel.log4cats.StructuredLogger
+import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
@@ -38,6 +39,22 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       // run s1 and s2 concurrently. s1 will run indefinitely if s2 doesn't happen. So by validating the combined Stream terminate, we verify s1 is terminated due to unexpected status change for the runtime
       _ <- Stream(s1, s2).parJoin(2).compile.drain.timeout(10 seconds)
     } yield succeed
+    res.unsafeRunSync()
+  }
+
+  it should "transition cluster to Stopping if Starting times out" in isolatedDbTest {
+    val res = for {
+      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).save())
+      runtimeMonitor = new MockRuntimeMonitor(true, Map(RuntimeStatus.Starting -> 2.seconds)) {
+        override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
+          implicit ev: Ask[IO, AppContext]
+        ): IO[(Unit, Option[MonitorState])] = checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, None, None)
+      }
+      assersions = for {
+        status <- clusterQuery.getClusterStatus(runtime.id).transaction
+      } yield status.get shouldBe RuntimeStatus.Stopping
+      _ <- withInfiniteStream(runtimeMonitor.process(runtime.id, RuntimeStatus.Starting), assersions)
+    } yield ()
     res.unsafeRunSync()
   }
 
@@ -121,53 +138,56 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     res.unsafeRunSync()
   }
 
-  def baseRuntimeMonitor(isWelderReady: Boolean): BaseCloudServiceRuntimeMonitor[IO] =
-    new BaseCloudServiceRuntimeMonitor[IO] {
-      implicit override def F: Async[IO] = IO.ioConcurrentEffect(cs)
+  class MockRuntimeMonitor(isWelderReady: Boolean, timeouts: Map[RuntimeStatus, FiniteDuration])
+      extends BaseCloudServiceRuntimeMonitor[IO] {
+    implicit override def F: Async[IO] = IO.ioConcurrentEffect(cs)
 
-      implicit override def parallel: Parallel[IO] = IO.ioParallel(cs)
+    implicit override def parallel: Parallel[IO] = IO.ioParallel(cs)
 
-      override def timer: Timer[IO] = testTimer
+    override def timer: Timer[IO] = testTimer
 
-      implicit override def dbRef: DbReference[IO] = testDbRef
+    implicit override def dbRef: DbReference[IO] = testDbRef
 
-      implicit override def ec: ExecutionContext = global
+    implicit override def ec: ExecutionContext = global
 
-      implicit override def runtimeToolToToolDao
-        : RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = x => {
-        x match {
-          case RuntimeContainerServiceType.WelderService => MockToolDAO(isWelderReady)
-          case _                                         => MockToolDAO(true)
-        }
+    implicit override def runtimeToolToToolDao
+      : RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = x => {
+      x match {
+        case RuntimeContainerServiceType.WelderService => MockToolDAO(isWelderReady)
+        case _                                         => MockToolDAO(true)
       }
-
-      implicit override def openTelemetry: OpenTelemetryMetrics[IO] = metrics
-
-      override def runtimeAlg: RuntimeAlgebra[IO] = MockRuntimeAlgebra
-
-      override def logger: StructuredLogger[IO] = loggerIO
-
-      override def googleStorage: GoogleStorageService[IO] = ???
-
-      override def monitorConfig: MonitorConfig = MonitorConfig.GceMonitorConfig(
-        2 seconds,
-        1 seconds,
-        5,
-        1 seconds,
-        10,
-        RuntimeBucketConfig(3 seconds),
-        Map.empty,
-        ZoneName("zoneName"),
-        Config.imageConfig
-      )
-
-      override def pollCheck(googleProject: GoogleProject,
-                             runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                             operation: Operation,
-                             action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
-
-      override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-        implicit ev: Ask[IO, AppContext]
-      ): IO[(Unit, Option[MonitorState])] = IO.pure(((), Some(MonitorState.Check(runtimeAndRuntimeConfig))))
     }
+
+    implicit override def openTelemetry: OpenTelemetryMetrics[IO] = metrics
+
+    override def runtimeAlg: RuntimeAlgebra[IO] = MockRuntimeAlgebra
+
+    override def logger: StructuredLogger[IO] = loggerIO
+
+    override def googleStorage: GoogleStorageService[IO] = ???
+
+    override def monitorConfig: MonitorConfig = MonitorConfig.GceMonitorConfig(
+      2 seconds,
+      1 seconds,
+      5,
+      1 seconds,
+      10,
+      RuntimeBucketConfig(3 seconds),
+      timeouts,
+      Config.imageConfig
+    )
+
+    override def pollCheck(googleProject: GoogleProject,
+                           runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                           operation: Operation,
+                           action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
+
+    override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
+      implicit ev: Ask[IO, AppContext]
+    ): IO[(Unit, Option[MonitorState])] = IO.pure(((), Some(MonitorState.Check(runtimeAndRuntimeConfig, None))))
+  }
+
+  def baseRuntimeMonitor(isWelderReady: Boolean,
+                         timeouts: Map[RuntimeStatus, FiniteDuration] = Map.empty): BaseCloudServiceRuntimeMonitor[IO] =
+    new MockRuntimeMonitor(isWelderReady, timeouts)
 }

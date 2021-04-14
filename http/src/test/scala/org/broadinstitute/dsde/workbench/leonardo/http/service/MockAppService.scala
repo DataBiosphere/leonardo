@@ -6,7 +6,6 @@ import cats.effect.IO
 import cats.mtl.Ask
 import KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.http.{
-  BatchNodepoolCreateRequest,
   CreateAppRequest,
   DeleteAppRequest,
   GetAppResponse,
@@ -35,10 +34,6 @@ class MockAppService extends AppService[IO] {
     implicit as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit
-
-  override def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
-    implicit ev: Ask[IO, AppContext]
-  ): IO[Unit] = IO.unit
 
   override def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
     implicit as: Ask[IO, AppContext]

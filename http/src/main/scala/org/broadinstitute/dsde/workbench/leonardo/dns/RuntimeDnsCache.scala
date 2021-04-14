@@ -1,23 +1,24 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
-import java.util.concurrent.TimeUnit
-
 import akka.http.scaladsl.model.Uri.Host
+import cats.effect.concurrent.Ref
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.leonardo.{GoogleId, Runtime, RuntimeName}
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.Logger
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
 
 final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
@@ -29,12 +30,13 @@ final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: R
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
  */
-class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMetrics](
+class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
+  hostToIpMapping: Ref[F, Map[Host, IP]],
   blocker: Blocker
-)(implicit ec: ExecutionContext) {
+)(implicit F: Effect[F], ec: ExecutionContext) {
 
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
     blocker.blockOn(Effect[F].delay(projectClusterToHostStatus.get(key)))
@@ -58,7 +60,7 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMe
               case Some(runtime) =>
                 hostStatusByProjectAndCluster(runtime)
               case None =>
-                Effect[F].pure[HostStatus](HostNotFound)
+                F.pure[HostStatus](HostNotFound)
             }
           } yield hostStatus
 
@@ -76,20 +78,20 @@ class RuntimeDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMe
     Host(googleId.value + proxyConfig.proxyDomain)
 
   private def hostStatusByProjectAndCluster(r: Runtime): F[HostStatus] = {
-    val hostAndIp = for {
+    val hostAndIpOpt = for {
       a <- r.asyncRuntimeFields
       h = host(a.googleId)
       ip <- a.hostIp
     } yield (h, ip)
 
-    hostAndIp match {
+    hostAndIpOpt match {
       case Some((h, ip)) =>
-        HostToIpMapping.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h)).to[F]
+        hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
       case None =>
         if (r.status.isStartable)
-          Effect[F].pure(HostPaused)
+          F.pure[HostStatus](HostPaused)
         else
-          Effect[F].pure(HostNotReady)
+          F.pure[HostStatus](HostNotReady)
     }
   }
 }

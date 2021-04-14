@@ -12,7 +12,6 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GcsPath,
   GcsPathSupport,
   GoogleProject,
-  ServiceAccountKey,
   ServiceAccountKeyId
 }
 import LeoProfile.api._
@@ -777,7 +776,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 final case class GetClusterKey(googleProject: GoogleProject, clusterName: RuntimeName, destroyedDate: Option[Instant])
 
 final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
-                                                  serviceAccountKey: Option[ServiceAccountKey],
                                                   clusterId: Long,
                                                   asyncRuntimeFields: Option[AsyncRuntimeFields],
                                                   dateAccessed: Instant)

@@ -11,14 +11,15 @@ final case class VPCConfig(highSecurityProjectNetworkLabel: NetworkLabel,
                            networkTag: NetworkTag,
                            autoCreateSubnetworks: Boolean,
                            subnetworkName: SubnetworkName,
-                           subnetworkRegion: RegionName,
-                           subnetworkIpRange: IpRange,
+                           subnetworkRegionIpRangeMap: Map[RegionName, IpRange],
                            firewallsToAdd: List[FirewallRuleConfig],
                            firewallsToRemove: List[FirewallRuleName],
                            pollPeriod: FiniteDuration,
                            maxAttempts: Int)
 
-final case class FirewallRuleConfig(name: FirewallRuleName, sourceRanges: List[IpRange], allowed: List[Allowed])
+final case class FirewallRuleConfig(namePrefix: String,
+                                    sourceRanges: Map[RegionName, List[IpRange]],
+                                    allowed: List[Allowed])
 
 final case class Allowed(protocol: String, port: Option[String])
 

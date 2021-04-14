@@ -6,9 +6,8 @@ import cats.effect.concurrent.Semaphore
 import cats.effect.{Async, Blocker, ContextShift, Resource, Sync, Timer}
 import cats.mtl.Ask
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
-import com.google.api.client.json.jackson2.JacksonFactory
 import com.google.api.services.oauth2.Oauth2
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 
 trait GoogleOAuth2Service[F[_]] {
@@ -20,8 +19,8 @@ object GoogleOAuth2Service {
     blockerBound: Semaphore[F]
   ): Resource[F, GoogleOAuth2Service[F]] =
     for {
-      httpTransport <- Resource.liftF(Sync[F].delay(GoogleNetHttpTransport.newTrustedTransport))
-      jsonFactory = JacksonFactory.getDefaultInstance
+      httpTransport <- Resource.eval(Sync[F].delay(GoogleNetHttpTransport.newTrustedTransport))
+      jsonFactory = com.google.api.client.json.gson.GsonFactory.getDefaultInstance
       // Credentials not needed for the tokeninfo API
       client = new Oauth2.Builder(httpTransport, jsonFactory, null)
         .setApplicationName("leonardo")

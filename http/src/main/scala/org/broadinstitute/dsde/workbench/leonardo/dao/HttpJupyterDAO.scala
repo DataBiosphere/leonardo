@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.Logger
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
@@ -13,6 +12,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
+import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
 class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
@@ -27,7 +27,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/status"
+                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/status"
               )
             )
           )
@@ -39,13 +39,13 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName)
       resp <- hostStatus match {
-        case HostReady(host) =>
+        case HostReady(targetHost) =>
           for {
             res <- client.expect[List[Session]](
               Request[F](
                 method = Method.GET,
                 uri = Uri.unsafeFromString(
-                  s"https://${host.toString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/sessions"
+                  s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/sessions"
                 )
               )
             )
@@ -62,7 +62,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
             Request[F](
               method = Method.POST,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals"
+                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals"
               )
             )
           )
@@ -80,7 +80,7 @@ class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsC
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals/${terminalName.asString}" // this returns 404 if the terminal doesn't exist
+                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals/${terminalName.asString}" // this returns 404 if the terminal doesn't exist
               )
             )
           )

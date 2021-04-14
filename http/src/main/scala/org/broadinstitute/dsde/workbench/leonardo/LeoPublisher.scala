@@ -6,7 +6,7 @@ import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import fs2.concurrent.InspectableQueue
 import fs2.{Pipe, Stream}
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
@@ -84,8 +84,6 @@ final class LeoPublisher[F[_]: Logger: Timer](
                 .markPendingCreating(m.appId, None, None, None)
                 .transaction
           }
-        case m: LeoPubsubMessage.BatchNodepoolCreateMessage =>
-          KubernetesServiceDbQueries.markPendingBatchCreating(m.clusterId, m.nodepools).transaction
         case m: LeoPubsubMessage.StopAppMessage =>
           appQuery.updateStatus(m.appId, AppStatus.Stopping).transaction
         case m: LeoPubsubMessage.StartAppMessage =>

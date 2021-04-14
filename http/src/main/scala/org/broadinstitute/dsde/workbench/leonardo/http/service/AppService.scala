@@ -7,10 +7,6 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait AppService[F[_]] {
-  def batchNodepoolCreate(userInfo: UserInfo, googleProject: GoogleProject, req: BatchNodepoolCreateRequest)(
-    implicit ev: Ask[F, AppContext]
-  ): F[Unit]
-
   def createApp(
     userInfo: UserInfo,
     googleProject: GoogleProject,

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+    <changeSet logicalFilePath="leonardo" author="willyn" id="add_zone_and_region">
+        <addColumn tableName="RUNTIME_CONFIG">
+            <column name="zone" type="varchar(254)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+        <addColumn tableName="RUNTIME_CONFIG">
+            <column name="region" type="varchar(254)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+    </changeSet>
+
+    <changeSet logicalFilePath="leonardo" id="popuate_zone_and_region" author="willyn">
+        <sql>UPDATE RUNTIME_CONFIG SET zone = 'us-central1-a' WHERE cloudService = 'GCE'</sql>
+        <sql>UPDATE RUNTIME_CONFIG SET region = 'us-central1' WHERE cloudService = 'DATAPROC'</sql>
+    </changeSet>
+
+</databaseChangeLog>

@@ -12,7 +12,7 @@ import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeRequest, RuntimeService}
@@ -244,28 +244,30 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
 }
 
 object RuntimeRoutes {
-  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfigRequest.GceWithPdConfig] = Decoder.instance { x =>
+  implicit val gceWithPdConfigRequestDecoder: Decoder[RuntimeConfigRequest.GceWithPdConfig] = Decoder.instance { x =>
     for {
       machineType <- x.downField("machineType").as[Option[MachineTypeName]]
       pd <- x
         .downField("persistentDisk")
         .as[PersistentDiskRequest]
-    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd)
+      zone <- x.downField("zone").as[Option[ZoneName]]
+    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd, zone)
   }
 
-  implicit val gceConfigDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
+  implicit val gceConfigRequestDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
     for {
       machineType <- x.downField("machineType").as[Option[MachineTypeName]]
       diskSize <- x
         .downField("diskSize")
         .as[Option[DiskSize]]
-    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize)
+      zone <- x.downField("zone").as[Option[ZoneName]]
+    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize, zone)
   }
 
   val invalidPropertiesError =
     DecodingFailure("invalid properties. An example of property is `spark:spark.executor.cores`", List.empty)
 
-  implicit val dataprocConfigDecoder: Decoder[RuntimeConfigRequest.DataprocConfig] = Decoder.instance { c =>
+  implicit val dataprocConfigRequestDecoder: Decoder[RuntimeConfigRequest.DataprocConfig] = Decoder.instance { c =>
     for {
       numberOfWorkersInput <- c.downField("numberOfWorkers").as[Option[Int]]
       masterMachineType <- c.downField("masterMachineType").as[Option[MachineTypeName]]
@@ -294,6 +296,7 @@ object RuntimeRoutes {
         .downField("numberOfPreemptibleWorkers")
         .as[Option[Int]]
         .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
+      region <- c.downField("region").as[Option[RegionName]]
       res <- numberOfWorkersInput match {
         case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
         case Some(0) =>
@@ -311,7 +314,8 @@ object RuntimeRoutes {
                                                 workerDiskSize,
                                                 numberOfWorkerLocalSSDs,
                                                 numberOfPreemptibleWorkers,
-                                                properties)
+                                                properties,
+                                                region)
           )
         case None =>
           Right(
@@ -322,13 +326,14 @@ object RuntimeRoutes {
                                                 workerDiskSize,
                                                 numberOfWorkerLocalSSDs,
                                                 numberOfPreemptibleWorkers,
-                                                properties)
+                                                properties,
+                                                region)
           )
       }
     } yield res
   }
 
-  implicit val runtimeConfigDecoder: Decoder[RuntimeConfigRequest] = Decoder.instance { x =>
+  implicit val runtimeConfigRequestDecoder: Decoder[RuntimeConfigRequest] = Decoder.instance { x =>
     //For newer version of requests, we use `cloudService` field to distinguish whether user is
     for {
       cloudService <- x.downField("cloudService").as[CloudService]
@@ -339,12 +344,13 @@ object RuntimeRoutes {
           for {
             machineType <- x.downField("machineType").as[Option[MachineTypeName]]
             pd <- x.downField("persistentDisk").as[Option[PersistentDiskRequest]]
+            zone <- x.downField("zone").as[Option[ZoneName]]
             res <- pd match {
-              case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p).asRight[DecodingFailure]
+              case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p, zone).asRight[DecodingFailure]
               case None =>
                 x.downField("diskSize")
                   .as[Option[DiskSize]]
-                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d))
+                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d, zone))
             }
           } yield res
       }
@@ -387,7 +393,7 @@ object RuntimeRoutes {
     )
   }
 
-  implicit val updateGceConfigDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
+  implicit val updateGceConfigRequestDecoder: Decoder[UpdateRuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
     for {
       machineType <- x.downField("machineType").as[Option[MachineTypeName]]
       diskSize <- x
@@ -396,23 +402,24 @@ object RuntimeRoutes {
     } yield UpdateRuntimeConfigRequest.GceConfig(machineType, diskSize)
   }
 
-  implicit val updateDataprocConfigDecoder: Decoder[UpdateRuntimeConfigRequest.DataprocConfig] = Decoder.instance { x =>
-    for {
-      masterMachineType <- x.downField("masterMachineType").as[Option[MachineTypeName]]
-      diskSize <- x
-        .downField("masterDiskSize")
-        .as[Option[DiskSize]]
-      numWorkers <- x.downField("numberOfWorkers").as[Option[Int]].flatMap {
-        case Some(x) if x < 0  => Left(negativeNumberDecodingFailure)
-        case Some(x) if x == 1 => Left(oneWorkerSpecifiedDecodingFailure)
-        case x                 => Right(x)
-      }
-      numPreemptibles <- x.downField("numberOfPreemptibleWorkers").as[Option[Int]].flatMap {
-        case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
-        case x                => Right(x)
-      }
-    } yield UpdateRuntimeConfigRequest.DataprocConfig(masterMachineType, diskSize, numWorkers, numPreemptibles)
-  }
+  implicit val updateDataprocConfigRequestDecoder: Decoder[UpdateRuntimeConfigRequest.DataprocConfig] =
+    Decoder.instance { x =>
+      for {
+        masterMachineType <- x.downField("masterMachineType").as[Option[MachineTypeName]]
+        diskSize <- x
+          .downField("masterDiskSize")
+          .as[Option[DiskSize]]
+        numWorkers <- x.downField("numberOfWorkers").as[Option[Int]].flatMap {
+          case Some(x) if x < 0  => Left(negativeNumberDecodingFailure)
+          case Some(x) if x == 1 => Left(oneWorkerSpecifiedDecodingFailure)
+          case x                 => Right(x)
+        }
+        numPreemptibles <- x.downField("numberOfPreemptibleWorkers").as[Option[Int]].flatMap {
+          case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
+          case x                => Right(x)
+        }
+      } yield UpdateRuntimeConfigRequest.DataprocConfig(masterMachineType, diskSize, numWorkers, numPreemptibles)
+    }
 
   implicit val updateRuntimeConfigRequestDecoder: Decoder[UpdateRuntimeConfigRequest] = Decoder.instance { x =>
     for {

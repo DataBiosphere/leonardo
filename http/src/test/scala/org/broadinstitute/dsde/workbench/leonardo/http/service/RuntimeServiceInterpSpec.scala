@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
+import java.net.URL
 import java.time.Instant
 import java.util.UUID
 
@@ -10,53 +11,39 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGooglePublisher,
   FakeGoogleStorageInterpreter,
   MockComputePollOperation
 }
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, userInfo, testCluster, _}
+import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  BucketObjectException,
-  ForbiddenError,
-  LeoException,
-  ParseLabelsException,
-  RuntimeAlreadyExistsException,
-  RuntimeCannotBeDeletedException,
-  RuntimeCannotBeUpdatedException,
-  RuntimeDiskSizeCannotBeChangedException,
-  RuntimeDiskSizeCannotBeDecreasedException,
-  RuntimeMachineTypeCannotBeChangedException,
-  RuntimeNotFoundException
-}
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp.calculateAutopauseThreshold
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,
   LeoPubsubMessage,
   RuntimeConfigInCreateRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
+import org.scalatest.flatspec.AnyFlatSpec
+import org.scalatestplus.mockito.MockitoSugar
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatestplus.mockito.MockitoSugar
-import java.net.URL
-
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
@@ -67,7 +54,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                            autoFreezeConfig,
                            dataprocConfig,
                            Config.gceConfig),
-      Config.persistentDiskConfig,
+      ConfigReader.appConfig.persistentDisk,
       whitelistAuthProvider,
       serviceAccountProvider,
       new MockDockerDAO,
@@ -539,7 +526,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
-        bootDiskSize = DiskSize(50)
+        bootDiskSize = DiskSize(50),
+        zone = ZoneName("us-central1-a")
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
@@ -553,7 +541,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(50))
+                                                                              bootDiskSize = DiskSize(50),
+                                                                              zone = ZoneName("us-central1-a"))
         )
       message shouldBe expectedMessage
     }
@@ -829,7 +818,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       testRuntime <- IO(
         makeCluster(1).saveWithRuntimeConfig(
           RuntimeConfig
-            .GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(pd.id), bootDiskSize = DiskSize(50))
+            .GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                             Some(pd.id),
+                             bootDiskSize = DiskSize(50),
+                             zone = ZoneName("us-central1-a"))
         )
       )
 
@@ -1207,7 +1199,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1261,7 +1253,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(
         dataprocInstances = Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1299,7 +1291,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1336,7 +1328,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1365,7 +1357,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     }
     res.unsafeRunSync()
   }
-
   it should "fail to update a Dataproc machine type in Running state with allowStop set to false" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
@@ -1395,7 +1386,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       ctx <- appContext.ask[AppContext]
       masterInstance = DataprocInstance(
-        DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+        DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
         1,
         GceInstanceStatus.Running,
         Some(IP("")),
@@ -1432,7 +1423,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, Config.gceConfig.zoneName, InstanceName("instance-0")),
+            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1457,18 +1448,19 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       context <- ctx.ask[AppContext]
       diskResult <- RuntimeServiceInterp.processPersistentDiskRequest(req,
+                                                                      zone,
                                                                       project,
                                                                       userInfo,
                                                                       serviceAccount,
                                                                       FormattedBy.GCE,
                                                                       whitelistAuthProvider,
-                                                                      Config.persistentDiskConfig)
+                                                                      ConfigReader.appConfig.persistentDisk)
       disk = diskResult.disk
       persistedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
       diskResult.creationNeeded shouldBe true
       disk.googleProject shouldBe project
-      disk.zone shouldBe Config.persistentDiskConfig.zone
+      disk.zone shouldBe ConfigReader.appConfig.persistentDisk.defaultZone
       disk.name shouldBe diskName
       disk.googleId shouldBe None
       disk.status shouldBe DiskStatus.Creating
@@ -1477,14 +1469,65 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       disk.auditInfo.destroyedDate shouldBe None
       disk.auditInfo.dateAccessed shouldBe context.now
       disk.size shouldBe DiskSize(500)
-      disk.diskType shouldBe Config.persistentDiskConfig.defaultDiskType
-      disk.blockSize shouldBe Config.persistentDiskConfig.defaultBlockSizeBytes
+      disk.diskType shouldBe ConfigReader.appConfig.persistentDisk.defaultDiskType
+      disk.blockSize shouldBe ConfigReader.appConfig.persistentDisk.defaultBlockSizeBytes
       disk.labels shouldBe DefaultDiskLabels(diskName, project, userInfo.userEmail, serviceAccount).toMap ++ Map(
         "foo" -> "bar"
       )
 
       persistedDisk shouldBe 'defined
       persistedDisk.get shouldEqual disk
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "reject a request if requested PD's zone is different from target zone" in isolatedDbTest {
+    val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
+    val res = for {
+      context <- ctx.ask[AppContext]
+      _ <- makePersistentDisk(Some(req.name), Some(FormattedBy.GCE), None, Some(zone), Some(project)).save()
+      // save a PD with default zone
+      targetZone = ZoneName("europe-west2-c")
+      diskResult <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      targetZone,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      FormattedBy.GCE,
+                                      whitelistAuthProvider,
+                                      ConfigReader.appConfig.persistentDisk)
+        .attempt
+    } yield {
+      diskResult shouldBe (Left(
+        BadRequestException(
+          s"existing disk ${project.value}/${req.name.value} is in zone ${zone.value}, and cannot be attached to a runtime in zone ${targetZone.value}. Please create your runtime in zone us-central1-a if you'd like to use this disk; or opt to use a new disk",
+          Some(context.traceId)
+        )
+      ))
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "persist non-default zone disk properly" in isolatedDbTest {
+    val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
+    val targetZone = ZoneName("europe-west2-c")
+
+    val res = for {
+      diskResult <- RuntimeServiceInterp
+        .processPersistentDiskRequest(req,
+                                      targetZone,
+                                      project,
+                                      userInfo,
+                                      serviceAccount,
+                                      FormattedBy.GCE,
+                                      whitelistAuthProvider,
+                                      ConfigReader.appConfig.persistentDisk)
+      persistedDisk <- persistentDiskQuery.getById(diskResult.disk.id).transaction
+    } yield {
+      persistedDisk.get.zone shouldBe (targetZone)
     }
 
     res.unsafeRunSync()
@@ -1497,12 +1540,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, Map("foo" -> "bar"))
       returnedDisk <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
     } yield {
       returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
@@ -1518,12 +1562,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val thrown = the[ForbiddenError] thrownBy {
       RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .unsafeRunSync()
     }
 
@@ -1536,18 +1581,22 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       savedDisk <- makePersistentDisk(None).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(defaultMachineType, Some(savedDisk.id), bootDiskSize = DiskSize(50))
+          RuntimeConfig.GceWithPdConfig(defaultMachineType,
+                                        Some(savedDisk.id),
+                                        bootDiskSize = DiskSize(50),
+                                        ZoneName("us-central1-a"))
         )
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       err <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
     } yield {
       err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
@@ -1563,23 +1612,25 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       req = PersistentDiskRequest(gceDisk.name, Some(gceDisk.size), Some(gceDisk.diskType), gceDisk.labels)
       formatGceDiskError <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
                                       FormattedBy.Galaxy,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
       galaxyDisk <- makePersistentDisk(Some(DiskName("galaxyDisk")), Some(FormattedBy.Galaxy)).save()
       req = PersistentDiskRequest(galaxyDisk.name, Some(galaxyDisk.size), Some(galaxyDisk.diskType), galaxyDisk.labels)
       formatGalaxyDiskError <- RuntimeServiceInterp
         .processPersistentDiskRequest(req,
+                                      zone,
                                       project,
                                       userInfo,
                                       serviceAccount,
                                       FormattedBy.GCE,
                                       whitelistAuthProvider,
-                                      Config.persistentDiskConfig)
+                                      ConfigReader.appConfig.persistentDisk)
         .attempt
     } yield {
       formatGceDiskError shouldBe Left(
@@ -1599,12 +1650,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       savedDisk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)
       _ <- RuntimeServiceInterp.processPersistentDiskRequest(req,
+                                                             zone,
                                                              project,
                                                              userInfo,
                                                              serviceAccount,
                                                              FormattedBy.GCE,
                                                              whitelistAuthProvider,
-                                                             Config.persistentDiskConfig)
+                                                             ConfigReader.appConfig.persistentDisk)
     } yield ()
 
     val thrown = the[ForbiddenError] thrownBy {

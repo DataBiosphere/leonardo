@@ -3,13 +3,13 @@ package dao
 
 import cats.effect.{Concurrent, ContextShift, Timer}
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
+import org.typelevel.log4cats.Logger
 
 class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
   val runtimeDnsCache: RuntimeDnsCache[F],
@@ -27,7 +27,7 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
             Request[F](
               method = Method.POST,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.toString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
+                s"https://${targetHost.address}/proxy/${googleProject.value}/${runtimeName.asString}/welder/cache/flush"
               )
             )
           )
@@ -54,7 +54,7 @@ class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
               Request[F](
                 method = Method.GET,
                 uri = Uri.unsafeFromString(
-                  s"https://${targetHost.toString}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
+                  s"https://${targetHost.address}/proxy/${googleProject.value}/${runtimeName.asString}/welder/status"
                 )
               )
             )

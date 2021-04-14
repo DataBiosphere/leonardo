@@ -4,16 +4,16 @@ package monitor
 import java.time.Instant
 import java.util.concurrent.TimeoutException
 
-import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
 import cats.effect.{ConcurrentEffect, ContextShift, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Disk
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.{DoneCheckable}
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
@@ -40,9 +40,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
 
-import scala.jdk.CollectionConverters._
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   config: LeoPubsubMessageSubscriberConfig,
@@ -84,8 +84,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         handleCreateAppMessage(msg)
       case msg: DeleteAppMessage =>
         handleDeleteAppMessage(msg)
-      case msg: BatchNodepoolCreateMessage =>
-        handleBatchNodepoolCreateMessage(msg)
       case msg: StopAppMessage =>
         handleStopAppMessage(msg)
       case msg: StartAppMessage =>
@@ -147,19 +145,22 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       ctx <- ev.ask
       clusterResult <- msg.runtimeConfig.cloudService.interpreter
         .createRuntime(CreateRuntimeParams.fromCreateRuntimeMessage(msg))
-      updateAsyncClusterCreationFields = UpdateAsyncClusterCreationFields(
-        Some(GcsPath(clusterResult.initBucket, GcsObjectName(""))),
-        clusterResult.serviceAccountKey,
-        msg.runtimeId,
-        Some(clusterResult.asyncRuntimeFields),
-        ctx.now
-      )
-      // Save the VM image and async fields in the database
-      clusterImage = RuntimeImage(RuntimeImageType.VM, clusterResult.customImage.asString, ctx.now)
-      _ <- (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
-        msg.runtimeId,
-        clusterImage
-      )).transaction
+
+      _ <- clusterResult.traverse { createRuntimeResponse =>
+        val updateAsyncClusterCreationFields =
+          UpdateAsyncClusterCreationFields(
+            Some(GcsPath(createRuntimeResponse.initBucket, GcsObjectName(""))),
+            msg.runtimeId,
+            Some(createRuntimeResponse.asyncRuntimeFields),
+            ctx.now
+          )
+        // Save the VM image and async fields in the database
+        val clusterImage = RuntimeImage(RuntimeImageType.VM, createRuntimeResponse.customImage.asString, ctx.now)
+        (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
+          msg.runtimeId,
+          clusterImage
+        )).transaction
+      }
       taskToRun = for {
         _ <- msg.runtimeConfig.cloudService.process(msg.runtimeId, RuntimeStatus.Creating).compile.drain
       } yield ()
@@ -192,7 +193,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
-        DeleteRuntimeParams(runtime)
+        DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig))
       )
       poll = op match {
         case Some(o) =>
@@ -266,7 +267,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-        StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now)
+        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now)
       )
       poll = op match {
         case Some(o) =>
@@ -307,7 +308,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       initBucket <- clusterQuery.getInitBucket(msg.runtimeId).transaction
       bucketName <- F.fromOption(initBucket.map(_.bucketName),
                                  new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
-      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, bucketName))
+      _ <- runtimeConfig.cloudService.interpreter
+        .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
       _ <- asyncTasks.enqueue1(
         Task(
           ctx.traceId,
@@ -337,7 +339,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       hasResizedCluster <- if (msg.newNumWorkers.isDefined || msg.newNumPreemptibles.isDefined) {
         for {
           _ <- runtimeConfig.cloudService.interpreter
-            .resizeCluster(ResizeClusterParams(runtime, msg.newNumWorkers, msg.newNumPreemptibles))
+            .resizeCluster(
+              ResizeClusterParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig),
+                                  msg.newNumWorkers,
+                                  msg.newNumPreemptibles)
+            )
           _ <- msg.newNumWorkers.traverse_(a =>
             RuntimeConfigQueries.updateNumberOfWorkers(runtime.runtimeConfigId, a, ctx.now).transaction
           )
@@ -351,21 +357,28 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       // Update the disk size
       _ <- msg.diskUpdate
         .traverse { d =>
-          val updateDiskSize = d match {
-            case DiskUpdate.PdSizeUpdate(_, diskName, targetSize) =>
-              UpdateDiskSizeParams.Gce(runtime.googleProject, diskName, targetSize)
-            case DiskUpdate.NoPdSizeUpdate(targetSize) =>
-              UpdateDiskSizeParams.Gce(
-                runtime.googleProject,
-                DiskName(
-                  s"${runtime.runtimeName.asString}-1"
-                ), // user disk's diskname is always postfixed with -1 for non-pd runtimes
-                targetSize
-              )
-            case DiskUpdate.Dataproc(size, masterInstance) =>
-              UpdateDiskSizeParams.Dataproc(size, masterInstance)
-          }
           for {
+            updateDiskSize <- d match {
+              case DiskUpdate.PdSizeUpdate(_, diskName, targetSize) =>
+                for {
+                  zone <- F.fromOption(LeoLenses.gceZone.getOption(runtimeConfig),
+                                       new RuntimeException("GCE runtime must have a zone"))
+                } yield UpdateDiskSizeParams.Gce(runtime.googleProject, diskName, targetSize, zone)
+              case DiskUpdate.NoPdSizeUpdate(targetSize) =>
+                for {
+                  zone <- F.fromOption(LeoLenses.gceZone.getOption(runtimeConfig),
+                                       new RuntimeException("GCE runtime must have a zone"))
+                } yield UpdateDiskSizeParams.Gce(
+                  runtime.googleProject,
+                  DiskName(
+                    s"${runtime.runtimeName.asString}-1"
+                  ), // user disk's diskname is always postfixed with -1 for non-pd runtimes
+                  targetSize,
+                  zone
+                )
+              case DiskUpdate.Dataproc(size, masterInstance) =>
+                F.pure(UpdateDiskSizeParams.Dataproc(size, masterInstance))
+            }
             _ <- runtimeConfig.cloudService.interpreter.updateDiskSize(updateDiskSize)
             _ <- LeoLenses.pdSizeUpdatePrism
               .getOption(d)
@@ -383,7 +396,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
           _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
           operation <- runtimeConfig.cloudService.interpreter
-            .stopRuntime(StopRuntimeParams(runtime, LeoLenses.dataprocPrism.getOption(runtimeConfig), ctx.now))(
+            .stopRuntime(
+              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now)
+            )(
               ctxStopping
             )
           task = for {
@@ -416,7 +431,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       } else {
         for {
           _ <- msg.newMachineType.traverse_(m =>
-            runtimeConfig.cloudService.interpreter.updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+            runtimeConfig.cloudService.interpreter
+              .updateMachineType(UpdateMachineTypeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), m, ctx.now))
           )
           _ <- if (hasResizedCluster) {
             asyncTasks.enqueue1(
@@ -441,12 +457,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- targetMachineType.traverse(m =>
         runtimeConfig.cloudService.interpreter
-          .updateMachineType(UpdateMachineTypeParams(runtime, m, ctx.now))
+          .updateMachineType(UpdateMachineTypeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), m, ctx.now))
       )
       initBucket <- clusterQuery.getInitBucket(runtime.id).transaction
       bucketName <- F.fromOption(initBucket.map(_.bucketName),
                                  new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
-      _ <- runtimeConfig.cloudService.interpreter.startRuntime(StartRuntimeParams(runtime, bucketName))
+      _ <- runtimeConfig.cloudService.interpreter
+        .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
       _ <- dbRef.inTransaction {
         clusterQuery.updateClusterStatus(
           runtime.id,
@@ -728,7 +745,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             // initial the createCluster call synchronously
             createClusterResultOpt <- gkeInterp
               .createCluster(
-                CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId), false)
+                CreateClusterParams(clusterId, msg.project, List(defaultNodepoolId, nodepoolId))
               )
               .onError { case _ => cleanUpAfterCreateClusterError(clusterId, msg.project) }
               .adaptError {
@@ -751,7 +768,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             // monitor cluster creation asynchronously
             monitorOp = createClusterResultOpt.traverse_(createClusterResult =>
               gkeInterp
-                .pollCluster(PollClusterParams(clusterId, msg.project, false, createClusterResult))
+                .pollCluster(PollClusterParams(clusterId, msg.project, createClusterResult))
                 .adaptError {
                   case e =>
                     PubsubKubernetesError(
@@ -854,47 +871,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- asyncTasks.enqueue1(
         Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
       )
-    } yield ()
-
-  private[monitor] def handleBatchNodepoolCreateMessage(msg: BatchNodepoolCreateMessage)(
-    implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
-    for {
-      ctx <- ev.ask
-
-      // Unlike handleCreateAppMessage, here we assume that the cluster does not exist so we always create it.
-
-      // Create the cluster synchronously
-      createResultOpt <- gkeInterp
-        .createCluster(CreateClusterParams(msg.clusterId, msg.project, msg.nodepools, true))
-        .adaptError {
-          case e =>
-            PubsubKubernetesError(
-              AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
-              None,
-              false,
-              None,
-              Some(msg.clusterId)
-            )
-        }
-
-      // Poll the cluster asynchronously
-      task = createResultOpt.traverse_(createResult =>
-        gkeInterp
-          .pollCluster(PollClusterParams(msg.clusterId, msg.project, true, createResult))
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Cluster, None, Some(ctx.traceId)),
-                None,
-                false,
-                None,
-                Some(msg.clusterId)
-              )
-          }
-      )
-
-      _ <- asyncTasks.enqueue1(Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now))
     } yield ()
 
   private[monitor] def handleDeleteAppMessage(msg: DeleteAppMessage)(

@@ -140,7 +140,7 @@ function make_jar()
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
-                          hseeberger/scala-sbt:graalvm-ce-20.3.0-java8_1.4.6_2.13.4 \
+                          hseeberger/scala-sbt:graalvm-ce-21.0.0-java11_1.5.0_2.13.5 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db

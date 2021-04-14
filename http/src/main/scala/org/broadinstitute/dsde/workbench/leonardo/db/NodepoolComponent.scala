@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -11,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AutoscalingMax,
   AutoscalingMin,
   KubernetesClusterLeoId,
+  KubernetesRuntimeConfig,
   Nodepool,
   NodepoolLeoId,
   NodepoolStatus,
@@ -20,8 +20,6 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unmarshalDestroyedDate}
-import cats.syntax.all._
-import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
@@ -120,17 +118,6 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
     n.isDefault
   )
 
-  def claimNodepool(clusterId: KubernetesClusterLeoId,
-                    userEmail: WorkbenchEmail)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
-    for {
-      unclaimedNodepoolOpt <- findActiveByClusterIdQuery(clusterId)
-        .filter(_.status === (NodepoolStatus.Unclaimed: NodepoolStatus))
-        .result
-        .headOption
-      _ <- unclaimedNodepoolOpt.traverse(rec => updateStatusAndCreator(rec.id, NodepoolStatus.Running, userEmail))
-      claimedNodepoolOpt <- unclaimedNodepoolOpt.flatTraverse(n => getMinimalById(n.id))
-    } yield claimedNodepoolOpt
-
   def updateStatus(id: NodepoolLeoId, status: NodepoolStatus): DBIO[Int] =
     findByNodepoolIdQuery(id)
       .map(_.status)
@@ -172,12 +159,19 @@ object nodepoolQuery extends TableQuery(new NodepoolTable(_)) {
       nodepools <- findByNodepoolIdQuery(id).result
     } yield nodepools.map(rec => unmarshalNodepool(rec, List())).headOption
 
-  def getMinimalByUser(creator: WorkbenchEmail,
-                       project: GoogleProject)(implicit ec: ExecutionContext): DBIO[Option[Nodepool]] =
+  def getMinimalByUserAndConfig(creator: WorkbenchEmail, project: GoogleProject, config: KubernetesRuntimeConfig)(
+    implicit ec: ExecutionContext
+  ): DBIO[Option[Nodepool]] =
     for {
       clusters <- kubernetesClusterQuery.joinMinimalClusterAndUnmarshal(
         kubernetesClusterQuery.findActiveByNameQuery(project),
-        nodepoolQuery.filter(_.destroyedDate === dummyDate).filterNot(_.isDefault).filter(_.creator === creator)
+        nodepoolQuery
+          .filter(_.destroyedDate === dummyDate)
+          .filterNot(_.isDefault)
+          .filter(_.creator === creator)
+          .filter(_.machineType === config.machineType)
+          .filter(_.numNodes === config.numNodes)
+          .filter(_.autoscalingEnabled === config.autoscalingEnabled)
       )
     } yield clusters.flatMap(_.nodepools).headOption
 

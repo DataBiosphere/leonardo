@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
@@ -33,14 +33,16 @@ sealed trait RuntimeConfigRequest extends Product with Serializable {
 object RuntimeConfigRequest {
   final case class GceConfig(
     machineType: Option[MachineTypeName],
-    diskSize: Option[DiskSize]
+    diskSize: Option[DiskSize],
+    zone: Option[ZoneName] = None
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
 
   final case class GceWithPdConfig(
     machineType: Option[MachineTypeName],
-    persistentDisk: PersistentDiskRequest
+    persistentDisk: PersistentDiskRequest,
+    zone: Option[ZoneName] = None
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -53,7 +55,8 @@ object RuntimeConfigRequest {
                                   workerDiskSize: Option[DiskSize] = None, //min 10
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
+                                  properties: Map[String, String],
+                                  region: Option[RegionName] = None)
       extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }

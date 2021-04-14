@@ -1,11 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
-import java.time.temporal.ChronoUnit
-import java.util.{Date, UUID}
-import org.broadinstitute.dsde.workbench.leonardo
+import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
+import cats.effect.concurrent.Ref
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.compute.v1._
@@ -19,19 +17,24 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   NetworkName,
   OperationName,
+  RegionName,
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, VM, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
+import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
   CreateRuntime2Request,
   RuntimeConfigRequest
 }
+import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKey,
@@ -39,10 +42,10 @@ import org.broadinstitute.dsde.workbench.model.google.{
   ServiceAccountPrivateKeyData,
   _
 }
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
-import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+import java.util.{Date, UUID}
 import scala.concurrent.duration._
 
 object CommonTestData {
@@ -160,6 +163,7 @@ object CommonTestData {
   val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
+  val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(
@@ -170,7 +174,15 @@ object CommonTestData {
     )
   val defaultMachineType = MachineTypeName("n1-standard-4")
   val defaultDataprocRuntimeConfig =
-    RuntimeConfig.DataprocConfig(0, MachineTypeName("n1-standard-4"), DiskSize(500), None, None, None, None, Map.empty)
+    RuntimeConfig.DataprocConfig(0,
+                                 MachineTypeName("n1-standard-4"),
+                                 DiskSize(500),
+                                 None,
+                                 None,
+                                 None,
+                                 None,
+                                 Map.empty,
+                                 RegionName("us-central1"))
 
   val defaultCreateRuntimeRequest = CreateRuntime2Request(
     Map("lbl1" -> "true"),
@@ -187,7 +199,10 @@ object CommonTestData {
     Map.empty
   )
   val defaultGceRuntimeConfig =
-    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500), bootDiskSize = Some(DiskSize(50)))
+    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
+                            DiskSize(500),
+                            bootDiskSize = Some(DiskSize(50)),
+                            zone = ZoneName("us-west2-b"))
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(Some(0),
                                         Some(MachineTypeName("n1-standard-4")),
@@ -198,9 +213,15 @@ object CommonTestData {
                                         None,
                                         Map.empty[String, String])
   val gceRuntimeConfig =
-    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"), DiskSize(500), bootDiskSize = Some(DiskSize(50)))
+    RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
+                            DiskSize(500),
+                            bootDiskSize = Some(DiskSize(50)),
+                            zone = ZoneName("us-west2-b"))
   val gceWithPdRuntimeConfig =
-    RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(DiskId(1234)), DiskSize(50))
+    RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                                  Some(DiskId(1234)),
+                                  DiskSize(50),
+                                  ZoneName("us-west2-b"))
 
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
@@ -314,11 +335,13 @@ object CommonTestData {
 
   def makePersistentDisk(diskName: Option[DiskName] = None,
                          formattedBy: Option[FormattedBy] = None,
-                         galaxyRestore: Option[GalaxyRestore] = None): PersistentDisk =
+                         galaxyRestore: Option[GalaxyRestore] = None,
+                         zoneName: Option[ZoneName] = None,
+                         googleProject: Option[GoogleProject] = None): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
-      project,
-      zone,
+      googleProject.getOrElse(project),
+      zoneName.getOrElse(zone),
       diskName.getOrElse(DiskName("disk")),
       Some(googleId),
       serviceAccount,

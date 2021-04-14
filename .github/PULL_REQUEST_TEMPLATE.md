@@ -10,6 +10,7 @@ I, the developer opening this PR, do solemnly pinky swear that:
 In all cases:
 
 - [ ] Get a thumbsworth of review and PO signoff if necessary
-- [ ] Verify all tests go green
+- [ ] Verify all tests go green (you can re-run automation tests with a comment saying `jenkins retest`
+- [ ] Run the automation tests multiple times in parallel to weed out instability if applicable via a comment saying `multi-test`
 - [ ] Squash and merge; Delete your branch after this
 - [ ] Test this change deployed correctly and works on dev environment after deployment

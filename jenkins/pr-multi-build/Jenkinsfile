@@ -1,0 +1,41 @@
+pipeline {
+    agent { label 'docker' }
+    parameters {
+        string(name: "NUM_RUNS", defaultValue: "3",
+            description: "The (integer) number of times to run the automation tests.")
+    }
+
+    stages {
+        stage('Run tests') {
+            parallel {
+                stage('Run tests in parallel') {
+                    steps {
+                        script {
+                            def tests = [:]
+
+                            def numRuns = Integer.parseInt("$NUM_RUNS")
+
+                            for (int i = 0; i < numRuns; i++) {
+                                def params = [
+                                    string(name: "RUN_ID", value: "$i"),
+                                    string(name: "leonardo_img", value: "$ghprbSourceBranch"),
+                                    booleanParam(name: "build_leonardo", value: true),
+                                    string(name: "TRIGGER_SERVICE", value: "leonardo"),
+                                    string(name: "GOOGLE_PROJ", value: "broad-dsde-qa"),
+                                    string(name: "MESSAGE", value: "leonardo multi-PR: $ghprbPullTitle, $ghprbSourceBranch")
+                                ]
+                                def run = {
+                                    build(job: "swatomation-pipeline", parameters: params)
+                                }
+                                tests.put(i,run)
+                            }
+
+                            println("Running swatomation tests $NUM_RUNS times")
+                            parallel(tests)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

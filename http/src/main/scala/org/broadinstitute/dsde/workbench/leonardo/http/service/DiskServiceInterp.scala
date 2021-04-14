@@ -8,7 +8,7 @@ import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
@@ -254,15 +254,15 @@ object DiskServiceInterp {
     } yield PersistentDisk(
       DiskId(0),
       googleProject,
-      config.zone,
+      req.zone.getOrElse(config.defaultZone),
       diskName,
       None,
       serviceAccount,
       samResource,
       DiskStatus.Creating,
       AuditInfo(userInfo.userEmail, now, None, now),
-      if (willBeUsedByGalaxy) req.size.getOrElse(config.defaultGalaxyNFSDiskSizeGB)
-      else req.size.getOrElse(config.defaultDiskSizeGB),
+      if (willBeUsedByGalaxy) req.size.getOrElse(config.defaultGalaxyNfsdiskSizeGb)
+      else req.size.getOrElse(config.defaultDiskSizeGb),
       req.diskType.getOrElse(config.defaultDiskType),
       req.blockSize.getOrElse(config.defaultBlockSizeBytes),
       None,

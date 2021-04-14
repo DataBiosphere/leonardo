@@ -1,13 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
-import java.util.concurrent.TimeUnit
-
+import akka.http.scaladsl.model.Uri.Host
+import cats.effect.concurrent.Ref
 import cats.effect.implicits._
 import cats.effect.{Blocker, ContextShift, Effect, Timer}
 import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import fs2.Stream
-import io.chrisdavenport.log4cats.Logger
+import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.AppName
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
@@ -15,9 +15,11 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, 
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.http.{kubernetesProxyHost, GetAppResult}
 import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
 
 final case class KubernetesDnsCacheKey(googleProject: GoogleProject, appName: AppName)
@@ -28,12 +30,13 @@ final case class KubernetesDnsCacheKey(googleProject: GoogleProject, appName: Ap
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
  */
-final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTelemetryMetrics](
+final class KubernetesDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
+  hostToIpMapping: Ref[F, Map[Host, IP]],
   blocker: Blocker
-)(implicit ec: ExecutionContext) {
+)(implicit F: Effect[F], ec: ExecutionContext) {
 
   def getHostStatus(key: KubernetesDnsCacheKey): F[HostStatus] =
     blocker.blockOn(Effect[F].delay(hostStatusCache.get(key)))
@@ -53,7 +56,7 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTe
                 KubernetesServiceDbQueries.getActiveFullAppByName(key.googleProject, key.appName)
               }
               hostStatus <- appResultOpt match {
-                case None            => Effect[F].pure[HostStatus](HostNotFound)
+                case None            => F.pure[HostStatus](HostNotFound)
                 case Some(appResult) => hostStatusByAppResult(appResult)
               }
             } yield hostStatus
@@ -69,9 +72,9 @@ final class KubernetesDnsCache[F[_]: Effect: ContextShift: Logger: Timer: OpenTe
 
   private def hostStatusByAppResult(appResult: GetAppResult): F[HostStatus] =
     appResult.cluster.asyncFields.map(_.loadBalancerIp) match {
-      case None => Effect[F].pure(HostNotReady)
+      case None => F.pure[HostStatus](HostNotReady)
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
-        HostToIpMapping.hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h)).to[F]
+        hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
     }
 }

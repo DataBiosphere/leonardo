@@ -8,10 +8,9 @@ import java.util.UUID
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.UpdateDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.model.ForbiddenError
@@ -27,13 +26,14 @@ import org.scalatest.flatspec.AnyFlatSpec
 class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
   val diskService = new DiskServiceInterp(
-    Config.persistentDiskConfig,
+    ConfigReader.appConfig.persistentDisk,
     whitelistAuthProvider,
     serviceAccountProvider,
     publisherQueue
   )
   val emptyCreateDiskReq = CreateDiskRequest(
     Map.empty,
+    None,
     None,
     None,
     None
@@ -205,7 +205,10 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
-          RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"), Some(disk.id), bootDiskSize = DiskSize(50))
+          RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                                        Some(disk.id),
+                                        bootDiskSize = DiskSize(50),
+                                        zone = ZoneName("us-west2-b"))
         )
       )
       err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt

@@ -2,8 +2,7 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
-import java.util.Base64
-import _root_.io.chrisdavenport.log4cats.StructuredLogger
+import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.mtl.Ask
@@ -40,9 +39,10 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundExcept
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
-import org.broadinstitute.dsp.{AuthContext, ChartName, ChartVersion, HelmAlgebra, Release}
+import org.broadinstitute.dsp._
 import org.http4s.Uri
 
+import java.util.Base64
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -101,10 +101,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Set up VPC and firewall
       (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
-        SetUpProjectNetworkParams(params.googleProject)
+        SetUpProjectNetworkParams(params.googleProject, dbCluster.region)
       )
       _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.googleProject, network)
+        SetUpProjectFirewallsParams(params.googleProject, network, dbCluster.region)
       )
 
       kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network)
@@ -186,13 +186,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         )
       else
         logger.error(ctx.loggingCtx)(
-          s"Create cluster operation has failed for cluster ${dbCluster.getGkeClusterId.toString}"
+          s"Create cluster operation timed out or failed for cluster ${dbCluster.getGkeClusterId.toString}"
         ) >>
           // Note LeoPubsubMessageSubscriber will transition things to Error status if an exception is thrown
           F.raiseError[Unit](
             ClusterCreationException(
               ctx.traceId,
-              s"Failed to poll cluster creation operation to completion for cluster ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
+              s"Cluster creation timed out or failed for ${dbCluster.getGkeClusterId.toString} | trace id: ${ctx.traceId}"
             )
           )
 
@@ -214,6 +214,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // and users can no longer create apps in the cluster's project
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
+      ipRange <- F.fromOption(Config.vpcConfig.subnetworkRegionIpRangeMap.get(dbCluster.region),
+                              new RegionNotSupportedException(dbCluster.region, ctx.traceId))
 
       _ <- kubernetesClusterQuery
         .updateAsyncFields(
@@ -224,19 +226,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             NetworkFields(
               params.createResult.network.name,
               params.createResult.subnetwork.name,
-              Config.vpcConfig.subnetworkIpRange
+              ipRange
             )
           )
         )
         .transaction
       _ <- kubernetesClusterQuery.updateStatus(dbCluster.id, KubernetesClusterStatus.Running).transaction
-      _ <- if (params.isNodepoolPrecreate) {
-        (nodepoolQuery.updateStatus(defaultNodepool.id, NodepoolStatus.Running) >>
-          nodepoolQuery.updateStatuses(dbCluster.nodepools.filterNot(_.isDefault).map(_.id), NodepoolStatus.Unclaimed)).transaction
-      } else {
-        nodepoolQuery.updateStatuses(dbCluster.nodepools.map(_.id), NodepoolStatus.Running).transaction
-      }
-
+      _ <- nodepoolQuery.updateStatuses(dbCluster.nodepools.map(_.id), NodepoolStatus.Running).transaction
     } yield ()
 
   override def createAndPollNodepool(params: CreateNodepoolParams)(
@@ -760,7 +756,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         appDao.isProxyAvailable(dbCluster.googleProject, dbApp.app.appName),
         config.monitorConfig.startApp.maxAttempts,
         config.monitorConfig.startApp.interval
-      ).compile.lastOrError
+      ).interruptAfter(config.monitorConfig.startApp.interruptAfter).compile.lastOrError
 
       _ <- if (!isDone) {
         // If starting timed out, persist an error and attempt to stop the app again.
@@ -934,9 +930,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
-      isDone <- streamFUntilDone(appDao.isProxyAvailable(dbCluster.googleProject, appName),
-                                 config.monitorConfig.createApp.maxAttempts,
-                                 config.monitorConfig.createApp.interval).compile.lastOrError
+      isDone <- streamFUntilDone(
+        appDao.isProxyAvailable(dbCluster.googleProject, appName),
+        config.monitorConfig.createApp.maxAttempts,
+        config.monitorConfig.createApp.interval
+      ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
 
       _ <- if (!isDone) {
         val msg =
@@ -1033,7 +1031,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         ),
         config.monitorConfig.createApp.maxAttempts,
         config.monitorConfig.createApp.interval
-      ).compile.lastOrError
+      ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
 
       _ <- if (!last.isDone) {
         val msg =

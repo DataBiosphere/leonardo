@@ -2,13 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.sql.SQLDataException
+
 import cats.Parallel
 import cats.effect.{Async, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   GoogleComputeService,
@@ -155,9 +156,16 @@ class GceRuntimeMonitor[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
+      zoneParam <- F.fromOption(
+        LeoLenses.gceZone.getOption(runtimeAndRuntimeConfig.runtimeConfig),
+        new RuntimeException(
+          "GceRuntimeMonitor shouldn't get a dataproc runtime creation request. Something is very wrong"
+        )
+      )
+
       instance <- googleComputeService.getInstance(
         runtimeAndRuntimeConfig.runtime.googleProject,
-        config.gceZoneName,
+        zoneParam,
         InstanceName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
       )
       result <- runtimeAndRuntimeConfig.runtime.status match {
@@ -278,11 +286,26 @@ class GceRuntimeMonitor[F[_]: Parallel](
           GceInstanceStatus.Suspending,
           GceInstanceStatus.Provisioning,
           GceInstanceStatus.Staging,
-          GceInstanceStatus.Terminated,
           GceInstanceStatus.Suspended,
           GceInstanceStatus.Stopping
         )
         r <- gceStatus match {
+          // This happens when a VM fails to start. Potential causes are: start up script failure,
+          case GceInstanceStatus.Terminated =>
+            nowInstant
+              .flatMap { now =>
+                if (now.toEpochMilli - monitorContext.start.toEpochMilli > 5000)
+                  clusterQuery
+                    .updateClusterStatusAndHostIp(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopped, None, now)
+                    .transaction
+                    .as(((), None): CheckResult)
+                else
+                  checkAgain(monitorContext,
+                             runtimeAndRuntimeConfig,
+                             Set.empty,
+                             Some(s"Instance is still in ${GceInstanceStatus.Terminated}"))
+              }
+
           case s if (startableStatuses.contains(s)) =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Instance is still in ${gceStatus}"))
           case GceInstanceStatus.Running =>

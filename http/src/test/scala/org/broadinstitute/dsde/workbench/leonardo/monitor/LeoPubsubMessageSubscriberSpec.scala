@@ -35,6 +35,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   MachineTypeName,
   MockGoogleDiskService,
   OperationName,
+  RegionName,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
@@ -135,8 +136,6 @@ class LeoPubsubMessageSubscriberSpec
                                          mockWelderDAO,
                                          blocker)
 
-  implicit val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
-
   val runningCluster = makeCluster(1).copy(
     serviceAccount = serviceAccount,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
@@ -171,6 +170,41 @@ class LeoPubsubMessageSubscriberSpec
       updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
       updatedRuntime.get.asyncRuntimeFields.get.googleId.value shouldBe "target"
       updatedRuntime.get.runtimeImages.map(_.imageType) should contain(VM)
+    }
+
+    res.unsafeRunSync()
+  }
+
+  /**
+   * When createRuntime gets 409, we shouldn't attempt to update AsyncRuntimeFields.
+   * These fields should've been updated in a previous createRuntime request, and
+   * this test is to make sure we're not wiping out that info.
+   */
+  it should "handle CreateRuntimeMessage properly when google returns 409" in isolatedDbTest {
+    val runtimeAlgebra = new BaseFakeGceInterp {
+      override def createRuntime(params: CreateRuntimeParams)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[Option[CreateGoogleRuntimeResponse]] = IO.pure(None)
+    }
+    val leoSubscriber = makeLeoSubscriber(gceRuntimeAlgebra = runtimeAlgebra)
+
+    val asyncFields = makeAsyncRuntimeFields(1)
+    val res = for {
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Creating,
+                serviceAccount = serviceAccount,
+                asyncRuntimeFields = Some(asyncFields))
+          .save()
+      )
+      tr <- traceId.ask[TraceId]
+      gceRuntimeConfigRequest = LeoLenses.runtimeConfigPrism.getOption(gceRuntimeConfig).get
+      _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr)))
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+    } yield {
+      updatedRuntime shouldBe Symbol("defined")
+      updatedRuntime.get.asyncRuntimeFields shouldBe Some(asyncFields)
+      updatedRuntime.get.runtimeImages shouldBe runtime.runtimeImages
     }
 
     res.unsafeRunSync()
@@ -215,7 +249,8 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
-                                                    persistentDiskId = Some(disk.id))
+                                                    persistentDiskId = Some(disk.id),
+                                                    zone = ZoneName("us-central1-a"))
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]
@@ -247,7 +282,8 @@ class LeoPubsubMessageSubscriberSpec
       disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
-                                                    persistentDiskId = Some(disk.id))
+                                                    persistentDiskId = Some(disk.id),
+                                                    zone = ZoneName("us-cetnral1-a"))
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]
@@ -625,6 +661,8 @@ class LeoPubsubMessageSubscriberSpec
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
       galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(savedApp1.appResources.disk.get.id).transaction
+      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
@@ -641,7 +679,7 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   ipRange))
       )
       getDisk.status shouldBe DiskStatus.Ready
       galaxyRestore shouldBe Some(
@@ -710,6 +748,8 @@ class LeoPubsubMessageSubscriberSpec
         .transaction
       getApp1 = getAppOpt1.get
       getApp2 = getAppOpt2.get
+      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getApp1.cluster.status shouldBe KubernetesClusterStatus.Running
       getApp2.cluster.status shouldBe KubernetesClusterStatus.Running
@@ -725,7 +765,7 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   ipRange))
       )
       getApp2.app.errors shouldBe List()
       getApp2.app.status shouldBe AppStatus.Running
@@ -1133,47 +1173,6 @@ class LeoPubsubMessageSubscriberSpec
     verify(mockAckConsumer, times(1)).ack()
   }
 
-  it should "be able to handle batchCreateNodepool message" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Precreating).save()
-    val savedNodepool2 = makeNodepool(3, savedCluster1.id).copy(status = NodepoolStatus.Precreating).save()
-
-    val mockAckConsumer = mock[AckReplyConsumer]
-
-    val assertions = for {
-      getMinimalCluster <- kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject).transaction
-    } yield {
-      getMinimalCluster.get.status shouldBe KubernetesClusterStatus.Running
-      getMinimalCluster.get.nodepools.size shouldBe 3
-      getMinimalCluster.get.nodepools.filter(_.isDefault).size shouldBe 1
-      getMinimalCluster.get.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).size shouldBe 2
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.size shouldBe 1
-      getMinimalCluster.get.nodepools
-        .filterNot(_.isDefault)
-        .map(_.status)
-        .distinct
-        .head shouldBe NodepoolStatus.Unclaimed
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = BatchNodepoolCreateMessage(savedCluster1.id,
-                                       List(savedNodepool1.id, savedNodepool2.id),
-                                       savedCluster1.googleProject,
-                                       Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-    assertions.unsafeRunSync()
-    verify(mockAckConsumer, times(1)).ack()
-  }
-
   it should "be able to create app with a pre-created nodepool" in isolatedDbTest {
     val disk = makePersistentDisk(None).save().unsafeRunSync()
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
@@ -1230,48 +1229,6 @@ class LeoPubsubMessageSubscriberSpec
                                         gkeInterpreter = makeGKEInterp(lock, List(savedApp1.release)))
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-    } yield ()
-
-    res.unsafeRunSync()
-    assertions.unsafeRunSync()
-  }
-
-  it should "error if nodepools in batch create nodepool message are not in db" in isolatedDbTest {
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedCluster2 = makeKubeCluster(2).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Precreating).save()
-    val savedNodepool2 = makeNodepool(3, savedCluster1.id).copy(status = NodepoolStatus.Precreating).save()
-    val savedNodepool3 = makeNodepool(4, savedCluster2.id).copy(status = NodepoolStatus.Unspecified).save()
-
-    val mockAckConsumer = mock[AckReplyConsumer]
-
-    val assertions = for {
-      getMinimalCluster <- kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject).transaction
-    } yield {
-      getMinimalCluster.get.status shouldBe KubernetesClusterStatus.Error
-      getMinimalCluster.get.nodepools.size shouldBe 3
-      getMinimalCluster.get.nodepools.count(_.isDefault) shouldBe 1
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).size shouldBe 2
-      getMinimalCluster.get.nodepools.filterNot(_.isDefault).map(_.status).distinct.size shouldBe 1
-      //we should not have updated the status here, since the nodepools given were faulty
-      getMinimalCluster.get.nodepools
-        .filterNot(_.isDefault)
-        .map(_.status)
-        .distinct
-        .head shouldBe NodepoolStatus.Precreating
-    }
-
-    val res = for {
-      tr <- traceId.ask[TraceId]
-      msg = BatchNodepoolCreateMessage(savedCluster1.id,
-                                       List(savedNodepool1.id, savedNodepool2.id, savedNodepool3.id),
-                                       savedCluster1.googleProject,
-                                       Some(tr))
-      queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-      _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
     } yield ()
 
@@ -1669,6 +1626,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
+      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+        .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
       getCluster.nodepools.size shouldBe 2
@@ -1685,7 +1644,7 @@ class LeoPubsubMessageSubscriberSpec
                                      IP("0.0.0.0"),
                                      NetworkFields(Config.vpcConfig.networkName,
                                                    Config.vpcConfig.subnetworkName,
-                                                   Config.vpcConfig.subnetworkIpRange))
+                                                   ipRange))
       )
       getDisk.status shouldBe DiskStatus.Ready
     }
@@ -1806,9 +1765,13 @@ class LeoPubsubMessageSubscriberSpec
     asyncTaskQueue: InspectableQueue[IO, Task[IO]] = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
     computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     gkeInterpreter: GKEInterpreter[IO] = makeGKEInterp(nodepoolLock.unsafeRunSync(), appRelease = List.empty),
-    diskInterp: GoogleDiskService[IO] = MockGoogleDiskService
+    diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
+    dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
+    gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp
   ): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
+
+    implicit val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
 

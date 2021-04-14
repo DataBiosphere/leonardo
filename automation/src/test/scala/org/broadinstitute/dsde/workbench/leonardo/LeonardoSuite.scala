@@ -4,11 +4,7 @@ import cats.effect.IO
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.apps.{
-  AppCreationSpec,
-  BatchNodepoolCreationSpec,
-  CustomAppCreationSpec
-}
+import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, CustomAppCreationSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
@@ -106,17 +102,14 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
     val res = for {
       _ <- IO(super.beforeAll())
       _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll beforeAll")
-      bindAttempt <- IO.fromFuture(IO(ProxyRedirectClient.startServer)).attempt
-      _ <- bindAttempt match {
-        case Left(e)  => loggerIO.warn(s"Failed to start proxy redirect server due to ${e.getMessage}")
-        case Right(b) => loggerIO.info(s"Started proxy redirect server on ${b.localAddress.toString}")
-      }
       claimAttempt <- claimProject().attempt
       _ <- claimAttempt match {
         case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
         case Right(billingProject) =>
           IO(sys.props.put(gpallocProjectKey, billingProject.value)) >> createInitialRuntime(billingProject)
       }
+      proxyRedirectServer <- ProxyRedirectClient.baseUri
+      _ <- loggerIO.info(s"Serving proxy redirect page at ${proxyRedirectServer.renderString}")
     } yield ()
 
     res.unsafeRunSync()
@@ -132,6 +125,8 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
       } else loggerIO.info(s"Not going to release project: ${projectProp} due to error happened")
       _ <- IO(sys.props.remove(gpallocProjectKey))
+      _ <- ProxyRedirectClient.stopServer()
+      _ <- loggerIO.info(s"Stopped proxy redirect server")
       _ <- IO(super.afterAll())
     } yield ()
 
@@ -191,7 +186,6 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
 
 final class LeonardoSuite
     extends Suites(
-      new BatchNodepoolCreationSpec,
       new AppCreationSpec,
       new CustomAppCreationSpec,
       new RuntimeCreationDiskSpec,
@@ -203,7 +197,8 @@ final class LeonardoSuite
       new NotebookGCEClusterMonitoringSpec,
       new NotebookGCECustomizationSpec,
       new NotebookGCEDataSyncingSpec,
-      new RuntimeDataprocSpec
+      new RuntimeDataprocSpec,
+      new RuntimeGceSpec
     )
     with TestSuite
     with GPAllocBeforeAndAfterAll

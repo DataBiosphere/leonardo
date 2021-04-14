@@ -7,9 +7,10 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import io.circe.parser.decode
 import io.circe.syntax._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
@@ -18,6 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
+import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AppService,
   BaseMockRuntimeServiceInterp,
@@ -31,8 +33,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import java.net.URL
 
+import java.net.URL
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 import scala.concurrent.duration._
@@ -366,7 +368,8 @@ class HttpRoutesSpec
       Map("foo" -> "bar"),
       Some(DiskSize(500)),
       Some(DiskType.Standard),
-      Some(BlockSize(65536))
+      Some(BlockSize(65536)),
+      None
     )
     Post("/api/google/v1/disks/googleProject1/disk1")
       .withEntity(ContentTypes.`application/json`, diskCreateRequest.asJson.spaces2) ~> routes.route ~> check {
@@ -504,14 +507,6 @@ class HttpRoutesSpec
     }
   }
 
-  it should "batch nodepool create" in {
-    Post("/api/google/v1/apps/googleProject1/batchNodepoolCreate")
-      .withEntity(ContentTypes.`application/json`, batchNodepoolCreateRequest.asJson.spaces2) ~> routes.route ~> check {
-      status shouldEqual StatusCodes.Accepted
-      validateRawCookie(header("Set-Cookie"))
-    }
-  }
-
   it should "delete app" in {
     Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -554,6 +549,41 @@ class HttpRoutesSpec
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
+  }
+
+  // Validate encoding/decoding of RuntimeConfigRequest types
+  // TODO should these decoders move to JsonCodec in core module?
+
+  it should "decode and encode RuntimeConfigRequest.GceConfig" in {
+    val test =
+      RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-8")),
+                                     Some(DiskSize(100)),
+                                     Some(ZoneName("europe-west1-b")))
+    decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
+  }
+
+  it should "decode and encode RuntimeConfigRequest.GceWithPdConfig" in {
+    val test = RuntimeConfigRequest.GceWithPdConfig(
+      Some(MachineTypeName("n1-standard-8")),
+      PersistentDiskRequest(DiskName("disk"), Some(DiskSize(100)), Some(DiskType.Standard), Map.empty),
+      Some(ZoneName("europe-west1-b"))
+    )
+    decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
+  }
+
+  it should "decode and encode RuntimeConfigRequest.DataprocConfig" in {
+    val test = RuntimeConfigRequest.DataprocConfig(
+      Some(100),
+      Some(MachineTypeName("n1-standard-16")),
+      Some(DiskSize(500)),
+      Some(MachineTypeName("n1-highmem-4")),
+      Some(DiskSize(100)),
+      Some(0),
+      Some(100),
+      Map.empty,
+      Some(RegionName("europe-west1"))
+    )
+    decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
   }
 
   def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes =

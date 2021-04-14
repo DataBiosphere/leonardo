@@ -27,11 +27,13 @@ import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomIma
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DateAccessedUpdaterConfig,
+  InterruptablePollMonitorConfig,
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
   PollMonitorConfig
@@ -74,7 +76,8 @@ object Config {
         config.getAs[DiskSize]("workerDiskSize"),
         config.getAs[Int]("numberOfWorkerLocalSSDs"),
         config.getAs[Int]("numberOfPreemptibleWorkers"),
-        Map.empty
+        Map.empty,
+        config.as[RegionName]("region")
       )
   }
 
@@ -82,19 +85,19 @@ object Config {
     RuntimeConfig.GceConfig(
       machineType = config.as[MachineTypeName]("machineType"),
       diskSize = config.as[DiskSize]("diskSize"),
-      bootDiskSize = Some(config.as[DiskSize]("bootDiskSize"))
+      bootDiskSize = Some(config.as[DiskSize]("bootDiskSize")),
+      zone = config.as[ZoneName]("zone")
     )
   }
 
   implicit private val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
-      config.as[RegionName]("region"),
-      config.getAs[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.as[DataprocCustomImage]("legacyCustomDataprocImage"),
       config.as[DataprocCustomImage]("customDataprocImage"),
       config.getAs[MemorySize]("dataprocReservedMemory"),
-      config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults")
+      config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
+      config.as[Set[RegionName]]("supportedRegions")
     )
   }
 
@@ -102,8 +105,6 @@ object Config {
     GceConfig(
       config.as[GceCustomImage]("customGceImage"),
       config.as[DeviceName]("userDiskDeviceName"),
-      config.as[RegionName]("region"),
-      config.as[ZoneName]("zone"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
@@ -114,31 +115,6 @@ object Config {
     Allowed(
       config.as[String]("protocol"),
       config.as[Option[String]]("port")
-    )
-  }
-
-  implicit private val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
-    FirewallRuleConfig(
-      config.as[FirewallRuleName]("name"),
-      config.as[List[IpRange]]("sourceRanges"),
-      config.as[List[Allowed]]("allowed")
-    )
-  }
-
-  implicit private val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
-    VPCConfig(
-      config.as[NetworkLabel]("highSecurityProjectNetworkLabel"),
-      config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
-      config.as[NetworkName]("networkName"),
-      config.as[NetworkTag]("networkTag"),
-      config.as[Boolean]("autoCreateSubnetworks"),
-      config.as[SubnetworkName]("subnetworkName"),
-      config.as[RegionName]("subnetworkRegion"),
-      config.as[IpRange]("subnetworkIpRange"),
-      config.as[List[FirewallRuleConfig]]("firewallsToAdd"),
-      config.as[List[FirewallRuleName]]("firewallsToRemove"),
-      config.as[FiniteDuration]("pollPeriod"),
-      config.as[Int]("maxAttempts")
     )
   }
 
@@ -290,22 +266,21 @@ object Config {
     )
   }
 
-  implicit private val persistentDiskConfigReader: ValueReader[PersistentDiskConfig] = ValueReader.relative { config =>
-    PersistentDiskConfig(
-      config.as[DiskSize]("defaultDiskSizeGB"),
-      config.as[DiskType]("defaultDiskType"),
-      config.as[BlockSize]("defaultBlockSizeBytes"),
-      config.as[ZoneName]("zone"),
-      config.as[DiskSize]("defaultGalaxyNFSDiskSizeGB")
-    )
-  }
-
-  implicit private val persistentDiskMonitorReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
+  implicit private val pollMonitorConfigReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
     PollMonitorConfig(
       config.as[Int]("max-attempts"),
       config.as[FiniteDuration]("interval")
     )
   }
+
+  implicit private val interruptablePollMonitorConfigReader: ValueReader[InterruptablePollMonitorConfig] =
+    ValueReader.relative { config =>
+      InterruptablePollMonitorConfig(
+        config.as[Int]("max-attempts"),
+        config.as[FiniteDuration]("interval"),
+        config.as[FiniteDuration]("interruptAfter")
+      )
+    }
 
   implicit private val persistentDiskMonitorConfigReader: ValueReader[PersistentDiskMonitorConfig] =
     ValueReader.relative { config =>
@@ -398,6 +373,37 @@ object Config {
   implicit private val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
   implicit private val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
   implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
+  // TODO(wnojopra): Make these more FP-friendly
+  implicit private val subnetworkRegionIpRangeMapReader: ValueReader[Map[RegionName, IpRange]] =
+    mapValueReader[IpRange].map(mp => mp.map { case (k, v) => (RegionName(k) -> v) })
+
+  implicit private val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
+    VPCConfig(
+      config.as[NetworkLabel]("highSecurityProjectNetworkLabel"),
+      config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
+      config.as[NetworkName]("networkName"),
+      config.as[NetworkTag]("networkTag"),
+      config.as[Boolean]("autoCreateSubnetworks"),
+      config.as[SubnetworkName]("subnetworkName"),
+      config.as[Map[RegionName, IpRange]]("subnetworkRegionIpRangeMap"),
+      config.as[List[FirewallRuleConfig]]("firewallsToAdd"),
+      config.as[List[FirewallRuleName]]("firewallsToRemove"),
+      config.as[FiniteDuration]("pollPeriod"),
+      config.as[Int]("maxAttempts")
+    )
+  }
+
+  implicit private val sourceRangesReader: ValueReader[Map[RegionName, List[IpRange]]] =
+    mapValueReader[List[IpRange]].map(mp => mp.map { case (k, v) => (RegionName(k) -> v) })
+
+  implicit private val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
+    FirewallRuleConfig(
+      config.as[String]("name-prefix"),
+      config.as[Map[RegionName, List[IpRange]]]("sourceRanges"),
+      config.as[List[Allowed]]("allowed")
+    )
+  }
+
   implicit private val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
   implicit private val firewallRuleNameValueReader: ValueReader[FirewallRuleName] =
     stringValueReader.map(FirewallRuleName)
@@ -444,7 +450,6 @@ object Config {
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
-  val persistentDiskConfig = config.as[PersistentDiskConfig]("persistentDisk")
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
@@ -457,9 +462,7 @@ object Config {
         toScalaDuration(config.getDuration("pollPeriod")),
         config.getString("deletionConfirmationLabelKey"),
         toScalaDuration(config.getDuration("creationHangTolerance")),
-        config.getInt("concurrency"),
-        gceConfig.zoneName,
-        dataprocConfig.regionName
+        config.getInt("concurrency")
       )
   }
 
@@ -486,7 +489,6 @@ object Config {
       config.as[Int]("checkToolsMaxAttempts"),
       clusterBucketConfig,
       timeoutMap,
-      gceConfig.zoneName,
       imageConfig
     )
   }
@@ -509,8 +511,7 @@ object Config {
         config.as[Int]("checkToolsMaxAttempts"),
         clusterBucketConfig,
         timeoutMap,
-        imageConfig,
-        dataprocConfig.regionName
+        imageConfig
       )
   }
   val gceMonitorConfig = config.as[GceMonitorConfig]("gce.monitor")
@@ -650,7 +651,7 @@ object Config {
                                                 gkeNodepoolConfig,
                                                 gkeIngressConfig,
                                                 gkeGalaxyAppConfig,
-                                                persistentDiskConfig)
+                                                ConfigReader.appConfig.persistentDisk)
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val vpcConfig = config.as[VPCConfig]("vpc")
@@ -733,11 +734,11 @@ object Config {
       config.as[PollMonitorConfig]("createCluster"),
       config.as[PollMonitorConfig]("deleteCluster"),
       config.as[PollMonitorConfig]("createIngress"),
-      config.as[PollMonitorConfig]("createApp"),
+      config.as[InterruptablePollMonitorConfig]("createApp"),
       config.as[PollMonitorConfig]("deleteApp"),
       config.as[PollMonitorConfig]("scaleNodepool"),
       config.as[PollMonitorConfig]("setNodepoolAutoscaling"),
-      config.as[PollMonitorConfig]("startApp")
+      config.as[InterruptablePollMonitorConfig]("startApp")
     )
   }
 

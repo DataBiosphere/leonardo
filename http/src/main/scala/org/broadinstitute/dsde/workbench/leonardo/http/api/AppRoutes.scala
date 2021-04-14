@@ -51,17 +51,6 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
                     }
                   }
                 } ~
-                  path("batchNodepoolCreate") {
-                    pathEndOrSingleSlash {
-                      post {
-                        entity(as[BatchNodepoolCreateRequest]) { req =>
-                          complete(
-                            batchNodepoolCreateHandler(userInfo, googleProject, req)
-                          )
-                        }
-                      }
-                    }
-                  } ~
                   pathPrefix(Segment) { appNameString =>
                     RouteValidation.validateNameDirective(appNameString, AppName.apply) { appName =>
                       pathEndOrSingleSlash {
@@ -116,17 +105,6 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       }
     }
   }
-  private[api] def batchNodepoolCreateHandler(userInfo: UserInfo,
-                                              googleProject: GoogleProject,
-                                              req: BatchNodepoolCreateRequest)(
-    implicit ev: Ask[IO, AppContext]
-  ): IO[ToResponseMarshallable] =
-    for {
-      ctx <- ev.ask[AppContext]
-      apiCall = kubernetesService.batchNodepoolCreate(userInfo, googleProject, req)
-      _ <- metrics.incrementCounter("batchNodepoolCreate")
-      _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "batchNodepoolCreate").use(_ => apiCall))
-    } yield StatusCodes.Accepted
 
   private[api] def createAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
@@ -248,9 +226,6 @@ object AppRoutes {
       case _            => Right(NumNodepools.apply(n))
     }
   )
-
-  implicit val batchNodepoolCreateRequestDecoder: Decoder[BatchNodepoolCreateRequest] =
-    Decoder.forProduct3("numNodepools", "kubernetesRuntimeConfig", "clusterName")(BatchNodepoolCreateRequest.apply)
 
   implicit val nameKeyEncoder: KeyEncoder[ServiceName] = KeyEncoder.encodeKeyString.contramap(_.value)
   implicit val listAppResponseEncoder: Encoder[ListAppResponse] =

@@ -6,7 +6,7 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
 import fs2.concurrent.InspectableQueue
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{
   Event,
@@ -86,6 +86,9 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
     for {
       ctx <- ev.ask
       clusterId = msg.clusterId
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Beginning to delete kubernetes cluster ${clusterId} in project ${msg.project} from NonLeoMessageSubscriber"
+      )
       _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
       _ <- gkeAlg
       // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
@@ -211,7 +214,7 @@ sealed abstract class NonLeoMessage extends Product with Serializable {
 object NonLeoMessage {
   final case class DeleteKubernetesClusterMessage(clusterId: KubernetesClusterLeoId, project: GoogleProject)
       extends NonLeoMessage {
-    val messageType: String = "delete-k8s-cluster"
+    val messageType: String = "deleteKubernetesCluster"
   }
   final case class CryptoMining(textPayload: String, resource: GoogleResource, googleProject: GoogleProject)
       extends NonLeoMessage {

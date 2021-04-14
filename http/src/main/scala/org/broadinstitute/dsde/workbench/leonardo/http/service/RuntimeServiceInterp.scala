@@ -4,7 +4,6 @@ package service
 
 import java.time.Instant
 import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
@@ -13,7 +12,7 @@ import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
@@ -24,7 +23,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   InstanceName,
   MachineTypeName,
   OperationName,
-  PollError
+  PollError,
+  ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
@@ -112,7 +112,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             defaultRuntimeConfig = RuntimeConfigInCreateRuntimeMessage.GceConfig(
               config.gceConfig.runtimeConfigDefaults.machineType,
               config.gceConfig.runtimeConfigDefaults.diskSize,
-              bootDiskSize
+              bootDiskSize,
+              config.gceConfig.runtimeConfigDefaults.zone
             )
             runtimeConfig <- req.runtimeConfig
               .fold[F[RuntimeConfigInCreateRuntimeMessage]](F.pure(defaultRuntimeConfig)) { // default to gce if no runtime specific config is provided
@@ -123,7 +124,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                         RuntimeConfigInCreateRuntimeMessage.GceConfig(
                           gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
                           gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize),
-                          bootDiskSize
+                          bootDiskSize,
+                          gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone)
                         ): RuntimeConfigInCreateRuntimeMessage
                       )
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
@@ -133,18 +135,22 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       )
                     case gce: RuntimeConfigRequest.GceWithPdConfig =>
                       RuntimeServiceInterp
-                        .processPersistentDiskRequest(gce.persistentDisk,
-                                                      googleProject,
-                                                      userInfo,
-                                                      petSA,
-                                                      FormattedBy.GCE,
-                                                      authProvider,
-                                                      diskConfig)
+                        .processPersistentDiskRequest(
+                          gce.persistentDisk,
+                          gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
+                          googleProject,
+                          userInfo,
+                          petSA,
+                          FormattedBy.GCE,
+                          authProvider,
+                          diskConfig
+                        )
                         .map(diskResult =>
                           RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
                             gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
                             diskResult.disk.id,
-                            bootDiskSize
+                            bootDiskSize,
+                            gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone)
                           ): RuntimeConfigInCreateRuntimeMessage
                         )
                   }
@@ -268,9 +274,13 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- if (hasStatusPermission) F.unit
       else
-        F.raiseError[Unit](
-          RuntimeNotFoundException(req.googleProject, req.runtimeName, "no active runtime record in database")
-        )
+        log.info(ctx.loggingCtx)(s"${req.userInfo.userEmail.value} has no permission to get runtime status") >> F
+          .raiseError[Unit](
+            RuntimeNotFoundException(req.googleProject,
+                                     req.runtimeName,
+                                     "no active runtime record in database",
+                                     Some(ctx.traceId))
+          )
 
       // throw 403 if no DeleteCluster permission
       hasDeletePermission = listOfPermissions._1.toSet.contains(RuntimeAction.DeleteRuntime) ||
@@ -605,7 +615,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
    * and potentially sends a PubSub message (or throws an error). The PubSub receiver does not
    * do validation; it is assumed all validation happens here.
    */
-  private[service] def processUpdateRuntimeConfigRequest(
+  def processUpdateRuntimeConfigRequest(
     request: UpdateRuntimeConfigRequest,
     allowStop: Boolean,
     runtime: ClusterRecord,
@@ -614,7 +624,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
-        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _),
+        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
           for {
             targetDiskSize <- traverseIfChanged(diskSizeInRequest, existngDiskSize) { d =>
@@ -633,7 +643,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                targetDiskSize,
                                                context.traceId)
           } yield r
-        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _),
+        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
           for {
             // should disk size be updated?
@@ -657,7 +667,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                diskUpdate,
                                                context.traceId)
           } yield r
-        case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _),
+        case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _),
               req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)) =>
           processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig)
 
@@ -879,6 +889,7 @@ object RuntimeServiceInterp {
 
   def processPersistentDiskRequest[F[_]](
     req: PersistentDiskRequest,
+    targetZone: ZoneName,
     googleProject: GoogleProject,
     userInfo: UserInfo,
     serviceAccount: WorkbenchEmail,
@@ -896,6 +907,14 @@ object RuntimeServiceInterp {
       disk <- diskOpt match {
         case Some(pd) =>
           for {
+            _ <- if (pd.zone == targetZone) F.unit
+            else
+              F.raiseError(
+                BadRequestException(
+                  s"existing disk ${pd.projectNameString} is in zone ${pd.zone.value}, and cannot be attached to a runtime in zone ${targetZone.value}. Please create your runtime in zone ${pd.zone.value} if you'd like to use this disk; or opt to use a new disk",
+                  Some(ctx.traceId)
+                )
+              )
             isAttached <- pd.formattedBy match {
               // TODO: it seems like this can be refactored to follow the below format
               //case Some(x) => if x is willBeUsedBy, check if its attached
@@ -955,7 +974,7 @@ object RuntimeServiceInterp {
                 req.name,
                 samResource,
                 diskConfig,
-                CreateDiskRequest.fromDiskConfigRequest(req),
+                CreateDiskRequest.fromDiskConfigRequest(req, Some(targetZone)),
                 ctx.now,
                 if (willBeUsedBy == FormattedBy.Galaxy) true else false
               )

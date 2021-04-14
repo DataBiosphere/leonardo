@@ -4,7 +4,7 @@ import java.util.UUID
 import java.util.concurrent.TimeoutException
 import cats.effect.{IO, Resource, Timer}
 import cats.syntax.all._
-import io.chrisdavenport.log4cats.StructuredLogger
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}
@@ -48,6 +48,7 @@ object LeonardoApiClient {
   val rootUri = Uri.unsafeFromString(LeonardoConfig.Leonardo.apiUrl)
   val defaultCreateDiskRequest = CreateDiskRequest(
     Map.empty,
+    None,
     None,
     None,
     None
@@ -102,12 +103,6 @@ object LeonardoApiClient {
     Map.empty,
     None,
     List.empty
-  )
-
-  val defaultBatchNodepoolRequest = BatchNodepoolCreateRequest(
-    NumNodepools(2),
-    None,
-    None
   )
 
   def createRuntime(
@@ -535,30 +530,6 @@ object LeonardoApiClient {
       )(onError(s"Failed to list apps in project ${googleProject.value}"))
     } yield r
   }
-
-  def batchNodepoolCreate(
-    googleProject: GoogleProject,
-    req: BatchNodepoolCreateRequest = defaultBatchNodepoolRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
-    for {
-      traceIdHeader <- genTraceIdHeader()
-      r <- client
-        .run(
-          Request[IO](
-            method = Method.POST,
-            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/batchNodepoolCreate"),
-            body = req
-          )
-        )
-        .use { resp =>
-          if (!resp.status.isSuccess) {
-            onError(s"Failed to batch create node pools in project ${googleProject.value}")(resp)
-              .flatMap(IO.raiseError)
-          } else
-            IO.unit
-        }
-    } yield r
 
   def stopApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
                                                               authHeader: Authorization): IO[Unit] =

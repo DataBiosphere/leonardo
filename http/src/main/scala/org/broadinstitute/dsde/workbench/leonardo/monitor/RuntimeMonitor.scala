@@ -5,20 +5,19 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 
 import cats.effect.{Async, Timer}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ImageConfig, RuntimeBucketConfig}
+import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import scala.jdk.CollectionConverters._
 
 import scala.collection.immutable.Set
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
 /**
  * Monitor for runtime status transition: Starting, Creating, Deleting, Stopping
@@ -125,10 +124,19 @@ final case class MonitorContext(start: Instant, runtimeId: Long, traceId: TraceI
   val loggingContext = Map("traceId" -> traceId.asString, "action" -> action.toString)
 }
 
-sealed abstract class MonitorState extends Product with Serializable
+sealed abstract class MonitorState extends Product with Serializable {
+  // Indicates whether the status transition is changed from what the stream has started with.
+  // This can happen when a monitor stream started as monitoring for `Starting`, but somehow starting fails, hence,
+  // we need to transition runtime to `Stopped` now
+  def newTransition: Option[RuntimeStatus]
+}
 object MonitorState {
-  final case object Initial extends MonitorState
-  final case class Check(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig) extends MonitorState
+  final case object Initial extends MonitorState {
+    def newTransition: Option[RuntimeStatus] = None
+  }
+  final case class Check(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                         override val newTransition: Option[RuntimeStatus])
+      extends MonitorState
 }
 
 sealed trait MonitorConfig {
@@ -148,7 +156,6 @@ object MonitorConfig {
                                     checkToolsMaxAttempts: Int,
                                     runtimeBucketConfig: RuntimeBucketConfig,
                                     monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
-                                    gceZoneName: ZoneName,
                                     imageConfig: ImageConfig)
       extends MonitorConfig
 
@@ -159,7 +166,6 @@ object MonitorConfig {
                                          checkToolsMaxAttempts: Int,
                                          runtimeBucketConfig: RuntimeBucketConfig,
                                          monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
-                                         imageConfig: ImageConfig,
-                                         regionName: RegionName)
+                                         imageConfig: ImageConfig)
       extends MonitorConfig
 }

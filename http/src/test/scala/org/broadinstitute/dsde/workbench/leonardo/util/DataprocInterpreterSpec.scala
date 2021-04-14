@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleResourceService,
   MockComputePollOperation
 }
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -104,18 +104,17 @@ class DataprocInterpreterSpec
         .futureValue
 
     // verify the returned cluster
-    val dpInfo = clusterCreationRes.asyncRuntimeFields
+    val dpInfo = clusterCreationRes.get.asyncRuntimeFields
     dpInfo.operationName.value shouldBe "opName"
     dpInfo.googleId.value shouldBe "clusterUuid"
     dpInfo.hostIp shouldBe None
     dpInfo.stagingBucket.value should startWith("leostaging")
 
     // verify the returned init bucket
-    clusterCreationRes.initBucket.value should startWith("leoinit")
+    clusterCreationRes.get.initBucket.value should startWith("leoinit")
 
     // verify the returned service account key
     mockGoogleIamDAO.serviceAccountKeys shouldBe 'empty
-    clusterCreationRes.serviceAccountKey shouldBe None
   }
 
   it should "be able to determine appropriate custom dataproc image" in isolatedDbTest {
@@ -135,7 +134,7 @@ class DataprocInterpreterSpec
         )
         .unsafeToFuture()
         .futureValue
-    res.customImage shouldBe Config.dataprocConfig.customDataprocImage
+    res.get.customImage shouldBe Config.dataprocConfig.customDataprocImage
     val clusterWithLegacyImage = LeoLenses.runtimeToRuntimeImages
       .modify(_ =>
         Set(
@@ -157,7 +156,7 @@ class DataprocInterpreterSpec
         .unsafeToFuture()
         .futureValue
 
-    resForLegacyImage.customImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
+    resForLegacyImage.get.customImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
   }
 
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
@@ -201,9 +200,12 @@ class DataprocInterpreterSpec
                                                      None,
                                                      None,
                                                      None,
-                                                     Map.empty[String, String])
+                                                     Map.empty[String, String],
+                                                     RegionName("us-central1"))
     val resourceConstraints = dataprocInterp
-      .getClusterResourceContraints(testClusterClusterProjectAndName, runtimeConfig.machineType)
+      .getClusterResourceContraints(testClusterClusterProjectAndName,
+                                    runtimeConfig.machineType,
+                                    RegionName("us-central1"))
       .unsafeRunSync()
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m

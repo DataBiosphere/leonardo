@@ -2,15 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.time.Instant
 import cats.effect.IO
 import fs2.concurrent.InspectableQueue
-import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.mock.FakeGooglePublisher
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{
-  KubernetesAppCreationException,
   KubernetesServiceDbQueries,
   TestComponent,
   appQuery,
@@ -18,12 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   persistentDiskQuery,
   _
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.CreateNodepool
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  BatchNodepoolCreateMessage,
-  CreateAppMessage,
-  DeleteAppMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
   LeoPubsubMessage,
@@ -36,6 +29,7 @@ import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
 final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
@@ -89,7 +83,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     savedDisk.map(_.name) shouldEqual Some(diskName)
   }
 
-  it should "create an app in a users existing nodepool" in isolatedDbTest {
+  it should "create an app in a user's existing nodepool" in isolatedDbTest {
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
@@ -125,6 +119,69 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }.get
 
     app1.nodepool.id shouldBe app2.nodepool.id
+  }
+
+  it should "result in new nodepool creations when apps request distinct nodepool configurations" in isolatedDbTest {
+    val defaultNodepoolConfig = KubernetesRuntimeConfig(
+      NumNodes(1),
+      MachineTypeName("n1-standard-8"),
+      autoscalingEnabled = true
+    )
+    val nodepoolConfigWithMoreNodes = defaultNodepoolConfig.copy(numNodes = NumNodes(2))
+    val nodepoolConfigWithMoreCpuAndMem = defaultNodepoolConfig.copy(machineType = MachineTypeName("n1-highmem-32"))
+    val nodepoolConfigWithAutoscalingDisabled = defaultNodepoolConfig.copy(autoscalingEnabled = false)
+
+    val appName1 = AppName("app-default-config")
+    val appName2 = AppName("app-more-nodes")
+    val appName3 = AppName("app-more-cpu-mem")
+    val appName4 = AppName("app-autoscaling-disabled")
+
+    val diskConfig1 = PersistentDiskRequest(DiskName("disk1"), None, None, Map.empty)
+    val diskConfig2 = PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty)
+    val diskConfig3 = PersistentDiskRequest(DiskName("disk3"), None, None, Map.empty)
+    val diskConfig4 = PersistentDiskRequest(DiskName("disk4"), None, None, Map.empty)
+
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+
+    val defaultAppReq =
+      createAppRequest.copy(kubernetesRuntimeConfig = Some(defaultNodepoolConfig),
+                            diskConfig = Some(diskConfig1),
+                            customEnvironmentVariables = customEnvVars)
+    val appReqWithMoreNodes =
+      defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithMoreNodes), diskConfig = Some(diskConfig2))
+    val appReqWithMoreCpuAndMem = defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithMoreCpuAndMem),
+                                                     diskConfig = Some(diskConfig3))
+    val appReqWithAutoscalingDisabled =
+      defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithAutoscalingDisabled),
+                         diskConfig = Some(diskConfig4))
+
+    kubeServiceInterp.createApp(userInfo, project, appName1, defaultAppReq).unsafeRunSync()
+    val appResult = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName1)
+    }
+    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
+
+    kubeServiceInterp.createApp(userInfo, project, appName2, appReqWithMoreNodes).unsafeRunSync()
+    kubeServiceInterp.createApp(userInfo, project, appName3, appReqWithMoreCpuAndMem).unsafeRunSync()
+    kubeServiceInterp.createApp(userInfo, project, appName4, appReqWithAutoscalingDisabled).unsafeRunSync()
+
+    val clusters = dbFutureValue {
+      KubernetesServiceDbQueries.listFullApps(Some(project))
+    }
+
+    clusters.flatMap(_.nodepools).length shouldBe 4
+    clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 4
+
+    val nodepoolId1 =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(project, appName1)).get.nodepool.id
+    val nodepoolId2 =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(project, appName2)).get.nodepool.id
+    val nodepoolId3 =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(project, appName3)).get.nodepool.id
+    val nodepoolId4 =
+      dbFutureValue(KubernetesServiceDbQueries.getActiveFullAppByName(project, appName4)).get.nodepool.id
+
+    Set(nodepoolId1, nodepoolId2, nodepoolId3, nodepoolId4).size shouldBe 4 // each app has a distinct nodepool
   }
 
   it should "queue the proper message when creating an app and a new disk" in isolatedDbTest {
@@ -386,21 +443,25 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
     }
 
-    // Set the app status to Error and the nodepool status to Deleted to simulate an error during
-    // app creation.
+    // Set the app status to Error, nodepool status to Running, and the disk status to Deleted to
+    // simulate an error during app creation.
+    // Note: if an app with a newly-created disk errors out, Leo will delete the disk along with the app.
     dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Error))
-    dbFutureValue(nodepoolQuery.markAsDeleted(appResultPreStatusUpdate.get.nodepool.id, Instant.now))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+    dbFutureValue(persistentDiskQuery.delete(appResultPreStatusUpdate.get.app.appResources.disk.get.id, Instant.now))
 
     val appResultPreDelete = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
     }
     appResultPreDelete.get.app.status shouldEqual AppStatus.Error
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
-    appResultPreDelete.get.nodepool.status shouldBe NodepoolStatus.Deleted
-    appResultPreDelete.get.nodepool.auditInfo.destroyedDate shouldBe 'defined
+    appResultPreDelete.get.nodepool.status shouldBe NodepoolStatus.Running
+    appResultPreDelete.get.nodepool.auditInfo.destroyedDate shouldBe None
+    appResultPreDelete.get.app.appResources.disk.get.status shouldBe DiskStatus.Deleted
+    appResultPreDelete.get.app.appResources.disk.get.auditInfo.destroyedDate shouldBe defined
 
     // Call deleteApp
-    val params = DeleteAppRequest(userInfo, project, appName, false)
+    val params = DeleteAppRequest(userInfo, project, appName, true)
     kubeServiceInterp.deleteApp(params).unsafeRunSync()
 
     // Verify database state
@@ -409,11 +470,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     clusterPostDelete.length shouldEqual 1
     val nodepool = clusterPostDelete.head.nodepools.head
-    nodepool.status shouldEqual NodepoolStatus.Deleted
-    nodepool.auditInfo.destroyedDate shouldBe 'defined
+    nodepool.status shouldEqual NodepoolStatus.Running
+    nodepool.auditInfo.destroyedDate shouldBe None
     val app = nodepool.apps.head
     app.status shouldEqual AppStatus.Deleted
-    app.auditInfo.destroyedDate shouldBe 'defined
+    app.auditInfo.destroyedDate shouldBe defined
+    val disk = app.appResources.disk
+    disk shouldBe None
 
     // throw away create message
     publisherQueue.dequeue1.unsafeRunSync() shouldBe a[CreateAppMessage]
@@ -569,267 +632,6 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     the[AppNotFoundException] thrownBy {
       kubeServiceInterp.getApp(userInfo, project, AppName("schrodingersApp")).unsafeRunSync()
     }
-  }
-
-  it should "successfully batch create nodepools" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-    kubeServiceInterp.batchNodepoolCreate(userInfo, project, batchNodepoolCreateRequest).unsafeRunSync()
-
-    val message = publisherQueue.dequeue1.unsafeRunSync()
-    message.messageType shouldBe LeoPubsubMessageType.BatchNodepoolCreate
-    val batchNodepoolCreateMessage = message.asInstanceOf[BatchNodepoolCreateMessage]
-    batchNodepoolCreateMessage.project shouldBe project
-    //we add 1 for the default nodepool
-    batchNodepoolCreateMessage.nodepools.size shouldBe batchNodepoolCreateRequest.numNodepools.value + 1
-    val cluster = dbFutureValue(kubernetesClusterQuery.getMinimalActiveClusterByName(project)).get
-    cluster.nodepools.size shouldBe batchNodepoolCreateRequest.numNodepools.value + 1
-    cluster.nodepools.filter(_.isDefault).size shouldBe 1
-    cluster.nodepools.filterNot(_.isDefault).size shouldBe batchNodepoolCreateRequest.numNodepools.value
-    cluster.nodepools.map(_.status).distinct.size shouldBe 1
-    cluster.nodepools.map(_.status).distinct shouldBe List(NodepoolStatus.Precreating)
-  }
-
-  it should "fail to batch create nodepools if cluster exists in project" in isolatedDbTest {
-    val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
-
-    kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
-    }
-
-    //it should throw app already exists if an app exists and the cluster is in creating
-    the[KubernetesAppCreationException] thrownBy {
-      kubeServiceInterp.batchNodepoolCreate(userInfo, project, batchNodepoolCreateRequest).unsafeRunSync()
-    }
-
-    //we need to update status from creating because we don't allow creation of anything while cluster is creating
-    dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
-
-    //it should throw cluster already exists if the cluster exists in a ready state
-    the[ClusterExistsException] thrownBy {
-      kubeServiceInterp.batchNodepoolCreate(userInfo, project, batchNodepoolCreateRequest).unsafeRunSync()
-    }
-  }
-
-  it should "claim a nodepool if some are unclaimed" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
-
-    val preAppCluster = dbFutureValue {
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
-    }.get
-
-    preAppCluster.nodepools.size shouldBe 2
-    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
-                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
-
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
-
-    val appName = AppName("app1")
-    kubeServiceInterp
-      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user100@example.com")),
-                 savedCluster1.googleProject,
-                 appName,
-                 appReq)
-      .unsafeRunSync()
-    val cluster = dbFutureValue {
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
-    }.get
-
-    cluster.nodepools.size shouldBe 2
-    cluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Unspecified)
-      .sortBy(_.toString)
-    cluster.nodepools.filter(_.status == NodepoolStatus.Running).size shouldBe 1
-    val claimedNodepool = cluster.nodepools.filter(_.id == savedNodepool1.id).head
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, appName)
-    }.get
-
-    appResult.nodepool.copy(apps = List.empty) shouldBe claimedNodepool
-
-    val message = publisherQueue.dequeue1.unsafeRunSync()
-    message.messageType shouldBe LeoPubsubMessageType.CreateApp
-    val createAppMessage = message.asInstanceOf[CreateAppMessage]
-    createAppMessage.appId shouldBe appResult.app.id
-    createAppMessage.clusterNodepoolAction shouldBe None
-  }
-
-  it should "be able to claim multiple nodepools" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-    val savedCluster1 = makeKubeCluster(1).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
-    val savedNodepool2 = makeNodepool(2, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
-
-    val preAppCluster = dbFutureValue {
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
-    }.get
-
-    preAppCluster.nodepools.size shouldBe 3
-    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
-                                                                           NodepoolStatus.Unclaimed,
-                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
-
-    val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq1 =
-      createAppRequest.copy(diskConfig = Some(createDiskConfig1), customEnvironmentVariables = customEnvVars)
-
-    val appName1 = AppName("app1")
-    kubeServiceInterp
-      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user100@example.com")),
-                 savedCluster1.googleProject,
-                 appName1,
-                 appReq1)
-      .unsafeRunSync()
-    val clusterAfterApp1 = dbFutureValue {
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
-    }.get
-
-    clusterAfterApp1.nodepools.size shouldBe 3
-    clusterAfterApp1.nodepools.map(_.status).sortBy(_.toString) shouldBe List(
-      NodepoolStatus.Running,
-      NodepoolStatus.Unclaimed,
-      NodepoolStatus.Unspecified
-    ).sortBy(_.toString)
-    val claimedNodepool1 = clusterAfterApp1.nodepools.filter(_.id == savedNodepool1.id).head
-    claimedNodepool1.status shouldBe NodepoolStatus.Running
-
-    val appResult1 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, appName1)
-    }.get
-
-    appResult1.nodepool.copy(apps = List.empty) shouldBe claimedNodepool1
-
-    val message1 = publisherQueue.dequeue1.unsafeRunSync()
-    message1.messageType shouldBe LeoPubsubMessageType.CreateApp
-    val createAppMessage1 = message1.asInstanceOf[CreateAppMessage]
-    createAppMessage1.appId shouldBe appResult1.app.id
-    createAppMessage1.clusterNodepoolAction shouldBe None
-
-    val appName2 = AppName("app2")
-    val appReq2 = appReq1.copy(diskConfig = Some(createDiskConfig1.copy(name = DiskName("newdisk"))))
-    kubeServiceInterp
-      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user101@example.com")),
-                 savedCluster1.googleProject,
-                 appName2,
-                 appReq2)
-      .unsafeRunSync()
-    val clusterAfterApp2 = dbFutureValue {
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
-    }.get
-
-    clusterAfterApp2.nodepools.size shouldBe 3
-    clusterAfterApp2.nodepools.map(_.status).sortBy(_.toString) shouldBe List(
-      NodepoolStatus.Running,
-      NodepoolStatus.Running,
-      NodepoolStatus.Unspecified
-    ).sortBy(_.toString)
-    val claimedNodepool2 = clusterAfterApp2.nodepools.filter(_.id == savedNodepool2.id).head
-    claimedNodepool2.status shouldBe NodepoolStatus.Running
-
-    val appResult2 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, appName2)
-    }.get
-
-    appResult2.nodepool.copy(apps = List.empty) shouldBe claimedNodepool2
-
-    val message2 = publisherQueue.dequeue1.unsafeRunSync()
-    message2.messageType shouldBe LeoPubsubMessageType.CreateApp
-    val createAppMessage2 = message2.asInstanceOf[CreateAppMessage]
-    createAppMessage2.appId shouldBe appResult2.app.id
-    createAppMessage2.clusterNodepoolAction shouldBe None
-  }
-
-  it should "be able to create a nodepool after a pool is completely claimed" in isolatedDbTest {
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val kubeServiceInterp = makeInterp(publisherQueue)
-    val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
-    val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Unclaimed).save()
-
-    val preAppCluster = dbFutureValue {
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
-    }.get
-
-    preAppCluster.nodepools.size shouldBe 2
-    preAppCluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Unspecified,
-                                                                           NodepoolStatus.Unclaimed).sortBy(_.toString)
-
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
-
-    val appName = AppName("app1")
-    kubeServiceInterp
-      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user100@example.com")),
-                 savedCluster1.googleProject,
-                 appName,
-                 appReq)
-      .unsafeRunSync()
-    val cluster = dbFutureValue {
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
-    }.get
-
-    cluster.nodepools.size shouldBe 2
-    cluster.nodepools.map(_.status).sortBy(_.toString) shouldBe List(NodepoolStatus.Running, NodepoolStatus.Unspecified)
-      .sortBy(_.toString)
-    cluster.nodepools.filter(_.status == NodepoolStatus.Running).size shouldBe 1
-    val claimedNodepool = cluster.nodepools.filter(_.id == savedNodepool1.id).head
-
-    val appResult = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, appName)
-    }.get
-
-    appResult.nodepool.copy(apps = List.empty) shouldBe claimedNodepool
-
-    val message = publisherQueue.dequeue1.unsafeRunSync()
-    message.messageType shouldBe LeoPubsubMessageType.CreateApp
-    val createAppMessage = message.asInstanceOf[CreateAppMessage]
-    createAppMessage.appId shouldBe appResult.app.id
-    createAppMessage.clusterNodepoolAction shouldBe None
-
-    val appName2 = AppName("app2")
-    val appReq2 = appReq.copy(diskConfig = Some(createDiskConfig.copy(name = DiskName("newdisk"))))
-
-    kubeServiceInterp
-      .createApp(userInfo.copy(userEmail = WorkbenchEmail("user101@example.com")),
-                 savedCluster1.googleProject,
-                 appName2,
-                 appReq2)
-      .unsafeRunSync()
-
-    val clusterAfterApp2 = dbFutureValue {
-      kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster1.googleProject)
-    }.get
-
-    clusterAfterApp2.nodepools.size shouldBe 3
-    clusterAfterApp2.nodepools.map(_.status).sortBy(_.toString) shouldBe List(
-      NodepoolStatus.Running,
-      NodepoolStatus.Precreating,
-      NodepoolStatus.Unspecified
-    ).sortBy(_.toString)
-
-    val appResult2 = dbFutureValue {
-      KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, appName2)
-    }.get
-
-    appResult2.nodepool.status shouldBe NodepoolStatus.Precreating
-
-    val message2 = publisherQueue.dequeue1.unsafeRunSync()
-    message2.messageType shouldBe LeoPubsubMessageType.CreateApp
-    val createAppMessage2 = message2.asInstanceOf[CreateAppMessage]
-    createAppMessage2.appId shouldBe appResult2.app.id
-    createAppMessage2.clusterNodepoolAction shouldBe Some(CreateNodepool(appResult2.nodepool.id))
   }
 
   it should "stop an app" in isolatedDbTest {

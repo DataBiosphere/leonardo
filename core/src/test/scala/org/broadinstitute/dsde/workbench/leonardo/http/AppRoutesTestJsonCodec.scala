@@ -53,13 +53,4 @@ object AppRoutesTestJsonCodec {
                         "appName",
                         "diskName",
                         "auditInfo")(ListAppResponse.apply)
-
-  implicit val batchNodepoolCreateRequestEncoder: Encoder[BatchNodepoolCreateRequest] =
-    Encoder.forProduct3("numNodepools", "kubernetesRuntimeConfig", "clusterName")(x =>
-      (
-        x.numNodepools,
-        x.kubernetesRuntimeConfig,
-        x.clusterName
-      )
-    )
 }

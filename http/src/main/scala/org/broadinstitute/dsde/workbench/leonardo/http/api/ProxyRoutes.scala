@@ -18,7 +18,7 @@ import com.typesafe.scalalogging.LazyLogging
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeName}
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeContainerServiceType, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -210,8 +210,16 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
             ) <* IO
               .fromFuture(IO(request.entity.discardBytes().future))
         }
-      _ <- metrics.incrementCounter("proxyApp")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
+
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "success", "action" -> "appRequest", "tool" -> s"${appName}"))
+      } else {
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "failure", "action" -> "appRequest", "tool" -> s"${appName}"))
+      }
+
     } yield resp
 
   private[api] def openTerminalHandler(
@@ -224,8 +232,19 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
-      _ <- metrics.incrementCounter("openTerminal")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
+      tool = RuntimeContainerServiceType.values
+        .find(s => request.uri.toString.contains(s.proxySegment))
+        .map(_.imageType.entryName)
+        .getOrElse("other")
+
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "success", "action" -> "openTerminal", "tool" -> s"${tool}"))
+      } else {
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "failure", "action" -> "openTerminal", "tool" -> s"${tool}"))
+      }
     } yield resp
 
   private[api] def proxyRuntimeHandler(
@@ -237,17 +256,36 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     for {
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
-      _ <- metrics.incrementCounter("proxyRuntime")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
+
+      tool = RuntimeContainerServiceType.values
+        .find(s => request.uri.toString.contains(s.proxySegment))
+        .map(_.imageType.entryName)
+        .getOrElse("other")
+
+      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
+        request.entity.contentLengthOption.traverse(size =>
+          metrics.gauge("notebooksSize", size.toDouble, tags = Map("source" -> "proxy"))
+        )
+      } else IO.unit
+
+      _ <- if (resp.status.isSuccess()) {
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "success", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
+
+      } else {
+        metrics.incrementCounter("proxyRequest",
+                                 tags = Map("result" -> "failure", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
+      }
     } yield resp
 
   private[api] def setCookieHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("setCookie") >>
+    metrics.incrementCounter("proxyAuthRequest", tags = Map("api" -> "setCookie")) >>
       IO(logger.debug(s"Successfully set cookie for user $userInfoOpt"))
         .as(StatusCodes.NoContent)
 
   private[api] def invalidateTokenHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
-    metrics.incrementCounter("invalidateToken") >>
+    metrics.incrementCounter("proxyAuthRequest", tags = Map("api" -> "invalidateToken")) >>
       userInfoOpt.traverse(userInfo => proxyService.invalidateAccessToken(userInfo.accessToken.token)) >>
       IO(logger.debug(s"Invalidated access token"))
         .as(StatusCodes.NoContent)
@@ -270,7 +308,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       case Some(referer) =>
         val authority = referer.uri.authority
         if (refererConfig.validHosts.contains(authority.toString())
-            || refererConfig.validHosts.contains(s"*:${authority.port}")) {
+            || refererConfig.validHosts.contains("*")) {
           pass
         } else {
           logger.info(s"Referer ${referer.uri.toString} is not allowed")
