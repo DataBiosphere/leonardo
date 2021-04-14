@@ -11,7 +11,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.DiskName
+import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
@@ -177,11 +177,13 @@ object DiskRoutes {
       s <- c.downField("size").as[Option[DiskSize]]
       t <- c.downField("diskType").as[Option[DiskType]]
       bs <- c.downField("blockSize").as[Option[BlockSize]]
+      zone <- c.downField("zone").as[Option[ZoneName]]
     } yield CreateDiskRequest(
       l.getOrElse(Map.empty),
       s,
       t,
-      bs
+      bs,
+      zone
     )
   }
 

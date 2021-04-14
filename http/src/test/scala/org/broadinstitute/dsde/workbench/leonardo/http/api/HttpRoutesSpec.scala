@@ -368,7 +368,8 @@ class HttpRoutesSpec
       Map("foo" -> "bar"),
       Some(DiskSize(500)),
       Some(DiskType.Standard),
-      Some(BlockSize(65536))
+      Some(BlockSize(65536)),
+      None
     )
     Post("/api/google/v1/disks/googleProject1/disk1")
       .withEntity(ContentTypes.`application/json`, diskCreateRequest.asJson.spaces2) ~> routes.route ~> check {

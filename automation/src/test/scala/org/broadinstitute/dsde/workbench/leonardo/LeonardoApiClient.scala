@@ -50,6 +50,7 @@ object LeonardoApiClient {
     Map.empty,
     None,
     None,
+    None,
     None
   )
 

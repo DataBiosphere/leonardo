@@ -145,9 +145,9 @@ object Boot extends IOApp {
         dataprocConfig,
         gceConfig
       )
-      val runtimeService = new RuntimeServiceInterp[IO](
+      val runtimeService = RuntimeService(
         runtimeServiceConfig,
-        persistentDiskConfig,
+        ConfigReader.appConfig.persistentDisk,
         appDependencies.authProvider,
         appDependencies.serviceAccountProvider,
         appDependencies.dockerDAO,
@@ -157,7 +157,7 @@ object Boot extends IOApp {
         appDependencies.publisherQueue
       )
       val diskService = new DiskServiceInterp[IO](
-        persistentDiskConfig,
+        ConfigReader.appConfig.persistentDisk,
         appDependencies.authProvider,
         appDependencies.serviceAccountProvider,
         appDependencies.publisherQueue

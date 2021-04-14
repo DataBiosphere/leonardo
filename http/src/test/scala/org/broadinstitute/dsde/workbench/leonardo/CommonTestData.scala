@@ -335,11 +335,13 @@ object CommonTestData {
 
   def makePersistentDisk(diskName: Option[DiskName] = None,
                          formattedBy: Option[FormattedBy] = None,
-                         galaxyRestore: Option[GalaxyRestore] = None): PersistentDisk =
+                         galaxyRestore: Option[GalaxyRestore] = None,
+                         zoneName: Option[ZoneName] = None,
+                         googleProject: Option[GoogleProject] = None): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
-      project,
-      zone,
+      googleProject.getOrElse(project),
+      zoneName.getOrElse(zone),
       diskName.getOrElse(DiskName("disk")),
       Some(googleId),
       serviceAccount,

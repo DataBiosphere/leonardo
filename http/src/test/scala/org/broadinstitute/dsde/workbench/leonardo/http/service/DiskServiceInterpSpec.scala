@@ -11,7 +11,6 @@ import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.UpdateDiskRequest
 import org.broadinstitute.dsde.workbench.leonardo.model.ForbiddenError
@@ -27,13 +26,14 @@ import org.scalatest.flatspec.AnyFlatSpec
 class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val publisherQueue = QueueFactory.makePublisherQueue()
   val diskService = new DiskServiceInterp(
-    Config.persistentDiskConfig,
+    ConfigReader.appConfig.persistentDisk,
     whitelistAuthProvider,
     serviceAccountProvider,
     publisherQueue
   )
   val emptyCreateDiskReq = CreateDiskRequest(
     Map.empty,
+    None,
     None,
     None,
     None

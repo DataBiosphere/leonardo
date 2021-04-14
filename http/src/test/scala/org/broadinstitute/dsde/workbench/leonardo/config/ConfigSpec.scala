@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceAccountName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{galaxyChartName, galaxyChartVersion}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
@@ -16,18 +16,6 @@ import org.scalatest.matchers.should.Matchers
 import scala.concurrent.duration._
 
 final class ConfigSpec extends AnyFlatSpec with Matchers {
-  it should "read PersistentDiskConfig properly" in {
-    val expectedResult = PersistentDiskConfig(
-      DiskSize(30),
-      DiskType.Standard,
-      BlockSize(4096),
-      ZoneName("us-central1-a"),
-      DiskSize(250)
-    )
-
-    Config.persistentDiskConfig shouldBe expectedResult
-  }
-
   it should "read LeoPubsubMessageSubscriberConfig properly" in {
     val expectedResult = LeoPubsubMessageSubscriberConfig(
       100,
