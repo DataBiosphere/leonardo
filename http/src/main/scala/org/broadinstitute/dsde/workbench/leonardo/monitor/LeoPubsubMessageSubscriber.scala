@@ -143,6 +143,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   ): F[Unit] = {
     val createCluster = for {
       ctx <- ev.ask
+
       clusterResult <- msg.runtimeConfig.cloudService.interpreter
         .createRuntime(CreateRuntimeParams.fromCreateRuntimeMessage(msg))
 
@@ -154,8 +155,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             Some(createRuntimeResponse.asyncRuntimeFields),
             ctx.now
           )
+
         // Save the VM image and async fields in the database
-        val clusterImage = RuntimeImage(RuntimeImageType.VM, createRuntimeResponse.customImage.asString, ctx.now)
+        val clusterImage = RuntimeImage(RuntimeImageType.VM, createRuntimeResponse.customImage.asString, None, ctx.now)
         (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
           msg.runtimeId,
           clusterImage
@@ -853,8 +855,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         _ <- gkeInterp
           .createAndPollApp(CreateAppParams(msg.appId, msg.project, msg.appName))
           .onError {
-            case _ =>
-              cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk)
+            case e =>
+              cleanUpAfterCreateAppError(msg.appId, msg.appName, msg.project, msg.createDisk, e)
           }
           .adaptError {
             case e =>
@@ -1053,13 +1055,14 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private def cleanUpAfterCreateAppError(appId: AppId,
                                          appName: AppName,
                                          project: GoogleProject,
-                                         diskId: Option[DiskId])(
+                                         diskId: Option[DiskId],
+                                         error: Throwable)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(
-        s"Attempting to clean up resources due to app creation error for app ${appName} in project ${project}"
+        s"Attempting to clean up resources due to app creation error for app ${appName} in project ${project} due to ${error.getMessage}"
       )
       // we need to look up the app because we always want to clean up the nodepool associated with an errored app, even if it was pre-created
       appOpt <- KubernetesServiceDbQueries.getFullAppByName(project, appId).transaction

@@ -96,10 +96,10 @@ fi
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
-    JUPYTER_USER_HOME=/home/jupyter-user
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
+    export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
     export CLUSTER_NAME=$(clusterName)
     export RUNTIME_NAME=$(clusterName)
     export GOOGLE_PROJECT=$(googleProject)

@@ -528,13 +528,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit ev: Ask[F, TraceId]): F[Set[RuntimeImage]] =
     for {
       // Try to autodetect the image
-      autodetectedImageOpt <- toolDockerImage.traverse(image =>
-        dockerDAO.detectTool(image, petToken).map(t => RuntimeImage(t, image.imageUrl, now))
-      )
+      autodetectedImageOpt <- toolDockerImage.traverse(image => dockerDAO.detectTool(image, petToken, now))
       // Figure out the tool image. Rules:
       // - if we were able to autodetect an image, use that
       // - else use the default jupyter image
-      defaultJupyterImage = RuntimeImage(Jupyter, config.imageConfig.jupyterImage.imageUrl, now)
+      defaultJupyterImage = RuntimeImage(Jupyter,
+                                         config.imageConfig.jupyterImage.imageUrl,
+                                         Some(config.imageConfig.defaultJupyterUserHome),
+                                         now)
       toolImage = autodetectedImageOpt getOrElse defaultJupyterImage
       // Figure out the welder image. Rules:
       // - If present, we will use the client-supplied image.
@@ -551,17 +552,18 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
                 case _                                 => config.imageConfig.welderGcrImage.imageUrl
               },
+              None,
               now
             )
           )
       }
 
       // Get the proxy image
-      proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, now)
+      proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, None, now)
       // Crypto detector image - note it's not currently supported on Dockerhub
       cryptoDetectorImageOpt = welderRegistry match {
         case Some(ContainerRegistry.DockerHub) => None
-        case _                                 => Some(RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, now))
+        case _                                 => Some(RuntimeImage(CryptoDetector, config.imageConfig.cryptoDetectorImage.imageUrl, None, now))
       }
     } yield Set(Some(toolImage), welderImage, Some(proxyImage), cryptoDetectorImageOpt).flatten
 

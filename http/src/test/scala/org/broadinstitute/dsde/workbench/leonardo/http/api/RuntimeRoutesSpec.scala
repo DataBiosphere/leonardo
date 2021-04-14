@@ -8,21 +8,7 @@ import io.circe.DecodingFailure
 import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{
-  auditInfo,
-  cryptoDetectorImage,
-  defaultCreateRuntimeRequest,
-  defaultGceRuntimeConfig,
-  defaultScopes,
-  jupyterImage,
-  makeAsyncRuntimeFields,
-  name1,
-  project,
-  proxyImage,
-  runtimeSamResource,
-  serviceAccountEmail,
-  welderImage
-}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   deleteDefaultLabelsDecodingFailure,
   negativeNumberDecodingFailure,
@@ -30,8 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   updateDefaultLabelDecodingFailure,
   upsertEmptyLabelDecodingFailure
 }
-
-import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpec
@@ -40,6 +24,7 @@ import org.scalatest.matchers.should.Matchers
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+import scala.concurrent.duration._
 
 class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   it should "decode RuntimeConfigRequest.DataprocConfig" in {
@@ -398,7 +383,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Some(DiskConfig(DiskName("disk"), DiskSize(100), DiskType.Standard, BlockSize(1024)))
     )
 
-    val res = input.asJson.spaces2
+    val res = input.asJson.deepDropNullValues.spaces2
     res shouldBe
       """{
         |  "id" : -1,
@@ -414,7 +399,6 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "auditInfo" : {
         |    "creator" : "user1@example.com",
         |    "createdDate" : "2020-11-20T17:23:24.650Z",
-        |    "destroyedDate" : null,
         |    "dateAccessed" : "2020-11-20T17:23:24.650Z"
         |  },
         |  "runtimeConfig" : {
@@ -433,13 +417,13 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "jupyterStartUserScriptUri" : "gs://bucket-name/startScript",
         |  "errors" : [
         |  ],
-        |  "userJupyterExtensionConfig" : null,
         |  "autopauseThreshold" : 30,
         |  "defaultClientId" : "clientId",
         |  "runtimeImages" : [
         |    {
         |      "imageType" : "Jupyter",
         |      "imageUrl" : "init-resources/jupyter-base:latest",
+        |      "homeDirectory" : "/home/jupyter",
         |      "timestamp" : "2020-11-20T17:23:24.650Z"
         |    },
         |    {
