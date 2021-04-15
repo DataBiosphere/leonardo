@@ -37,7 +37,6 @@ object Dependencies {
   val excludeFindbugsJsr = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
   val excludeGson = ExclusionRule(organization = "com.google.code.gson", name = "gson")
   val excludeGoogleApiClient = ExclusionRule(organization = "com.google.api-client", name = "google-api-client")
-  val excludeGoogleErrorReporting = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-errorreporting")
   val excludeGoogleApiClientJackson2 = ExclusionRule(organization = "com.google.http-client", name = "google-http-client-jackson2")
   val excludeGoogleHttpClient = ExclusionRule(organization = "com.google.http-client", name = "google-http-client")
   val excludeJacksonCore = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-core")
@@ -69,10 +68,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleDataproc: ModuleID =            "com.google.apis" % "google-api-services-dataproc"    % s"v1-rev91-$googleV" excludeAll (excludeGuavaJDK5, excludeJacksonCore, excludeFindbugsJsr, excludeHttpComponent, excludeFirestore, excludeGoogleApiClient)
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.37.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
-  val googleGaxGrpc: ModuleID = "com.google.api" % "gax-grpc" % "1.57.0"  excludeAll (excludeGuava, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleApiClientJackson2, excludeGoogleHttpClient, excludeHttpComponent)
-  val googleErrorReporting: ModuleID = "com.google.cloud" % "google-cloud-errorreporting" % "0.119.2-beta"
 
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -99,8 +95,8 @@ object Dependencies {
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
-  val workbenchErrorReporting: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV excludeAll(excludeGoogleErrorReporting)
-  val workbenchErrorReportingTest: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV % Test classifier "tests" excludeAll(excludeGoogleErrorReporting)
+  val workbenchErrorReporting: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV
+  val workbenchErrorReportingTest: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV % Test classifier "tests"
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
   val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
@@ -158,9 +154,7 @@ object Dependencies {
     akkaHttpTestKit,
     akkaStream,
     "de.heikoseeberger" %% "akka-http-circe" % "1.36.0" excludeAll(excludeAkkaHttp, excludeAkkaStream),
-    googleDataproc,
     googleRpc,
-    googleErrorReporting, // forcing an older versin of google-cloud-errorreporting because latest version brings in higher version of gax-grpc, which isn't compatible with other google dependencies
 
     hikariCP,
     workbenchGoogle,
