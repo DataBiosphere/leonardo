@@ -819,18 +819,18 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       }
     } yield ()
 
-  private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName, namespaceName: NamespaceName): Disk =
+  private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName, dataDiskName: DiskName): Disk =
     Disk
       .newBuilder()
-      .setName(getGalaxyPostgresDiskName(namespaceName).value)
+      .setName(getGalaxyPostgresDiskName(dataDiskName).value)
       .setZone(zone.value)
       .setSizeGb(config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString)
       .setPhysicalBlockSizeBytes(config.galaxyDiskConfig.postgresDiskBlockSize.bytes.toString)
       .putAllLabels(Map("leonardo" -> "true").asJava)
       .build()
 
-  private[leonardo] def getGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
-    DiskName(s"${namespaceName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
+  private[leonardo] def getGalaxyPostgresDiskName(dataDiskName: DiskName): DiskName =
+    DiskName(s"${dataDiskName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
 
   private[util] def installNginx(dbCluster: KubernetesCluster,
                                  googleCluster: Cluster)(implicit ev: Ask[F, AppContext]): F[IP] =
@@ -1214,10 +1214,10 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
       raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name.value}""",
       raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
-      raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
+      raw"""persistence.postgres.name=${nfsDisk.name.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
       raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword}""",
       raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${getGalaxyPostgresDiskName(
-        namespaceName
+        nfsDisk.name
       ).value}""",
       raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",

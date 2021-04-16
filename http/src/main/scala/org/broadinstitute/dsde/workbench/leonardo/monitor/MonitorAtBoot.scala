@@ -149,6 +149,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
             action,
             app.id,
             app.appName,
+            Some(app.appResources.disk.get.name),
             diskIdOpt,
             app.customEnvironmentVariables,
             app.appType,
