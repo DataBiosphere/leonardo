@@ -398,15 +398,17 @@ object Boot extends IOApp {
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
       // (e.g. if the subnet isn't ready when creating an instance).
+
+      googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(RetryPredicates.standardGoogleRetryPredicate,
+                                                                           RetryPredicates.whenStatusCode(400))
+
       googleComputeService <- GoogleComputeService.fromCredential(
         scopedCredential,
         blocker,
         semaphore,
-        RetryPredicates.retryConfigWithPredicates(
-          RetryPredicates.standardRetryPredicate,
-          RetryPredicates.whenStatusCode(400)
-        )
+        googleComputeRetryPolicy
       )
+
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
@@ -415,6 +417,7 @@ object Boot extends IOApp {
           semaphore,
           dataprocConfig.supportedRegions
         )
+
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson), blocker)
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, blocker, semaphore)
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, blocker, semaphore)

@@ -8,7 +8,7 @@ import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
-  tracedRetryGoogleF,
+  tracedRetryF,
   ComputePollOperation,
   FirewallRuleName,
   GoogleComputeService,
@@ -55,7 +55,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
 
   // Retry 409s to support concurrent get-check-create operations
   val retryPolicy = RetryPredicates.retryConfigWithPredicates(
-    RetryPredicates.standardRetryPredicate,
+    RetryPredicates.standardGoogleRetryPredicate,
     RetryPredicates.whenStatusCode(409)
   )
 
@@ -168,7 +168,7 @@ final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer
     } yield ()
 
     // Retry the whole get-check-create operation in case of 409
-    tracedRetryGoogleF(retryPolicy)(getAndCreate, msg).compile.lastOrError
+    tracedRetryF(retryPolicy)(getAndCreate, msg).compile.lastOrError
   }
 
   private[util] def buildNetwork(project: GoogleProject): Network =

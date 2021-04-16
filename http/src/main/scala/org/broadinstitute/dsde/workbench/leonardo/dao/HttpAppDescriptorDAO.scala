@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import cats.effect.{Effect, Timer}
+import cats.effect.Effect
 import cats.implicits._
 import cats.mtl.Ask
 import org.typelevel.log4cats.StructuredLogger
@@ -12,11 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpAppDescriptorDAO._
 import org.http4s.{Method, Request, Response, Uri}
 import org.http4s.client.Client
 
-import scala.concurrent.duration._
-
-class HttpAppDescriptorDAO[F[_]](httpClient: Client[F])(implicit logger: StructuredLogger[F],
-                                                        timer: Timer[F],
-                                                        F: Effect[F])
+class HttpAppDescriptorDAO[F[_]](httpClient: Client[F])(implicit logger: StructuredLogger[F], F: Effect[F])
     extends AppDescriptorDAO[F] {
   override def getDescriptor(path: Uri)(implicit ev: Ask[F, AppContext]): F[AppDescriptor] =
     for {
@@ -32,19 +28,12 @@ class HttpAppDescriptorDAO[F[_]](httpClient: Client[F])(implicit logger: Structu
 
   private[dao] def resolveUri(path: String)(implicit ev: Ask[F, AppContext]): F[String] =
     for {
-      resp <- fs2.Stream
-        .retry(httpClient.expectOr[String](
-                 Request[F](
-                   method = Method.GET,
-                   uri = Uri.unsafeFromString(path)
-                 )
-               )(onError(path)),
-               5 seconds,
-               delay => delay * 2,
-               5,
-               e => true)
-        .compile
-        .lastOrError
+      resp <- httpClient.expectOr[String](
+        Request[F](
+          method = Method.GET,
+          uri = Uri.unsafeFromString(path)
+        )
+      )(onError(path))
     } yield resp
 
   private def onError(path: String)(response: Response[F])(implicit ev: Ask[F, AppContext]): F[Throwable] =

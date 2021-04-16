@@ -25,7 +25,7 @@ import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   streamFUntilDone,
   streamUntilDoneOrTimeout,
-  tracedRetryGoogleF,
+  tracedRetryF,
   DiskName,
   KubernetesClusterNotFoundException,
   PvName,
@@ -364,12 +364,11 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       retryConfig = RetryPredicates.retryConfigWithPredicates(
         when409
       )
-      _ <- tracedRetryGoogleF(retryConfig)(
+      _ <- tracedRetryF(retryConfig)(
         call,
         s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
       ).compile.lastOrError
 
-      // helm install galaxy and wait
       //TODO: validate app release is the same as retore release
       galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(diskId).transaction
 
@@ -405,6 +404,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             app.customEnvironmentVariables
           )
       }
+
       _ <- logger.info(ctx.loggingCtx)(
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
@@ -918,7 +918,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // Invoke helm
-      _ <- helmClient
+      helmInstall = helmClient
         .installChart(
           release,
           chart.name,
@@ -927,6 +927,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           false
         )
         .run(helmAuthContext)
+
+      // Currently we always retry.
+      // The main failure mode here is helm install, which does not have easily interpretable error codes
+      retryConfig = RetryPredicates.retryAllConfig
+      _ <- tracedRetryF(retryConfig)(
+        helmInstall,
+        s"helm install for app ${appName.value} in project ${dbCluster.googleProject.value}"
+      ).compile.lastOrError
 
       // Poll galaxy until it starts up
       // TODO potentially add other status checks for pod readiness, beyond just HTTP polling the galaxy-web service
@@ -1015,7 +1023,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       )
 
       // Invoke helm
-      _ <- helmClient
+      helmInstall = helmClient
         .installChart(
           release,
           config.customAppConfig.chartName,
@@ -1023,6 +1031,15 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           org.broadinstitute.dsp.Values(chartValues)
         )
         .run(helmAuthContext)
+
+      // Currently we always retry.
+      // The main failure mode here is helm install, which does not have easily interpretable error codes
+      retryConfig = RetryPredicates.retryAllConfig
+
+      _ <- tracedRetryF(retryConfig)(
+        helmInstall,
+        s"helm install for app ${appName.value} in project ${dbCluster.googleProject.value}"
+      ).compile.lastOrError
 
       // Poll app until it starts up
       last <- streamFUntilDone(
