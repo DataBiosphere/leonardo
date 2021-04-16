@@ -722,7 +722,7 @@ object LeoPubsubCodec {
        x.clusterNodepoolAction,
        x.appId,
        x.appName,
-       x.getDataDiskName,
+       x.dataDiskName,
        x.createDisk,
        x.customEnvironmentVariables,
        x.appType,
