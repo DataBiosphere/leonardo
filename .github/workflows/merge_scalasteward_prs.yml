@@ -23,6 +23,8 @@ jobs:
         git config --global user.email "broadbot@broadinstitute.org"
         git config --global user.name "broadbot"
 
+        git fetch
+        git checkout develop
         git checkout -B merged-scala-steward-prs
 
         while IFS= read -r pr
