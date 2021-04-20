@@ -23,6 +23,8 @@ jobs:
         git config --global user.email "broadbot@broadinstitute.org"
         git config --global user.name "broadbot"
 
+        git fetch
+        git checkout develop
         git checkout -B merged-scala-steward-prs
 
         while IFS= read -r pr
@@ -31,6 +33,7 @@ jobs:
           gh pr checkout $pr
           curBranch=`git branch --show-current`
           git checkout merged-scala-steward-prs 2>/dev/null || git checkout -b merged-scala-steward-prs
+          echo "Merging $curBranch"
           git merge -m "merging" $curBranch
         done <<< `gh pr list | grep scala-steward | cut -d$'\t'  -f 1`
         git push origin merged-scala-steward-prs
