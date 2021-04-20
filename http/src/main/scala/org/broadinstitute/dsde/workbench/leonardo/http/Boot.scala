@@ -326,7 +326,7 @@ object Boot extends IOApp {
   )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
-      semaphore <- Resource.eval(Semaphore[F](255L))
+      semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
       blocker = Blocker.liftExecutionContext(blockingEc)
 
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
