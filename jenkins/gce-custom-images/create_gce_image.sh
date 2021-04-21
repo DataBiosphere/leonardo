@@ -10,8 +10,8 @@ set -e -x
 # Also make sure that you have the right version of the hardening repo via:
 # `git -C jenkins/gce-custom-images/dsp-appsec-base-image-hardening checkout <desired version hash>`
 
-# The date-time suffix is in the format yymmdd-hh-mm but it could be anything.
-OUTPUT_IMAGE_NAME="leo-custom-gce-image-200323-12-14"
+OUTPUT_IMAGE_NAME_SUFFIX="1"
+OUTPUT_IMAGE_NAME=leo-custom-gce-image-$(whoami)-$(date +"%Y-%m-%d")-$OUTPUT_IMAGE_NAME_SUFFIX
 
 # The bucket that Daisy uses as scratch area to store source and log files.
 # It must exist or Daisy errors out.
@@ -32,7 +32,7 @@ DAISY_IMAGE_TAG="latest"
 SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
 
 # Set this to "true" if you want to validate the workflow without actually executing it
-VALIDATE_WORKFLOW="false"
+VALIDATE_WORKFLOW="true"
 
 # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
 gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $PROJECT -l $REGION $DAISY_BUCKET_PATH
