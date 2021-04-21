@@ -451,7 +451,7 @@ object Boot extends IOApp {
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
       // Use a low concurrency for helm because it can generate very chatty network traffic
       // (especially for Galaxy) and cause issues at high concurrency.
-      helmConcurrency <- Resource.eval(Semaphore[F](10L))
+      helmConcurrency <- Resource.eval(Semaphore[F](20L))
       helmClient = new HelmInterpreter[F](blocker, helmConcurrency)
 
       googleDependencies = GoogleDependencies(
