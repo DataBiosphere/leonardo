@@ -449,7 +449,7 @@ object Boot extends IOApp {
       // Set up k8s and helm clients
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
-      helmConcurrency <- Resource.eval(Semaphore[F](50L))
+      helmConcurrency <- Resource.eval(Semaphore[F](10L))
       helmClient = new HelmInterpreter[F](blocker, helmConcurrency)
 
       googleDependencies = GoogleDependencies(
