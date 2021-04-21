@@ -149,7 +149,7 @@ pipeline {
         string(name: "terra_jupyter_python", defaultValue: "0.0.15")
         string(name: "terra_jupyter_bioconductor", defaultValue: "1.0.5")
         string(name: "terra_jupyter_gatk", defaultValue: "1.0.5")
-        string(name: "terra_jupyter_aou", defaultValue: "1.0.14")
+        string(name: "terra_jupyter_aou", defaultValue: "1.0.23")
         string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.8")
         string(name: "welder_server", defaultValue: "59be71a",
             description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")

@@ -4,11 +4,20 @@ set -e -x
 
 # This script is a wrapper around the command that runs the custom GCE image
 # creation tool - Daisy - for local development and documentation purposes.
+#
 # It should be run from the root of the Leonardo repo.
+#
 # gsutil must have been installed.
-# A Daisy image must have been pulled; e.g. via `docker pull gcr.io/compute-image-tools/daisy:latest`
+#
+# application_default_credentials.json needs to be copied to jenkins/gce-custom-images/ which is mounted on Daisy container
+# Credentials can be refreshed via 'gcloud auth application-default login' with prjoect set to 'broad-dsde-dev' using
+# Broad account
+#
 # Also make sure that you have the right version of the hardening repo via:
 # `git -C jenkins/gce-custom-images/dsp-appsec-base-image-hardening checkout <desired version hash>`
+
+# Set this to "true" if you want to validate the workflow without actually executing it
+VALIDATE_WORKFLOW="false"
 
 OUTPUT_IMAGE_NAME_SUFFIX="1"
 OUTPUT_IMAGE_NAME=leo-custom-gce-image-$(whoami)-$(date +"%Y-%m-%d")-$OUTPUT_IMAGE_NAME_SUFFIX
@@ -30,9 +39,6 @@ DAISY_IMAGE_TAG="latest"
 # which can be generated via `gcloud auth application-default login` and is saved at
 # `~/.config/gcloud/application_default_credentials.json` by default.
 SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
-
-# Set this to "true" if you want to validate the workflow without actually executing it
-VALIDATE_WORKFLOW="true"
 
 # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
 gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $PROJECT -l $REGION $DAISY_BUCKET_PATH
