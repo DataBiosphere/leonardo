@@ -449,6 +449,8 @@ object Boot extends IOApp {
       // Set up k8s and helm clients
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
+      // Use a low concurrency for helm because it can generate very chatty network traffic
+      // (especially for Galaxy) and cause issues at high concurrency.
       helmConcurrency <- Resource.eval(Semaphore[F](10L))
       helmClient = new HelmInterpreter[F](blocker, helmConcurrency)
 
