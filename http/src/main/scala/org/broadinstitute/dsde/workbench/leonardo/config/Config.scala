@@ -62,7 +62,8 @@ object Config {
       config.getString("applicationName"),
       config.as[GoogleProject]("leoGoogleProject"),
       config.as[Path]("leoServiceAccountJsonFile"),
-      config.as[WorkbenchEmail]("leoServiceAccountEmail")
+      config.as[WorkbenchEmail]("leoServiceAccountEmail"),
+      config.as[Long]("concurrency")
     )
   }
 

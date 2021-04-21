@@ -326,7 +326,7 @@ object Boot extends IOApp {
   )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
-      semaphore <- Resource.eval(Semaphore[F](255L))
+      semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
       blocker = Blocker.liftExecutionContext(blockingEc)
 
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
@@ -398,15 +398,17 @@ object Boot extends IOApp {
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
       // (e.g. if the subnet isn't ready when creating an instance).
+
+      googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(RetryPredicates.standardGoogleRetryPredicate,
+                                                                           RetryPredicates.whenStatusCode(400))
+
       googleComputeService <- GoogleComputeService.fromCredential(
         scopedCredential,
         blocker,
         semaphore,
-        RetryPredicates.retryConfigWithPredicates(
-          RetryPredicates.standardRetryPredicate,
-          RetryPredicates.whenStatusCode(400)
-        )
+        googleComputeRetryPolicy
       )
+
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
@@ -415,6 +417,7 @@ object Boot extends IOApp {
           semaphore,
           dataprocConfig.supportedRegions
         )
+
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson), blocker)
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, blocker, semaphore)
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, blocker, semaphore)
@@ -446,7 +449,10 @@ object Boot extends IOApp {
       // Set up k8s and helm clients
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
-      helmClient = new HelmInterpreter[F](blocker, semaphore)
+      // Use a low concurrency for helm because it can generate very chatty network traffic
+      // (especially for Galaxy) and cause issues at high concurrency.
+      helmConcurrency <- Resource.eval(Semaphore[F](20L))
+      helmClient = new HelmInterpreter[F](blocker, helmConcurrency)
 
       googleDependencies = GoogleDependencies(
         googleStorage,
