@@ -326,7 +326,7 @@ object Boot extends IOApp {
   )(implicit ec: ExecutionContext, as: ActorSystem, F: ConcurrentEffect[F]): Resource[F, AppDependencies[F]] =
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[F]
-      semaphore <- Resource.eval(Semaphore[F](255L))
+      semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
       blocker = Blocker.liftExecutionContext(blockingEc)
 
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
@@ -449,7 +449,10 @@ object Boot extends IOApp {
       // Set up k8s and helm clients
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, blocker, semaphore)
-      helmClient = new HelmInterpreter[F](blocker, semaphore)
+      // Use a low concurrency for helm because it can generate very chatty network traffic
+      // (especially for Galaxy) and cause issues at high concurrency.
+      helmConcurrency <- Resource.eval(Semaphore[F](20L))
+      helmClient = new HelmInterpreter[F](blocker, helmConcurrency)
 
       googleDependencies = GoogleDependencies(
         googleStorage,

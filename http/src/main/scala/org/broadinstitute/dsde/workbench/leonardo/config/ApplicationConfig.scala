@@ -9,4 +9,5 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 case class ApplicationConfig(applicationName: String,
                              leoGoogleProject: GoogleProject,
                              leoServiceAccountJsonFile: Path,
-                             leoServiceAccountEmail: WorkbenchEmail)
+                             leoServiceAccountEmail: WorkbenchEmail,
+                             concurrency: Long)
