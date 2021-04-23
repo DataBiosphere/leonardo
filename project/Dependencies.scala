@@ -73,7 +73,7 @@ object Dependencies {
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-3-4" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-selenium
-  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % s"3.2.7.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % s"3.2.8.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -104,7 +104,7 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.3.2"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.3.4"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.122.11" % Test // brought in for FakeStorageInterpreter
 
