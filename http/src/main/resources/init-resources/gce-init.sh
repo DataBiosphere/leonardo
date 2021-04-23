@@ -291,15 +291,15 @@ STEP_TIMINGS+=($(date +%s))
 
 # Jupyter-specific setup, only do if Jupyter is installed
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-  log 'Installing Jupydocker kernelspecs...'
+  log 'Installing Jupyter kernelspecs...'
 
   # user package installation directory
   mkdir -p /work/packages
   chmod a+rwx /work/packages
 
+  # Used to pip install packacges
   JUPYTER_USER_PIP_DIR=$JUPYTER_USER_HOME/.local/lib/python3.7/site-packages
 
-  # Used to pip install packacges
   # TODO: update this if we upgrade python version
   if [ "$JUPYTER_USER_HOME" = "/home/jupyter" ]
   then

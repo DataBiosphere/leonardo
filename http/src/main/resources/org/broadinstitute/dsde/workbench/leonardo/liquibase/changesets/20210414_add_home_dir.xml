@@ -7,5 +7,9 @@
                 <constraints nullable="true"/>
             </column>
         </addColumn>
+
+        <sql stripComments="true">
+            update CLUSTER_IMAGE set homeDirectory = "/home/jupyter-user" where imageType = "Jupyter";
+        </sql>
     </changeSet>
 </databaseChangeLog>

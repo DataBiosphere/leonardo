@@ -196,9 +196,13 @@ object HttpDockerDAO {
     } yield ManifestConfig(mediaType, size, digest)
   }
 
-  implicit val envDecoder: Decoder[Env] = Decoder.decodeString.map { s =>
-    val splitted = s.split("=")
-    Env(splitted(0), splitted(1))
+  implicit val envDecoder: Decoder[Env] = Decoder.decodeString.emap { s =>
+    val res = for {
+      splitted <- Either.catchNonFatal(s.split("="))
+      first <- Either.catchNonFatal(splitted(0))
+      second <- Either.catchNonFatal(splitted(1))
+    } yield Env(first, second)
+    res.leftMap(_.getMessage)
   }
   implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.forProduct1("Env")(ContainerConfig.apply)
   implicit val containerConfigResponseDecoder: Decoder[ContainerConfigResponse] = Decoder.instance { d =>
