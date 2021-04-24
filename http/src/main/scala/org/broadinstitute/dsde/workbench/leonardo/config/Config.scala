@@ -56,6 +56,7 @@ object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
+  implicit private val sourceSnapshotReader: ValueReader[SourceSnapShot] = stringValueReader.map(SourceSnapShot)
 
   implicit private val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
     ApplicationConfig(
@@ -104,7 +105,7 @@ object Config {
 
   implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
-      config.as[GceCustomImage]("customGceImage"),
+      config.as[SourceSnapShot]("sourceSnapshot"),
       config.as[DeviceName]("userDiskDeviceName"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
@@ -167,12 +168,12 @@ object Config {
   implicit private val clusterResourcesConfigReader: ValueReader[ClusterResourcesConfig] = ValueReader.relative {
     config =>
       ClusterResourcesConfig(
-        config.as[RuntimeResource]("initActionsScript"),
-        config.as[RuntimeResource]("gceInitScript"),
+        config.as[RuntimeResource]("initScript"),
+        config.getAs[RuntimeResource]("cloudInit"),
         config.as[RuntimeResource]("startupScript"),
         config.as[RuntimeResource]("shutdownScript"),
         config.as[RuntimeResource]("jupyterDockerCompose"),
-        config.as[RuntimeResource]("jupyterDockerComposeGce"),
+        config.getAs[RuntimeResource]("gpuDockerCompose"),
         config.as[RuntimeResource]("rstudioDockerCompose"),
         config.as[RuntimeResource]("proxyDockerCompose"),
         config.as[RuntimeResource]("welderDockerCompose"),
@@ -447,6 +448,7 @@ object Config {
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val securityFilesConfig = config.as[SecurityFilesConfig]("clusterFiles")
+  val gceClusterResourcesConfig = config.as[ClusterResourcesConfig]("gceClusterResources")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
   val samConfig = config.as[SamConfig]("sam")
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
@@ -721,7 +723,7 @@ object Config {
     imageConfig,
     proxyConfig,
     vpcConfig,
-    clusterResourcesConfig,
+    gceClusterResourcesConfig,
     securityFilesConfig,
     gceMonitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating,
                                                      throw new Exception("Missing gce.monitor.statusTimeouts.creating"))

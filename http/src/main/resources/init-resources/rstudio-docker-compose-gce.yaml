@@ -4,34 +4,27 @@
 # https://github.com/docker/compose/issues/4513
 version: '2.4'
 services:
-  jupyter:
-    container_name: "${JUPYTER_SERVER_NAME}"
-    image: "${JUPYTER_DOCKER_IMAGE}"
-    # Override entrypoint with a placeholder to keep the container running indefinitely.
-    # The cluster init script will run some scripts as root and then start pyspark as
-    # jupyter-user via docker exec.
-    # -F will follow the log when the log is created.
-    entrypoint: "tail -F /home/jupyter/notebooks/jupyter.log"
+  rstudio:
+    container_name: "${RSTUDIO_SERVER_NAME}"
+    image: "${RSTUDIO_DOCKER_IMAGE}"
     ports:
-      - "8000:8000"
+      - "8001:8001"
     networks:
       - app_network
-    volumes:
-      # shared with welder
-      - "/mnt/disks/work:${NOTEBOOKS_DIR}"
+    # Override the entrypoint from the Dockerfile so rserver starts with the below environment variables
+    entrypoint: "tail -f /dev/null"
+    network_mode: host
     restart: always
     environment:
+      # needed to disable auth
+      USER: "rstudio"
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${RUNTIME_NAME}"
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
-      # Value must be the string "true" to enable.
-      WELDER_ENABLED: "${WELDER_ENABLED}"
-      NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
-      PIP_USER: "false"
-      PIP_TARGET: "${NOTEBOOKS_DIR}/packages"
-      R_LIBS: "${NOTEBOOKS_DIR}/packages"
+    volumes:
+      - /mnt/disks/work:/home/rstudio
     env_file:
       - /var/google_application_credentials.env
       - /var/custom_env_vars.env

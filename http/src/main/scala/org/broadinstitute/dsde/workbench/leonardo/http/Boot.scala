@@ -85,8 +85,7 @@ object Boot extends IOApp {
         imageConfig,
         welderConfig,
         proxyConfig,
-        securityFilesConfig,
-        clusterResourcesConfig
+        securityFilesConfig
       )
       val bucketHelper = new BucketHelper(bucketHelperConfig,
                                           googleDependencies.googleStorageService,

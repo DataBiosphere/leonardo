@@ -38,6 +38,13 @@ case class ForbiddenError(email: WorkbenchEmail)
       traceId = None
     )
 
+final case class LeoInternalServerError(msg: String, traceId: Option[TraceId])
+    extends LeoException(
+      s"${msg}",
+      StatusCodes.InternalServerError,
+      traceId = traceId
+    )
+
 case class RuntimeNotFoundException(googleProject: GoogleProject,
                                     runtimeName: RuntimeName,
                                     msg: String,

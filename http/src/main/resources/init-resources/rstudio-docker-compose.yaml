@@ -2,7 +2,7 @@
 # configuring memory options in container mode. See discussion in:
 # https://docs.docker.com/compose/compose-file/#resources
 # https://github.com/docker/compose/issues/4513
-version: '2'
+version: '2.4'
 services:
   rstudio:
     container_name: "${RSTUDIO_SERVER_NAME}"
@@ -20,11 +20,10 @@ services:
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:
-      - /work:/home/rstudio
-      - /etc/rstudio-license-file.lic:/etc/rstudio-server/license.lic:ro
+      - /mnt/disks/work:/home/rstudio
     env_file:
-      - /etc/google_application_credentials.env
-      - /etc/custom_env_vars.env
+      - /var/google_application_credentials.env
+      - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
   

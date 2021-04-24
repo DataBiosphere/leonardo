@@ -175,6 +175,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export MEM_LIMIT=$(memLimit)
     export WELDER_MEM_LIMIT=$(welderMemLimit)
     export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
+    export CERT_DIRECTORY='/certs'
+    export WORK_DIRECTORY='/work'
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)
@@ -264,13 +266,13 @@ END
     # Install env var config
     if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
       log 'Copy custom env vars config...'
-      gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /etc
+      gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
     fi
 
     if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
-      echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
+      echo "GOOGLE_APPLICATION_CREDENTIALS=/var/${SERVICE_ACCOUNT_CREDENTIALS}" > /var/google_application_credentials.env
     else
-      echo "" > /etc/google_application_credentials.env
+      echo "" > /var/google_application_credentials.env
     fi
 
     # Install RStudio license file, if specified
@@ -341,13 +343,6 @@ END
         log 'Copying SA into Welder Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
-    fi
-
-    # if Welder is installed, start the service.
-    # See https://broadworkbench.atlassian.net/browse/IA-1026
-    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
-      log 'Starting Welder file synchronization service...'
-      retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
 
     STEP_TIMINGS+=($(date +%s))
@@ -503,10 +498,10 @@ RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
 
       # Add custom_env_vars.env to Renviron.site
-      CUSTOM_ENV_VARS_FILE=/etc/custom_env_vars.env
+      CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
       if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
-        retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
-        retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+        retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/var/custom_env_vars.env
+        retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/var/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
       fi
 
       # If a user script was specified, copy it into the docker container and execute it.

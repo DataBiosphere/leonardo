@@ -157,7 +157,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
 
         // Save the VM image and async fields in the database
-        val clusterImage = RuntimeImage(RuntimeImageType.VM, createRuntimeResponse.customImage.asString, None, ctx.now)
+        val clusterImage =
+          RuntimeImage(RuntimeImageType.BootSource, createRuntimeResponse.bootSource.asString, None, ctx.now)
         (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
           msg.runtimeId,
           clusterImage
