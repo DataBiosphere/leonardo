@@ -51,7 +51,8 @@ object LeoLenses {
                 "Can't use this RuntimeConfig as RuntimeConfigInCreateRuntimeMessage due to bootDiskSize not defined"
               )
             ),
-          x.zone
+          x.zone,
+          None //TODO: Justin's front leo will populate this properly
         )
       )
     case x: RuntimeConfig.GceWithPdConfig =>
@@ -64,7 +65,8 @@ object LeoLenses {
             )
           ),
           x.bootDiskSize,
-          x.zone
+          x.zone,
+          None //TODO: Justin's front leo will populate this properly
         )
       )
     case x: RuntimeConfig.DataprocConfig =>

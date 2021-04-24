@@ -78,22 +78,39 @@ function failScriptIfError() {
   fi
 }
 
+function validateCert () {
+  certFileDirectory=$1
+  ## This helps when we need to rotate certs.
+  notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
+
+  ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
+  if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
+    gsutil cp ${SERVER_CRT} ${certFileDirectory}
+    gsutil cp ${SERVER_KEY} ${certFileDirectory}
+    gsutil cp ${ROOT_CA} ${certFileDirectory}
+
+    if [ "$certFileDirectory" = "/etc" ]
+    then
+      docker-compose -f /etc/proxy-docker-compose.yaml restart &> start_output.txt || EXIT_CODE=$?
+    else
+      docker-compose -f /etc/proxy-docker-compose-gce.yaml restart &> start_output.txt || EXIT_CODE=$?
+    fi
+
+    failScriptIfError
+  fi
+}
+
 # Overwrite old cert on restart
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
-## This helps when we need to rotate certs.
-notAfter=`openssl x509 -enddate -noout -in /certs/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
-
-## If cert is old, then pull latest certs. Update date if we need to rotate cert again
-if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
-  gsutil cp ${SERVER_CRT} /certs
-  gsutil cp ${SERVER_KEY} /certs
-  gsutil cp ${ROOT_CA} /certs
-  docker-compose -f /etc/proxy-docker-compose.yaml restart &> start_output.txt || EXIT_CODE=$?
-
-  failScriptIfError
+FILE=/etc/certs/jupyter-server.crt
+if [ -f "$FILE" ]
+then
+    validateCert /etc/certs
+else
+    validateCert /certs
 fi
 
 JUPYTER_HOME=/etc/jupyter

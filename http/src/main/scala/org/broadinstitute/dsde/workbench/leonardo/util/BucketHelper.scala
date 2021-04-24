@@ -92,7 +92,8 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
     initBucketName: GcsBucketName,
     serviceAccountKey: Option[ServiceAccountKey],
     templateValues: RuntimeTemplateValues,
-    customClusterEnvironmentVariables: Map[String, String]
+    customClusterEnvironmentVariables: Map[String, String],
+    clusterResourcesConfig: ClusterResourcesConfig
   ): Stream[F, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = templateValues.toMap
@@ -125,14 +126,13 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
       Stream
         .emits(
           List(
-            config.clusterResourcesConfig.jupyterDockerCompose,
-            config.clusterResourcesConfig.jupyterDockerComposeGce,
-            config.clusterResourcesConfig.rstudioDockerCompose,
-            config.clusterResourcesConfig.proxyDockerCompose,
-            config.clusterResourcesConfig.proxySiteConf,
-            config.clusterResourcesConfig.welderDockerCompose,
-            config.clusterResourcesConfig.cryptoDetectorDockerCompose
-          )
+            clusterResourcesConfig.jupyterDockerCompose,
+            clusterResourcesConfig.rstudioDockerCompose,
+            clusterResourcesConfig.proxyDockerCompose,
+            clusterResourcesConfig.proxySiteConf,
+            clusterResourcesConfig.welderDockerCompose,
+            clusterResourcesConfig.cryptoDetectorDockerCompose
+          ) ++ clusterResourcesConfig.gpuDockerCompose
         )
         .covary[F]
         .evalMap { r =>
@@ -146,9 +146,8 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
       Stream
         .emits(
           List(
-            config.clusterResourcesConfig.initActionsScript,
-            config.clusterResourcesConfig.gceInitScript,
-            config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri
+            clusterResourcesConfig.initScript,
+            clusterResourcesConfig.jupyterNotebookFrontendConfigUri
           )
         )
         .evalMap { r =>
@@ -168,7 +167,7 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
     } yield ()
 
     val uploadCustomEnvVars = Stream.emits(customEnvVars.getBytes(StandardCharsets.UTF_8)) through google2StorageDAO
-      .streamUploadBlob(initBucketName, GcsBlobName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString))
+      .streamUploadBlob(initBucketName, GcsBlobName(clusterResourcesConfig.customEnvVarsConfigUri.asString))
 
     Stream(uploadRawFiles, uploadRawResources, uploadTemplatedResources, uploadPrivateKey, uploadCustomEnvVars).parJoin(
       5
@@ -186,5 +185,4 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
 case class BucketHelperConfig(imageConfig: ImageConfig,
                               welderConfig: WelderConfig,
                               proxyConfig: ProxyConfig,
-                              clusterFilesConfig: SecurityFilesConfig,
-                              clusterResourcesConfig: ClusterResourcesConfig)
+                              clusterFilesConfig: SecurityFilesConfig)

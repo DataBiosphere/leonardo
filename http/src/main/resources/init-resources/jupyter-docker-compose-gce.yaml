@@ -2,7 +2,7 @@
 # configuring memory options in container mode. See discussion in:
 # https://docs.docker.com/compose/compose-file/#resources
 # https://github.com/docker/compose/issues/4513
-version: '2'
+version: '2.4'
 services:
   jupyter:
     container_name: "${JUPYTER_SERVER_NAME}"
@@ -11,10 +11,13 @@ services:
     # The cluster init script will run some scripts as root and then start pyspark as
     # jupyter-user via docker exec.
     entrypoint: "tail -f /dev/null"
-    network_mode: host
+    ports:
+      - "8000:8000"
+    networks:
+      - app_network
     volumes:
       # shared with welder
-      - "/work:${NOTEBOOKS_DIR}"
+      - "/mnt/disks/work:${NOTEBOOKS_DIR}"
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
@@ -33,3 +36,6 @@ services:
       - /etc/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
+networks:
+  app_network:
+    external: true

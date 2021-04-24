@@ -4,36 +4,33 @@
 # https://github.com/docker/compose/issues/4513
 version: '2.4'
 services:
-  welder:
-    container_name: "${WELDER_SERVER_NAME}"
+  rstudio:
+    container_name: "${RSTUDIO_SERVER_NAME}"
+    image: "${RSTUDIO_DOCKER_IMAGE}"
     ports:
-      - "8080:8080"
+      - "8001:8001"
     networks:
       - app_network
-    image: "${WELDER_DOCKER_IMAGE}"
-    # Override entrypoint with a placeholder to keep the container running indefinitely.
-    # The cluster init script will start welder via docker exec,
-    # when Application Default Credentials are available.
-    # See https://broadworkbench.atlassian.net/browse/IA-1026
+    # Override the entrypoint from the Dockerfile so rserver starts with the below environment variables
     entrypoint: "tail -f /dev/null"
+    network_mode: host
     restart: always
     environment:
-      # TODO what env vars are actually needed here?
+      # needed to disable auth
+      USER: "rstudio"
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
-      STAGING_BUCKET: "${STAGING_BUCKET}"
+      WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${RUNTIME_NAME}"
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:
-      # shared with jupyter
-      - ${WORK_DIRECTORY}:/work
+      - /mnt/disks/work:/home/rstudio
+      - /etc/rstudio-license-file.lic:/etc/rstudio-server/license.lic:ro
     env_file:
       - /etc/google_application_credentials.env
+      - /etc/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
-    mem_limit: ${WELDER_MEM_LIMIT}
-    mem_reservation: ${WELDER_MEM_LIMIT}
-    # disable swap by setting it to the same value as mem_limit
-    memswap_limit: ${WELDER_MEM_LIMIT}
+    mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
 networks:
   app_network:
     external: true
