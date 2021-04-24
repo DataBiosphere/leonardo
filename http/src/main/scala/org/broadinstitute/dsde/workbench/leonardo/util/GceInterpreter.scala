@@ -62,11 +62,11 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     for {
       ctx <- ev.ask
 
-      zoneParam <- params.runtimeConfig match {
-        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.zone)
-        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure(x.zone)
+      (zoneParam, gpuConfig) <- params.runtimeConfig match {
+        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure((x.zone, x.gpuConfig))
+        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure((x.zone, x.gpuConfig))
         case _ =>
-          F.raiseError[ZoneName](
+          F.raiseError[(ZoneName, Option[GpuConfig])](
             new RuntimeException(
               "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
             )
@@ -107,8 +107,9 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .compile
         .drain
 
-      initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.gceInitScript.asString))
+      initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.initScript.asString))
 
+      //TODO: update bootDiskSize
       bootDiskSize <- params.runtimeConfig match {
         case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.bootDiskSize)
         case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure(x.bootDiskSize)
@@ -125,10 +126,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           AttachedDiskInitializeParams
             .newBuilder()
             .setDescription("Leonardo Managed Boot Disk")
-            .setSourceImage(config.gceConfig.customGceImage.asString)
-            .setDiskSizeGb(
-              bootDiskSize.gb.toString
-            )
+            .setSourceSnapshot(config.gceConfig.sourceSnapshot.asString)
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )
@@ -215,11 +213,12 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .initializeBucketObjects(initBucketName,
                                  templateParams.serviceAccountKey,
                                  templateValues,
-                                 params.customEnvironmentVariables)
+                                 params.customEnvironmentVariables,
+                                 config.clusterResourcesConfig)
         .compile
         .drain
 
-      instance = Instance
+      instanceBuilder = Instance
         .newBuilder()
         .setName(params.runtimeProjectAndName.runtimeName.asString)
         .setDescription("Leonardo Managed VM")
@@ -239,8 +238,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           Metadata.newBuilder
             .addItems(
               Items.newBuilder
-                .setKey("startup-script-url")
-                .setValue(initScript.toUri)
+                .setKey("google-logging-enabled")
+                .setValue("true")
                 .build()
             )
             .addItems(
@@ -249,12 +248,34 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                 .setValue(templateValues.jupyterStartUserScriptOutputUri)
                 .build()
             )
+            .addItems(
+              Items.newBuilder
+                .setKey("startup-script-url")
+                .setValue(initScript.toUri)
+                .build()
+            )
             .build()
         )
         .putAllLabels(Map("leonardo" -> "true").asJava)
-        //.addGuestAccelerators(???)  // add when we support GPUs
-        //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
-        .build()
+
+      instance = gpuConfig match {
+        case Some(gc) =>
+          val acceleratorType =
+            s"projects/${params.runtimeProjectAndName.googleProject.value}/zones/${zoneParam.value}/acceleratorTypes/${gc.gpuType.asString}"
+          instanceBuilder
+            .addGuestAccelerators(
+              AcceleratorConfig
+                .newBuilder()
+                .setAcceleratorType(acceleratorType)
+                .setAcceleratorCount(gc.numOfGpus)
+                .build()
+            )
+            .setScheduling(Scheduling.newBuilder().setOnHostMaintenance("TERMINATE").build())
+            //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
+            .build()
+        case None => instanceBuilder.build()
+
+      }
 
       operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, zoneParam, instance)
 
@@ -262,7 +283,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         CreateGoogleRuntimeResponse(
           AsyncRuntimeFields(GoogleId(o.getTargetId), OperationName(o.getName), stagingBucketName, None),
           initBucketName,
-          config.gceConfig.customGceImage
+          BootSource.Snapshot(config.gceConfig.sourceSnapshot)
         )
       )
     } yield res

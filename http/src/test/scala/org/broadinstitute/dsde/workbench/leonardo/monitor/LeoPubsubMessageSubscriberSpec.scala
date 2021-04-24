@@ -46,7 +46,7 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeNodepool,
   makeService
 }
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.VM
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.BootSource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO, WelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -107,7 +107,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   val bucketHelperConfig =
-    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
+    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
 
@@ -169,7 +169,7 @@ class LeoPubsubMessageSubscriberSpec
       updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
       updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
       updatedRuntime.get.asyncRuntimeFields.get.googleId.value shouldBe "target"
-      updatedRuntime.get.runtimeImages.map(_.imageType) should contain(VM)
+      updatedRuntime.get.runtimeImages.map(_.imageType) should contain(BootSource)
     }
 
     res.unsafeRunSync()

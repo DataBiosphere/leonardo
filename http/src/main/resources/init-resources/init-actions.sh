@@ -120,6 +120,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export MEM_LIMIT=$(memLimit)
     export WELDER_MEM_LIMIT=$(welderMemLimit)
     export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
+    export CERT_DIRECTORY='/certs'
+    export WORK_DIRECTORY='/work'
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)

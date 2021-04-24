@@ -60,7 +60,7 @@ trait TestLeoRoutes {
   }
   // Route tests don't currently do cluster monitoring, so use NoopActor
   val bucketHelperConfig =
-    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
+    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider, blocker)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
