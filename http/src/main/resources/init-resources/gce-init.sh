@@ -115,7 +115,6 @@ JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 RSTUDIO_USER_HOME=/home/rstudio
-KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
@@ -246,7 +245,7 @@ if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_
   gcloud --quiet auth configure-docker
 fi
 
-log 'Starting up the Jupydocker...'
+log 'Starting up the Jupyter...'
 
 # Run docker-compose for each specified compose file.
 # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
@@ -291,8 +290,6 @@ STEP_TIMINGS+=($(date +%s))
 
 # Jupyter-specific setup, only do if Jupyter is installed
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-  log 'Installing Jupyter kernelspecs...'
-
   # user package installation directory
   mkdir -p /work/packages
   chmod a+rwx /work/packages
@@ -304,6 +301,14 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   if [ "$JUPYTER_USER_HOME" = "/home/jupyter" ]
   then
      ROOT_USER_PIP_DIR=/opt/conda/lib/python3.7/site-packages
+
+    # TODO: Remove once we stop supporting non AI notebooks based images
+    log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
+    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
+
+    # Install kernelspecs inside the Jupyter container
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
+
   else
      ROOT_USER_PIP_DIR=/usr/local/lib/python3.7/dist-packages
   fi

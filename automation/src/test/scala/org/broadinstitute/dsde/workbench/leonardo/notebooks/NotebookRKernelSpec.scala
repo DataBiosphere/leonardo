@@ -151,8 +151,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           notebookPage
             .executeCell("Sys.getenv('WORKSPACE_NAMESPACE')")
             .get shouldBe s"'${runtimeFixture.runtime.googleProject.value}'"
-//          TODO: manually tested, and `WORKSPACE_NAME` is populated properly
-//          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe """[]"""
+          notebookPage.executeCell("Sys.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
           notebookPage.executeCell("Sys.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
           // workspace bucket is not wired up in tests
           notebookPage.executeCell("Sys.getenv('WORKSPACE_BUCKET')").get shouldBe "''"
