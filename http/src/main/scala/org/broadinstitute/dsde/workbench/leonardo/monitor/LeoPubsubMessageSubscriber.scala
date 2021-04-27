@@ -7,7 +7,7 @@ import java.util.concurrent.TimeoutException
 import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
-import cats.effect.{ConcurrentEffect, ContextShift, Timer}
+import cats.effect.{ConcurrentEffect, ContextShift, IO, Timer}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Disk
@@ -922,8 +922,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           }
 
         // detach/delete disk when we need to delete disk
-        _ = logger.info("Below is the msg from Delete app hi")
-        _ = logger.info(s"${msg.toString}")
+        _ <- logger.info("Below is the msg from Delete app hi")
+        _ <- logger.info(s"${msg.toString}")
         _ <- msg.diskId.traverse_ { diskId =>
           // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
           logger.info("!!!!!!!")
