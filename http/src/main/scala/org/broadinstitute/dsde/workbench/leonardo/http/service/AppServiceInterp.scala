@@ -302,6 +302,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           AppCannotBeDeletedException(request.googleProject, request.appName, appResult.app.status, ctx.traceId)
         )
 
+      _ = log.info("Hi Below is appResult.app.appResources:")
+      _ = log.info(s"${appResult.app.appResources.toString}")
       // Get the disk to delete if specified
       diskOpt = if (request.deleteDisk) appResult.app.appResources.disk.map(_.id) else None
 

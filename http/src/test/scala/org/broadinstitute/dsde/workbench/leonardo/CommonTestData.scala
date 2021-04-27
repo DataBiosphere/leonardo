@@ -333,7 +333,7 @@ object CommonTestData {
     )
     .build()
 
-  def makePersistentDisk(diskName: Option[DiskName] = None,
+  def makePersistentDisk(diskN: Option[DiskName] = None,
                          formattedBy: Option[FormattedBy] = None,
                          galaxyRestore: Option[GalaxyRestore] = None,
                          zoneName: Option[ZoneName] = None,
@@ -342,7 +342,7 @@ object CommonTestData {
       DiskId(-1),
       googleProject.getOrElse(project),
       zoneName.getOrElse(zone),
-      diskName.getOrElse(DiskName("disk")),
+      diskN.getOrElse(diskName),
       Some(googleId),
       serviceAccount,
       diskSamResource,

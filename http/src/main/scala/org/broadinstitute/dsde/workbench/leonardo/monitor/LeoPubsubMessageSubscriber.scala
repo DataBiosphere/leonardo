@@ -922,8 +922,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           }
 
         // detach/delete disk when we need to delete disk
+        _ = logger.info("Below is the msg from Delete app hi")
+        _ = logger.info(s"${msg.toString}")
         _ <- msg.diskId.traverse_ { diskId =>
           // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
+          logger.info("!!!!!!!")
+          logger.info(s"${dbApp.app.appResources.disk.get.name}")
+          logger.info(s"${gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.disk.get.name)}")
           val getPostgresDisk = googleDiskService.getDisk(
             msg.project,
             zone,

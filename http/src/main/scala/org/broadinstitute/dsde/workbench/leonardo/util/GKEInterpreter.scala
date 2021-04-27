@@ -369,7 +369,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
       ).compile.lastOrError
 
-      //TODO: validate app release is the same as retore release
+      //TODO: validate app release is the same as restore release
       galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(diskId).transaction
 
       // helm install and wait
