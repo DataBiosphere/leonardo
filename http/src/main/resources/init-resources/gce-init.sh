@@ -301,6 +301,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   if [ "$JUPYTER_USER_HOME" = "/home/jupyter" ]
   then
      ROOT_USER_PIP_DIR=/opt/conda/lib/python3.7/site-packages
+  else
+     ROOT_USER_PIP_DIR=/usr/local/lib/python3.7/dist-packages
+
 
     # TODO: Remove once we stop supporting non AI notebooks based images
     log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
@@ -308,9 +311,6 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
     # Install kernelspecs inside the Jupyter container
     retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
-
-  else
-     ROOT_USER_PIP_DIR=/usr/local/lib/python3.7/dist-packages
   fi
 
 
