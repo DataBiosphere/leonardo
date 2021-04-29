@@ -122,4 +122,4 @@ EOF
 
 # Shut down the instance after it is done, which is used by the Daisy workflow's wait-for-inst-install
 # step to determine when provisioning is done.
-#shutdown -h now
+shutdown -h now

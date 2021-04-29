@@ -42,6 +42,15 @@
                 }
             ]
         },
+        "wait-for-instance": {
+            "TimeOut": "1h",
+            "WaitForInstancesSignal": [
+                {
+                    "Name": "inst-install",
+                    "Stopped": true
+                }
+            ]
+        },
         "create-snapshot-from-disk": {
             "CreateSnapshots": [
                 {
@@ -59,7 +68,8 @@
     },
     "Dependencies": {
         "create-instance": ["create-disks"],
-        "create-snapshot-from-disk": ["create-instance"],
+        "wait-for-instance": ["create-instance"],
+        "create-snapshot-from-disk": ["wait-for-instance"],
         "delete-inst-install": ["create-snapshot-from-disk"]
     }
 }

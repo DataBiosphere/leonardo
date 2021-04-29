@@ -10,11 +10,11 @@ set -e -x
 # gsutil must have been installed.
 #
 # application_default_credentials.json needs to be copied to jenkins/gce-custom-images/ which is mounted on Daisy container
-# Credentials can be refreshed via 'gcloud auth application-default login' with prjoect set to 'broad-dsde-dev' using
-# Broad account
+# Credentials can be refreshed via 'gcloud auth application-default login' with project set to 'broad-dsde-dev' using
+# Broad account. They are saved at '~/.config/gcloud/application_default_credentials.json' by default.
 
 # Set this to "true" if you want to validate the workflow without actually executing it
-VALIDATE_WORKFLOW="true"
+VALIDATE_WORKFLOW="false"
 
 OUTPUT_SNAPSHOT_NAME_SUFFIX="1"
 OUTPUT_SNAPSHOT_NAME=leo-gce-snapshot-$(whoami)-$(date +"%Y-%m-%d")-$OUTPUT_SNAPSHOT_NAME_SUFFIX
@@ -30,7 +30,10 @@ REGION="us-central1"
 ZONE="${REGION}-a"
 
 # Set this to the tag of the Daisy image you had pulled
-DAISY_IMAGE_TAG="latest"
+DAISY_IMAGE_TAG="release"
+
+# This can be obtained from the 'self-link' field of the REST response of an image on its GCP page
+BASE_IMAGE="projects/cos-cloud/global/images/cos-89-16108-403-22"
 
 # The source directory should contain `application_default_credentials.json`
 # which can be generated via `gcloud auth application-default login` and is saved at
@@ -53,9 +56,9 @@ docker run -it --rm -v "$SOURCE_DIR":/gce-custom-images \
   -gcs_path $DAISY_BUCKET_PATH \
   -default_timeout 60m \
   -oauth /gce-custom-images/application_default_credentials.json \
-  -var:base_image projects/cos-cloud/global/images/cos-89-16108-403-22 \
+  -var:base_image "$BASE_IMAGE" \
   -var:output_snapshot "$OUTPUT_SNAPSHOT_NAME" \
-  -var:gce_custom_images_dir /gce-custom-images \
+  -var:gce_snapshots_dir /gce-custom-images \
   -var:installation_script_name prepare_gce_snapshot.sh \
   /gce-custom-images/leo_gce_snapshot.wf.json
 

@@ -10,7 +10,7 @@ set -e -x
 # gsutil must have been installed.
 #
 # application_default_credentials.json needs to be copied to jenkins/gce-custom-images/ which is mounted on Daisy container
-# Credentials can be refreshed via 'gcloud auth application-default login' with prjoect set to 'broad-dsde-dev' using
+# Credentials can be refreshed via 'gcloud auth application-default login' with project set to 'broad-dsde-dev' using
 # Broad account
 #
 # Also make sure that you have the right version of the hardening repo via:
@@ -33,7 +33,7 @@ REGION="us-central1"
 ZONE="${REGION}-a"
 
 # Set this to the tag of the Daisy image you had pulled
-DAISY_IMAGE_TAG="latest"
+DAISY_IMAGE_TAG="release"
 
 # The source directory should contain `application_default_credentials.json`
 # which can be generated via `gcloud auth application-default login` and is saved at
