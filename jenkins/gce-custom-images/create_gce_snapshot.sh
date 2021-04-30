@@ -16,29 +16,28 @@ set -e -x
 # Set this to "true" if you want to validate the workflow without actually executing it
 VALIDATE_WORKFLOW="false"
 
-OUTPUT_SNAPSHOT_NAME_SUFFIX="1"
-OUTPUT_SNAPSHOT_NAME=leo-gce-snapshot-$(whoami)-$(date +"%Y-%m-%d")-$OUTPUT_SNAPSHOT_NAME_SUFFIX
+# The source directory should contain `application_default_credentials.json`
+# which can be generated via `gcloud auth application-default login` and is saved at
+# `~/.config/gcloud/application_default_credentials.json` by default.
+SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
 
-# The bucket that Daisy uses as scratch area to store source and log files.
-# It must exist or Daisy errors out.
-# If it doesn't exist, we create it prior to launching Daisy and
-# the Daisy workflow cleans up all but daisy.log at the end.
-DAISY_BUCKET_PATH="gs://test-leo-gce-snapshot-daisy-scratch-bucket"
+# Underscores are not accepted as snapshot name
+OUTPUT_SNAPSHOT_NAME=leo-gce-snapshot-$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
 
 PROJECT="broad-dsde-dev"
 REGION="us-central1"
 ZONE="${REGION}-a"
+
+# The bucket that Daisy uses as scratch area to store source and log files.
+# If it doesn't exist, we create it prior to launching Daisy and
+# the Daisy workflow cleans up all but daisy.log at the end.
+DAISY_BUCKET_PATH="gs://test-leo-gce-snapshot-daisy-scratch-bucket"
 
 # Set this to the tag of the Daisy image you had pulled
 DAISY_IMAGE_TAG="release"
 
 # This can be obtained from the 'self-link' field of the REST response of an image on its GCP page
 BASE_IMAGE="projects/cos-cloud/global/images/cos-89-16108-403-22"
-
-# The source directory should contain `application_default_credentials.json`
-# which can be generated via `gcloud auth application-default login` and is saved at
-# `~/.config/gcloud/application_default_credentials.json` by default.
-SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
 
 # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
 gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $PROJECT -l $REGION $DAISY_BUCKET_PATH

@@ -54,8 +54,10 @@
         "create-snapshot-from-disk": {
             "CreateSnapshots": [
                 {
-                    "name": "snapshot-from-disk",
-                    "sourceDisk": "boot-disk"
+                    "Name": "${output_snapshot}",
+                    "SourceDisk": "boot-disk",
+                    "NoCleanup": true,
+                    "ExactName": true
                 }
             ]
         },
