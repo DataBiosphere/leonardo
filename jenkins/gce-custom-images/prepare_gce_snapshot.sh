@@ -12,7 +12,6 @@ set -e -x
 
 #
 # Constants and Global Vars
-# The image tags are set via Jenkins automation
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
@@ -88,11 +87,6 @@ function log() {
 #
 # Main
 #
-
-## Install google-fluent-d
-## https://cloud.google.com/logging/docs/agent/installation
-#curl -sSO https://dl.google.com/cloudagents/install-logging-agent.sh
-#bash install-logging-agent.sh
 
 # Pull the docker images -- this caches them in the GCE snapshot.
 if [[ -n ${docker_image_var_names:?} ]]; then
