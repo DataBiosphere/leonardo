@@ -36,7 +36,11 @@ DAISY_BUCKET_PATH="gs://test-leo-gce-snapshot-daisy-scratch-bucket"
 # Set this to the tag of the Daisy image you had pulled
 DAISY_IMAGE_TAG="release"
 
-# This can be obtained from the 'self-link' field of the REST response of an image on its GCP page
+# When updating, to find the resource path:
+#    1. run `gcloud compute images list | grep cos` to get the list of available container-optimized OS images
+#    2. select the image of interest, say, `cos-89-16108-403-22`
+#    3. run `gcloud compute images describe cos-89-16108-403-22 --project cos-cloud | grep selfLink`
+#    4. extract the segments starting with 'projects'
 BASE_IMAGE="projects/cos-cloud/global/images/cos-89-16108-403-22"
 
 # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
