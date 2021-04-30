@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import java.time.Instant
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.effect.IO
@@ -32,6 +31,7 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
+import java.nio.file.Paths
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -121,7 +121,10 @@ class DataprocInterpreterSpec
     val cluster = LeoLenses.runtimeToRuntimeImages
       .modify(_ =>
         Set(
-          RuntimeImage(RuntimeImageType.Jupyter, "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1", Instant.now)
+          RuntimeImage(RuntimeImageType.Jupyter,
+                       "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1",
+                       Some(Paths.get("/home/jupyter-user")),
+                       Instant.now)
         )
       )(testCluster)
 
@@ -140,6 +143,7 @@ class DataprocInterpreterSpec
         Set(
           RuntimeImage(RuntimeImageType.Jupyter,
                        "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da",
+                       Some(Paths.get("/home/jupyter-user")),
                        Instant.now)
         )
       )(testCluster)

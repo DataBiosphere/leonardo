@@ -20,6 +20,9 @@ import org.http4s.headers.Authorization
 import ContainerRegistry._
 import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
 
+import java.nio.file.Paths
+import java.time.Instant
+
 /**
  * Talks to Docker remote APIs to retrieve manifest information in order to try and figure out
  * what tool it's running.
@@ -40,9 +43,9 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
 
-  override def detectTool(image: ContainerImage, petTokenOpt: Option[String])(
+  override def detectTool(image: ContainerImage, petTokenOpt: Option[String], now: Instant)(
     implicit ev: Ask[F, TraceId]
-  ): F[RuntimeImageType] =
+  ): F[RuntimeImage] =
     for {
       traceId <- ev.ask
 
@@ -71,11 +74,12 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       tool = clusterToolEnv
         .find {
           case (_, env_var) =>
-            envSet.exists(_.startsWith(env_var))
+            envSet.exists(_.key == env_var)
         }
         .map(_._1)
+      homeDirectory = envSet.collectFirst { case env if (env.key == "HOME") => Paths.get(env.value) }
       res <- F.fromEither(tool.toRight(InvalidImage(traceId, image, None)))
-    } yield res
+    } yield RuntimeImage(res, image.imageUrl, homeDirectory, now)
 
   //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
@@ -192,6 +196,14 @@ object HttpDockerDAO {
     } yield ManifestConfig(mediaType, size, digest)
   }
 
+  implicit val envDecoder: Decoder[Env] = Decoder.decodeString.emap { s =>
+    val res = for {
+      splitted <- Either.catchNonFatal(s.split("="))
+      first <- Either.catchNonFatal(splitted(0))
+      second <- Either.catchNonFatal(splitted(1))
+    } yield Env(first, second)
+    res.leftMap(_.getMessage)
+  }
   implicit val containerConfigDecoder: Decoder[ContainerConfig] = Decoder.forProduct1("Env")(ContainerConfig.apply)
   implicit val containerConfigResponseDecoder: Decoder[ContainerConfigResponse] = Decoder.instance { d =>
     for {
@@ -227,7 +239,8 @@ final case class ParsedImage(registry: ContainerRegistry,
 // API response models
 final case class Token(token: String) extends AnyVal
 final case class ManifestConfig(mediaType: String, size: Int, digest: String)
-final case class ContainerConfig(env: List[String]) extends AnyVal
+final case class Env(key: String, value: String)
+final case class ContainerConfig(env: List[Env]) extends AnyVal
 final case class ContainerConfigResponse(config: ContainerConfig)
 
 // Exceptions
