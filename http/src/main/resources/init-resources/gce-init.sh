@@ -111,11 +111,10 @@ JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
 JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
 IS_GCE_FORMATTED=$(isGceFormatted)
 JUPYTER_HOME=/etc/jupyter
-JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
-JUPYTER_USER_HOME=/home/jupyter-user
+JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
+JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 RSTUDIO_USER_HOME=/home/rstudio
-KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
@@ -131,7 +130,6 @@ JUPYTER_COMBINED_EXTENSIONS=$(jupyterCombinedExtensions)
 JUPYTER_LAB_EXTENSIONS=$(jupyterLabExtensions)
 JUPYTER_USER_SCRIPT_URI=$(jupyterUserScriptUri)
 JUPYTER_USER_SCRIPT_OUTPUT_URI=$(jupyterUserScriptOutputUri)
-JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
 RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
@@ -247,7 +245,7 @@ if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_
   gcloud --quiet auth configure-docker
 fi
 
-log 'Starting up the Jupydocker...'
+log 'Starting up the Jupyter...'
 
 # Run docker-compose for each specified compose file.
 # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
@@ -292,29 +290,29 @@ STEP_TIMINGS+=($(date +%s))
 
 # Jupyter-specific setup, only do if Jupyter is installed
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-  log 'Installing Jupydocker kernelspecs...'
-
   # user package installation directory
   mkdir -p /work/packages
   chmod a+rwx /work/packages
 
   # Used to pip install packacges
+  JUPYTER_USER_PIP_DIR=$JUPYTER_USER_HOME/.local/lib/python3.7/site-packages
+
   # TODO: update this if we upgrade python version
-  ROOT_USER_PIP_DIR=/usr/local/lib/python3.7/dist-packages
-  JUPYTER_USER_PIP_DIR=/home/jupyter-user/.local/lib/python3.7/site-packages
+  if [ "$JUPYTER_USER_HOME" = "/home/jupyter" ]
+  then
+     ROOT_USER_PIP_DIR=/opt/conda/lib/python3.7/site-packages
+  else
+     ROOT_USER_PIP_DIR=/usr/local/lib/python3.7/dist-packages
 
-  # Install kernelspecs inside the Jupyter container
-  # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
-  retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
 
-  # Install jupyter_notebook_config.py
-  # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
-  if [ ! -z "$JUPYTER_NOTEBOOK_CONFIG_URI" ] ; then
-    log 'Copy Jupyter notebook config...'
-    gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
-    JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
-    docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
+    # TODO: Remove once we stop supporting non AI notebooks based images
+    log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
+    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
+
+    # Install kernelspecs inside the Jupyter container
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
   fi
+
 
   # Install notebook.json
   if [ ! -z "$JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI" ] ; then

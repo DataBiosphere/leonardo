@@ -5,7 +5,6 @@ package service
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
-
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
@@ -42,6 +41,7 @@ import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
 
+import java.nio.file.Paths
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
@@ -188,10 +188,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .fromRuntime(cluster, gceRuntimeConfigRequest, Some(context.traceId))
         .copy(
           runtimeImages = Set(
-            RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Jupyter,
+                         Config.imageConfig.jupyterImage.imageUrl,
+                         Some(Paths.get("/home/jupyter-user")),
+                         context.now),
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.CryptoDetector,
+                         Config.imageConfig.cryptoDetectorImage.imageUrl,
+                         None,
+                         context.now)
           ),
           scopes = Config.gceConfig.defaultScopes
         )
@@ -308,10 +314,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId))
         .copy(
           runtimeImages = Set(
-            RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Jupyter,
+                         Config.imageConfig.jupyterImage.imageUrl,
+                         Some(Paths.get("/home/jupyter-user")),
+                         context.now),
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.CryptoDetector,
+                         Config.imageConfig.cryptoDetectorImage.imageUrl,
+                         None,
+                         context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -361,10 +373,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .fromRuntime(cluster, runtimeConfigRequest, Some(context.traceId))
         .copy(
           runtimeImages = Set(
-            RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Jupyter,
+                         Config.imageConfig.jupyterImage.imageUrl,
+                         Some(Paths.get("/home/jupyter-user")),
+                         context.now),
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.CryptoDetector,
+                         Config.imageConfig.cryptoDetectorImage.imageUrl,
+                         None,
+                         context.now)
           ),
           scopes = Config.dataprocConfig.defaultScopes
         )
@@ -526,22 +544,28 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
-        bootDiskSize = DiskSize(50),
+        bootDiskSize = DiskSize(60),
         zone = ZoneName("us-central1-a")
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
         .copy(
           runtimeImages = Set(
-            RuntimeImage(RuntimeImageType.Jupyter, Config.imageConfig.jupyterImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, context.now),
-            RuntimeImage(RuntimeImageType.CryptoDetector, Config.imageConfig.cryptoDetectorImage.imageUrl, context.now)
+            RuntimeImage(RuntimeImageType.Jupyter,
+                         Config.imageConfig.jupyterImage.imageUrl,
+                         Some(Paths.get("/home/jupyter-user")),
+                         context.now),
+            RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
+            RuntimeImage(RuntimeImageType.CryptoDetector,
+                         Config.imageConfig.cryptoDetectorImage.imageUrl,
+                         None,
+                         context.now)
           ),
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(50),
+                                                                              bootDiskSize = DiskSize(60),
                                                                               zone = ZoneName("us-central1-a"))
         )
       message shouldBe expectedMessage

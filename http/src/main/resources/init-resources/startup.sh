@@ -46,6 +46,7 @@ function log() {
 #
 
 # Templated values
+export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 export GOOGLE_PROJECT=$(googleProject)
 export CLUSTER_NAME=$(clusterName)
 export RUNTIME_NAME=$(clusterName)
@@ -100,7 +101,7 @@ JUPYTER_HOME=/etc/jupyter
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
     echo "Disabling localization on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-    docker exec -i jupyter-server bash -c "find /home/jupyter-user -name .cache -prune -or -name .delocalize.json -exec rm -f {} \;"
+    docker exec -i jupyter-server bash -c "find $JUPYTER_USER_HOME -name .cache -prune -or -name .delocalize.json -exec rm -f {} \;"
 fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then
