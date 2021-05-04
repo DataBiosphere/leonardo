@@ -1,9 +1,9 @@
 // Updates the custom Dataproc OS image and GCE VM snapshot used by Leo.
 // The name of the job contains the name of the image and snapshot created.
-// This job will fail if master of the terra-docker repo has not been updated since the last run since
+// This job will fail if master of the terra-docker repo has not been updated since the last run because
 // the git hash won't have changed. This is a happy side-effect of the fact that image names must be unique.
 
-// Currently, this is referenced in a Jenkins job with the following configuration:
+// Currently, this is referenced in a Jenkins job (`leonardo-custom-image`) with the following configuration:
 // Create a 'New Item' that is a Pipeline in Jenkins.
 // Specify Pipeline script from SCM with the scm for Leo and the appropriate branch.
 // Script Path should be the location of this file relative to the repo root.
@@ -499,42 +499,42 @@ pipeline {
             }
     }
 
-    stage('Create PR') {
-        when { expression { !shouldAbortBuild } }
-            steps {
-                script {
-                    def changeDescription = getChangeDescription(versionMap)
-                    withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
-                    sh """
-                        docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
-
-                        docker rm -f hub-runtime || true
-
-                        docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
-
-                        docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
-                        docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
-                    """
-                    }
-
-                    prLink = sh(
-                        script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
-                        returnStdout: true
-                    ).trim()
-
-                    sh """
-                        docker stop hub-runtime
-                        docker rm -f hub-runtime || true
-                    """
-                }
-            }
-    }
-
-    stage('Notify Slack') {
-        when { expression { !shouldAbortBuild } }
-            steps {
-                slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
-            }
-    }
+//    stage('Create PR') {
+//        when { expression { !shouldAbortBuild } }
+//            steps {
+//                script {
+//                    def changeDescription = getChangeDescription(versionMap)
+//                    withCredentials([file(credentialsId: 'hub-token', variable: 'token')]) {
+//                    sh """
+//                        docker pull us.gcr.io/broad-dsp-gcr-public/hub:1
+//
+//                        docker rm -f hub-runtime || true
+//
+//                        docker run -itd --name=hub-runtime -u root -v ${WORKSPACE}:/app/leo us.gcr.io/broad-dsp-gcr-public/hub:1
+//
+//                        docker cp \$token hub-runtime:/home/dsde-jenkins/.config/hub
+//                        docker exec hub-runtime sudo chmod 777 /home/dsde-jenkins/.config/hub
+//                    """
+//                    }
+//
+//                    prLink = sh(
+//                        script: "docker exec --user dsde-jenkins hub-runtime hub pull-request -b develop -m \"$changeDescription\"",
+//                        returnStdout: true
+//                    ).trim()
+//
+//                    sh """
+//                        docker stop hub-runtime
+//                        docker rm -f hub-runtime || true
+//                    """
+//                }
+//            }
+//    }
+//
+//    stage('Notify Slack') {
+//        when { expression { !shouldAbortBuild } }
+//            steps {
+//                slackSend(channel: '#dsp-callisto-internal', message: "Jenkins has successfully built custom Leo Dataproc/GCE images with ID: $imageID. \nIf you would like to check the status of the PR, click: $prLink")
+//            }
+//    }
   }
 }
