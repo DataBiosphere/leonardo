@@ -78,7 +78,6 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
         }
         .map(_._1)
       homeDirectory = envSet.collectFirst { case env if (env.key == "HOME") => Paths.get(env.value) }
-
       res <- F.fromEither(tool.toRight(InvalidImage(traceId, image, None)))
     } yield RuntimeImage(res, image.imageUrl, homeDirectory, now)
 
@@ -121,6 +120,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
               .withPath("/token")
               .withQueryParam("scope", s"repository:${parsedImage.imageName}:pull")
               .withQueryParam("service", "registry.docker.io"),
+            // must be Accept: application/json not Accept: application/vnd.docker.distribution.manifest.v2+json
             headers = Headers.of(Header("Accept", "application/json"))
           )
         )(onError)
