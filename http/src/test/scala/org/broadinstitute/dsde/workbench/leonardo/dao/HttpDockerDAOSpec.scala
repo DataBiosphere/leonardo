@@ -79,8 +79,8 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     case (tool, images) =>
       images.foreach { image =>
         it should s"detect tool=$tool for image $image" in withDockerDAO { dockerDAO =>
-          val response = dockerDAO.detectTool(image).unsafeRunSync()
-          response shouldBe tool
+          val response = nowInstant.flatMap(n => dockerDAO.detectTool(image, None, n)).unsafeRunSync()
+          response.imageType shouldBe tool
         }
       }
   }
@@ -89,7 +89,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     val image = ContainerImage("us.gcr.io/anvil-gcr-public/anvil-rstudio-base", GCR) // non existent tag
     val res = for {
       ctx <- appContext.ask[AppContext]
-      response <- dockerDAO.detectTool(image).attempt
+      response <- dockerDAO.detectTool(image, None, ctx.now).attempt
     } yield {
       response shouldBe Left(ImageParseException(ctx.traceId, image))
     }
@@ -101,7 +101,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       val image = ContainerImage("us.gcr.io/broad-dsp-gcr-public/welder-server:latest", GCR) // not a supported tool
       val res = for {
         ctx <- appContext.ask[AppContext]
-        response <- dockerDAO.detectTool(image).attempt
+        response <- dockerDAO.detectTool(image, None, ctx.now).attempt
       } yield {
         response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       }
@@ -113,7 +113,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       val image = ContainerImage("library/nginx:latest", DockerHub) // not a supported tool
       val res = for {
         ctx <- appContext.ask[AppContext]
-        response <- dockerDAO.detectTool(image).attempt
+        response <- dockerDAO.detectTool(image, None, ctx.now).attempt
       } yield {
         response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       }
@@ -125,7 +125,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       val image = ContainerImage("ghcr.io/github/super-linter:latest", GHCR) // not a supported tool
       val res = for {
         ctx <- appContext.ask[AppContext]
-        response <- dockerDAO.detectTool(image).attempt
+        response <- dockerDAO.detectTool(image, None, ctx.now).attempt
       } yield {
         response.isLeft shouldBe true
       }
@@ -144,7 +144,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |  }
         |}
         |""".stripMargin
-    val expectedResult = ContainerConfigResponse(ContainerConfig(List("key1=value1", "key2=value2")))
+    val expectedResult = ContainerConfigResponse(ContainerConfig(List(Env("key1", "value1"), Env("key2", "value2"))))
     decode[ContainerConfigResponse](jsonString) shouldBe Right(expectedResult)
   }
 
@@ -157,7 +157,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
         |  }
         |}
         |""".stripMargin
-    val expectedResult = ContainerConfigResponse(ContainerConfig(List("keyX=valueX", "keyY=valueY")))
+    val expectedResult = ContainerConfigResponse(ContainerConfig(List(Env("keyX", "valueX"), Env("keyY", "valueY"))))
     decode[ContainerConfigResponse](jsonString) shouldBe Right(expectedResult)
   }
 
@@ -191,7 +191,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
   it should s"detect tool RStudio for image rtitle/anvil-rstudio-base:0.0.1" in withDockerDAO { dockerDAO =>
     val image = ContainerImage("rtitle/anvil-rstudio-base:0.0.1", DockerHub)
-    val response = dockerDAO.detectTool(image).unsafeRunSync()
-    response shouldBe RStudio
+    val response = nowInstant.flatMap(n => dockerDAO.detectTool(image, None, n)).unsafeRunSync()
+    response.imageType shouldBe RStudio
   }
 }

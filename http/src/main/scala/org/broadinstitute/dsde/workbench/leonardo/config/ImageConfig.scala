@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
-import org.broadinstitute.dsde.workbench.leonardo.ContainerImage
+import java.nio.file.Path
 
 final case class ImageConfig(
   welderGcrImage: ContainerImage,
@@ -17,5 +17,6 @@ final case class ImageConfig(
   cryptoDetectorContainerName: String,
   jupyterImageRegex: String,
   rstudioImageRegex: String,
-  broadDockerhubImageRegex: String
+  broadDockerhubImageRegex: String,
+  defaultJupyterUserHome: Path
 )

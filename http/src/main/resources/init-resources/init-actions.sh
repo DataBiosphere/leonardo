@@ -96,10 +96,10 @@ fi
 if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_HOME=/etc/jupyter
     JUPYTER_SCRIPTS=${JUPYTER_HOME}/scripts
-    JUPYTER_USER_HOME=/home/jupyter-user
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
     # The following values are populated by Leo when a cluster is created.
+    export JUPYTER_USER_HOME=$(jupyterHomeDirectory)
     export CLUSTER_NAME=$(clusterName)
     export RUNTIME_NAME=$(clusterName)
     export GOOGLE_PROJECT=$(googleProject)
@@ -139,7 +139,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
     # Include a timestamp suffix to differentiate different startup logs across restarts.
     JUPYTER_START_USER_SCRIPT_OUTPUT_URI="$(jupyterStartUserScriptOutputUri)"
-    JUPYTER_NOTEBOOK_CONFIG_URI=$(jupyterNotebookConfigUri)
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
     RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
@@ -302,25 +301,12 @@ END
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
       log 'Installing Jupydocker kernelspecs...'
 
-      # Change Python and PySpark 2 and 3 kernel specs to allow each to have its own spark
-      # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
-      retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
-
       # Install hail addition if the image is old leonardo jupyter image or it's a hail specific image
       if [[ ${JUPYTER_DOCKER_IMAGE} == *"leonardo-jupyter"* ]] ; then
         log 'Installing Hail additions to Jupydocker spark.conf...'
 
         # Install the Hail additions to Spark conf.
         retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/hail/spark_install_hail.sh
-      fi
-
-      # Install jupyter_notebook_config.py
-      # TODO This is baked into terra-jupyter-base as of version 0.0.6. Keeping it here for now to support prior image versions.
-      if [ ! -z ${JUPYTER_NOTEBOOK_CONFIG_URI} ] ; then
-        log 'Copy Jupyter notebook config...'
-        gsutil cp ${JUPYTER_NOTEBOOK_CONFIG_URI} /etc
-        JUPYTER_NOTEBOOK_CONFIG=`basename ${JUPYTER_NOTEBOOK_CONFIG_URI}`
-        docker cp /etc/${JUPYTER_NOTEBOOK_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/
       fi
 
       # Install notebook.json
@@ -467,14 +453,6 @@ END
             retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
           fi
         done
-      fi
-
-      STEP_TIMINGS+=($(date +%s))
-
-      # fix for https://broadworkbench.atlassian.net/browse/IA-1453
-      # TODO: remove this when we stop supporting the legacy docker image
-      if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} sed -i -e 's/export WORKSPACE_NAME=.*/export WORKSPACE_NAME="$(basename "$(dirname "$(pwd)")")"/' ${JUPYTER_HOME}/scripts/kernel/kernel_bootstrap.sh
       fi
 
       STEP_TIMINGS+=($(date +%s))

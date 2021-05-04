@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.Ju
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
-
+import java.nio.file.Path
 import scala.collection.immutable
 
 /**
@@ -343,7 +343,10 @@ object RuntimeContainerServiceType extends Enum[RuntimeContainerServiceType] {
 }
 
 /** Information about an image running on a runtime */
-final case class RuntimeImage(imageType: RuntimeImageType, imageUrl: String, timestamp: Instant) {
+final case class RuntimeImage(imageType: RuntimeImageType,
+                              imageUrl: String,
+                              homeDirectory: Option[Path], //this is only used and populated for jupyter image
+                              timestamp: Instant) {
   def hash: Option[String] = {
     val splitUrl = imageUrl.split(":")
     if (splitUrl isDefinedAt 1) Some(splitUrl(1)) else None
