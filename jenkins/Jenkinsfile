@@ -17,7 +17,7 @@ String ZONE = "${REGION}-a"
 //    2. select the image of interest, say, `cos-89-16108-403-22`
 //    3. run `gcloud compute images describe cos-89-16108-403-22 --project cos-cloud | grep selfLink`
 //    4. extract the segments starting with 'projects'
-String GCE_BASE_IMAGE = "projects/debian-cloud/global/images/debian-9-stretch-v20210122"
+String GCE_BASE_IMAGE = "projects/cos-cloud/global/images/cos-89-16108-403-22"
 String GOOGLE_CREDENTIAL_FILE_NAME = "image-build-account.json"
 
 // Variables populated by the first stages
@@ -172,7 +172,7 @@ pipeline {
 
                 script {
                     customDataprocImageBaseName = "${IMAGE_BASE_NAME}-dataproc"
-                    customGceImageBaseName = "${IMAGE_BASE_NAME}-gce-debian9"
+                    customGceImageBaseName = "${IMAGE_BASE_NAME}-gce-cos"
                     ArrayList<String> nonTerraDockerImages = [
                         'welder-server', 'openidc-proxy', 'anvil-rstudio-bioconductor'
                     ]
@@ -226,7 +226,7 @@ pipeline {
                     buildDisplayName += "-dataproc-$DATAPROC_VERSIONS"
                 }
                 if (GENERATE_GCE_IMAGE == "true") {
-                    buildDisplayName += "-gce-debian9"
+                    buildDisplayName += "-gce-cos"
                 }
 
                 currentBuild.displayName = "$buildDisplayName-$imageID"
@@ -295,9 +295,9 @@ pipeline {
                         }
 
                         if (GENERATE_GCE_IMAGE == "true") {
-                            println("Printing any changed versions in prepare_custom_leonardo_gce_image.sh:\n")
+                            println("Printing any changed versions in prepare_gce_snapshot.sh:\n")
                             sh """
-                                git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                                git diff jenkins/gce-custom-images/prepare_gce_snapshot.sh
                             """
                         }
                     }
@@ -339,7 +339,7 @@ pipeline {
                             if (image != 'terra-jupyter-aou') {
                                 println("Using version $version for $image in this build of custom GCE images")
                                 sh """
-                                    sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                                    sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_snapshot.sh
                                 """
                             } else {
                                 println("not updating version for image $image")
@@ -358,8 +358,8 @@ pipeline {
 
                     if (GENERATE_GCE_IMAGE == "true") {
                         sh """
-                            printf 'Printing any changed versions in prepare_custom_leonardo_gce_image.sh:\\n\\n'
-                            git diff jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                            printf 'Printing any changed versions in prepare_gce_snapshot.sh:\\n\\n'
+                            git diff jenkins/gce-custom-images/prepare_gce_snapshot.sh
                         """
                     }
                 }
@@ -438,22 +438,13 @@ pipeline {
                                             -var:base_image $GCE_BASE_IMAGE \
                                             -var:output_image "${customGceImageBaseName}-${imageID}" \
                                             -var:gce_custom_images_dir /gce-custom-images \
-                                            -var:installation_script_name prepare_custom_leonardo_gce_image.sh \
-                                            -var:image_hardening_script cis-harden-images/debian9/harden-images.sh \
-                                            -var:cis_hardening_playbook_config cis-harden-images/debian9/deb9-cis-playbook.yml \
-                                            -var:cis_hardening_playbook_requirements cis-harden-images/debian9/requirements.yml \
-                                            /gce-custom-images/leo_custom_gce_image.wf.json
+                                            -var:installation_script_name prepare_gce_snapshot.sh \
+                                            /gce-custom-images/leo_gce_snapshot.wf.json
                                         docker stop daisy || true
                                         docker rm -f daisy || true
 
                                         # Daisy doesn't clean it up all so we remove the bucket manually
                                         gsutil rm -r $GCE_IMAGE_BUCKET
-
-                                        # Make the image public
-                                        gcloud beta compute images add-iam-policy-binding \
-                                            projects/$GOOGLE_PROJECT/global/images/${customGceImageBaseName}-${imageID} \
-                                            --member='allAuthenticatedUsers' \
-                                            --role='roles/compute.imageUser'
                                     """
                                 }
                             }
