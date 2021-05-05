@@ -23,7 +23,7 @@ ENV HELM_DEBUG 1
 # WARNING: If you are changing any versions here, update it in the reference.conf
 ENV TERRA_APP_SETUP_VERSION 0.0.2
 ENV TERRA_APP_VERSION 0.3.0
-ENV GALAXY_VERSION 0.8.0
+ENV GALAXY_VERSION 1.0.0
 ENV NGINX_VERSION 3.23.0
 
 RUN mkdir /leonardo
@@ -37,8 +37,9 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
     rm get_helm.sh
 
 # Add the repos containing nginx and galaxy charts
+# TODO update Galaxy repo when 1.0.0 is officially released
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
-    helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
+    helm repo add galaxy https://raw.githubusercontent.com/almahmoud/helm-charts/gkm-release-2101-2/ && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo update
