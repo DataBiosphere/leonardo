@@ -1212,6 +1212,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
       raw"""galaxy.terra.launch.workspace=${workspaceName}""",
       raw"""galaxy.terra.launch.namespace=${cluster.googleProject.value}""",
+      // TODO remove below when Galaxy 21.01 is published
+      raw"""galaxy.image.tag=21.01-auto""",
       // Note most of the below file_sources configs are specified in galaxykubeman,
       // but helm can't update 1 item in a list if the value is an object.
       // See https://github.com/helm/helm/issues/7569
