@@ -4,7 +4,6 @@ import java.io.File
 import java.math.BigInteger
 import java.security.MessageDigest
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -13,6 +12,7 @@ import org.scalatest.DoNotDiscover
 import org.scalatest.time.{Minutes, Seconds, Span}
 
 import scala.concurrent.duration._
+import scala.math.abs
 
 /**
  * This spec verifies data syncing functionality, including notebook edit mode, playground mode,
@@ -99,7 +99,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               logger.info(s"[playground mode] original local content is ${originalLocalContent}")
               val originalLocalContentSize: Int = originalLocalContent.size
 
-              originalRemoteContentSize shouldBe originalLocalContentSize
+              abs(originalRemoteContentSize - originalLocalContentSize)<2 shouldBe true
 
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.SafeMode
