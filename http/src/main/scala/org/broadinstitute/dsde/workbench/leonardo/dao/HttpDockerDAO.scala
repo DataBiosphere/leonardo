@@ -120,7 +120,8 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
               .withPath("/token")
               .withQueryParam("scope", s"repository:${parsedImage.imageName}:pull")
               .withQueryParam("service", "registry.docker.io"),
-            headers = Headers.of(acceptHeader)
+            // must be Accept: application/json not Accept: application/vnd.docker.distribution.manifest.v2+json
+            headers = Headers.of(Header("Accept", "application/json"))
           )
         )(onError)
       // GHCR accepts a personal github access token for private repo support, but it seems to
@@ -136,7 +137,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     } yield DockerImageException(traceId, body)
 
   private def headers(tokenOpt: Option[Token]): Headers =
-    Headers.of(acceptHeader) ++
+    Headers.of(Header("Accept", "application/vnd.docker.distribution.manifest.v2+json")) ++
       tokenOpt.fold(Headers.empty)(t => Headers.of(Authorization(Credentials.Token(AuthScheme.Bearer, t.token))))
 
   private[dao] def parseImage(image: ContainerImage)(implicit ev: Ask[F, TraceId]): F[ParsedImage] =
@@ -175,7 +176,6 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
 object HttpDockerDAO {
   val dockerHubAuthUri = Uri.unsafeFromString("https://auth.docker.io")
   val dockerHubRegistryUri = Uri.unsafeFromString("https://registry-1.docker.io")
-  val acceptHeader = Header("Accept", "application/vnd.docker.distribution.manifest.v2+json")
   val clusterToolEnv = Map(Jupyter -> "JUPYTER_HOME", RStudio -> "RSTUDIO_HOME")
 
   def apply[F[_]: Concurrent](httpClient: Client[F])(implicit logger: Logger[F]): HttpDockerDAO[F] =
