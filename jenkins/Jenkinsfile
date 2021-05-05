@@ -151,7 +151,7 @@ pipeline {
             description: "A custom image will be build for each of these dataproc versions")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check if you want to specify custom image versions below")
-        string(name: "terra_jupyter_base", defaultValue: "0.0.13")
+        string(name: "terra_jupyter_base", defaultValue: "0.0.19")
         string(name: "terra_jupyter_hail", defaultValue: "0.0.19")
         string(name: "terra_jupyter_r", defaultValue: "1.0.5")
         string(name: "terra_jupyter_python", defaultValue: "0.0.15")
