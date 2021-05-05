@@ -457,7 +457,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           for {
             _ <- clusterQuery.updateClusterHostIp(runtimeAndRuntimeConfig.runtime.id, Some(ip), ctx.now)
             images <- clusterImageQuery.getAllForCluster(runtimeAndRuntimeConfig.runtime.id)
-          } yield images.toList.map(_.imageType)
+          } yield images.toList
         }
       checkTools = imageTypes.traverseFilter { imageType =>
         RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType

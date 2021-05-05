@@ -43,6 +43,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
   _
 }
 
+import java.nio.file.Paths
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
@@ -155,12 +156,13 @@ object CommonTestData {
 
   val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
   val olderRuntimeAuditInfo = AuditInfo(userEmail, Instant.now().minus(1, ChronoUnit.DAYS), None, Instant.now())
-  val jupyterImage = RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Instant.now)
-  val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", Instant.now)
-  val welderImage = RuntimeImage(Welder, "welder/welder:latest", Instant.now)
-  val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, Instant.now)
-  val customDataprocImage = RuntimeImage(VM, "custom_dataproc", Instant.now)
-  val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", Instant.now)
+  val jupyterImage =
+    RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Some(Paths.get("/home/jupyter")), Instant.now)
+  val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", None, Instant.now)
+  val welderImage = RuntimeImage(Welder, "welder/welder:latest", None, Instant.now)
+  val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now)
+  val customDataprocImage = RuntimeImage(VM, "custom_dataproc", None, Instant.now)
+  val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
   val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)

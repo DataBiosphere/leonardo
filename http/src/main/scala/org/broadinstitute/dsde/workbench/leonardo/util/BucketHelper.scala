@@ -2,9 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import java.nio.charset.StandardCharsets
-import java.nio.file.Files
-
 import _root_.org.typelevel.log4cats.Logger
+import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.{Async, Blocker, Concurrent, ContextShift}
 import cats.syntax.all._
@@ -17,10 +16,10 @@ import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
-class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperConfig,
-                                                           google2StorageDAO: GoogleStorageService[F],
-                                                           serviceAccountProvider: ServiceAccountProvider[F],
-                                                           blocker: Blocker) {
+class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelperConfig,
+                                                             google2StorageDAO: GoogleStorageService[F],
+                                                             serviceAccountProvider: ServiceAccountProvider[F],
+                                                             blocker: Blocker)(implicit val logger: Logger[F]) {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 
@@ -107,67 +106,57 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Logger](config: BucketHelperC
       case (memo, (key, value)) => memo + s"$key=$value\n"
     })
 
-    // Check if rstudioLicenseFile exists to allow the Leonardo PR to merge before the
-    // actual license file is added to firecloud-develop.
-    // TODO: remove once firecloud-develop has been updated to render the license file
-    val rstudioLicenseFile = Stream
-      .eval(
-        Async[F].delay(Files.exists(config.clusterFilesConfig.rstudioLicenseFile)) map {
-          case true  => Some(config.clusterFilesConfig.rstudioLicenseFile)
-          case false => None
-        }
-      )
-      .unNone
-
     val uploadRawFiles = for {
       f <- Stream.emits(
         Seq(
           config.clusterFilesConfig.proxyServerCrt,
           config.clusterFilesConfig.proxyServerKey,
-          config.clusterFilesConfig.proxyRootCaPem
+          config.clusterFilesConfig.proxyRootCaPem,
+          config.clusterFilesConfig.rstudioLicenseFile
         )
-      ) ++ rstudioLicenseFile
+      )
       _ <- TemplateHelper.fileStream[F](f, blocker) through google2StorageDAO.streamUploadBlob(
         initBucketName,
         GcsBlobName(f.getFileName.toString)
       )
     } yield ()
 
-    val uploadRawResources = for {
-      r <- Stream.emits(
-        Seq(
-          config.clusterResourcesConfig.jupyterDockerCompose,
-          config.clusterResourcesConfig.jupyterDockerComposeGce,
-          config.clusterResourcesConfig.rstudioDockerCompose,
-          config.clusterResourcesConfig.proxyDockerCompose,
-          config.clusterResourcesConfig.proxySiteConf,
-          config.clusterResourcesConfig.welderDockerCompose,
-          config.clusterResourcesConfig.cryptoDetectorDockerCompose,
-          // Note: jupyter_notebook_config.py is non-templated and gets copied inside the Jupyter container.
-          // So technically we could just put it in the Jupyter base image itself. However we would still need
-          // it here to support legacy images where it is not present in the container.
-          config.clusterResourcesConfig.jupyterNotebookConfigUri
+    val uploadRawResources =
+      Stream
+        .emits(
+          List(
+            config.clusterResourcesConfig.jupyterDockerCompose,
+            config.clusterResourcesConfig.jupyterDockerComposeGce,
+            config.clusterResourcesConfig.rstudioDockerCompose,
+            config.clusterResourcesConfig.proxyDockerCompose,
+            config.clusterResourcesConfig.proxySiteConf,
+            config.clusterResourcesConfig.welderDockerCompose,
+            config.clusterResourcesConfig.cryptoDetectorDockerCompose
+          )
         )
-      )
-      _ <- TemplateHelper.resourceStream[F](r, blocker) through google2StorageDAO.streamUploadBlob(
-        initBucketName,
-        GcsBlobName(r.asString)
-      )
-    } yield ()
+        .covary[F]
+        .evalMap { r =>
+          (TemplateHelper.resourceStream[F](r, blocker) through google2StorageDAO.streamUploadBlob(
+            initBucketName,
+            GcsBlobName(r.asString)
+          )).compile.drain
+        }
 
-    val uploadTemplatedResources = for {
-      r <- Stream.emits(
-        Seq(
-          config.clusterResourcesConfig.initActionsScript,
-          config.clusterResourcesConfig.gceInitScript,
-          config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri
+    val uploadTemplatedResources =
+      Stream
+        .emits(
+          List(
+            config.clusterResourcesConfig.initActionsScript,
+            config.clusterResourcesConfig.gceInitScript,
+            config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri
+          )
         )
-      )
-      _ <- TemplateHelper.templateResource[F](replacements, r, blocker) through google2StorageDAO.streamUploadBlob(
-        initBucketName,
-        GcsBlobName(r.asString)
-      )
-    } yield ()
+        .evalMap { r =>
+          (TemplateHelper.templateResource[F](replacements, r, blocker) through google2StorageDAO.streamUploadBlob(
+            initBucketName,
+            GcsBlobName(r.asString)
+          )).compile.drain
+        }
 
     val uploadPrivateKey = for {
       k <- Stream(serviceAccountKey).unNone

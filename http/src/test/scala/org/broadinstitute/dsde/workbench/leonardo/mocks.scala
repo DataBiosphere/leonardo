@@ -10,7 +10,7 @@ import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.BucketSourceOption
 import fs2.Stream
 import io.circe.{Decoder, Encoder}
-import io.kubernetes.client.openapi.models.{V1ObjectMeta, V1PersistentVolumeClaim}
+import io.kubernetes.client.openapi.models.{V1ObjectMetaBuilder, V1PersistentVolumeClaim}
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
@@ -35,8 +35,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.Release
-import org.mockito.Mockito.when
-import org.scalatestplus.mockito.MockitoSugar.mock
 
 object FakeGoogleStorageService extends BaseFakeGoogleStorage {
   override def getObjectMetadata(bucketName: GcsBucketName,
@@ -172,17 +170,19 @@ class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease
     ev: Ask[IO, TraceId]
   ): IO[List[V1PersistentVolumeClaim]] =
     appRelease.flatTraverse { r =>
-      val nfsPvc = mock[io.kubernetes.client.openapi.models.V1PersistentVolumeClaim]
-      val nfcMetadata = mock[V1ObjectMeta]
-      when(nfcMetadata.getName).thenReturn(s"${r.asString}-galaxy-pvc")
-      when(nfcMetadata.getUid).thenReturn(s"nfs-pvc-id1")
-      when(nfsPvc.getMetadata()).thenReturn(nfcMetadata)
+      val nfcMetadata = new V1ObjectMetaBuilder(false).build()
+      nfcMetadata.setName(s"${r.asString}-galaxy-pvc")
+      nfcMetadata.setUid(s"nfs-pvc-id1")
+      val nfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaimBuilder(false)
+        .build()
+      nfsPvc.setMetadata(nfcMetadata)
 
-      val cvmfsPvc = mock[io.kubernetes.client.openapi.models.V1PersistentVolumeClaim]
-      val cvmfsMetadata = mock[V1ObjectMeta]
-      when(cvmfsMetadata.getName).thenReturn(s"${r.asString}-cvmfs-alien-cache-pvc")
-      when(cvmfsMetadata.getUid).thenReturn(s"cvmfs-pvc-id1")
-      when(cvmfsPvc.getMetadata()).thenReturn(cvmfsMetadata)
+      val cvmfsMetadata = new V1ObjectMetaBuilder(false).build()
+      cvmfsMetadata.setName(s"${r.asString}-cvmfs-alien-cache-pvc")
+      cvmfsMetadata.setUid(s"cvmfs-pvc-id1")
+      val cvmfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaimBuilder(false)
+        .build()
+      cvmfsPvc.setMetadata(cvmfsMetadata)
 
       IO.pure(
         List(nfsPvc, cvmfsPvc)

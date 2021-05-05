@@ -163,8 +163,8 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
-      updatedRuntime shouldBe 'defined
-      updatedRuntime.get.asyncRuntimeFields shouldBe 'defined
+      updatedRuntime shouldBe Symbol("defined")
+      updatedRuntime.get.asyncRuntimeFields shouldBe Symbol("defined")
       updatedRuntime.get.asyncRuntimeFields.get.stagingBucket.value should startWith("leostaging")
       updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
       updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"

@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.URL
 import java.time.Instant
-
 import cats.syntax.all._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
@@ -33,6 +32,8 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject
 }
 import org.http4s.Uri
+
+import java.nio.file.{Path, Paths}
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
@@ -120,9 +121,11 @@ object JsonCodec {
   implicit val runtimeImageTypeEncoder: Encoder[RuntimeImageType] = Encoder.encodeString.contramap(_.toString)
   implicit val containerImageEncoder: Encoder[ContainerImage] = Encoder.encodeString.contramap(_.imageUrl)
   implicit val containerRegistryEncoder: Encoder[ContainerRegistry] = Encoder.encodeString.contramap(_.entryName)
-  implicit val runtimeImageEncoder: Encoder[RuntimeImage] = Encoder.forProduct3(
+  implicit val pathEncoder: Encoder[Path] = Encoder.encodeString.contramap(_.toString)
+  implicit val runtimeImageEncoder: Encoder[RuntimeImage] = Encoder.forProduct4(
     "imageType",
     "imageUrl",
+    "homeDirectory",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
   implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct5(
@@ -250,13 +253,15 @@ object JsonCodec {
   implicit val blockSizeDecoder: Decoder[BlockSize] =
     Decoder.decodeInt.emap(d => if (d < 0) Left("Negative number is not allowed") else Right(BlockSize(d)))
   implicit val workbenchEmailDecoder: Decoder[WorkbenchEmail] = Decoder.decodeString.map(WorkbenchEmail)
+  implicit val pathDecoder: Decoder[Path] = Decoder.decodeString.map(s => Paths.get(s))
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
   )
 
-  implicit val runtimeImageDecoder: Decoder[RuntimeImage] = Decoder.forProduct3(
+  implicit val runtimeImageDecoder: Decoder[RuntimeImage] = Decoder.forProduct4(
     "imageType",
     "imageUrl",
+    "homeDirectory",
     "timestamp"
   )(RuntimeImage.apply)
   implicit val auditInfoDecoder: Decoder[AuditInfo] = Decoder.forProduct4(

@@ -27,6 +27,8 @@ import org.http4s.Uri
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
 
+import java.nio.file.{Path, Paths}
+
 private[leonardo] object LeoProfile extends MySQLProfile {
   final val dummyDate: Instant = Instant.ofEpochMilli(1000)
 
@@ -71,6 +73,9 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val googleProjectMappedColumnType: BaseColumnType[GoogleProject] =
       MappedColumnType
         .base[GoogleProject, String](_.value, GoogleProject.apply)
+    implicit val pathMappedColumnType: BaseColumnType[Path] =
+      MappedColumnType
+        .base[Path, String](_.toString, x => Paths.get(x))
     implicit val clusterNameMappedColumnType: BaseColumnType[RuntimeName] =
       MappedColumnType
         .base[RuntimeName, String](_.asString, RuntimeName.apply)
