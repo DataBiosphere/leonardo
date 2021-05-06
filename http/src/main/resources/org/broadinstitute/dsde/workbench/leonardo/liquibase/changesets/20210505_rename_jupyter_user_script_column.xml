@@ -14,10 +14,8 @@
             </column>
         </addColumn>
 
-        <sql stripComments="true">
-            update CLUSTER set userScriptUri = jupyterUserScriptUri;
-            update CLUSTER set startUserScriptUri = jupyterStartUserScriptUri;
-        </sql>
+        <sql>UPDATE CLUSTER SET userScriptUri = jupyterUserScriptUri</sql>
+        <sql>UPDATE CLUSTER SET startUserScriptUri = jupyterStartUserScriptUri</sql>
 
         <dropColumn tableName="CLUSTER">
             <column name="jupyterUserScriptUri" />
