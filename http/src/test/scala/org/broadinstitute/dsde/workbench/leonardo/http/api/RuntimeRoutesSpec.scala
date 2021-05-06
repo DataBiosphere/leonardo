@@ -148,9 +148,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       autopause = None,
       toolDockerImage = None,
       welderRegistry = None,
-      jupyterUserScriptUri =
+      userScriptUri =
         Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("userscript_bucket"), GcsObjectName("userscript.sh")))),
-      jupyterStartUserScriptUri =
+      startUserScriptUri =
         Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("startscript_bucket"), GcsObjectName("startscript.sh"))))
     )
 

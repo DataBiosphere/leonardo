@@ -348,14 +348,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def validateBothScripts(
     userScriptOutputFile: Option[GcsPath],
     userStartupScriptOutputFile: Option[GcsPath],
-    jupyterUserScriptUriInDB: Option[UserScriptPath],
-    jupyterStartUserScriptUriInDB: Option[UserScriptPath]
+    userScriptUriInDB: Option[UserScriptPath],
+    startUserScriptUriInDB: Option[UserScriptPath]
   )(implicit ev: Ask[F, AppContext]): F[UserScriptsValidationResult] =
     for {
-      userScriptRes <- validateUserScript(userScriptOutputFile, jupyterUserScriptUriInDB)
+      userScriptRes <- validateUserScript(userScriptOutputFile, userScriptUriInDB)
       res <- userScriptRes match {
         case UserScriptsValidationResult.Success =>
-          validateUserStartupScript(userStartupScriptOutputFile, jupyterStartUserScriptUriInDB)
+          validateUserStartupScript(userStartupScriptOutputFile, startUserScriptUriInDB)
         case x: UserScriptsValidationResult.Error =>
           F.pure(x)
         case x: UserScriptsValidationResult.CheckAgain =>
@@ -365,9 +365,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   private[monitor] def validateUserScript(
     userScriptOutputPathFromDB: Option[GcsPath],
-    jupyterUserScriptUriInDB: Option[UserScriptPath]
+    userScriptUriInDB: Option[UserScriptPath]
   )(implicit ev: Ask[F, AppContext]): F[UserScriptsValidationResult] =
-    (userScriptOutputPathFromDB, jupyterUserScriptUriInDB) match {
+    (userScriptOutputPathFromDB, userScriptUriInDB) match {
       case (Some(output), Some(_)) =>
         checkUserScriptsOutputFile(output).map { o =>
           o match {
@@ -393,9 +393,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   private[monitor] def validateUserStartupScript(
     userStartupScriptOutputFile: Option[GcsPath],
-    jupyterStartUserScriptUriInDB: Option[UserScriptPath]
+    startUserScriptUriInDB: Option[UserScriptPath]
   )(implicit ev: Ask[F, AppContext]): F[UserScriptsValidationResult] =
-    (userStartupScriptOutputFile, jupyterStartUserScriptUriInDB) match {
+    (userStartupScriptOutputFile, startUserScriptUriInDB) match {
       case (Some(output), Some(_)) =>
         checkUserScriptsOutputFile(output).map { o =>
           o match {

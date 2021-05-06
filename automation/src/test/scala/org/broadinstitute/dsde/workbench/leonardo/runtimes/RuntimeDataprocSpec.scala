@@ -166,7 +166,7 @@ class RuntimeDataprocSpec
         startScriptUri = UserScriptPath.Gcs(GcsPath(bucketName, GcsObjectName(startScriptObjectName.value)))
         // 2 workers and 5 preemptible workers
         createRuntimeRequest = defaultCreateRuntime2Request.copy(
-          jupyterStartUserScriptUri = Some(startScriptUri),
+          startUserScriptUri = Some(startScriptUri),
           runtimeConfig = Some(
             RuntimeConfigRequest.DataprocConfig(
               Some(2),

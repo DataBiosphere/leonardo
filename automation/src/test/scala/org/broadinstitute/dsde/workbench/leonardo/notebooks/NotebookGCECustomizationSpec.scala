@@ -47,7 +47,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
 
           // Create a new cluster using the URI of the user script
           val clusterRequestWithUserScript =
-            LeonardoApiClient.defaultCreateRuntime2Request.copy(jupyterUserScriptUri = Some(userScriptUri))
+            LeonardoApiClient.defaultCreateRuntime2Request.copy(userScriptUri = Some(userScriptUri))
           withNewRuntime(billingProject, request = clusterRequestWithUserScript) { cluster =>
             Thread.sleep(10000)
             withWebDriver { implicit driver =>
@@ -175,8 +175,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
 
           withNewRuntime(
             billingProject,
-            request =
-              LeonardoApiClient.defaultCreateRuntime2Request.copy(jupyterStartUserScriptUri = Some(startScriptUri))
+            request = LeonardoApiClient.defaultCreateRuntime2Request.copy(startUserScriptUri = Some(startScriptUri))
           ) { runtime =>
             withWebDriver { implicit driver =>
               withNewNotebook(runtime, Python3) { notebookPage =>

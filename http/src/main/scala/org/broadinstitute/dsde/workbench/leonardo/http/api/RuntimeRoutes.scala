@@ -366,8 +366,11 @@ object RuntimeRoutes {
             .asLeft[Unit]
         else ().asRight[DecodingFailure]
       }
+      // Note jupyterUserScriptUri and jupyterStartUserScriptUri are deprecated
       jus <- c.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       jsus <- c.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
+      us <- c.downField("userScriptUri").as[Option[UserScriptPath]]
+      sus <- c.downField("startUserScriptUri").as[Option[UserScriptPath]]
       rc <- c.downField("runtimeConfig").as[Option[RuntimeConfigRequest]]
       uje <- c.downField("userJupyterExtensionConfig").as[Option[UserJupyterExtensionConfig]]
       a <- c.downField("autopause").as[Option[Boolean]]
@@ -379,8 +382,8 @@ object RuntimeRoutes {
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
     } yield CreateRuntime2Request(
       l.getOrElse(Map.empty),
-      jus,
-      jsus,
+      us.orElse(jus),
+      sus.orElse(jsus),
       rc,
       uje.flatMap(x => if (x.asLabels.isEmpty) None else Some(x)),
       a,
@@ -491,8 +494,9 @@ object RuntimeRoutes {
     "proxyUrl",
     "status",
     "labels",
-    "jupyterUserScriptUri",
-    "jupyterStartUserScriptUri",
+    // TODO: is renaming these fields in the GetRuntimeResponse safe?
+    "userScriptUri",
+    "startUserScriptUri",
     "errors",
     "userJupyterExtensionConfig",
     "autopauseThreshold",
@@ -514,8 +518,8 @@ object RuntimeRoutes {
       x.clusterUrl,
       x.status,
       x.labels,
-      x.jupyterUserScriptUri,
-      x.jupyterStartUserScriptUri,
+      x.userScriptUri,
+      x.startUserScriptUri,
       x.errors,
       x.userJupyterExtensionConfig,
       x.autopauseThreshold,

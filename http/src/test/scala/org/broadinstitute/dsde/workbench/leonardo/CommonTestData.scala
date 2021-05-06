@@ -73,13 +73,13 @@ object CommonTestData {
     UserJupyterExtensionConfig(nbExtensions =
       Map("notebookExtension" -> s"gs://${jupyterExtensionBucket.value}/${jupyterExtensionObject.value}")
     )
-  val jupyterUserScriptBucketName = GcsBucketName("userscript_bucket")
-  val jupyterUserScriptObjectName = GcsObjectName("userscript.sh")
-  val jupyterUserScriptUri = UserScriptPath.Gcs(GcsPath(jupyterUserScriptBucketName, jupyterUserScriptObjectName))
-  val jupyterStartUserScriptBucketName = GcsBucketName("startscript_bucket")
-  val jupyterStartUserScriptObjectName = GcsObjectName("startscript.sh")
-  val jupyterStartUserScriptUri =
-    UserScriptPath.Gcs(GcsPath(jupyterStartUserScriptBucketName, jupyterStartUserScriptObjectName))
+  val userScriptBucketName = GcsBucketName("userscript_bucket")
+  val userScriptObjectName = GcsObjectName("userscript.sh")
+  val userScriptUri = UserScriptPath.Gcs(GcsPath(userScriptBucketName, userScriptObjectName))
+  val startUserScriptBucketName = GcsBucketName("startscript_bucket")
+  val startUserScriptObjectName = GcsObjectName("startscript.sh")
+  val startUserScriptUri =
+    UserScriptPath.Gcs(GcsPath(startUserScriptBucketName, startUserScriptObjectName))
   val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"),
                                             ServiceAccountPrivateKeyData("abcdefg"),
                                             Some(Instant.now),
@@ -239,8 +239,8 @@ object CommonTestData {
       proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
       status = RuntimeStatus.Unknown,
       labels = Map(),
-      jupyterUserScriptUri = None,
-      jupyterStartUserScriptUri = None,
+      userScriptUri = None,
+      startUserScriptUri = None,
       errors = List.empty,
       dataprocInstances = Set.empty,
       userJupyterExtensionConfig = None,
@@ -270,9 +270,8 @@ object CommonTestData {
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
-    jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
-    jupyterStartUserScriptUri =
-      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
+    userScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
+    startUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
     errors = List.empty,
     dataprocInstances = Set.empty,
     userJupyterExtensionConfig =
@@ -299,9 +298,8 @@ object CommonTestData {
     auditInfo = testCluster.auditInfo,
     kernelFoundBusyDate = None,
     hostIp = None,
-    jupyterUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
-    jupyterStartUserScriptUri =
-      Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
+    userScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
+    startUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
     defaultClientId = Some("clientId"),
     initBucket = Some(initBucketName.value),

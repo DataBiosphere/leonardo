@@ -341,8 +341,8 @@ trait LeonardoTestUtils
           expectedStatuses,
           runtimeRequest.labels,
           runtimeRequest.userJupyterExtensionConfig,
-          runtimeRequest.jupyterUserScriptUri,
-          runtimeRequest.jupyterStartUserScriptUri,
+          runtimeRequest.userScriptUri,
+          runtimeRequest.startUserScriptUri,
           runtimeRequest.toolDockerImage,
           true
         )
@@ -529,8 +529,8 @@ trait LeonardoTestUtils
           deletableStatuses.toList,
           request.labels,
           request.userJupyterExtensionConfig,
-          request.jupyterUserScriptUri,
-          request.jupyterStartUserScriptUri,
+          request.userScriptUri,
+          request.startUserScriptUri,
           request.toolDockerImage
         )
       }
@@ -562,10 +562,10 @@ trait LeonardoTestUtils
       val request =
         if (isUserStartupScript)
           LeonardoApiClient.defaultCreateRuntime2Request
-            .copy(jupyterStartUserScriptUri = Some(UserScriptPath.Gcs(bucketPath)))
+            .copy(startUserScriptUri = Some(UserScriptPath.Gcs(bucketPath)))
         else
           LeonardoApiClient.defaultCreateRuntime2Request
-            .copy(jupyterUserScriptUri = Some(UserScriptPath.Gcs(bucketPath)))
+            .copy(userScriptUri = Some(UserScriptPath.Gcs(bucketPath)))
 
       val testResult: Try[T] = Try {
         val runtime = createRuntime(googleProject, name, request, monitor = true, false)
