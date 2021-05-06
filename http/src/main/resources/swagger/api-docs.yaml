@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "1.1.0"
+  version: "1.1.1"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -1817,36 +1817,33 @@ components:
         labels:
           type: object
           description: The labels to be placed on the runtime. Of type Map[String,String]
+        userScriptUri:
+          type: string
+          description: >
+            Optional GCS or HTTP URI to a bash script the user wishes to run
+            inside their Docker container. This script runs exactly once when the runtime is first initialized. Logs from
+            this script can be found in the Leo staging bucket for the runtime. The script is run as root
+            and docker --privileged.
         jupyterUserScriptUri:
           type: string
-          description: >
-            Optional GCS object URI to a bash script the user wishes to run
-            inside their jupyter
-
-            docker. This script runs exactly once when the cluster is first initialized. Logs from
-
-            this script can be found in the Leo staging bucket for the cluster. Script is run as root
-
-            and docker --privileged.
-        jupyterStartUserScriptUri:
+          description: DEPRECATED. Please use userScriptUri instead.
+          deprecated: true
+        startUserScriptUri:
           type: string
           description: >
-            Optional GCS object URI to a bash script the user wishes to run on
-            cluster start inside
+            Optional GCS or HTTP URI to a bash script the user wishes to run on runtime start inside
+            the Docker container. In contrast to userScriptUri, this always runs before starting
+            the Docker container, both on initial runtime creation and on runtime resume (sserScriptUri runs
+            once on runtime creation). This script may be used to launch background processes which
+            would not otherwise survive a runtime stop/start.
 
-            the jupyter docker. In contrast to jupyterUserScriptUri, this always runs before starting
-
-            Jupyter, both on initial cluster creation and on cluster resume (jupyterUserScriptUri runs
-
-            once on cluster creation). This script may be used to launch background processes which
-
-            would not otherwise survive a cluster stop/start.
-
-            The script is pulled once at cluster creation time; subsequent client changes to the user
-
-            script at this URI do not affect the cluster. Timestamped logs for this script can be
-
-            found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
+            The script is pulled once at runtime creation time; subsequent client changes to the user
+            script at this URI do not affect the runtime. Timestamped logs for this script can be
+            found in the Leo staging bucket for the cluster. The script is run as root and docker --privileged.
+        jupyterStartUserScriptUri:
+          type: string
+          description: DEPRECATED. Please use startUserScriptUri instead.
+          deprecated: true
         errors:
           type: array
           description: The list of errors that were encountered on runtime create. Each
@@ -2054,24 +2051,33 @@ components:
           description: The labels to be placed on the runtime. Of type Map[String,String]
         userJupyterExtensionConfig:
           $ref: "#/components/schemas/UserJupyterExtensionConfig"
+        userScriptUri:
+          type: string
+          description: >
+            Optional GCS or HTTP URI to a bash script the user wishes to run
+            inside their Docker container. This script runs exactly once when the runtime is first initialized. Logs from
+            this script can be found in the Leo staging bucket for the runtime. The script is run as root
+            and docker --privileged.
         jupyterUserScriptUri:
           type: string
-          description: >
-            Optional GCS object URI to a bash script the user wishes to run
-            inside their jupyter docker. This script runs exactly once when the cluster is first initialized. Logs from
-            this script can be found in the Leo staging bucket for the cluster. Script is run as root
-            and docker --privileged.
-        jupyterStartUserScriptUri:
+          description: DEPRECATED. Please use userScriptUri instead.
+          deprecated: true
+        startUserScriptUri:
           type: string
           description: >
-            Optional GCS object URI to a bash script the user wishes to run on
-            cluster start inside the jupyter docker. In contrast to jupyterUserScriptUri, this always runs before starting
-            Jupyter, both on initial cluster creation and on cluster resume (jupyterUserScriptUri runs
-            once on cluster creation). This script may be used to launch background processes which
-            would not otherwise survive a cluster stop/start.
-            The script is pulled once at cluster creation time; subsequent client changes to the user
-            script at this URI do not affect the cluster. Timestamped logs for this script can be
-            found in the Leo staging bucket for the cluster. Script is run as root and docker --privileged.
+            Optional GCS or HTTP URI to a bash script the user wishes to run on runtime start inside
+            the Docker container. In contrast to userScriptUri, this always runs before starting
+            the Docker container, both on initial runtime creation and on runtime resume (sserScriptUri runs
+            once on runtime creation). This script may be used to launch background processes which
+            would not otherwise survive a runtime stop/start.
+
+            The script is pulled once at runtime creation time; subsequent client changes to the user
+            script at this URI do not affect the runtime. Timestamped logs for this script can be
+            found in the Leo staging bucket for the cluster. The script is run as root and docker --privileged.
+        jupyterStartUserScriptUri:
+          type: string
+          description: DEPRECATED. Please use startUserScriptUri instead.
+          deprecated: true
         runtimeConfig:
           $ref: "#/components/schemas/OneOfRuntimeConfig"
         autopause:
