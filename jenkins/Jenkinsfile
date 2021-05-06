@@ -26,7 +26,7 @@ ArrayList<String> gceImages = []
 Set<String> images = [] // Union of dataprocImages and gceImages
 String imageID = ""
 String customDataprocImageBaseName = ""
-String customGceImageBaseName = ""
+String customGceSnapshotBaseName = ""
 String prLink = ""
 String googleCredentialFile = ""
 LinkedHashMap<String, String> versionMap = [:]
@@ -134,19 +134,20 @@ pipeline {
     }
 
     parameters {
+        // TODO: Don't forget to revert before merging
         booleanParam(name: "GENERATE_DATAPROC_IMAGE", defaultValue: false)
-        booleanParam(name: "GENERATE_GCE_IMAGE", defaultValue: true)
-        string(name: "IMAGE_BASE_NAME", defaultValue: "custom-leo-image",
-            description: "The name to give the custom dataproc image. This will be appended with a hyphen and the short version of the commit hash (first 7 characters). This should be changed only for testing purposes, as this script relies on the name here matching the name in leo .conf files.")
+        booleanParam(name: "GENERATE_GCE_SNAPSHOT", defaultValue: true)
+        string(name: "OUTPUT_BASE_NAME", defaultValue: "custom-leo",
+            description: "The name to give the custom Dataproc image and GCE snapshot. This will be appended with a hyphen and the short version of the commit hash (first 7 characters). This should be changed only for testing purposes, as this script relies on the name here matching the name in leo .conf files.")
         booleanParam(name: "USE_CUSTOM_IMAGE_IDENTIFIER", defaultValue: false)
         string(name: "CUSTOM_IMAGE_ID", defaultValue: "sampleUniqueID",
             description: "Specify along with USE_CUSTOM_IMAGE_IDENTIFIER to build the VM image with a specific name")
         string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
             description: "The google project to use")
         string(name: "DATAPROC_IMAGE_BUCKET", defaultValue: "gs://leo-dataproc-image",
-            description: "The path for the bucket where the custom Dataproc images will be stored")
-        string(name: "GCE_IMAGE_BUCKET", defaultValue: "gs://leo-gce-image",
-            description: "The path for the bucket where the custom GCE images will be stored")
+            description: "The path for the bucket where the custom Dataproc image generation logs will be stored")
+        string(name: "GCE_SNAPSHOT_BUCKET", defaultValue: "gs://leo-gce-snapshot-creation-logs",
+            description: "The path for the bucket where the custom GCE snapshot generation logs will be stored")
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.51-debian10",
             description: "A custom image will be build for each of these dataproc versions")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
@@ -173,8 +174,8 @@ pipeline {
                 git credentialsId: 'jenkins-ssh-github', url: 'git@github.com:DataBiosphere/terra-docker.git', branch: 'master'
 
                 script {
-                    customDataprocImageBaseName = "${IMAGE_BASE_NAME}-dataproc"
-                    customGceImageBaseName = "${IMAGE_BASE_NAME}-gce-cos"
+                    customDataprocImageBaseName = "${OUTPUT_BASE_NAME}-image-dataproc"
+                    customGceSnapshotBaseName = "${OUTPUT_BASE_NAME}-gce-cos-snapshot"
                     ArrayList<String> nonTerraDockerImages = [
                         'welder-server', 'openidc-proxy', 'anvil-rstudio-bioconductor'
                     ]
@@ -194,7 +195,6 @@ pipeline {
                     dataprocImages = terraDockerDataprocImageArray + nonTerraDockerImages
                     gceImages = terraDockerGceImageArray + nonTerraDockerImages
                     images = dataprocImages + gceImages
-                    println("\n\n\n**** Images are: $images\n\n")
 
                     googleCredentialFile = "${WORKSPACE}/jenkins/gce-custom-images/${GOOGLE_CREDENTIAL_FILE_NAME}"
                 }
@@ -224,7 +224,7 @@ pipeline {
                         ))
                     }
 
-                    String buildDisplayName = "#${BUILD_NUMBER}: $IMAGE_BASE_NAME"
+                    String buildDisplayName = "#${BUILD_NUMBER}: $OUTPUT_BASE_NAME"
                     if (GENERATE_DATAPROC_IMAGE == "true") {
                         buildDisplayName += "-dataproc-$DATAPROC_VERSIONS"
                     }
@@ -253,8 +253,9 @@ pipeline {
             when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "false" } }
                 steps {
                     script {
-                        def shouldUpdate = hasHashChanges(images, configPaths)
-//                        def shouldUpdate = true
+                        // TODO: Don't forget to revert before merging
+//                        def shouldUpdate = hasHashChanges(images, configPaths)
+                        def shouldUpdate = true
                         // Set variable to control if future steps get run
                         shouldAbortBuild = !shouldUpdate
                         versionMap = getVersionMap(images, configPaths)
@@ -429,7 +430,7 @@ pipeline {
                                     sshagent(['jenkins-ssh-github']) {
                                         sh """
                                             # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
-                                            gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
+                                            gsutil ls $GCE_SNAPSHOT_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_SNAPSHOT_BUCKET
     
                                             docker pull $daisyImage
                                             docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/gce-custom-images \
@@ -437,10 +438,10 @@ pipeline {
                                                 -project $GOOGLE_PROJECT \
                                                 -zone $ZONE \
                                                 -oauth /gce-custom-images/$GOOGLE_CREDENTIAL_FILE_NAME \
-                                                -gcs_path $GCE_IMAGE_BUCKET \
+                                                -gcs_path $GCE_SNAPSHOT_BUCKET \
                                                 -default_timeout 45m \
                                                 -var:base_image $GCE_BASE_IMAGE \
-                                                -var:output_image "${customGceImageBaseName}-${imageID}" \
+                                                -var:output_snapshot "${customGceSnapshotBaseName}-${imageID}" \
                                                 -var:gce_snapshots_dir /gce-custom-images \
                                                 -var:installation_script_name prepare_gce_snapshot.sh \
                                                 /gce-custom-images/leo_gce_snapshot.wf.json
@@ -448,7 +449,7 @@ pipeline {
                                             docker rm -f daisy || true
     
                                             # Daisy doesn't clean it up all so we remove the bucket manually
-                                            gsutil rm -r $GCE_IMAGE_BUCKET
+                                            gsutil rm -r $GCE_SNAPSHOT_BUCKET
                                         """
                                     }
                                 }
@@ -476,7 +477,7 @@ pipeline {
                             if (GENERATE_GCE_IMAGE == "true") {
                                 sh(
                                     script: """
-                                        sed -i "s/$customGceImageBaseName-.*/$customGceImageBaseName-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
+                                        sed -i "s/$customGceSnapshotBaseName-.*/$customGceSnapshotBaseName-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
                                     """
                                 )
                             }

@@ -36,6 +36,7 @@ cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.
 
 # This array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
+# TODO: Don't forget to revert before merging
 #docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer"
 docker_image_var_names="terra_jupyter_base"
 
@@ -102,18 +103,6 @@ fi
 
 log 'Cached docker images:'
 docker images
-
-log 'Making systemd additions...'
-mkdir -p /etc/systemd/system/google-startup-scripts.service.d
-cat > /etc/systemd/system/google-startup-scripts.service.d/override.conf <<EOF
-[Unit]
-After=docker.service
-EOF
-mkdir -p /etc/systemd/system/google-shutdown-scripts.service.d
-cat > /etc/systemd/system/google-shutdown-scripts.service.d/override.conf <<EOF
-[Unit]
-After=docker.service
-EOF
 
 # Shut down the instance after it is done, which is used by the Daisy workflow's wait-for-inst-install
 # step to determine when provisioning is done.
