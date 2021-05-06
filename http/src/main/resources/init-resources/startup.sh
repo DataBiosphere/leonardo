@@ -97,6 +97,7 @@ if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
 fi
 
 JUPYTER_HOME=/etc/jupyter
+RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
@@ -118,12 +119,17 @@ fi
 # If a start user script was specified, execute it now. It should already be in the docker container
 # via initialization in init-actions.sh (we explicitly do not want to recopy it from GCS on every cluster resume).
 if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
-  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
-  log 'Executing Jupyter user start script [$START_USER_SCRIPT]...'
-  if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
-    docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
-  else
-    docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+  log "Executing user start script [$START_USER_SCRIPT]..."
+  if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+    if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
+      docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+    else
+      docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+    fi
+  fi
+
+  if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
   fi
 
   failScriptIfError

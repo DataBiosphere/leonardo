@@ -57,6 +57,61 @@ function betterAptGet() {
   fi
 }
 
+function apply_user_script() {
+  local CONTAINER_NAME=$1
+  local TARGET_DIR=$2
+
+  log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
+  USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
+  if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
+    gsutil cp ${USER_SCRIPT_URI} /etc
+  else
+    curl $USER_SCRIPT_URI -o /etc/${USER_SCRIPT}
+  fi
+  docker cp /etc/${USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${USER_SCRIPT}
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${USER_SCRIPT}
+
+  # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
+  # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
+  # can gain full access to the VM already, so using this flag is not a significant escalation.
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> us_output.txt || EXIT_CODE=$?
+
+  if [ $EXIT_CODE -ne 0 ]; then
+    log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
+    retry 3 gsutil -h "x-goog-meta-passed":"false" cp us_output.txt ${USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 gsutil -h "x-goog-meta-passed":"true" cp us_output.txt ${USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
+function apply_start_user_script() {
+  local CONTAINER_NAME=$1
+  local TARGET_DIR=$2
+
+  log "Running start user script $START_USER_SCRIPT_URI in $CONTAINER_NAME container..."
+  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
+  if [[ "$START_USER_SCRIPT_URI" == 'gs://'* ]]; then
+    gsutil cp ${START_USER_SCRIPT_URI} /etc
+  else
+    curl $START_USER_SCRIPT_URI -o /etc/${START_USER_SCRIPT}
+  fi
+  docker cp /etc/${START_USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${START_USER_SCRIPT}
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${START_USER_SCRIPT}
+
+  # Keep in sync with startup.sh
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
+    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
 #
 # Main
 #
@@ -380,58 +435,19 @@ END
       STEP_TIMINGS+=($(date +%s))
 
       # If a user script was specified, copy it into the docker container and execute it.
-      # TODO break into a function and reuse for RStudio
-      if [ ! -z ${USER_SCRIPT_URI} ] ; then
-        log 'Running Jupyter user script [$USER_SCRIPT_URI]...'
-        USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
-        if [[ ${USER_SCRIPT_URI} == 'gs://'* ]]; then
-          gsutil cp ${USER_SCRIPT_URI} /etc
-        else
-          curl $USER_SCRIPT_URI -o /etc/${USER_SCRIPT}
-        fi
-        docker cp /etc/${USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${USER_SCRIPT}
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${USER_SCRIPT}
-        # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
-        # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
-        # can gain full access to the VM already, so using this flag is not a significant escalation.
-        EXIT_CODE=0
-        docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${USER_SCRIPT} &> us_output.txt || EXIT_CODE=$?
-
-        if [ $EXIT_CODE -ne 0 ]; then
-            log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
-            retry 3 gsutil -h "x-goog-meta-passed":"false" cp us_output.txt ${USER_SCRIPT_OUTPUT_URI}
-            exit $EXIT_CODE
-        else
-            retry 3 gsutil -h "x-goog-meta-passed":"true" cp us_output.txt ${USER_SCRIPT_OUTPUT_URI}
-        fi
+      if [ ! -z "$USER_SCRIPT_URI" ] ; then
+        apply_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
       fi
 
-      # If a start user script was specified, copy it into the docker container for consumption by startup.sh.
-      # TODO break into a function and reuse for RStudio
-      if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
-        log 'Copying Jupyter start user script [$START_USER_SCRIPT_URI]...'
-        START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
-        if [[ ${START_USER_SCRIPT_URI} == 'gs://'* ]]; then
-          gsutil cp ${START_USER_SCRIPT_URI} /etc
-        else
-          curl $START_USER_SCRIPT_URI -o /etc/${START_USER_SCRIPT}
-        fi
-        docker cp /etc/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
-        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
+      # done user script
+      STEP_TIMINGS+=($(date +%s))
 
-        # Keep in sync with startup.sh
-        log 'Executing Jupyter user start script [$START_USER_SCRIPT]...'
-        EXIT_CODE=0
-        docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
-        if [ $EXIT_CODE -ne 0 ]; then
-          echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
-          retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-          exit $EXIT_CODE
-        else
-          retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-        fi
+      # If a start user script was specified, copy it into the docker container for consumption during startups.
+      if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
+        apply_start_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
       fi
 
+      # done start user script
       STEP_TIMINGS+=($(date +%s))
 
       # Install lab extensions
@@ -491,6 +507,16 @@ OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
       if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
         retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
         retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+      fi
+
+      # If a user script was specified, copy it into the docker container and execute it.
+      if [ ! -z "$USER_SCRIPT_URI" ] ; then
+        apply_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
+      fi
+
+      # If a start user script was specified, copy it into the docker container for consumption during startups.
+      if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
+        apply_start_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
       fi
 
       # Start RStudio server
