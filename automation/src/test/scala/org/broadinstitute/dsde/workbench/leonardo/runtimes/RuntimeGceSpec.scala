@@ -92,7 +92,7 @@ class RuntimeGceSpec
       for {
         // Set up test bucket for startup script
         petSA <- IO(Sam.user.petServiceAccountEmail(project.value))
-        bucketName = GcsBucketName("leo-test-bucket")
+        bucketName <- IO(UUID.randomUUID()).map(u => GcsBucketName(s"leo-test-bucket-${u.toString}"))
         userScriptObjectName = GcsBlobName("test-user-script.sh")
         userStartScriptObjectName = GcsBlobName("test-user-start-script.sh")
         _ <- deps.storage.insertBucket(project, bucketName).compile.drain
@@ -105,16 +105,16 @@ class RuntimeGceSpec
           .drain
         userScriptString = "#!/usr/bin/env bash\n\necho 'This is a user script'"
         userStartScriptString = "#!/usr/bin/env bash\n\necho 'This is a start user script'"
-        _ <- (fs2.Stream
+        _ <- fs2.Stream
           .emits(userScriptString.getBytes(Charset.forName("UTF-8")))
           .covary[IO]
-          .through(deps.storage.streamUploadBlob(bucketName, userScriptObjectName)))
+          .through(deps.storage.streamUploadBlob(bucketName, userScriptObjectName))
           .compile
           .drain
-        _ <- (fs2.Stream
+        _ <- fs2.Stream
           .emits(userStartScriptString.getBytes(Charset.forName("UTF-8")))
           .covary[IO]
-          .through(deps.storage.streamUploadBlob(bucketName, userStartScriptObjectName)))
+          .through(deps.storage.streamUploadBlob(bucketName, userStartScriptObjectName))
           .compile
           .drain
 
@@ -129,7 +129,7 @@ class RuntimeGceSpec
 
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
-        _ = runtime.status shouldBe RuntimeStatus.Running
+        _ = runtime.status shouldBe ClusterStatus.Running
         _ = runtime.stagingBucket shouldBe defined
 
         // verify user scripts were executed
@@ -139,7 +139,7 @@ class RuntimeGceSpec
           .toList
           .map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
 
-        _ = userScriptOutput shouldBe "This is a user script"
+        _ = userScriptOutput.trim shouldBe "This is a user script"
 
         startScriptOutputs <- deps.storage
           .listBlobsWithPrefix(
@@ -158,7 +158,7 @@ class RuntimeGceSpec
           .toList
 
         _ = startScriptOutputs.size shouldBe 1
-        _ = startScriptOutputs.foreach(o => o shouldBe "This is a start user script")
+        _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
 
         // stop/start the runtime
         _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
@@ -166,7 +166,7 @@ class RuntimeGceSpec
 
         getRuntimeResponse <- getRuntime(runtime.googleProject, runtime.clusterName)
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
-        _ = runtime.status shouldBe RuntimeStatus.Running
+        _ = runtime.status shouldBe ClusterStatus.Running
 
         // startup script should have run again
         startScriptOutputs <- deps.storage
@@ -186,7 +186,7 @@ class RuntimeGceSpec
           .toList
 
         _ = startScriptOutputs.size shouldBe 2
-        _ = startScriptOutputs.foreach(o => o shouldBe "This is a start user script")
+        _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()

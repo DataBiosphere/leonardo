@@ -119,6 +119,7 @@ fi
 # If a start user script was specified, execute it now. It should already be in the docker container
 # via initialization in init-actions.sh (we explicitly do not want to recopy it from GCS on every cluster resume).
 if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
+  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
   log "Executing user start script [$START_USER_SCRIPT]..."
   if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
