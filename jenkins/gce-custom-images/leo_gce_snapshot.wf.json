@@ -3,7 +3,7 @@
     "Vars": {
         "output_snapshot": {
             "Required": true,
-            "Description": "The name of the output image"
+            "Description": "The name of the output snapshot"
         },
         "base_image": {
             "Required": true,

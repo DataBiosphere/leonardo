@@ -47,7 +47,7 @@ boolean hasHashChanges(Set<String> images, String[] configPaths) {
     for (String configFile: configPaths) {
         println("Checking config file '$configFile' for any hash changes...")
         def gitOutput = sh(
-            script: "git diff HEAD~1..HEAD $configFile",
+            script: "git diff --unified=0 HEAD~1..HEAD $configFile",
             returnStdout: true
         ).trim()
 
@@ -194,6 +194,7 @@ pipeline {
                     dataprocImages = terraDockerDataprocImageArray + nonTerraDockerImages
                     gceImages = terraDockerGceImageArray + nonTerraDockerImages
                     images = dataprocImages + gceImages
+                    println("\n\n\n**** Images are: $images\n\n")
 
                     googleCredentialFile = "${WORKSPACE}/jenkins/gce-custom-images/${GOOGLE_CREDENTIAL_FILE_NAME}"
                 }
@@ -253,6 +254,7 @@ pipeline {
                 steps {
                     script {
                         def shouldUpdate = hasHashChanges(images, configPaths)
+//                        def shouldUpdate = true
                         // Set variable to control if future steps get run
                         shouldAbortBuild = !shouldUpdate
                         versionMap = getVersionMap(images, configPaths)
@@ -279,7 +281,7 @@ pipeline {
                                         if (image != 'terra-jupyter-aou'){
                                             println("Using version $version for $image in this build of custom GCE images")
                                             sh """
-                                               sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_custom_leonardo_gce_image.sh
+                                               sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_snapshot.sh
                                             """
                                         } else {
                                             println("not updating version for image $image")
@@ -419,7 +421,7 @@ pipeline {
                             }
                     }
 
-                    stage('Run GCE image generation script') {
+                    stage('Run Daisy to generate GCE snapshot') {
                         when { expression { GENERATE_GCE_IMAGE == "true" } }
                             steps {
                                 script {
@@ -439,7 +441,7 @@ pipeline {
                                                 -default_timeout 45m \
                                                 -var:base_image $GCE_BASE_IMAGE \
                                                 -var:output_image "${customGceImageBaseName}-${imageID}" \
-                                                -var:gce_custom_images_dir /gce-custom-images \
+                                                -var:gce_snapshots_dir /gce-custom-images \
                                                 -var:installation_script_name prepare_gce_snapshot.sh \
                                                 /gce-custom-images/leo_gce_snapshot.wf.json
                                             docker stop daisy || true
