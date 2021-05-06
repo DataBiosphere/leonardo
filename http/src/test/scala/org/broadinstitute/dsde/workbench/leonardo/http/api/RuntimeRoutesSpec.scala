@@ -413,6 +413,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "labels" : {
         |    "foo" : "bar"
         |  },
+        |  "userScriptUri" : "gs://bucket-name/userScript",
+        |  "startUserScriptUri" : "gs://bucket-name/startScript",
         |  "jupyterUserScriptUri" : "gs://bucket-name/userScript",
         |  "jupyterStartUserScriptUri" : "gs://bucket-name/startScript",
         |  "errors" : [
