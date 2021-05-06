@@ -7,7 +7,7 @@ import java.util.concurrent.TimeoutException
 import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
 import cats.effect.implicits._
-import cats.effect.{ConcurrentEffect, ContextShift, IO, Timer}
+import cats.effect.{ConcurrentEffect, ContextShift, Timer}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Disk
@@ -16,6 +16,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
   ComputePollOperation,
@@ -649,6 +650,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private[monitor] def deleteGalaxyPostgresDiskOnlyInGoogle(project: GoogleProject,
                                                             zone: ZoneName,
                                                             appName: AppName,
+                                                            namespaceName: NamespaceName,
                                                             dataDiskName: DiskName)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -659,7 +661,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- logger.info(ctx.loggingCtx)(
         s"Beginning postres disk deletion for app ${appName.value} in project ${project.value}"
       )
-      operation <- googleDiskService.deleteDisk(project, zone, gkeInterp.getGalaxyPostgresDiskName(dataDiskName))
+      operation <- gkeInterp.deleteGalaxyPostgresDisk(dataDiskName, namespaceName, project, zone)
       whenDone = logger.info(ctx.loggingCtx)(
         s"Completed postgres disk deletion for app ${appName.value} in project ${project.value}"
       )
@@ -889,13 +891,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       task = for {
         // we record the last disk detach timestamp here, before it is removed from galaxy
         // this is needed before we can delete disks
-        postgresOriginalDetachTimestampOpt <- msg.diskId.flatTraverse { _ =>
-          googleDiskService
-            .getDisk(
-              msg.project,
-              zone,
-              gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.disk.get.name)
-            )
+        postgresOriginalDetachTimestampOpt <- dbApp.app.appResources.disk.flatTraverse { d =>
+          gkeInterp
+            .getGalaxyPostgresDisk(d.name, dbApp.app.appResources.namespace.name, msg.project, zone)
             .map(_.map(_.getLastDetachTimestamp))
         }
 
@@ -922,18 +920,17 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           }
 
         // detach/delete disk when we need to delete disk
-        _ <- logger.info("Below is the msg from Delete app hi")
-        _ <- logger.info(s"${msg.toString}")
+//        _ <- logger.info("Below is the msg from Delete app hi")
+//        _ <- logger.info(s"${msg.toString}")
         _ <- msg.diskId.traverse_ { diskId =>
           // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
           logger.info("!!!!!!!")
           logger.info(s"${dbApp.app.appResources.disk.get.name}")
           logger.info(s"${gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.disk.get.name)}")
-          val getPostgresDisk = googleDiskService.getDisk(
-            msg.project,
-            zone,
-            gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.disk.get.name)
-          )
+          val getPostgresDisk = gkeInterp.getGalaxyPostgresDisk(dbApp.app.appResources.disk.get.name,
+                                                                dbApp.app.appResources.namespace.name,
+                                                                msg.project,
+                                                                zone)
           val getDataDisk = dbApp.app.appResources.disk.flatTraverse { d =>
             googleDiskService
               .getDisk(
@@ -982,7 +979,11 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             }
 
             deletePostgresDisk = if (dbApp.app.appType == AppType.Galaxy)
-              deleteGalaxyPostgresDiskOnlyInGoogle(msg.project, zone, msg.appName, dbApp.app.appResources.disk.get.name)
+              deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
+                                                   zone,
+                                                   msg.appName,
+                                                   dbApp.app.appResources.namespace.name,
+                                                   dbApp.app.appResources.disk.get.name)
                 .adaptError {
                   case e =>
                     PubsubKubernetesError(

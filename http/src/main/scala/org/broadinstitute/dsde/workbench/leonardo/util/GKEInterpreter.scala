@@ -8,7 +8,7 @@ import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.cloud.compute.v1.Disk
+import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.container.v1._
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
   tracedRetryF,
   DiskName,
+  GoogleDiskService,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
@@ -41,8 +42,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
-
 import java.util.Base64
+
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -56,6 +59,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   appDao: AppDAO[F],
   credentials: GoogleCredentials,
   googleIamDAO: GoogleIamDAO,
+  googleDiskService: GoogleDiskService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
   blocker: Blocker,
   nodepoolLock: KeyLock[F, KubernetesClusterId]
@@ -831,6 +835,47 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
   private[leonardo] def getGalaxyPostgresDiskName(dataDiskName: DiskName): DiskName =
     DiskName(s"${dataDiskName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
+
+  private[leonardo] def getOldStyleGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
+    DiskName(s"${namespaceName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
+
+  private[leonardo] def getGalaxyPostgresDisk(diskName: DiskName,
+                                              namespaceName: NamespaceName,
+                                              project: GoogleProject,
+                                              zone: ZoneName)(implicit traceId: Ask[F, AppContext]): F[Option[Disk]] =
+    for {
+      postgresDiskOpt <- googleDiskService
+        .getDisk(
+          project,
+          zone,
+          getGalaxyPostgresDiskName(diskName)
+        )
+      res <- postgresDiskOpt match {
+        case Some(disk) => F.pure(Some(disk))
+        case None =>
+          googleDiskService.getDisk(project, zone, getOldStyleGalaxyPostgresDiskName(namespaceName))
+      }
+    } yield res
+
+  private[leonardo] def deleteGalaxyPostgresDisk(
+    diskName: DiskName,
+    namespaceName: NamespaceName,
+    project: GoogleProject,
+    zone: ZoneName
+  )(implicit traceId: Ask[F, AppContext]): F[Option[Operation]] =
+    for {
+      postgresDiskOpt <- googleDiskService
+        .deleteDisk(
+          project,
+          zone,
+          getGalaxyPostgresDiskName(diskName)
+        )
+      res <- postgresDiskOpt match {
+        case Some(operation) => F.pure(Some(operation))
+        case None =>
+          googleDiskService.deleteDisk(project, zone, getOldStyleGalaxyPostgresDiskName(namespaceName))
+      }
+    } yield res
 
   private[util] def installNginx(dbCluster: KubernetesCluster,
                                  googleCluster: Cluster)(implicit ev: Ask[F, AppContext]): F[IP] =
