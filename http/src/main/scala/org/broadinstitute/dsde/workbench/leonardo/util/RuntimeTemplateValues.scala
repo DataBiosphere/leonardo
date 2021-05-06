@@ -149,7 +149,7 @@ object RuntimeTemplateValuesConfig {
                   useGceStartupScript: Boolean): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
-      false, //TODO: Justin's front leo will populate this properly
+      true, //TODO: Justin's front leo will populate this properly
       runtime.asyncRuntimeFields.map(_.stagingBucket),
       runtime.runtimeImages,
       initBucketName,

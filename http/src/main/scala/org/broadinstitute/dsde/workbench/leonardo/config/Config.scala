@@ -169,6 +169,7 @@ object Config {
     config =>
       ClusterResourcesConfig(
         config.as[RuntimeResource]("initScript"),
+        config.getAs[RuntimeResource]("cloudInit"),
         config.as[RuntimeResource]("startupScript"),
         config.as[RuntimeResource]("shutdownScript"),
         config.as[RuntimeResource]("jupyterDockerCompose"),

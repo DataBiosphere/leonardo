@@ -67,36 +67,40 @@ export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
+GPU_ENABLED=$(gpuEnabled)
 
 function failScriptIfError() {
+  gsutilCmd="${1:-gsutil}"
   if [ $EXIT_CODE -ne 0 ]; then
     echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}"
-    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+    retry 3 ${gsutilCmd} -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
     exit $EXIT_CODE
   else
-    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+    retry 3 ${gsutilCmd} -h "x-goog-meta-passed":"true" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
   fi
 }
 
-function validateCert () {
+function validateCert() {
   certFileDirectory=$1
+  gsutilCmd=$2
+  dockerCompose=$3
   ## This helps when we need to rotate certs.
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
 
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
   if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
-    gsutil cp ${SERVER_CRT} ${certFileDirectory}
-    gsutil cp ${SERVER_KEY} ${certFileDirectory}
-    gsutil cp ${ROOT_CA} ${certFileDirectory}
+    ${gsutilCmd} cp ${SERVER_CRT} ${certFileDirectory}
+    ${gsutilCmd} cp ${SERVER_KEY} ${certFileDirectory}
+    ${gsutilCmd} cp ${ROOT_CA} ${certFileDirectory}
 
     if [ "$certFileDirectory" = "/etc" ]
     then
-      docker-compose -f /etc/proxy-docker-compose.yaml restart &> start_output.txt || EXIT_CODE=$?
+      ${dockerCompose} -f /etc/proxy-docker-compose.yaml restart &> start_output.txt || EXIT_CODE=$?
     else
-      docker-compose -f /etc/proxy-docker-compose-gce.yaml restart &> start_output.txt || EXIT_CODE=$?
+      ${dockerCompose} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> start_output.txt || EXIT_CODE=$?
     fi
 
-    failScriptIfError
+    failScriptIfError ${gsutilCmd}
   fi
 }
 
@@ -105,15 +109,42 @@ SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
-FILE=/etc/certs/jupyter-server.crt
+FILE=/var/certs/jupyter-server.crt
 if [ -f "$FILE" ]
 then
-    validateCert /etc/certs
+    CERT_DIRECTORY='/var/certs'
+    DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
+    GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
+    GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
+    DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
+
+    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
 else
-    validateCert /certs
+    CERT_DIRECTORY='/certs'
+    DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
+    GSUTIL_CMD='gsutil'
+    GCLOUD_CMD='gcloud'
+    DOCKER_COMPOSE='docker-compose'
+
+    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
 fi
 
-JUPYTER_HOME=/etc/jupyter
+JUPYTER_HOME=/var/jupyter
+
+# Make this run conditionally
+if [ "${GPU_ENABLED}" == "true" ] ; then
+  log 'Installing GPU driver...'
+  cos-extensions install gpu
+  mount --bind /var/lib/nvidia /var/lib/nvidia
+  mount -o remount,exec /var/lib/nvidia
+
+  # Containers will usually restart just fine. But when gpu is enabled,
+  # jupyter container will fail to start until the appropriate volume/device exists.
+  # Hence restart jupyter container here
+  docker restart jupyter-server
+  retry 3 docker exec -d jupyter-server /etc/jupyter/scripts/run-jupyter.sh ${NOTEBOOKS_DIR}
+fi
+
 
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
@@ -123,11 +154,11 @@ fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then
     # Run welder-docker-compose
-    gcloud auth configure-docker
-    retry 5 docker-compose -f /etc/welder-docker-compose.yaml pull
-    docker-compose -f /etc/welder-docker-compose.yaml stop
-    docker-compose -f /etc/welder-docker-compose.yaml rm -f
-    docker-compose -f /etc/welder-docker-compose.yaml up -d &> start_output.txt || EXIT_CODE=$?
+    ${GCLOUD_CMD} auth configure-docker
+    retry 5 ${DOCKER_COMPOSE} -f ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder-docker-compose.yaml pull
+    ${DOCKER_COMPOSE} -f ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder-docker-compose.yaml stop
+    ${DOCKER_COMPOSE} -f ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder-docker-compose.yaml rm -f
+    ${DOCKER_COMPOSE} -f ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder-docker-compose.yaml up -d &> start_output.txt || EXIT_CODE=$?
 
     failScriptIfError
 fi

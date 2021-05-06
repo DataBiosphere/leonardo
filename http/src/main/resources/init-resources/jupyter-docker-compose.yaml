@@ -8,7 +8,7 @@ services:
     container_name: "${JUPYTER_SERVER_NAME}"
     image: "${JUPYTER_DOCKER_IMAGE}"
     # Override entrypoint with a placeholder to keep the container running indefinitely.
-    # The cluster init script will run some scripts as root and then start pyspark as
+    # The runtime init script will run some scripts as root and then start pyspark as
     # jupyter-user via docker exec.
     entrypoint: "tail -f /dev/null"
     network_mode: host
@@ -47,7 +47,7 @@ services:
       NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
       MEM_LIMIT: "${MEM_LIMIT}"
     env_file:
-      - /etc/google_application_credentials.env
-      - /etc/custom_env_vars.env
+      - /var/google_application_credentials.env
+      - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container

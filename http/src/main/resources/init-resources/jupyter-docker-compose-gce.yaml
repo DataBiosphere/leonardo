@@ -10,7 +10,8 @@ services:
     # Override entrypoint with a placeholder to keep the container running indefinitely.
     # The cluster init script will run some scripts as root and then start pyspark as
     # jupyter-user via docker exec.
-    entrypoint: "tail -f /dev/null"
+    # -F will follow the log when the log is created.
+    entrypoint: "tail -F /home/jupyter/notebooks/jupyter.log"
     ports:
       - "8000:8000"
     networks:
@@ -32,8 +33,8 @@ services:
       PIP_TARGET: "${NOTEBOOKS_DIR}/packages"
       R_LIBS: "${NOTEBOOKS_DIR}/packages"
     env_file:
-      - /etc/google_application_credentials.env
-      - /etc/custom_env_vars.env
+      - /var/google_application_credentials.env
+      - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
 networks:

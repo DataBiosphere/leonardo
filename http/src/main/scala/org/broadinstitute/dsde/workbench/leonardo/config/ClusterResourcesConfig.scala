@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 case class ClusterResourcesConfig(initScript: RuntimeResource,
+                                  cloudInit: Option[RuntimeResource],
                                   startupScript: RuntimeResource,
                                   shutdownScript: RuntimeResource,
                                   jupyterDockerCompose: RuntimeResource,

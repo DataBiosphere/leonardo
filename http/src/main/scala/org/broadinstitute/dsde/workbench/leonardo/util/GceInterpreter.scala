@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.config.ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbReference}
@@ -108,6 +109,14 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .drain
 
       initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.initScript.asString))
+      cloudInit <- F
+        .fromOption(config.clusterResourcesConfig.cloudInit,
+                    new LeoException("No cloud init file defined for GCE VM.", traceId = Some(ctx.traceId)))
+      cloudInitFileContent = scala.io.Source
+        .fromResource(s"${ClusterResourcesConfig.basePath}/${cloudInit.asString}")
+        .getLines()
+        .toList
+        .mkString("\n")
 
       //TODO: update bootDiskSize
       bootDiskSize <- params.runtimeConfig match {
@@ -217,7 +226,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                                  config.clusterResourcesConfig)
         .compile
         .drain
-
       instanceBuilder = Instance
         .newBuilder()
         .setName(params.runtimeProjectAndName.runtimeName.asString)
@@ -246,6 +254,22 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
               Items.newBuilder
                 .setKey(userScriptStartupOutputUriMetadataKey)
                 .setValue(templateValues.jupyterStartUserScriptOutputUri)
+                .build()
+            )
+            .addItems(
+              Items.newBuilder
+                .setKey("user-data")
+                .setValue(
+                  cloudInitFileContent
+                ) // cloud init log can be found on the instance at /var/log/cloud-init-output.log
+                .build()
+            )
+            .addItems(
+              Items.newBuilder
+                .setKey("cos-update-strategy")
+                .setValue(
+                  "update_disabled"
+                ) // `cos-extension install gpu` is only supported on LTS versions. Auto update will update the instance to non lts version
                 .build()
             )
             .addItems(
