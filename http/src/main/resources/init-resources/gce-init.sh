@@ -510,12 +510,12 @@ OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
 
   # If a user script was specified, copy it into the docker container and execute it.
   if [ ! -z "$USER_SCRIPT_URI" ] ; then
-    apply_user_script $RSTUDIO_SERVER_NAME $JUPYTER_HOME
+    apply_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
   fi
 
   # If a start user script was specified, copy it into the docker container for consumption during startups.
   if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
-    apply_start_user_script $RSTUDIO_SERVER_NAME $RS#!/usr/bin/env bash
+    apply_start_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
   fi
 
   # Start RStudio server
