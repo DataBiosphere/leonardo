@@ -941,6 +941,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(ctx.loggingCtx)(
         s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
+      postgresDiskOpt <- for {
+        disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, nfsDisk.googleProject, nfsDisk.zone)
+      } yield disk.map(x => DiskName(x.getName))
+
+      postgresDisk <- F.fromOption(
+        postgresDiskOpt,
+        AppCreationException(s"No postgres disk found in google for app ${appName.value} ", traceId = Some(ctx.traceId))
+      )
 
       chartValues = buildGalaxyChartOverrideValuesString(
         appName,
@@ -952,6 +960,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         kubernetesServiceAccount,
         namespaceName,
         nfsDisk,
+        postgresDisk,
         galaxyRestore
       )
 
@@ -1204,6 +1213,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          ksa: ServiceAccountName,
                                                          namespaceName: NamespaceName,
                                                          nfsDisk: PersistentDisk,
+                                                         postgresDiskName: DiskName,
                                                          galaxyRestore: Option[GalaxyRestore]): List[String] = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -1278,9 +1288,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
       raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
       raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword}""",
-      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${getGalaxyPostgresDiskName(
-        nfsDisk.name
-      ).value}""",
+      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName}""",
       raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
       raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
@@ -1405,7 +1413,7 @@ final case class NodepoolStartException(nodepoolId: NodepoolLeoId) extends AppPr
   override def getMessage: String = s"Failed to poll nodepool start operation to completion for nodepool $nodepoolId"
 }
 
-final case class AppCreationException(message: String) extends AppProcessingException {
+final case class AppCreationException(message: String, traceId: Option[TraceId] = None) extends AppProcessingException {
   override def getMessage: String = message
 }
 

@@ -94,6 +94,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       ServiceAccountName("app1-galaxy-ksa"),
       NamespaceName("ns"),
       savedDisk1,
+      DiskName(savedDisk1.name.value), //TODO EMILY add the galaxy disk suffix here
       None
     )
 
@@ -113,6 +114,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       ServiceAccountName("app1-galaxy-ksa"),
       NamespaceName("ns"),
       savedDisk1,
+      DiskName(savedDisk1.name.value), //TODO EMILY add suffix
       Some(
         GalaxyRestore(PvcId("galaxy-pvc-id"), PvcId("cvmfs-pvc-id"), AppId(123))
       )
