@@ -153,7 +153,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                             diskResult.disk.id,
                             bootDiskSize,
                             gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
-                            Some(GpuConfig(GpuType.NvidiaTeslaP4, 1)) //TODO, Justin's ticket will take care of this
+                            None // Some(GpuConfig(GpuType.NvidiaTeslaP4, 1)) TODO, Justin's ticket will take care of this
                           ): RuntimeConfigInCreateRuntimeMessage
                         )
                   }
