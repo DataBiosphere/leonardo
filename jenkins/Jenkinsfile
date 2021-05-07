@@ -144,7 +144,7 @@ pipeline {
             description: "Specify along with USE_CUSTOM_IMAGE_IDENTIFIER to build the VM image with a specific name")
         string(name: "GOOGLE_PROJECT", defaultValue: "broad-dsp-gcr-public",
             description: "The google project to use")
-        string(name: "DATAPROC_IMAGE_BUCKET", defaultValue: "gs://leo-dataproc-image",
+        string(name: "DATAPROC_IMAGE_BUCKET", defaultValue: "gs://leo-dataproc-image-creation-logs",
             description: "The path for the bucket where the custom Dataproc image generation logs will be stored")
         string(name: "GCE_SNAPSHOT_BUCKET", defaultValue: "gs://leo-gce-snapshot-creation-logs",
             description: "The path for the bucket where the custom GCE snapshot generation logs will be stored")
@@ -224,11 +224,11 @@ pipeline {
                         ))
                     }
 
-                    String buildDisplayName = "#${BUILD_NUMBER}: $OUTPUT_BASE_NAME"
+                    String buildDisplayName = "#${BUILD_NUMBER}: ${OUTPUT_BASE_NAME}"
                     if (GENERATE_DATAPROC_IMAGE == "true") {
                         buildDisplayName += "-dataproc-$DATAPROC_VERSIONS"
                     }
-                    if (GENERATE_GCE_IMAGE == "true") {
+                    if (GENERATE_GCE_SNAPSHOT == "true") {
                         buildDisplayName += "-gce-cos"
                     }
 
@@ -278,7 +278,7 @@ pipeline {
 
                                     }
 
-                                    if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
+                                    if (GENERATE_GCE_SNAPSHOT == "true" && gceImages.contains(image)) {
                                         if (image != 'terra-jupyter-aou'){
                                             println("Using version $version for $image in this build of custom GCE images")
                                             sh """
@@ -299,7 +299,7 @@ pipeline {
                                 """
                             }
 
-                            if (GENERATE_GCE_IMAGE == "true") {
+                            if (GENERATE_GCE_SNAPSHOT == "true") {
                                 println("Printing any changed versions in prepare_gce_snapshot.sh:\n")
                                 sh """
                                     git diff jenkins/gce-custom-images/prepare_gce_snapshot.sh
@@ -340,7 +340,7 @@ pipeline {
                                 }
                             }
 
-                            if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
+                            if (GENERATE_GCE_SNAPSHOT == "true" && gceImages.contains(image)) {
                                 if (image != 'terra-jupyter-aou') {
                                     println("Using version $version for $image in this build of custom GCE images")
                                     sh """
@@ -361,7 +361,7 @@ pipeline {
                             """
                         }
 
-                        if (GENERATE_GCE_IMAGE == "true") {
+                        if (GENERATE_GCE_SNAPSHOT == "true") {
                             sh """
                                 printf 'Printing any changed versions in prepare_gce_snapshot.sh:\\n\\n'
                                 git diff jenkins/gce-custom-images/prepare_gce_snapshot.sh
@@ -423,7 +423,7 @@ pipeline {
                     }
 
                     stage('Run Daisy to generate GCE snapshot') {
-                        when { expression { GENERATE_GCE_IMAGE == "true" } }
+                        when { expression { GENERATE_GCE_SNAPSHOT == "true" } }
                             steps {
                                 script {
                                     String daisyImage = "gcr.io/compute-image-tools/daisy:release"
@@ -457,44 +457,44 @@ pipeline {
                     }
                 }
         }
-
-        stage('Update custom leo images in conf') {
-            when { expression { !shouldAbortBuild } }
-                steps {
-                    script {
-                        for (String configFile: configPaths) {
-                            if (GENERATE_DATAPROC_IMAGE == "true") {
-                                for (String dp_version : DATAPROC_VERSIONS.trim().split(' ')) {
-                                    def dp_version_formatted = dp_version.replace(".", "-")
-                                    sh(
-                                        script: """
-                                            sed -i "s/$customDataprocImageBaseName-$dp_version_formatted.*/$customDataprocImageBaseName-$dp_version_formatted-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
-                                        """
-                                    )
-                                }
-                            }
-
-                            if (GENERATE_GCE_IMAGE == "true") {
-                                sh(
-                                    script: """
-                                        sed -i "s/$customGceSnapshotBaseName-.*/$customGceSnapshotBaseName-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
-                                    """
-                                )
-                            }
-                        }
-                    }
-
-                    sshagent(['jenkins-ssh-github']) {
-                        sh """
-                            git checkout -b $branchName$imageID
-                            git commit -m "automated custom image hash updates for image ID $imageID"
-                            git push origin $branchName$imageID
-                        """
-                    }
-
-                }
-        }
-
+        // TODO: Don't forget to uncomment out before merging
+//        stage('Update custom leo images in conf') {
+//            when { expression { !shouldAbortBuild } }
+//                steps {
+//                    script {
+//                        for (String configFile: configPaths) {
+//                            if (GENERATE_DATAPROC_IMAGE == "true") {
+//                                for (String dp_version : DATAPROC_VERSIONS.trim().split(' ')) {
+//                                    def dp_version_formatted = dp_version.replace(".", "-")
+//                                    sh(
+//                                        script: """
+//                                            sed -i "s/$customDataprocImageBaseName-$dp_version_formatted.*/$customDataprocImageBaseName-$dp_version_formatted-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
+//                                        """
+//                                    )
+//                                }
+//                            }
+//
+//                            if (GENERATE_GCE_SNAPSHOT == "true") {
+//                                sh(
+//                                    script: """
+//                                        sed -i "s/$customGceSnapshotBaseName-.*/$customGceSnapshotBaseName-$imageID\\"/" $configFile; git add $configFile || true; git diff $configFile
+//                                    """
+//                                )
+//                            }
+//                        }
+//                    }
+//
+//                    sshagent(['jenkins-ssh-github']) {
+//                        sh """
+//                            git checkout -b $branchName$imageID
+//                            git commit -m "automated custom image hash updates for image ID $imageID"
+//                            git push origin $branchName$imageID
+//                        """
+//                    }
+//
+//                }
+//        }
+//
 //        stage('Create PR') {
 //            when { expression { !shouldAbortBuild } }
 //                steps {
