@@ -3,7 +3,9 @@
 set -e -x
 
 #
-# This script sets up a custom GCE snapshot for VMs provisioned by Leonardo.
+# This script is used to cache various container images in a snapshot that is then referenced
+# by Leonardo while creating new VMs on behalf of clients so the creation time is shorter.
+#
 # The service account used to run the parent script must have the following permissions:
 # TODO: Verify the list below is correct when the snapshot creation is Jenkinsified
 # [  "roles/compute.admin",
@@ -15,6 +17,7 @@ set -e -x
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
+# TODO Would be nice to read the image URLs below from automation/src/test/resources/reference.conf
 terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.19"
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.1.1"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:1.0.13"
