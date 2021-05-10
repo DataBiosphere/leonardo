@@ -941,12 +941,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(ctx.loggingCtx)(
         s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
-      postgresDiskOpt <- for {
+      postgresDiskNameOpt <- for {
         disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, nfsDisk.googleProject, nfsDisk.zone)
       } yield disk.map(x => DiskName(x.getName))
 
-      postgresDisk <- F.fromOption(
-        postgresDiskOpt,
+      postgresDiskName <- F.fromOption(
+        postgresDiskNameOpt,
         AppCreationException(s"No postgres disk found in google for app ${appName.value} ", traceId = Some(ctx.traceId))
       )
 
@@ -960,7 +960,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         kubernetesServiceAccount,
         namespaceName,
         nfsDisk,
-        postgresDisk,
+        postgresDiskName,
         galaxyRestore
       )
 
@@ -1288,7 +1288,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
       raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
       raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword}""",
-      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName}""",
+      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName.value}""",
       raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
       raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
