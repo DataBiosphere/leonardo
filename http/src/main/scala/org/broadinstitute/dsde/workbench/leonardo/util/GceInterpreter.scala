@@ -352,12 +352,19 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           )
         )
         metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
-        _ <- googleComputeService.addInstanceMetadata(
-          params.runtimeAndRuntimeConfig.runtime.googleProject,
-          zoneParam,
-          InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
-          metadata
-        )
+        _ <- googleComputeService
+          .addInstanceMetadata(
+            params.runtimeAndRuntimeConfig.runtime.googleProject,
+            zoneParam,
+            InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
+            metadata
+          )
+          .handleErrorWith {
+            case e: org.broadinstitute.dsde.workbench.model.WorkbenchException
+                if e.getMessage.contains("Instance not found") =>
+              F.unit
+            case e => F.raiseError[Unit](e)
+          }
         op <- googleComputeService
           .deleteInstance(params.runtimeAndRuntimeConfig.runtime.googleProject,
                           zoneParam,

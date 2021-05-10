@@ -139,10 +139,10 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
             }
           )
       )
-      welderImage = RuntimeImage(Welder, newWelderImageUrl, now)
+      welderImage = RuntimeImage(Welder, newWelderImageUrl, None, now)
 
       _ <- dbRef.inTransaction {
-        clusterQuery.updateWelder(runtime.id, RuntimeImage(Welder, newWelderImageUrl, now), now)
+        clusterQuery.updateWelder(runtime.id, RuntimeImage(Welder, newWelderImageUrl, None, now), now)
       }
 
       newRuntime = runtime.copy(welderEnabled = true,

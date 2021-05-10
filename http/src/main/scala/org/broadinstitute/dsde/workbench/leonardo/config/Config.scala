@@ -150,14 +150,13 @@ object Config {
       config.getString("cryptoDetectorContainerName"),
       config.getString("jupyterImageRegex"),
       config.getString("rstudioImageRegex"),
-      config.getString("broadDockerhubImageRegex")
+      config.getString("broadDockerhubImageRegex"),
+      Paths.get(config.getString("defaultJupyterUserHome"))
     )
   }
 
   implicit private val welderConfigReader: ValueReader[WelderConfig] = ValueReader.relative { config =>
     WelderConfig(
-      Paths.get(config.getString("welderEnabledNotebooksDir")),
-      Paths.get(config.getString("welderDisabledNotebooksDir")),
       config.getAs[String]("deployWelderLabel"),
       config.getAs[String]("updateWelderLabel"),
       config.getAs[String]("deployWelderCutoffDate"),
