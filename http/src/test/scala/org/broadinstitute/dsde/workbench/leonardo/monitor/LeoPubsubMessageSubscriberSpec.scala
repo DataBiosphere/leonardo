@@ -1168,6 +1168,7 @@ class LeoPubsubMessageSubscriberSpec
                                         MockAppDAO,
                                         credentials,
                                         iamDAOKubernetes,
+                                        MockGoogleDiskService,
                                         MockAppDescriptorDAO,
                                         blocker,
                                         lock)
@@ -1331,6 +1332,7 @@ class LeoPubsubMessageSubscriberSpec
                                          MockAppDAO,
                                          credentials,
                                          iamDAOKubernetes,
+                                         MockGoogleDiskService,
                                          MockAppDescriptorDAO,
                                          blocker,
                                          lock)
@@ -1390,6 +1392,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockAppDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   MockGoogleDiskService,
                                    MockAppDescriptorDAO,
                                    blocker,
                                    lock)
@@ -1500,6 +1503,7 @@ class LeoPubsubMessageSubscriberSpec
                                          MockAppDAO,
                                          credentials,
                                          iamDAO,
+                                         MockGoogleDiskService,
                                          MockAppDescriptorDAO,
                                          blocker,
                                          lock)
@@ -1602,6 +1606,7 @@ class LeoPubsubMessageSubscriberSpec
                                         new MockAppDAO(false),
                                         credentials,
                                         iamDAOKubernetes,
+                                        MockGoogleDiskService,
                                         MockAppDescriptorDAO,
                                         blocker,
                                         lock)
@@ -1769,6 +1774,7 @@ class LeoPubsubMessageSubscriberSpec
                            MockAppDAO,
                            credentials,
                            iamDAOKubernetes,
+                           MockGoogleDiskService,
                            MockAppDescriptorDAO,
                            blocker,
                            lock)

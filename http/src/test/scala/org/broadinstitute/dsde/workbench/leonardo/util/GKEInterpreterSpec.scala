@@ -3,7 +3,6 @@ package util
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
-import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
@@ -17,7 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
-
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MockGoogleDiskService}
 import java.nio.file.Files
 import java.util.Base64
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -41,6 +40,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            MockAppDAO,
                            credentials,
                            googleIamDao,
+                           MockGoogleDiskService,
                            MockAppDescriptorDAO,
                            blocker,
                            nodepoolLock.unsafeRunSync())
