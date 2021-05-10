@@ -38,7 +38,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
     res shouldBe (Right(expected))
   }
 
-  it should "decode GCEConfig properly" in {
+  it should "decode GCEConfig without GPU properly" in {
     val inputString =
       """
         |{
@@ -54,7 +54,34 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       MachineTypeName("n1-standard-8"),
       DiskSize(500),
       None,
-      ZoneName("us-west2-b")
+      ZoneName("us-west2-b"),
+      None
+    )
+    res shouldBe (Right(expected))
+  }
+
+  it should "decode GCEConfig with GPU properly" in {
+    val inputString =
+      """
+        |{
+        |   "machineType": "n1-standard-8",
+        |   "diskSize": 500,
+        |   "cloudService": "GCE",
+        |   "zone": "us-west2-b",
+        |   "gpuConfig": {
+        |     "gpuType": "nvidia-tesla-t4"
+        |     "numOfGpus": 2
+        |   }
+        |}
+        |""".stripMargin
+
+    val res = decode[RuntimeConfig](inputString)
+    val expected = RuntimeConfig.GceConfig(
+      MachineTypeName("n1-standard-8"),
+      DiskSize(500),
+      None,
+      ZoneName("us-west2-b"),
+      Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
     )
     res shouldBe (Right(expected))
   }
@@ -76,7 +103,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       MachineTypeName("n1-standard-8"),
       None,
       DiskSize(50),
-      ZoneName("us-west2-b")
+      ZoneName("us-west2-b"),
+      None
     )
     res shouldBe (Right(expected))
   }
@@ -108,14 +136,22 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |   "machineType": "n1-standard-8",
         |   "persistentDiskId": 50,
         |   "bootDiskSize": 50,
-        |   "zone": "us-west2-b"
+        |   "zone": "us-west2-b",
+        |   "gpuConfig": {
+        |     "gpuType": "nvidia-tesla-t4",
+        |     "numOfGpus": 2
+        |   }
         |}
         |""".stripMargin
 
     val res = decode[RuntimeConfig](inputString)
     res shouldBe Right(
       RuntimeConfig
-        .GceWithPdConfig(MachineTypeName("n1-standard-8"), Some(DiskId(50)), DiskSize(50), ZoneName("us-west2-b"))
+        .GceWithPdConfig(MachineTypeName("n1-standard-8"),
+                         Some(DiskId(50)),
+                         DiskSize(50),
+                         ZoneName("us-west2-b"),
+                         Some(GpuConfig(GpuType.NvidiaTeslaT4, 2)))
     )
   }
 

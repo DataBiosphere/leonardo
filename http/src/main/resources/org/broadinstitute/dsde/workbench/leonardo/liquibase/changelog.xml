@@ -76,4 +76,5 @@
     <include file="changesets/20210414_add_home_dir.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210505_rename_jupyter_user_script_column.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210429_rename_vm.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20210517_add_gpu_config.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

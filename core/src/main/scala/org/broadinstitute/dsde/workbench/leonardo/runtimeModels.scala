@@ -232,7 +232,8 @@ object RuntimeConfig {
     bootDiskSize: Option[
       DiskSize
     ], //This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
-    zone: ZoneName
+    zone: ZoneName,
+    gpuConfig: Option[GpuConfig] //This is optional since not all runtimes use gpus
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -241,7 +242,8 @@ object RuntimeConfig {
   final case class GceWithPdConfig(machineType: MachineTypeName,
                                    persistentDiskId: Option[DiskId],
                                    bootDiskSize: DiskSize,
-                                   zone: ZoneName)
+                                   zone: ZoneName,
+                                   gpuConfig: Option[GpuConfig])
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }

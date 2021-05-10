@@ -249,6 +249,12 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         _.toString,
         s => Uri.fromString(s).getOrElse(throw ColumnDecodingException(s"invalid uri $s"))
       )
+    implicit val gpuTypeColumnType: BaseColumnType[GpuType] =
+      MappedColumnType.base[GpuType, String](
+        _.asString,
+        s => GpuType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid gpuType $s"))
+      )
+
   }
 
   case class ColumnDecodingException(message: String) extends Exception

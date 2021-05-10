@@ -8,7 +8,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
   "RuntimeTemplateValues" should "generate correct template values from a Runtime" in {
     val config = RuntimeTemplateValuesConfig.fromRuntime(
-      CommonTestData.testCluster,
+      RuntimeAndRuntimeConfig(CommonTestData.testCluster, CommonTestData.gceRuntimeConfigWithGpu),
       Some(CommonTestData.initBucketName),
       None,
       CommonTestData.imageConfig,
@@ -39,6 +39,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.disableDelocalization shouldBe "false"
       result.googleClientId shouldBe "clientId"
       result.googleProject shouldBe CommonTestData.testCluster.googleProject.value
+      result.gpuEnabled shouldBe "true"
       result.jupyterCombinedExtensions shouldBe ""
       result.jupyterDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                    GcsObjectName("test-jupyter-docker-compose.yaml")).toUri

@@ -317,7 +317,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       name1,
       project,
       auditInfo.copy(createdDate = date, dateAccessed = date),
-      defaultGceRuntimeConfig,
+      gceRuntimeConfigWithGpu,
       new URL("https://leo.org/proxy"),
       RuntimeStatus.Running,
       Map("foo" -> "bar"),
@@ -341,7 +341,11 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |    "diskSize" : 500,
         |    "cloudService" : "GCE",
         |    "bootDiskSize" : 50,
-        |    "zone" : "us-west2-b"
+        |    "zone" : "us-west2-b",
+        |    "gpuConfig" : {
+        |      "gpuType" : "nvidia-tesla-t4",
+        |      "numOfGpus" : 2
+        |    }
         |  },
         |  "proxyUrl" : "https://leo.org/proxy",
         |  "status" : "Running",
