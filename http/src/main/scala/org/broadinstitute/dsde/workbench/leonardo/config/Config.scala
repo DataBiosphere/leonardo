@@ -594,6 +594,7 @@ object Config {
   implicit private val appDiskConfigReader: ValueReader[GalaxyDiskConfig] = ValueReader.relative { config =>
     GalaxyDiskConfig(
       config.as[String]("nfsPersistenceName"),
+      config.as[DiskSize]("nfsMinimumDiskSizeGB"),
       config.as[String]("postgresPersistenceName"),
       config.as[String]("postgresDiskNameSuffix"),
       config.as[DiskSize]("postgresDiskSizeGB"),
@@ -646,12 +647,15 @@ object Config {
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
-  val leoKubernetesConfig = LeoKubernetesConfig(kubeServiceAccountProviderConfig,
-                                                gkeClusterConfig,
-                                                gkeNodepoolConfig,
-                                                gkeIngressConfig,
-                                                gkeGalaxyAppConfig,
-                                                ConfigReader.appConfig.persistentDisk)
+  val leoKubernetesConfig = LeoKubernetesConfig(
+    kubeServiceAccountProviderConfig,
+    gkeClusterConfig,
+    gkeNodepoolConfig,
+    gkeIngressConfig,
+    gkeGalaxyAppConfig,
+    gkeGalaxyDiskConfig,
+    ConfigReader.appConfig.persistentDisk
+  )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val vpcConfig = config.as[VPCConfig]("vpc")
