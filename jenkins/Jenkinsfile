@@ -106,8 +106,8 @@ LinkedHashMap<String,String> getVersionMap(Set<String> imageNames, String config
 }
 
 String getChangeDescription(LinkedHashMap<String,String> versionMap) {
-    String title = "[jenkins-generated-pr] Automated custom image hash update"
-    String body = "$title\n These are the images that are baked into this custom image:\n"
+    String title = "[jenkins-generated-pr] Automated custom image and snapshot hash update"
+    String body = "$title\n These are the images that are baked into this custom image and/or snapshot:\n"
     String version = ""
     println("version map in getChangeDescription: " + versionMap.toString())
     for (String image in versionMap.keySet()) {
