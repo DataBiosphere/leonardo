@@ -36,7 +36,7 @@ String[] configPaths = []
 
 boolean shouldAbortBuild = false
 LinkedHashMap<String, String> imageToParamMap = [:]
-String branchName = "automated-custom-image-hash-update-"
+String branchName = "automated-custom-image-and-snapshot-hash-update-"
 
 String getShortHash(hash) {
     String shortHash = hash.substring(0,7)
