@@ -136,8 +136,7 @@ pipeline {
     }
 
     parameters {
-        // TODO: Don't forget to revert before merging
-        booleanParam(name: "GENERATE_DATAPROC_IMAGE", defaultValue: false)
+        booleanParam(name: "GENERATE_DATAPROC_IMAGE", defaultValue: true)
         booleanParam(name: "GENERATE_GCE_SNAPSHOT", defaultValue: true)
         string(name: "OUTPUT_BASE_NAME", defaultValue: "custom-leo",
             description: "The name to give the custom Dataproc image and GCE snapshot. This will be appended with a hyphen and the short version of the commit hash (first 7 characters). This should be changed only for testing purposes, as this script relies on the name here matching the name in leo .conf files.")
@@ -153,22 +152,18 @@ pipeline {
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.51-debian10",
             description: "A custom image will be build for each of these dataproc versions")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
-            description: "Check if you want to specify custom image versions below")
-        string(name: "terra_jupyter_base", defaultValue: "0.0.19")
-        string(name: "terra_jupyter_hail", defaultValue: "0.1.2")
-        string(name: "terra_jupyter_r", defaultValue: "1.0.13")
-        string(name: "terra_jupyter_python", defaultValue: "0.1.1")
-        string(name: "terra_jupyter_bioconductor", defaultValue: "1.0.13")
-        string(name: "terra_jupyter_gatk", defaultValue: "1.1.1")
-        string(name: "terra_jupyter_aou", defaultValue: "1.0.23")
-        string(name: "anvil_rstudio_bioconductor", defaultValue: "0.0.10")
-        string(name: "welder_server", defaultValue: "6cfad83",
-            description: "The tag of the welder image to pull in docker image build. Used in the prepare script. Please note this default is possibly an old hash.")
-        string(name: "openidc_proxy", defaultValue: "2.3.1_2",
-            description:"The tag of the openidc proxy image to pull in docker image build. Used in the prepare script.")
-//        string(name: "branch", defaultValue: "develop")
-        // TODO: Don't forget to revert before merging
-        string(name: "branch", defaultValue: "ky_ia_2633_gce_cos_image")
+            description: "Check only if you want to manually specify all of the custom image versions below.")
+        string(name: "terra_jupyter_base")
+        string(name: "terra_jupyter_hail")
+        string(name: "terra_jupyter_r")
+        string(name: "terra_jupyter_python")
+        string(name: "terra_jupyter_bioconductor")
+        string(name: "terra_jupyter_gatk")
+        string(name: "terra_jupyter_aou")
+        string(name: "anvil_rstudio_bioconductor")
+        string(name: "welder_server")
+        string(name: "openidc_proxy")
+        string(name: "branch", defaultValue: "develop")
     }
     stages {
         stage('Scan Terra docker images') {
@@ -255,9 +250,7 @@ pipeline {
             when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "false" } }
                 steps {
                     script {
-                        // TODO: Don't forget to revert before merging
-//                        def shouldUpdate = hasHashChanges(images, configPaths)
-                        def shouldUpdate = true
+                        def shouldUpdate = hasHashChanges(images, configPaths)
                         // Set variable to control if future steps get run
                         shouldAbortBuild = !shouldUpdate
                         versionMap = getVersionMap(images, configPaths)
@@ -459,7 +452,6 @@ pipeline {
                     }
                 }
         }
-        // TODO: Don't forget to uncomment out before merging
         stage('Update custom leo images in conf') {
             when { expression { !shouldAbortBuild } }
                 steps {
