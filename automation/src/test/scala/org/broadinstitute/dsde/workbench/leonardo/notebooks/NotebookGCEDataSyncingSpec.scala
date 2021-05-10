@@ -4,7 +4,6 @@ import java.io.File
 import java.math.BigInteger
 import java.security.MessageDigest
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -99,7 +98,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               logger.info(s"[playground mode] original local content is ${originalLocalContent}")
               val originalLocalContentSize: Int = originalLocalContent.size
 
-              originalRemoteContentSize shouldBe originalLocalContentSize
+              originalRemoteContentSize shouldBe originalLocalContentSize +- 1
 
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.SafeMode
