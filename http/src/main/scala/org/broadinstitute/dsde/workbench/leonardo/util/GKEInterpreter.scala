@@ -1240,7 +1240,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
       raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
       raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc""",
-      raw"""galaxy.persistence.size=200Gi"""
+      // Note Galaxy pvc claim is the nfs disk size minus 50G
+      raw"""galaxy.persistence.size=${(nfsDisk.size.gb - 50).toString}Gi"""
     ) ++ configs ++ galaxyRestoreSettings
   }
 

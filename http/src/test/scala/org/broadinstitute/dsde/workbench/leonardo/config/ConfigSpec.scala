@@ -108,7 +108,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
 
   it should "read GalaxyDiskConfig properly" in {
     val expectedResult =
-      GalaxyDiskConfig("nfs-disk", "postgres-disk", "gxy-postres-disk", DiskSize(10), BlockSize(4096))
+      GalaxyDiskConfig("nfs-disk", DiskSize(100), "postgres-disk", "gxy-postres-disk", DiskSize(10), BlockSize(4096))
     Config.gkeGalaxyDiskConfig shouldBe expectedResult
   }
 }
