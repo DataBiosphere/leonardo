@@ -127,7 +127,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                           gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize),
                           bootDiskSize,
                           gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
-                          None //TODO, Justin's ticket will take care of this
+                          gce.gpuConfig
                         ): RuntimeConfigInCreateRuntimeMessage
                       )
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
@@ -153,7 +153,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                             diskResult.disk.id,
                             bootDiskSize,
                             gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
-                            None // Some(GpuConfig(GpuType.NvidiaTeslaP4, 1)) TODO, Justin's ticket will take care of this
+                            gce.gpuConfig
                           ): RuntimeConfigInCreateRuntimeMessage
                         )
                   }
@@ -629,7 +629,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- ctx.ask
       msg <- (runtimeConfig, request) match {
-        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _),
+        case (RuntimeConfig.GceConfig(machineType, existngDiskSize, _, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
           for {
             targetDiskSize <- traverseIfChanged(diskSizeInRequest, existngDiskSize) { d =>
@@ -648,7 +648,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                targetDiskSize,
                                                context.traceId)
           } yield r
-        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _),
+        case (RuntimeConfig.GceWithPdConfig(machineType, diskIdOpt, _, _, _),
               UpdateRuntimeConfigRequest.GceConfig(newMachineType, diskSizeInRequest)) =>
           for {
             // should disk size be updated?

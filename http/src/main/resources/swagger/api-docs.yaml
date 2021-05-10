@@ -2353,6 +2353,8 @@ components:
               description: >
                 Optional, the deployment area of the GCE VM. For example, us-east1-a or europe-west2-c.
                 Defaults to us-central1-a.
+            gpuConfig:
+              $ref: "#/components/schemas/GpuConfig"
     GceWithPdConfig:
       description: Configuration for Google Compute Engine instances.
       allOf:
@@ -2378,6 +2380,8 @@ components:
               description: >
                 Optional, the deployment area of the GCE VM. For example, us-east1-a or europe-west2-c.
                 Defaults to us-central1-a.
+            gpuConfig:
+              $ref: "#/components/schemas/GpuConfig"
     DataprocConfig:
       description: Configuration for a single Dataproc cluster.
       allOf:
@@ -2666,3 +2670,18 @@ components:
         googleErrorCode:
           type: integer
           description: if the error is associated with an external API call, the error code will be propagated here
+
+    GpuConfig:
+      description: A config that describes the gpus associated with a runtime
+      type: object
+      required:
+        - gpuType
+        - numOfGpus
+
+      properties:
+        gpuType:
+          type: string
+          description: The google identifier for the gpu specs associated with this runtime, ex `nvidia-tesla-t4`. See https://cloud.google.com/compute/docs/gpus
+        numOfGpus:
+          type: integer
+          description: The number of gpus associated with this runtime

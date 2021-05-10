@@ -208,7 +208,8 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
           RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                         Some(disk.id),
                                         bootDiskSize = DiskSize(50),
-                                        zone = ZoneName("us-west2-b"))
+                                        zone = ZoneName("us-west2-b"),
+                                        None)
         )
       )
       err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt

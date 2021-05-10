@@ -24,6 +24,9 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def persistentDiskId = column[Option[DiskId]]("persistentDiskId")
   def zone = column[Option[ZoneName]]("zone", O.Length(254))
   def region = column[Option[RegionName]]("region", O.Length(254))
+  def gpuType = column[Option[GpuType]]("gpuType", O.Length(254))
+  //TODO use class instead of int when we aren't working on same branch
+  def numOfGpus = column[Option[Int]]("numOfGpus")
 
   def * =
     (
@@ -41,7 +44,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         dataprocProperties,
         persistentDiskId,
         zone,
-        region
+        region,
+        (gpuType, numOfGpus)
       ),
       dateAccessed
     ).shaped <> ({
@@ -58,7 +62,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              dataprocProperties,
              persistentDiskId,
              zone,
-             region),
+             region,
+             gpuConfig),
             dateAccessed) =>
         val r = cloudService match {
           case CloudService.GCE =>
@@ -67,7 +72,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                 RuntimeConfig.GceConfig(machineType,
                                         size,
                                         bootDiskSize,
-                                        zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")))
+                                        zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
+                                        getGpuConfig(gpuConfig._1, gpuConfig._2))
               case None =>
                 val bds =
                   bootDiskSize.getOrElse(throw new SQLDataException("gce runtime with PD has to have a boot disk"))
@@ -76,14 +82,16 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                     machineType,
                     None,
                     bds,
-                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE"))
+                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
+                    getGpuConfig(gpuConfig._1, gpuConfig._2)
                   )
                 )(diskId =>
                   RuntimeConfig.GceWithPdConfig(
                     machineType,
                     Some(diskId),
                     bds,
-                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE"))
+                    zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
+                    getGpuConfig(gpuConfig._1, gpuConfig._2)
                   )
                 )
             }
@@ -118,7 +126,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              None,
              Some(r.zone),
-             None),
+             None,
+             (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus))),
             x.dateAccessed
           )
         case r: RuntimeConfig.DataprocConfig =>
@@ -136,7 +145,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              Some(r.properties),
              None,
              None,
-             Some(r.region)),
+             Some(r.region),
+             (None, None)),
             x.dateAccessed
           )
         case r: RuntimeConfig.GceWithPdConfig =>
@@ -154,11 +164,18 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              r.persistentDiskId,
              Some(r.zone),
-             None),
+             None,
+             (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus))),
             x.dateAccessed
           )
       }
     })
+
+  def getGpuConfig(gpuType: Option[GpuType], numOfGpus: Option[Int]): Option[GpuConfig] =
+    (gpuType, numOfGpus) match {
+      case (Some(gpuType), Some(numOfGpus)) => Some(GpuConfig(gpuType, numOfGpus))
+      case _                                => None
+    }
 }
 
 final case class RuntimeConfigRecord(id: RuntimeConfigId, runtimeConfig: RuntimeConfig, dateAccessed: Instant)

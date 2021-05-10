@@ -250,7 +250,8 @@ class LeoPubsubMessageSubscriberSpec
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
                                                     persistentDiskId = Some(disk.id),
-                                                    zone = ZoneName("us-central1-a"))
+                                                    zone = ZoneName("us-central1-a"),
+                                                    gpuConfig = None)
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]
@@ -283,7 +284,8 @@ class LeoPubsubMessageSubscriberSpec
       runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                     bootDiskSize = DiskSize(50),
                                                     persistentDiskId = Some(disk.id),
-                                                    zone = ZoneName("us-cetnral1-a"))
+                                                    zone = ZoneName("us-cetnral1-a"),
+                                                    gpuConfig = None)
 
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(runtimeConfig))
       tr <- traceId.ask[TraceId]

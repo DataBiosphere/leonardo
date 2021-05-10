@@ -168,7 +168,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
     } yield ()
 
   // Startup script to run after the runtime is resumed
-  protected def getStartupScript(runtime: Runtime,
+  protected def getStartupScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                  welderAction: Option[WelderAction],
                                  initBucket: GcsBucketName,
                                  blocker: Blocker,
@@ -179,7 +179,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
-      runtime,
+      runtimeAndRuntimeConfig,
       Some(initBucket),
       None,
       config.imageConfig,
@@ -211,11 +211,12 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
   }
 
   // Shutdown script to run after the runtime is paused
-  protected def getShutdownScript(runtime: Runtime, blocker: Blocker): F[Map[String, String]] = {
+  protected def getShutdownScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                  blocker: Blocker): F[Map[String, String]] = {
     val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
-      runtime,
+      runtimeAndRuntimeConfig,
       None,
       None,
       config.imageConfig,
