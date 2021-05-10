@@ -94,7 +94,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       ServiceAccountName("app1-galaxy-ksa"),
       NamespaceName("ns"),
       savedDisk1,
-      DiskName(savedDisk1.name.value), //TODO EMILY add the galaxy disk suffix here
+      DiskName("disk1-gxy-postres-disk"),
       None
     )
 

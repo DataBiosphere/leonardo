@@ -1031,7 +1031,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(ClusterNodepoolAction.CreateNodepool(savedNodepool1.id)),
         savedApp1.id,
         savedApp1.appName,
-        Some(DiskName("")),
+        None,
         Some(DiskId(-1)),
         Map.empty,
         AppType.Galaxy,
