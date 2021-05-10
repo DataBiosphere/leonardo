@@ -28,9 +28,9 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
-
 import java.nio.charset.{Charset, StandardCharsets}
 import java.util.UUID
+import org.scalatest.tagobjects.Retryable
 
 @DoNotDiscover
 class RuntimeDataprocSpec
@@ -48,7 +48,7 @@ class RuntimeDataprocSpec
     httpClient <- LeonardoApiClient.client
   } yield RuntimeDataprocSpecDependencies(httpClient, dataprocService, storage)
 
-  "should create a Dataproc cluster in a non-default region" in { project =>
+  "should create a Dataproc cluster in a non-default region" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
     // In a europe region
@@ -87,7 +87,7 @@ class RuntimeDataprocSpec
     res.unsafeRunSync()
   }
 
-  "should create a Dataproc cluster with workers and preemptible workers" in { project =>
+  "should create a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
     // 2 workers and 5 preemptible workers
@@ -134,7 +134,7 @@ class RuntimeDataprocSpec
     res.unsafeRunSync()
   }
 
-  "should stop/start a Dataproc cluster with workers and preemptible workers" in { project =>
+  "should stop/start a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
     val res = dependencies.use { dep =>

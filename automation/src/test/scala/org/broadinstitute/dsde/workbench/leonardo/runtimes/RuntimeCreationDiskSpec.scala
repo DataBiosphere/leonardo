@@ -19,6 +19,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.http4s.Status
+import org.scalatest.tagobjects.Retryable
 
 @DoNotDiscover
 class RuntimeCreationDiskSpec
@@ -121,7 +122,7 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()
   }
 
-  "create runtime and attach an existing persistent disk" in { googleProject =>
+  "create runtime and attach an existing persistent disk" taggedAs Retryable in { googleProject =>
     val randomeName = randomClusterName
     val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
