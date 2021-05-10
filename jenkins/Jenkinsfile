@@ -3,7 +3,7 @@
 // This job will fail if master of the terra-docker repo has not been updated since the last run because
 // the git hash won't have changed. This is a happy side-effect of the fact that image names must be unique.
 
-// Currently, this is referenced in a Jenkins job (`leonardo-gce-snapshot`) with the following configuration:
+// Currently, this is referenced in a Jenkins job (`leonardo-dataproc-image-and-gce-snapshot`) with the following configuration:
 // Create a 'New Item' that is a Pipeline in Jenkins.
 // Specify Pipeline script from SCM with the scm for Leo and the appropriate branch.
 // Script Path should be the location of this file relative to the repo root.

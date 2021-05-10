@@ -17,7 +17,6 @@ set -e -x
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
-# TODO Would be nice to read the image URLs below from automation/src/test/resources/reference.conf
 terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.9"
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.0.10"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:0.0.11"
