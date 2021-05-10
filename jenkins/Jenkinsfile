@@ -3,7 +3,7 @@
 // This job will fail if master of the terra-docker repo has not been updated since the last run because
 // the git hash won't have changed. This is a happy side-effect of the fact that image names must be unique.
 
-// Currently, this is referenced in a Jenkins job (`leonardo-custom-image`) with the following configuration:
+// Currently, this is referenced in a Jenkins job (`leonardo-gce-snapshot`) with the following configuration:
 // Create a 'New Item' that is a Pipeline in Jenkins.
 // Specify Pipeline script from SCM with the scm for Leo and the appropriate branch.
 // Script Path should be the location of this file relative to the repo root.
@@ -17,6 +17,8 @@ String ZONE = "${REGION}-a"
 //    2. select the image of interest, say, `cos-89-16108-403-22`
 //    3. run `gcloud compute images describe cos-89-16108-403-22 --project cos-cloud | grep selfLink`
 //    4. extract the segments starting with 'projects'
+// As per the doc below, running GPUs requires COS image versions to be a LTS milestone > 85
+// https://cloud.google.com/container-optimized-os/docs/how-to/run-gpus#requirements
 String GCE_BASE_IMAGE = "projects/cos-cloud/global/images/cos-89-16108-403-22"
 String GOOGLE_CREDENTIAL_FILE_NAME = "image-build-account.json"
 
