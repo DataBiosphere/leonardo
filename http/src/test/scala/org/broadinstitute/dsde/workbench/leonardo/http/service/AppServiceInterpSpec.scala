@@ -16,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   persistentDiskQuery,
   _
 }
+import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
@@ -314,7 +315,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val appReq = createAppRequest.copy(diskConfig = None, appType = AppType.Galaxy)
 
-    the[AppRequiresDiskException] thrownBy {
+    an[AppRequiresDiskException] should be thrownBy {
       kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
     }
   }
@@ -346,7 +347,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     //we need to update status from creating because we don't allow creation of apps while cluster is creating
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
 
-    the[DiskAlreadyAttachedException] thrownBy {
+    a[DiskAlreadyAttachedException] should be thrownBy {
       kubeServiceInterp.createApp(userInfo, project, appName2, appReq).unsafeRunSync()
     }
   }
@@ -358,7 +359,17 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
 
-    the[AppAlreadyExistsException] thrownBy {
+    an[AppAlreadyExistsException] should be thrownBy {
+      kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
+    }
+  }
+
+  it should "error on creation if the disk is too small" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(DiskName("new-disk"), Some(DiskSize(50)), None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    a[BadRequestException] should be thrownBy {
       kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()
     }
   }
@@ -425,7 +436,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
     val params = DeleteAppRequest(userInfo, project, appName, false)
-    the[AppCannotBeDeletedException] thrownBy {
+    an[AppCannotBeDeletedException] should be thrownBy {
       kubeServiceInterp.deleteApp(params).unsafeRunSync()
     }
   }
@@ -629,7 +640,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "error on get app if an app does not exist" in isolatedDbTest {
-    the[AppNotFoundException] thrownBy {
+    an[AppNotFoundException] should be thrownBy {
       kubeServiceInterp.getApp(userInfo, project, AppName("schrodingersApp")).unsafeRunSync()
     }
   }
