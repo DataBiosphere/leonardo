@@ -1826,7 +1826,7 @@ components:
             and docker --privileged.
         jupyterUserScriptUri:
           type: string
-          description: DEPRECATED. Please use userScriptUri instead.
+          description: DEPRECATED on 05/2021. Please use userScriptUri instead. This field may be removed after 6 months of deprecation.
           deprecated: true
         startUserScriptUri:
           type: string
@@ -1842,7 +1842,7 @@ components:
             found in the Leo staging bucket for the cluster. The script is run as root and docker --privileged.
         jupyterStartUserScriptUri:
           type: string
-          description: DEPRECATED. Please use startUserScriptUri instead.
+          description: DEPRECATED on 05/2021. Please use startUserScriptUri instead. This field may be removed after 6 months of deprecation.
           deprecated: true
         errors:
           type: array
@@ -2060,7 +2060,7 @@ components:
             and docker --privileged.
         jupyterUserScriptUri:
           type: string
-          description: DEPRECATED. Please use userScriptUri instead.
+          description: DEPRECATED on 05/2021. Please use userScriptUri instead. This field may be removed after 6 months of deprecation.
           deprecated: true
         startUserScriptUri:
           type: string
@@ -2076,7 +2076,7 @@ components:
             found in the Leo staging bucket for the cluster. The script is run as root and docker --privileged.
         jupyterStartUserScriptUri:
           type: string
-          description: DEPRECATED. Please use startUserScriptUri instead.
+          description: DEPRECATED on 05/2021. Please use startUserScriptUri instead. This field may be removed after 6 months of deprecation.
           deprecated: true
         runtimeConfig:
           $ref: "#/components/schemas/OneOfRuntimeConfig"
