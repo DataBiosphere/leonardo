@@ -39,7 +39,7 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
 # Add the repos containing nginx and galaxy charts
 # TODO update Galaxy repo when 1.0.0 is officially released
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
-    helm repo add galaxy https://raw.githubusercontent.com/almahmoud/helm-charts/gkm-release-2101-2/ && \
+    helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo update
