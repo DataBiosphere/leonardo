@@ -640,7 +640,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle create app message with a create cluster" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val disk = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Galaxy)).save().unsafeRunSync()
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -1290,7 +1290,7 @@ class LeoPubsubMessageSubscriberSpec
       //The non-default nodepool should still be there, as it is not deleted on app deletion
       getCluster.nodepools.size shouldBe 2
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
-      getApp.app.errors.size shouldBe 1
+      getApp.app.errors.size shouldBe 1 // <- emily error here gets 0
       getApp.app.status shouldBe AppStatus.Error
       getApp.nodepool.status shouldBe NodepoolStatus.Running
       getApp.app.auditInfo.destroyedDate shouldBe None
