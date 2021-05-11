@@ -30,8 +30,8 @@ final case class Runtime(id: Long,
                          proxyUrl: URL,
                          status: RuntimeStatus,
                          labels: LabelMap,
-                         jupyterUserScriptUri: Option[UserScriptPath],
-                         jupyterStartUserScriptUri: Option[UserScriptPath],
+                         userScriptUri: Option[UserScriptPath],
+                         startUserScriptUri: Option[UserScriptPath],
                          errors: List[RuntimeError],
                          dataprocInstances: Set[DataprocInstance],
                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
@@ -381,8 +381,8 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
                                 googleProject: GoogleProject,
                                 creator: WorkbenchEmail,
                                 serviceAccount: WorkbenchEmail,
-                                notebookUserScript: Option[UserScriptPath],
-                                notebookStartUserScript: Option[UserScriptPath],
+                                userScript: Option[UserScriptPath],
+                                startUserScript: Option[UserScriptPath],
                                 tool: Option[RuntimeImageType]) {
   def toMap: LabelMap =
     Map(
@@ -391,8 +391,8 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "clusterServiceAccount" -> serviceAccount.value,
-      "notebookUserScript" -> notebookUserScript.map(_.asString).getOrElse(null),
-      "notebookStartUserScript" -> notebookStartUserScript.map(_.asString).getOrElse(null),
+      "userScript" -> userScript.map(_.asString).getOrElse(null),
+      "startUserScript" -> startUserScript.map(_.asString).getOrElse(null),
       "tool" -> tool.map(_.toString).getOrElse(null)
     ).filterNot(_._2 == null)
 }

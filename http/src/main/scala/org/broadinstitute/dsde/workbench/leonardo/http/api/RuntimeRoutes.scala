@@ -10,19 +10,19 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Decoder, DecodingFailure, Encoder}
+import io.circe.syntax._
+import io.circe.{Decoder, DecodingFailure, Encoder, Json}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeRequest, RuntimeService}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+
 import java.net.URL
-
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
-
 import scala.concurrent.duration._
 
 class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
@@ -366,8 +366,11 @@ object RuntimeRoutes {
             .asLeft[Unit]
         else ().asRight[DecodingFailure]
       }
+      // Note jupyterUserScriptUri and jupyterStartUserScriptUri are deprecated
       jus <- c.downField("jupyterUserScriptUri").as[Option[UserScriptPath]]
       jsus <- c.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
+      us <- c.downField("userScriptUri").as[Option[UserScriptPath]]
+      sus <- c.downField("startUserScriptUri").as[Option[UserScriptPath]]
       rc <- c.downField("runtimeConfig").as[Option[RuntimeConfigRequest]]
       uje <- c.downField("userJupyterExtensionConfig").as[Option[UserJupyterExtensionConfig]]
       a <- c.downField("autopause").as[Option[Boolean]]
@@ -379,8 +382,8 @@ object RuntimeRoutes {
       cv <- c.downField("customEnvironmentVariables").as[Option[LabelMap]]
     } yield CreateRuntime2Request(
       l.getOrElse(Map.empty),
-      jus,
-      jsus,
+      us.orElse(jus),
+      sus.orElse(jsus),
       rc,
       uje.flatMap(x => if (x.asLabels.isEmpty) None else Some(x)),
       a,
@@ -478,58 +481,35 @@ object RuntimeRoutes {
     "blockSize"
   )(x => (x.name, x.size, x.diskType, x.blockSize))
 
-  // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
-  // API does
-  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.forProduct21(
-    "id",
-    "runtimeName",
-    "googleProject",
-    "serviceAccount",
-    "asyncRuntimeFields",
-    "auditInfo",
-    "runtimeConfig",
-    "proxyUrl",
-    "status",
-    "labels",
-    "jupyterUserScriptUri",
-    "jupyterStartUserScriptUri",
-    "errors",
-    "userJupyterExtensionConfig",
-    "autopauseThreshold",
-    "defaultClientId",
-    "runtimeImages",
-    "scopes",
-    "customEnvironmentVariables",
-    "diskConfig",
-    "patchInProgress"
-  )(x =>
-    (
-      x.id,
-      x.clusterName,
-      x.googleProject,
-      x.serviceAccountInfo,
-      x.asyncRuntimeFields,
-      x.auditInfo,
-      x.runtimeConfig,
-      x.clusterUrl,
-      x.status,
-      x.labels,
-      x.jupyterUserScriptUri,
-      x.jupyterStartUserScriptUri,
-      x.errors,
-      x.userJupyterExtensionConfig,
-      x.autopauseThreshold,
-      x.defaultClientId,
-      x.clusterImages,
-      x.scopes,
-      x.customClusterEnvironmentVariables,
-      x.diskConfig,
-      x.patchInProgress
+  // can't use Encoder.forProductX because there are 23 fields :(
+  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.instance { x =>
+    Json.obj(
+      ("id", x.id.asJson),
+      ("runtimeName", x.clusterName.asJson),
+      ("googleProject", x.googleProject.asJson),
+      ("serviceAccount", x.serviceAccountInfo.asJson),
+      ("asyncRuntimeFields", x.asyncRuntimeFields.asJson),
+      ("auditInfo", x.auditInfo.asJson),
+      ("runtimeConfig", x.runtimeConfig.asJson),
+      ("proxyUrl", x.clusterUrl.asJson),
+      ("status", x.status.asJson),
+      ("labels", x.labels.asJson),
+      ("userScriptUri", x.userScriptUri.asJson),
+      ("startUserScriptUri", x.startUserScriptUri.asJson),
+      ("jupyterUserScriptUri", x.userScriptUri.asJson),
+      ("jupyterStartUserScriptUri", x.startUserScriptUri.asJson),
+      ("errors", x.errors.asJson),
+      ("userJupyterExtensionConfig", x.userJupyterExtensionConfig.asJson),
+      ("autopauseThreshold", x.autopauseThreshold.asJson),
+      ("defaultClientId", x.defaultClientId.asJson),
+      ("runtimeImages", x.clusterImages.asJson),
+      ("scopes", x.scopes.asJson),
+      ("customEnvironmentVariables", x.customClusterEnvironmentVariables.asJson),
+      ("diskConfig", x.diskConfig.asJson),
+      ("patchInProgress", x.patchInProgress.asJson)
     )
-  )
+  }
 
-  // we're reusing same `GetRuntimeResponse` in LeonardoService.scala as well, but we don't want to encode this object the same way the legacy
-  // API does
   implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct9(
     "id",
     "runtimeName",
