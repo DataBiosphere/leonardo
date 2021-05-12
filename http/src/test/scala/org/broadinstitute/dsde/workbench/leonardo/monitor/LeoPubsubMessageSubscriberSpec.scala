@@ -1281,7 +1281,7 @@ class LeoPubsubMessageSubscriberSpec
       //The non-default nodepool should still be there, as it is not deleted on app deletion
       getCluster.nodepools.size shouldBe 2
       getCluster.nodepools.filter(_.isDefault).head.status shouldBe NodepoolStatus.Running
-//      getApp.app.errors.size shouldBe 1 // <- emily error here gets 0
+      getApp.app.errors.size shouldBe 1
       getApp.app.status shouldBe AppStatus.Error
       getApp.nodepool.status shouldBe NodepoolStatus.Running
       getApp.app.auditInfo.destroyedDate shouldBe None
