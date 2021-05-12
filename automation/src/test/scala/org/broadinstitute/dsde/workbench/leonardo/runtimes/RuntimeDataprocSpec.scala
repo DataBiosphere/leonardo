@@ -1,9 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
-import java.nio.charset.Charset
-import java.util.UUID
-
 import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.mtl.Ask
@@ -15,6 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   GcsBlobName,
   GoogleDataprocInterpreter,
   GoogleDataprocService,
+  GoogleStorageService,
   MachineTypeName,
   RegionName,
   StorageRole
@@ -31,6 +29,9 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
+import java.nio.charset.{Charset, StandardCharsets}
+import java.util.UUID
+
 @DoNotDiscover
 class RuntimeDataprocSpec
     extends GPAllocFixtureSpec
@@ -43,8 +44,9 @@ class RuntimeDataprocSpec
 
   val dependencies = for {
     dataprocService <- googleDataprocService
+    storage <- google2StorageResource
     httpClient <- LeonardoApiClient.client
-  } yield RuntimeDataprocSpecDependencies(httpClient, dataprocService)
+  } yield RuntimeDataprocSpecDependencies(httpClient, dataprocService, storage)
 
   "should create a Dataproc cluster in a non-default region" in { project =>
     val runtimeName = randomClusterName
@@ -137,36 +139,41 @@ class RuntimeDataprocSpec
 
     val res = dependencies.use { dep =>
       implicit val client = dep.httpClient
-      val bucketName = GcsBucketName("leo-test-bucket")
-      val startScriptObjectName = GcsBlobName("test-script.sh")
       for {
         // Set up test bucket for startup script
-        _ <- google2StorageResource.use { storage =>
-          for {
-            petSA <- IO(Sam.user.petServiceAccountEmail(project.value))
-            _ <- storage.insertBucket(project, bucketName).compile.drain
-            _ <- storage
-              .setIamPolicy(
-                bucketName,
-                Map(StorageRole.ObjectViewer -> NonEmptyList.one(Identity.serviceAccount(petSA.value)))
-              )
-              .compile
-              .drain
-            startScriptString = "#!/usr/bin/env bash\n\n" +
-              "echo 'hello world'"
-            _ <- (fs2.Stream
-              .emits(startScriptString.getBytes(Charset.forName("UTF-8")))
-              .covary[IO]
-              .through(storage.streamUploadBlob(bucketName, startScriptObjectName)))
-              .compile
-              .drain
-          } yield ()
-        }
+        petSA <- IO(Sam.user.petServiceAccountEmail(project.value))
+        bucketName <- IO(UUID.randomUUID()).map(u => GcsBucketName(s"leo-test-bucket-${u.toString}"))
+        userScriptObjectName = GcsBlobName("test-user-script.sh")
+        userStartScriptObjectName = GcsBlobName("test-user-start-script.sh")
+        _ <- dep.storage.insertBucket(project, bucketName).compile.drain
+        _ <- dep.storage
+          .setIamPolicy(
+            bucketName,
+            Map(StorageRole.ObjectViewer -> NonEmptyList.one(Identity.serviceAccount(petSA.value)))
+          )
+          .compile
+          .drain
+        userScriptString = "#!/usr/bin/env bash\n\necho 'This is a user script'"
+        userStartScriptString = "#!/usr/bin/env bash\n\necho 'This is a start user script'"
+        _ <- fs2.Stream
+          .emits(userScriptString.getBytes(Charset.forName("UTF-8")))
+          .covary[IO]
+          .through(dep.storage.streamUploadBlob(bucketName, userScriptObjectName))
+          .compile
+          .drain
+        _ <- fs2.Stream
+          .emits(userStartScriptString.getBytes(Charset.forName("UTF-8")))
+          .covary[IO]
+          .through(dep.storage.streamUploadBlob(bucketName, userStartScriptObjectName))
+          .compile
+          .drain
+
         // create runtime
-        startScriptUri = UserScriptPath.Gcs(GcsPath(bucketName, GcsObjectName(startScriptObjectName.value)))
         // 2 workers and 5 preemptible workers
         createRuntimeRequest = defaultCreateRuntime2Request.copy(
-          jupyterStartUserScriptUri = Some(startScriptUri),
+          userScriptUri = Some(UserScriptPath.Gcs(GcsPath(bucketName, GcsObjectName(userScriptObjectName.value)))),
+          startUserScriptUri =
+            Some(UserScriptPath.Gcs(GcsPath(bucketName, GcsObjectName(userStartScriptObjectName.value)))),
           runtimeConfig = Some(
             RuntimeConfigRequest.DataprocConfig(
               Some(2),
@@ -186,6 +193,34 @@ class RuntimeDataprocSpec
 
         // check cluster status in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
+
+        // verify user scripts were executed
+        userScriptOutput <- dep.storage
+          .getBlobBody(runtime.stagingBucket.get, GcsBlobName("userscript_output.txt"))
+          .compile
+          .toList
+          .map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
+
+        _ = userScriptOutput.trim shouldBe "This is a user script"
+
+        startScriptOutputs <- dep.storage
+          .listBlobsWithPrefix(
+            runtime.stagingBucket.get,
+            "startscript_output",
+            true
+          )
+          .evalMap(blob =>
+            dep.storage
+              .getBlobBody(runtime.stagingBucket.get, GcsBlobName(blob.getName))
+              .compile
+              .toList
+              .map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
+          )
+          .compile
+          .toList
+
+        _ = startScriptOutputs.size shouldBe 1
+        _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
 
         // stop the cluster
         _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
@@ -208,6 +243,26 @@ class RuntimeDataprocSpec
             }
           }
         )
+
+        // startup script should have run again
+        startScriptOutputs <- dep.storage
+          .listBlobsWithPrefix(
+            runtime.stagingBucket.get,
+            "startscript_output",
+            true
+          )
+          .evalMap(blob =>
+            dep.storage
+              .getBlobBody(runtime.stagingBucket.get, GcsBlobName(blob.getName))
+              .compile
+              .toList
+              .map(bytes => new String(bytes.toArray, StandardCharsets.UTF_8))
+          )
+          .compile
+          .toList
+
+        _ = startScriptOutputs.size shouldBe 2
+        _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
@@ -256,4 +311,6 @@ class RuntimeDataprocSpec
 
 }
 
-final case class RuntimeDataprocSpecDependencies(httpClient: Client[IO], dataproc: GoogleDataprocService[IO])
+final case class RuntimeDataprocSpecDependencies(httpClient: Client[IO],
+                                                 dataproc: GoogleDataprocService[IO],
+                                                 storage: GoogleStorageService[IO])

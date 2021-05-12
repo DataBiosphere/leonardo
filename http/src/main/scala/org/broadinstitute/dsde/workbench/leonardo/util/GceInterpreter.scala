@@ -246,7 +246,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
             .addItems(
               Items.newBuilder
                 .setKey(userScriptStartupOutputUriMetadataKey)
-                .setValue(templateValues.jupyterStartUserScriptOutputUri)
+                .setValue(templateValues.startUserScriptOutputUri)
                 .build()
             )
             .build()

@@ -165,9 +165,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                        req,
                                        context.now)
 
-            userScriptUriToValidate = req.jupyterUserScriptUri
+            userScriptUriToValidate = req.userScriptUri
               .flatMap(x => UserScriptPath.gcsPrism.getOption(x).map(_.asString))
-            userStartupScriptToValidate = req.jupyterStartUserScriptUri.flatMap(x =>
+            userStartupScriptToValidate = req.startUserScriptUri.flatMap(x =>
               UserScriptPath.gcsPrism.getOption(x).map(_.asString)
             )
 
@@ -824,8 +824,8 @@ object RuntimeServiceInterp {
       googleProject,
       userInfo.userEmail,
       serviceAccountInfo,
-      req.jupyterUserScriptUri,
-      req.jupyterStartUserScriptUri,
+      req.userScriptUri,
+      req.startUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
     ).toMap
 
@@ -864,8 +864,8 @@ object RuntimeServiceInterp {
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, allLabels),
       status = RuntimeStatus.PreCreating,
       labels = allLabels,
-      jupyterUserScriptUri = req.jupyterUserScriptUri,
-      jupyterStartUserScriptUri = req.jupyterStartUserScriptUri,
+      userScriptUri = req.userScriptUri,
+      startUserScriptUri = req.startUserScriptUri,
       errors = List.empty,
       dataprocInstances = Set.empty,
       userJupyterExtensionConfig = req.userJupyterExtensionConfig,

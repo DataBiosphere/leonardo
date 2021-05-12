@@ -62,19 +62,19 @@ export UPDATE_WELDER=$(updateWelder)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export DISABLE_DELOCALIZATION=$(disableDelocalization)
 export STAGING_BUCKET=$(stagingBucketName)
-export JUPYTER_START_USER_SCRIPT_URI=$(jupyterStartUserScriptUri)
-export JUPYTER_START_USER_SCRIPT_OUTPUT_URI=$(jupyterStartUserScriptOutputUri)
+export START_USER_SCRIPT_URI=$(startUserScriptUri)
+export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 
 function failScriptIfError() {
   if [ $EXIT_CODE -ne 0 ]; then
-    echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}"
-    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+    echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
+    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
     exit $EXIT_CODE
   else
-    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${JUPYTER_START_USER_SCRIPT_OUTPUT_URI}
+    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
   fi
 }
 
@@ -97,6 +97,7 @@ if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
 fi
 
 JUPYTER_HOME=/etc/jupyter
+RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
@@ -115,15 +116,21 @@ if [ "$UPDATE_WELDER" == "true" ] ; then
     failScriptIfError
 fi
 
-# If a Jupyter start user script was specified, execute it now. It should already be in the docker container
+# If a start user script was specified, execute it now. It should already be in the docker container
 # via initialization in init-actions.sh (we explicitly do not want to recopy it from GCS on every cluster resume).
-if [ ! -z ${JUPYTER_START_USER_SCRIPT_URI} ] ; then
-  JUPYTER_START_USER_SCRIPT=`basename ${JUPYTER_START_USER_SCRIPT_URI}`
-  log 'Executing Jupyter user start script [$JUPYTER_START_USER_SCRIPT]...'
-  if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
-    docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
-  else
-    docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${JUPYTER_START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
+  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
+  log "Executing user start script [$START_USER_SCRIPT]..."
+  if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+    if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
+      docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+    else
+      docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+    fi
+  fi
+
+  if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
   fi
 
   failScriptIfError

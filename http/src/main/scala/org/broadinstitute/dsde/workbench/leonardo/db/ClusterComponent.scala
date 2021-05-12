@@ -33,8 +33,8 @@ final case class ClusterRecord(id: Long,
                                operationName: Option[String],
                                status: RuntimeStatus,
                                hostIp: Option[String],
-                               jupyterUserScriptUri: Option[UserScriptPath],
-                               jupyterStartUserScriptUri: Option[UserScriptPath],
+                               userScriptUri: Option[UserScriptPath],
+                               startUserScriptUri: Option[UserScriptPath],
                                initBucket: Option[String],
                                auditInfo: AuditInfo,
                                kernelFoundBusyDate: Option[Instant],
@@ -62,8 +62,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate: Rep[Instant] = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
-  def jupyterUserScriptUri = column[Option[UserScriptPath]]("jupyterUserScriptUri", O.Length(1024))
-  def jupyterStartUserScriptUri = column[Option[UserScriptPath]]("jupyterStartUserScriptUri", O.Length(1024))
+  def userScriptUri = column[Option[UserScriptPath]]("userScriptUri", O.Length(1024))
+  def startUserScriptUri = column[Option[UserScriptPath]]("startUserScriptUri", O.Length(1024))
   def initBucket = column[Option[String]]("initBucket", O.Length(1024))
   def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
@@ -91,8 +91,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       operationName,
       status,
       hostIp,
-      jupyterUserScriptUri,
-      jupyterStartUserScriptUri,
+      userScriptUri,
+      startUserScriptUri,
       initBucket,
       (creator, createdDate, destroyedDate, dateAccessed),
       kernelFoundBusyDate,
@@ -113,8 +113,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             operationName,
             status,
             hostIp,
-            jupyterUserScriptUri,
-            jupyterStartUserScriptUri,
+            userScriptUri,
+            startUserScriptUri,
             initBucket,
             auditInfo,
             kernelFoundBusyDate,
@@ -135,8 +135,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           operationName,
           status,
           hostIp,
-          jupyterUserScriptUri,
-          jupyterStartUserScriptUri,
+          userScriptUri,
+          startUserScriptUri,
           initBucket,
           AuditInfo(
             auditInfo._1,
@@ -171,8 +171,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.operationName,
           c.status,
           c.hostIp,
-          c.jupyterUserScriptUri,
-          c.jupyterStartUserScriptUri,
+          c.userScriptUri,
+          c.startUserScriptUri,
           c.initBucket,
           ai(c.auditInfo),
           c.kernelFoundBusyDate,
@@ -603,8 +603,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.asyncRuntimeFields.map(_.operationName.value),
       runtime.status,
       runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.asString)),
-      runtime.jupyterUserScriptUri,
-      runtime.jupyterStartUserScriptUri,
+      runtime.userScriptUri,
+      runtime.startUserScriptUri,
       initBucket,
       runtime.auditInfo,
       runtime.kernelFoundBusyDate,
@@ -755,8 +755,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),
       clusterRecord.status,
       labels,
-      clusterRecord.jupyterUserScriptUri,
-      clusterRecord.jupyterStartUserScriptUri,
+      clusterRecord.userScriptUri,
+      clusterRecord.startUserScriptUri,
       errors map clusterErrorQuery.unmarshallClusterErrorRecord,
       instanceRecords map instanceQuery.unmarshalInstance toSet,
       extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),

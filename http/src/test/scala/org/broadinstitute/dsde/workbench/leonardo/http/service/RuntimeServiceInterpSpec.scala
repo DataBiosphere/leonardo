@@ -211,12 +211,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val googleProject = GoogleProject("googleProject")
     val runtimeName = RuntimeName("clusterName2")
     val request = emptyCreateRuntimeReq.copy(
-      jupyterUserScriptUri = Some(
+      userScriptUri = Some(
         UserScriptPath.Http(
           new URL("https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh")
         )
       ),
-      jupyterStartUserScriptUri = Some(
+      startUserScriptUri = Some(
         UserScriptPath.Http(
           new URL("https://api-dot-all-of-us-workbench-test.appspot.com/static/start_notebook_cluster.sh")
         )

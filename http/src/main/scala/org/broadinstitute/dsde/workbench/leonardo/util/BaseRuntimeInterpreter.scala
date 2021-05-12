@@ -204,7 +204,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
         .map { s =>
           Map(
             googleKey -> s,
-            userScriptStartupOutputUriMetadataKey -> replacements.jupyterStartUserScriptOutputUri
+            userScriptStartupOutputUriMetadataKey -> replacements.startUserScriptOutputUri
           )
         }
     } yield mp

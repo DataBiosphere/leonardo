@@ -32,10 +32,10 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           welderServerName: String,
                                           proxyServerName: String,
                                           cryptoDetectorServerName: String,
-                                          jupyterUserScriptUri: String,
-                                          jupyterUserScriptOutputUri: String,
-                                          jupyterStartUserScriptUri: String,
-                                          jupyterStartUserScriptOutputUri: String,
+                                          userScriptUri: String,
+                                          userScriptOutputUri: String,
+                                          startUserScriptUri: String,
+                                          startUserScriptOutputUri: String,
                                           jupyterServiceAccountCredentials: String,
                                           jupyterHomeDirectory: String,
                                           loginHint: String,
@@ -73,8 +73,8 @@ case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimePr
                                                 stagingBucketName: Option[GcsBucketName],
                                                 runtimeImages: Set[RuntimeImage],
                                                 initBucketName: Option[GcsBucketName],
-                                                jupyterUserScriptUri: Option[UserScriptPath],
-                                                jupyterStartUserScriptUri: Option[UserScriptPath],
+                                                userScriptUri: Option[UserScriptPath],
+                                                startUserScriptUri: Option[UserScriptPath],
                                                 serviceAccountKey: Option[ServiceAccountKey],
                                                 userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                                                 defaultClientId: Option[String],
@@ -109,8 +109,8 @@ object RuntimeTemplateValuesConfig {
       stagingBucketName,
       params.runtimeImages,
       initBucketName,
-      params.jupyterUserScriptUri,
-      params.jupyterStartUserScriptUri,
+      params.userScriptUri,
+      params.startUserScriptUri,
       serviceAccountKey,
       params.userJupyterExtensionConfig,
       params.defaultClientId,
@@ -145,8 +145,8 @@ object RuntimeTemplateValuesConfig {
       runtime.asyncRuntimeFields.map(_.stagingBucket),
       runtime.runtimeImages,
       initBucketName,
-      runtime.jupyterUserScriptUri,
-      runtime.jupyterStartUserScriptUri,
+      runtime.userScriptUri,
+      runtime.startUserScriptUri,
       serviceAccountKey,
       runtime.userJupyterExtensionConfig,
       runtime.defaultClientId,
@@ -219,11 +219,11 @@ object RuntimeTemplateValues {
       config.imageConfig.welderContainerName,
       config.imageConfig.proxyContainerName,
       config.imageConfig.cryptoDetectorContainerName,
-      config.jupyterUserScriptUri.map(_.asString).getOrElse(""),
-      config.stagingBucketName.map(n => jupyterUserScriptOutputUriPath(n).toUri).getOrElse(""),
-      config.jupyterStartUserScriptUri.map(_.asString).getOrElse(""),
+      config.userScriptUri.map(_.asString).getOrElse(""),
+      config.stagingBucketName.map(n => userScriptOutputUriPath(n).toUri).getOrElse(""),
+      config.startUserScriptUri.map(_.asString).getOrElse(""),
       config.stagingBucketName
-        .map(n => jupyterUserStartScriptOutputUriPath(n, now.getOrElse(Instant.now)).toUri)
+        .map(n => userStartScriptOutputUriPath(n, now.getOrElse(Instant.now)).toUri)
         .getOrElse(""), //TODO: remove this complication
       (for {
         _ <- config.serviceAccountKey
@@ -263,9 +263,9 @@ object RuntimeTemplateValues {
     )
   }
 
-  def jupyterUserScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath =
+  def userScriptOutputUriPath(stagingBucketName: GcsBucketName): GcsPath =
     GcsPath(stagingBucketName, GcsObjectName("userscript_output.txt"))
-  private[util] def jupyterUserStartScriptOutputUriPath(stagingBucketName: GcsBucketName, now: Instant): GcsPath = {
+  private[util] def userStartScriptOutputUriPath(stagingBucketName: GcsBucketName, now: Instant): GcsPath = {
     val formatter = DateTimeFormatter
       .ofLocalizedDateTime(FormatStyle.SHORT)
       .withZone(ZoneId.systemDefault())

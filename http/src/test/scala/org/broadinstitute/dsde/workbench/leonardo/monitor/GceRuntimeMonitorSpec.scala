@@ -164,7 +164,7 @@ class GceRuntimeMonitorSpec
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("failure"))),
-      jupyterUserScriptUri =
+      userScriptUri =
         Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("failure"), GcsObjectName("userscript_output.txt")))),
       status = RuntimeStatus.Creating
     )
@@ -197,7 +197,7 @@ class GceRuntimeMonitorSpec
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
-      jupyterStartUserScriptUri = Some(
+      startUserScriptUri = Some(
         UserScriptPath
           .Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))
       ),
@@ -396,7 +396,7 @@ class GceRuntimeMonitorSpec
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
-      jupyterStartUserScriptUri = Some(
+      startUserScriptUri = Some(
         UserScriptPath
           .Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))
       ),

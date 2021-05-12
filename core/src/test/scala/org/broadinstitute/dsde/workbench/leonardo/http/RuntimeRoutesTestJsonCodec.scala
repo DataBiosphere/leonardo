@@ -70,8 +70,8 @@ object RuntimeRoutesTestJsonCodec {
 
   implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct11(
     "labels",
-    "jupyterUserScriptUri",
-    "jupyterStartUserScriptUri",
+    "userScriptUri",
+    "startUserScriptUri",
     "runtimeConfig",
     "userJupyterExtensionConfig",
     "autopause",
@@ -83,8 +83,8 @@ object RuntimeRoutesTestJsonCodec {
   )(x =>
     (
       x.labels,
-      x.jupyterUserScriptUri,
-      x.jupyterStartUserScriptUri,
+      x.userScriptUri,
+      x.startUserScriptUri,
       x.runtimeConfig,
       x.userJupyterExtensionConfig,
       x.autopause,

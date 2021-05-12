@@ -47,11 +47,11 @@ trait TestLeoRoutes {
   val mockGoogleIamDAO = new MockGoogleIamDAO
   val mockPetGoogleStorageDAO: String => GoogleStorageDAO = _ => {
     val petMock = new MockGoogleStorageDAO
-    petMock.buckets += jupyterUserScriptBucketName -> Set(
-      (jupyterUserScriptObjectName, new ByteArrayInputStream("foo".getBytes()))
+    petMock.buckets += userScriptBucketName -> Set(
+      (userScriptObjectName, new ByteArrayInputStream("foo".getBytes()))
     )
-    petMock.buckets += jupyterStartUserScriptBucketName -> Set(
-      (jupyterStartUserScriptObjectName, new ByteArrayInputStream("foo".getBytes()))
+    petMock.buckets += startUserScriptBucketName -> Set(
+      (startUserScriptObjectName, new ByteArrayInputStream("foo".getBytes()))
     )
     petMock.buckets += jupyterExtensionBucket -> Set(
       (jupyterExtensionObject, new ByteArrayInputStream("foo".getBytes()))
