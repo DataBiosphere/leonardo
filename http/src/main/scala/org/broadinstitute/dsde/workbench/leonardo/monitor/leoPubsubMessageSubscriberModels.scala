@@ -226,7 +226,6 @@ object LeoPubsubMessage {
                                     clusterNodepoolAction: Option[ClusterNodepoolAction],
                                     appId: AppId,
                                     appName: AppName,
-                                    dataDiskName: Option[DiskName],
                                     createDisk: Option[DiskId],
                                     customEnvironmentVariables: Map[String, String],
                                     appType: AppType,
@@ -415,16 +414,15 @@ object LeoPubsubCodec {
   }
 
   implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct10("project",
-                         "clusterNodepoolAction",
-                         "appId",
-                         "appName",
-                         "dataDiskName",
-                         "createDisk",
-                         "customEnvironmentVariables",
-                         "appType",
-                         "namespaceName",
-                         "traceId")(CreateAppMessage.apply)
+    Decoder.forProduct9("project",
+                        "clusterNodepoolAction",
+                        "appId",
+                        "appName",
+                        "createDisk",
+                        "customEnvironmentVariables",
+                        "appType",
+                        "namespaceName",
+                        "traceId")(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
     Decoder.forProduct5("appId", "appName", "project", "diskId", "traceId")(DeleteAppMessage.apply)
@@ -704,13 +702,12 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct11(
+    Encoder.forProduct10(
       "messageType",
       "project",
       "clusterNodepoolAction",
       "appId",
       "appName",
-      "dataDiskName",
       "createDisk",
       "customEnvironmentVariables",
       "appType",
@@ -722,7 +719,6 @@ object LeoPubsubCodec {
        x.clusterNodepoolAction,
        x.appId,
        x.appName,
-       x.dataDiskName,
        x.createDisk,
        x.customEnvironmentVariables,
        x.appType,

@@ -144,13 +144,11 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
               )
           }
           diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
-          diskNameOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.name) else None)
           msg = CreateAppMessage(
             cluster.googleProject,
             action,
             app.id,
             app.appName,
-            diskNameOpt,
             diskIdOpt,
             app.customEnvironmentVariables,
             app.appType,

@@ -220,7 +220,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         clusterNodepoolAction,
         app.id,
         app.appName,
-        diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.name) else None),
         diskResultOpt.flatMap(d => if (d.creationNeeded) Some(d.disk.id) else None),
         req.customEnvironmentVariables,
         req.appType,

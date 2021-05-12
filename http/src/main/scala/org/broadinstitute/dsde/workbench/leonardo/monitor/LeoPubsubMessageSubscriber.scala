@@ -832,17 +832,23 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       // create second Galaxy disk asynchronously
       createSecondDiskOp = if (msg.appType == Galaxy && msg.createDisk.isDefined) {
-        createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, msg.dataDiskName.get)
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
-                Some(msg.appId),
-                false,
-                None,
-                None
-              )
-          }
+        for {
+          diskId <- F.fromOption(msg.createDisk, DiskNotFoundForAppException(msg.appId, ctx.traceId))
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
+          disk <- F.fromOption(diskOpt, PubsubHandleMessageError.DiskNotFound(diskId))
+
+          res <- createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, disk.name)
+            .adaptError {
+              case e =>
+                PubsubKubernetesError(
+                  AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                  Some(msg.appId),
+                  false,
+                  None,
+                  None
+                )
+            }
+        } yield res
       } else F.unit
 
       // build asynchronous task
