@@ -18,7 +18,6 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
-import org.scalatest.tagobjects.Retryable
 
 import scala.concurrent.duration._
 
@@ -179,7 +178,7 @@ class RuntimePatchSpec
       res.unsafeRunSync
   }
 
-  "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs (Tags.SmokeTest, Retryable) in {
+  "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs Tags.SmokeTest in {
     googleProject =>
       val newMasterMachineType = MachineTypeName("n1-standard-2")
       val newDiskSize = DiskSize(60)
