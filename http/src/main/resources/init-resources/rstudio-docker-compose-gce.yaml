@@ -11,7 +11,10 @@ services:
     entrypoint: "tail -f /dev/null"
     restart: always
     rstudio:
-      network_mode: host
+      ports:
+        - "8001:8001"
+      networks:
+        - app_network
     environment:
       # needed to disable auth
       USER: "rstudio"

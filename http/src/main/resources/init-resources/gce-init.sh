@@ -67,9 +67,9 @@ function apply_user_script() {
   log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
   USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
   if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
-    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /etc
+    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var
   else
-    curl $USER_SCRIPT_URI -o /etc/${USER_SCRIPT}
+    curl $USER_SCRIPT_URI -o /var/${USER_SCRIPT}
   fi
   docker cp /var/${USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${USER_SCRIPT}
   retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${USER_SCRIPT}
@@ -97,9 +97,9 @@ function apply_start_user_script() {
   log "Running start user script $START_USER_SCRIPT_URI in $CONTAINER_NAME container..."
   START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
   if [[ "$START_USER_SCRIPT_URI" == 'gs://'* ]]; then
-    $GSUTIL_CMD cp ${START_USER_SCRIPT_URI} /etc
+    $GSUTIL_CMD cp ${START_USER_SCRIPT_URI} /var
   else
-    curl $START_USER_SCRIPT_URI -o /etc/${START_USER_SCRIPT}
+    curl $START_USER_SCRIPT_URI -o /var/${START_USER_SCRIPT}
   fi
   docker cp /var/${START_USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${START_USER_SCRIPT}
   retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${START_USER_SCRIPT}
@@ -193,6 +193,7 @@ JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
 RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
 GPU_ENABLED=$(gpuEnabled)
+INIT_BUCKET_NAME=$(initBucketName)
 
 CERT_DIRECTORY='/var/certs'
 DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
@@ -235,13 +236,7 @@ log 'Copying secrets from GCS...'
 $GSUTIL_CMD cp ${SERVER_CRT} ${CERT_DIRECTORY}
 $GSUTIL_CMD cp ${SERVER_KEY} ${CERT_DIRECTORY}
 $GSUTIL_CMD cp ${ROOT_CA} ${CERT_DIRECTORY}
-$GSUTIL_CMD cp ${PROXY_SITE_CONF} ${DOCKER_COMPOSE_FILES_DIRECTORY}
-$GSUTIL_CMD cp ${JUPYTER_DOCKER_COMPOSE_GCE} ${DOCKER_COMPOSE_FILES_DIRECTORY}
-$GSUTIL_CMD cp ${RSTUDIO_DOCKER_COMPOSE} ${DOCKER_COMPOSE_FILES_DIRECTORY}
-$GSUTIL_CMD cp ${PROXY_DOCKER_COMPOSE} ${DOCKER_COMPOSE_FILES_DIRECTORY}
-$GSUTIL_CMD cp ${WELDER_DOCKER_COMPOSE} ${DOCKER_COMPOSE_FILES_DIRECTORY}
-$GSUTIL_CMD cp ${CRYPTO_DETECTOR_DOCKER_COMPOSE} ${DOCKER_COMPOSE_FILES_DIRECTORY}
-$GSUTIL_CMD cp ${NETWORK_DOCKER_COMPOSE} ${DOCKER_COMPOSE_FILES_DIRECTORY}
+$GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
 
 echo "" > /var/google_application_credentials.env
 
@@ -268,7 +263,6 @@ log 'Starting up the Jupyter...'
 # `docker-compose up` is not retried since if that fails, something is probably broken
 # and wouldn't be remedied by retrying
 COMPOSE_FILES=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_DOCKER_COMPOSE}`)
-COMPOSE_FILES=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${NETWORK_DOCKER_COMPOSE}`)
 cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_DOCKER_COMPOSE}`
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`)
@@ -292,6 +286,8 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`)
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
 fi
+
+COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${NETWORK_DOCKER_COMPOSE}`)
 
 tee /var/variables.env << END
 CERT_DIRECTORY=${CERT_DIRECTORY}

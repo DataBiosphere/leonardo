@@ -101,7 +101,7 @@ function validateCert() {
     fi
 
     failScriptIfError ${gsutilCmd}
-    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    retry 3 ${gsutilCmd} -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
   fi
 }
 
