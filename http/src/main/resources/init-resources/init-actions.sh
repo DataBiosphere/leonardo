@@ -177,6 +177,9 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
     export CERT_DIRECTORY='/certs'
     export WORK_DIRECTORY='/work'
+    export DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
+    PROXY_SITE_CONF=$(proxySiteConf)
+    export HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_SITE_CONF}`
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)
@@ -186,6 +189,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
     WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
     CRYPTO_DETECTOR_DOCKER_COMPOSE=$(cryptoDetectorDockerCompose)
+    NETWORK_DOCKER_COMPOSE=$(networkDockerCompose)
     PROXY_SITE_CONF=$(proxySiteConf)
     JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
@@ -220,6 +224,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
     gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
     gsutil cp ${CRYPTO_DETECTOR_DOCKER_COMPOSE} /etc
+    gsutil cp ${NETWORK_DOCKER_COMPOSE} /etc
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
@@ -302,6 +307,8 @@ END
     # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
     # `docker-compose up` is not retried.
     COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
+    COMPOSE_FILES=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${NETWORK_DOCKER_COMPOSE}`)
+
     cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)

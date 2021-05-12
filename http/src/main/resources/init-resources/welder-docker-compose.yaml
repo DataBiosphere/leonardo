@@ -6,7 +6,6 @@ version: '2.4'
 services:
   welder:
     container_name: "${WELDER_SERVER_NAME}"
-    network_mode: host
     image: "${WELDER_DOCKER_IMAGE}"
     # Override entrypoint with a placeholder to keep the container running indefinitely.
     # The cluster init script will start welder via docker exec,

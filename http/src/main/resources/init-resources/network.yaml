@@ -1,0 +1,10 @@
+version: '2.4'
+services:
+  proxy:
+    network_mode: host
+  rstudio:
+    network_mode: host
+  crypto-detector:
+    network_mode: host
+  welder:
+    network_mode: host

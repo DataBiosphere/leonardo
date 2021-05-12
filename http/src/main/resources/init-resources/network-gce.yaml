@@ -1,0 +1,24 @@
+version: '2.4'
+services:
+  proxy:
+    ports:
+      - "443:443"
+    networks:
+      - app_network
+  rstudio:
+    ports:
+      - "8001:8001"
+    networks:
+      - app_network
+  welder:
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
+  # TODO: Needs revisit
+  crypto-detector:
+    networks:
+      - container:jupyter-server
+networks:
+  app_network:
+    external: true

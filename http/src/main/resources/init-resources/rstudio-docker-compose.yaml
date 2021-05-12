@@ -9,7 +9,6 @@ services:
     image: "${RSTUDIO_DOCKER_IMAGE}"
     # Override the entrypoint from the Dockerfile so rserver starts with the below environment variables
     entrypoint: "tail -f /dev/null"
-    network_mode: host
     restart: always
     environment:
       # needed to disable auth
@@ -20,9 +19,8 @@ services:
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:
-      - /mnt/disks/work:/home/rstudio
+      - ${WORK_DIRECTORY}:/home/rstudio
     env_file:
-      - /var/google_application_credentials.env
       - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
