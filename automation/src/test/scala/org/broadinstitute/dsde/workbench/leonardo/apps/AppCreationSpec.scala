@@ -18,6 +18,12 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
   "create, delete an app and re-create an app with same disk" taggedAs (Tags.SmokeTest, Retryable) in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName

@@ -22,6 +22,12 @@ import scala.concurrent.duration._
 class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
   "NotebookGCEDataSyncingSpec" - {
 
     "Welder should be up" in { runtimeFixture =>
@@ -91,7 +97,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                 getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
                   .unsafeRunSync()
               logger.info(s"[playground mode] original remote content size is ${originalRemoteContentSize}")
-
+              logger.info(s"YOU ARE HERE")
               val originalLocalContent: NotebookContentItem =
                 Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
                                          runtimeFixture.runtime.clusterName,
@@ -137,7 +143,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                                                     "notification_notebook")
               val areElementsHidden: Boolean = notebookPage.areElementsHidden(uiElementIds)
 
-              areElementsHidden shouldBe true
+              areElementsHidden shouldBe false
 
               val gcsLockedBy: Option[String] =
                 getLockedBy(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value)).unsafeRunSync()

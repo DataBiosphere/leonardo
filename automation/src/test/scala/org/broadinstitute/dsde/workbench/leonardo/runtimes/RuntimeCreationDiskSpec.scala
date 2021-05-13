@@ -30,6 +30,12 @@ class RuntimeCreationDiskSpec
   implicit val authTokenForOldApiClient = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
   val zone = ZoneName("us-central1-a")
 
   val dependencies = for {

@@ -31,6 +31,12 @@ class RuntimePatchSpec
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
   //this is an end to end test of the pub/sub infrastructure
   "Patch endpoint should perform a stop/start transition for GCE VM" taggedAs Tags.SmokeTest in { googleProject =>
     // create a new GCE runtime

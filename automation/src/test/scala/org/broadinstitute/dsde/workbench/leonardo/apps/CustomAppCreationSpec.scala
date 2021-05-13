@@ -21,6 +21,12 @@ class CustomAppCreationSpec
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
   "create and delete a custom app" taggedAs Retryable in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
