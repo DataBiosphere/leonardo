@@ -53,3 +53,7 @@ services:
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
   welder:
     network_mode: host
+  crypto-detector:
+    network_mode: host
+  proxy:
+    network_mode: host

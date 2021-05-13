@@ -181,8 +181,7 @@ object Config {
         config.as[RuntimeResource]("proxySiteConf"),
         config.as[RuntimeResource]("jupyterNotebookConfigUri"),
         config.as[RuntimeResource]("jupyterNotebookFrontendConfigUri"),
-        config.as[RuntimeResource]("customEnvVarsConfigUri"),
-        config.as[RuntimeResource]("networkDockerCompose")
+        config.as[RuntimeResource]("customEnvVarsConfigUri")
       )
   }
 

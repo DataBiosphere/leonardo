@@ -59,63 +59,6 @@ display_time() {
   printf '%d seconds\n' $S
 }
 
-function apply_user_script() {
-  local CONTAINER_NAME=$1
-  local TARGET_DIR=$2
-  local GSUTIL_CMD=$3
-
-  log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
-  USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
-  if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
-    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var
-  else
-    curl $USER_SCRIPT_URI -o /var/${USER_SCRIPT}
-  fi
-  docker cp /var/${USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${USER_SCRIPT}
-  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${USER_SCRIPT}
-
-  # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
-  # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
-  # can gain full access to the VM already, so using this flag is not a significant escalation.
-  EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> us_output.txt || EXIT_CODE=$?
-
-  if [ $EXIT_CODE -ne 0 ]; then
-    log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
-    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp us_output.txt ${USER_SCRIPT_OUTPUT_URI}
-    exit $EXIT_CODE
-  else
-    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp us_output.txt ${USER_SCRIPT_OUTPUT_URI}
-  fi
-}
-
-function apply_start_user_script() {
-  local CONTAINER_NAME=$1
-  local TARGET_DIR=$2
-  local GSUTIL_CMD=$3
-
-  log "Running start user script $START_USER_SCRIPT_URI in $CONTAINER_NAME container..."
-  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
-  if [[ "$START_USER_SCRIPT_URI" == 'gs://'* ]]; then
-    $GSUTIL_CMD cp ${START_USER_SCRIPT_URI} /var
-  else
-    curl $START_USER_SCRIPT_URI -o /var/${START_USER_SCRIPT}
-  fi
-  docker cp /var/${START_USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${START_USER_SCRIPT}
-  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${START_USER_SCRIPT}
-
-  # Keep in sync with startup.sh
-  EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
-  if [ $EXIT_CODE -ne 0 ]; then
-    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
-    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-    exit $EXIT_CODE
-  else
-    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-  fi
-}
-
 #####################################################################################################
 # Main starts here.
 #####################################################################################################
@@ -180,7 +123,6 @@ RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
 PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
 WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
 CRYPTO_DETECTOR_DOCKER_COMPOSE=$(cryptoDetectorDockerCompose)
-NETWORK_DOCKER_COMPOSE=$(networkDockerCompose)
 GPU_DOCKER_COMPOSE=$(gpuDockerCompose)
 PROXY_SITE_CONF=$(proxySiteConf)
 JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
@@ -201,6 +143,61 @@ WORK_DIRECTORY='/mnt/disks/work'
 GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
 GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
 DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
+
+function apply_user_script() {
+  local CONTAINER_NAME=$1
+  local TARGET_DIR=$2
+
+  log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
+  USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
+  if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
+    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var
+  else
+    curl $USER_SCRIPT_URI -o /var/${USER_SCRIPT}
+  fi
+  docker cp /var/${USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${USER_SCRIPT}
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${USER_SCRIPT}
+
+  # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
+  # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
+  # can gain full access to the VM already, so using this flag is not a significant escalation.
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> /var/us_output.txt || EXIT_CODE=$?
+
+  if [ $EXIT_CODE -ne 0 ]; then
+    log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
+function apply_start_user_script() {
+  local CONTAINER_NAME=$1
+  local TARGET_DIR=$2
+
+  log "Running start user script $START_USER_SCRIPT_URI in $CONTAINER_NAME container..."
+  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
+  if [[ "$START_USER_SCRIPT_URI" == 'gs://'* ]]; then
+    $GSUTIL_CMD cp ${START_USER_SCRIPT_URI} /var
+  else
+    curl $START_USER_SCRIPT_URI -o /var/${START_USER_SCRIPT}
+  fi
+  docker cp /var/${START_USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${START_USER_SCRIPT}
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${START_USER_SCRIPT}
+
+  # Keep in sync with startup.sh
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+  fi
+}
 
 mkdir -p ${WORK_DIRECTORY}
 mkdir -p ${CERT_DIRECTORY}
@@ -268,14 +265,7 @@ if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${WELDER_DOCKER_COMPOSE}`)
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${WELDER_DOCKER_COMPOSE}`
 fi
-if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`)
-  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`
-fi
-if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
-  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`
-fi
+
 # Note: crypto-detector should be started after user containers
 if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
@@ -287,7 +277,15 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
 fi
 
-COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${NETWORK_DOCKER_COMPOSE}`)
+if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`)
+  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`
+fi
+
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`
+fi
 
 tee /var/variables.env << END
 CERT_DIRECTORY=${CERT_DIRECTORY}
@@ -446,7 +444,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # If a user script was specified, copy it into the jupyter docker container and execute it.
   if [ ! -z "$USER_SCRIPT_URI" ] ; then
-    apply_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME $GSUTIL_CMD
+    apply_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
   fi
 
   # done user script
@@ -454,7 +452,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # If a start user script was specified, copy it into the jupyter docker container for consumption during startups.
   if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
-    apply_start_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME $GSUTIL_CMD
+    apply_start_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
   fi
 
   # done start user script
@@ -494,8 +492,8 @@ OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
   # Add custom_env_vars.env to Renviron.site
   CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
   if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
-    retry 3 docker cp /var/custom_env_vars.env ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/var/custom_env_vars.env
-    retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/var/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+    retry 3 docker cp /var/custom_env_vars.env ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
+    retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
   fi
 
   # Start RStudio server

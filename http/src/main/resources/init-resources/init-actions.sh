@@ -189,7 +189,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
     WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
     CRYPTO_DETECTOR_DOCKER_COMPOSE=$(cryptoDetectorDockerCompose)
-    NETWORK_DOCKER_COMPOSE=$(networkDockerCompose)
     PROXY_SITE_CONF=$(proxySiteConf)
     JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
@@ -310,21 +309,22 @@ END
       COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi
-    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
-      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
-    fi
-    if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
-      cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
-    fi
+
     # Note: cryto detector should be started after user containers
     if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
       cat /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`
     fi
 
-    COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${NETWORK_DOCKER_COMPOSE}`)
+    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
+    fi
+
+    if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
+    fi
 
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull

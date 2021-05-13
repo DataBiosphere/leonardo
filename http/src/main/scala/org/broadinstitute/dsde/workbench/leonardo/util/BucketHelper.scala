@@ -134,8 +134,7 @@ class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
             clusterResourcesConfig.proxyDockerCompose,
             clusterResourcesConfig.proxySiteConf,
             clusterResourcesConfig.welderDockerCompose,
-            clusterResourcesConfig.cryptoDetectorDockerCompose,
-            clusterResourcesConfig.networkDockerCompose
+            clusterResourcesConfig.cryptoDetectorDockerCompose
           )
         )
         .covary[F]

@@ -24,7 +24,6 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           rootCaPem: String,
                                           jupyterDockerCompose: String,
                                           gpuDockerCompose: String,
-                                          networkDockerCompose: String,
                                           rstudioDockerCompose: String,
                                           proxyDockerCompose: String,
                                           welderDockerCompose: String,
@@ -212,9 +211,6 @@ object RuntimeTemplateValues {
         .flatMap(n =>
           config.clusterResourcesConfig.gpuDockerCompose.map(d => GcsPath(n, GcsObjectName(d.asString)).toUri)
         )
-        .getOrElse(""),
-      config.initBucketName
-        .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.networkDockerCompose.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.rstudioDockerCompose.asString)).toUri)
