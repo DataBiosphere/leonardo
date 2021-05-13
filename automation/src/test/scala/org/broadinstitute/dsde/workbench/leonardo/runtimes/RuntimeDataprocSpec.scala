@@ -42,6 +42,12 @@ class RuntimeDataprocSpec
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
   val dependencies = for {
     dataprocService <- googleDataprocService
     storage <- google2StorageResource
