@@ -4,5 +4,3 @@ services:
     network_mode: host
   crypto-detector:
     network_mode: host
-  welder:
-    network_mode: host

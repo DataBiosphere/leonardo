@@ -5,11 +5,6 @@ services:
       - "443:443"
     networks:
       - app_network
-  welder:
-    ports:
-      - "8080:8080"
-    networks:
-      - app_network
   crypto-detector:
     network_mode: "service:jupyter"
 networks:

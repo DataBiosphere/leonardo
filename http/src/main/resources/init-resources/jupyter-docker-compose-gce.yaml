@@ -37,6 +37,11 @@ services:
       - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
+  welder:
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
 networks:
   app_network:
     external: true

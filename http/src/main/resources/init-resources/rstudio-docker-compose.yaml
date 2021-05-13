@@ -10,8 +10,7 @@ services:
     # Override the entrypoint from the Dockerfile so rserver starts with the below environment variables
     entrypoint: "tail -f /dev/null"
     restart: always
-    rstudio:
-      network_mode: host
+    network_mode: host
     environment:
       # needed to disable auth
       USER: "rstudio"
@@ -26,4 +25,4 @@ services:
       - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
-  
+
