@@ -69,46 +69,44 @@ export MEM_LIMIT=$(memLimit)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 GPU_ENABLED=$(gpuEnabled)
 
+# Overwrite old cert on restart
+SERVER_CRT=$(proxyServerCrt)
+SERVER_KEY=$(proxyServerKey)
+ROOT_CA=$(rootCaPem)
+
 function failScriptIfError() {
-  gsutilCmd="${1:-gsutil}"
   if [ $EXIT_CODE -ne 0 ]; then
     echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
-    retry 3 ${gsutilCmd} -h "x-goog-meta-passed":"false" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
     exit $EXIT_CODE
   else
-    retry 3 ${gsutilCmd} -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
   fi
 }
 
 function validateCert() {
   certFileDirectory=$1
-  gsutilCmd=$2
   dockerCompose=$3
   ## This helps when we need to rotate certs.
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
 
   ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
   if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
-    ${gsutilCmd} cp ${SERVER_CRT} ${certFileDirectory}
-    ${gsutilCmd} cp ${SERVER_KEY} ${certFileDirectory}
-    ${gsutilCmd} cp ${ROOT_CA} ${certFileDirectory}
+    ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
+    ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
+    ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
 
     if [ "$certFileDirectory" = "/etc" ]
     then
-      ${dockerCompose} -f /etc/proxy-docker-compose.yaml restart &> start_output.txt || EXIT_CODE=$?
+      ${dockerCompose} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
     else
-      ${dockerCompose} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> start_output.txt || EXIT_CODE=$?
+      ${dockerCompose} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
     fi
 
-    failScriptIfError ${gsutilCmd}
-    retry 3 ${gsutilCmd} -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    failScriptIfError ${GSUTIL_CMD}
+    retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
   fi
 }
-
-# Overwrite old cert on restart
-SERVER_CRT=$(proxyServerCrt)
-SERVER_KEY=$(proxyServerKey)
-ROOT_CA=$(rootCaPem)
 
 FILE=/var/certs/jupyter-server.crt
 if [ -f "$FILE" ]
@@ -130,7 +128,7 @@ else
     validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
 fi
 
-JUPYTER_HOME=/var/jupyter
+JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
 # Make this run conditionally
@@ -163,7 +161,7 @@ if [ "$UPDATE_WELDER" == "true" ] ; then
     retry 5 ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} pull
     ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop
     ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} rm -f
-    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} up -d &> start_output.txt || EXIT_CODE=$?
+    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
 
     failScriptIfError
 fi
@@ -175,14 +173,14 @@ if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
   log "Executing user start script [$START_USER_SCRIPT]..."
   if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
-      docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+      docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     else
-      docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+      docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     fi
   fi
 
   if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-    docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+    docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
   fi
 
   failScriptIfError
