@@ -496,6 +496,9 @@ OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
     retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
   fi
 
+  # For older rstudio images, /etc/rstudio/rserver.conf is using 127.0.0.1 as www-address, which won't work now that we're no longer using `network_mode: host` for GCE VMs
+  docker exec ${RSTUDIO_SERVER_NAME} sed -i  "s/127.0.0.1/0.0.0.0/g" /etc/rstudio/rserver.conf
+
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
 fi
