@@ -86,7 +86,7 @@ object Settings {
   val commonSettings =
     commonBuildSettings ++ List(
     organization  := "org.broadinstitute.dsde.workbench",
-    scalaVersion  := "2.13.5",
+    scalaVersion  := "2.13.6",
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings
   )
