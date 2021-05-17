@@ -17,11 +17,11 @@ set -e -x
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
-terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.19"
-terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.1.1"
-terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:1.0.13"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:1.0.13"
-terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:1.1.1"
+terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.20"
+terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.1.2"
+terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:1.0.14"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:1.0.14"
+terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:1.1.2"
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.2"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.3"
 

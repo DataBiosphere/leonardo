@@ -1,25 +1,25 @@
 {
-    "Name": "leonardo-gce-snapshot-generator",
+    "Name": "leonardo-gce-image-generator",
     "Vars": {
-        "output_snapshot": {
+        "output_image": {
             "Required": true,
-            "Description": "The name of the output snapshot"
+            "Description": "The name of the output image"
         },
         "base_image": {
             "Required": true,
             "Description": "The base image to add tools onto"
         },
-        "gce_snapshots_dir": {
+        "gce_images_dir": {
             "Required": true,
             "Description": "The directory that contains the installation script and related source files"
         },
         "installation_script_name": {
             "Required": true,
-            "Description": "The script with the commands that set up boot snapshot for GCE VMs created by Leonardo"
+            "Description": "The script with the commands that set up boot image for GCE VMs created by Leonardo"
         }
     },
     "Sources": {
-        "${installation_script_name}": "${gce_snapshots_dir}/${installation_script_name}"
+        "${installation_script_name}": "${gce_images_dir}/${installation_script_name}"
     },
     "Steps": {
         "create-disks": {
@@ -51,10 +51,10 @@
                 }
             ]
         },
-        "create-snapshot-from-disk": {
-            "CreateSnapshots": [
+        "create-image": {
+            "CreateImages": [
                 {
-                    "Name": "${output_snapshot}",
+                    "Name": "${output_image}",
                     "SourceDisk": "boot-disk",
                     "NoCleanup": true,
                     "ExactName": true
@@ -71,7 +71,7 @@
     "Dependencies": {
         "create-instance": ["create-disks"],
         "wait-for-instance": ["create-instance"],
-        "create-snapshot-from-disk": ["wait-for-instance"],
-        "delete-inst-install": ["create-snapshot-from-disk"]
+        "create-image": ["wait-for-instance"],
+        "delete-inst-install": ["create-image"]
     }
 }
