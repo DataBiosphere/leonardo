@@ -135,7 +135,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           AttachedDiskInitializeParams
             .newBuilder()
             .setDescription("Leonardo Managed Boot Disk")
-            .setSourceSnapshot(config.gceConfig.sourceSnapshot.asString)
+            .setSourceImage(config.gceConfig.sourceImage.asString)
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )
@@ -308,7 +308,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         CreateGoogleRuntimeResponse(
           AsyncRuntimeFields(GoogleId(o.getTargetId), OperationName(o.getName), stagingBucketName, None),
           initBucketName,
-          BootSource.Snapshot(config.gceConfig.sourceSnapshot)
+          BootSource.VmImage(config.gceConfig.sourceImage)
         )
       )
     } yield res

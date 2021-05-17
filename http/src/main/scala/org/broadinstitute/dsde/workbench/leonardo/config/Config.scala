@@ -56,7 +56,6 @@ object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
-  implicit private val sourceSnapshotReader: ValueReader[SourceSnapShot] = stringValueReader.map(SourceSnapShot)
 
   implicit private val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
     ApplicationConfig(
@@ -105,7 +104,7 @@ object Config {
 
   implicit private val gceConfigReader: ValueReader[GceConfig] = ValueReader.relative { config =>
     GceConfig(
-      config.as[SourceSnapShot]("sourceSnapshot"),
+      config.as[GceCustomImage]("customGceImage"),
       config.as[DeviceName]("userDiskDeviceName"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),

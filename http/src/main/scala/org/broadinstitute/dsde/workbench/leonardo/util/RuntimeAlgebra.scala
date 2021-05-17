@@ -71,9 +71,6 @@ sealed trait BootSource extends Product with Serializable {
   def asString: String
 }
 object BootSource {
-  final case class Snapshot(sourceSnapShot: SourceSnapShot) extends BootSource {
-    def asString: String = sourceSnapShot.asString
-  }
   final case class VmImage(customImage: CustomImage) extends BootSource {
     def asString: String = customImage.asString
   }
