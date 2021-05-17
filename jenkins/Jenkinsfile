@@ -1,5 +1,5 @@
-// Updates the custom Dataproc and GCE OS images used by Leo.
-// Currently, this is referenced by the Jenkins job `leonardo-custom-image`.
+// Generates custom Dataproc and/or GCE OS image(s) to be used by Leo, and makes a PR for Leo to point to it/them.
+// Currently, this file is referenced by the Jenkins job `leonardo-custom-image`.
 // The name of the job contains the name of the image(s) created.
 // This job will fail if master of the terra-docker repo has not been updated since the last run because
 // the git hash won't have changed. This is a happy side-effect of the fact that image names must be unique.
@@ -193,8 +193,6 @@ pipeline {
                     dataprocImages = terraDockerDataprocImageArray + nonTerraDockerImages
                     gceImages = terraDockerGceImageArray + nonTerraDockerImages
                     images = dataprocImages + gceImages
-                    // TODO Remove
-                    println("\n\n *** Images to cache: ${images}\n")
 
                     googleCredentialFile = "${WORKSPACE}/jenkins/gce-custom-images/${GOOGLE_CREDENTIAL_FILE_NAME}"
                 }
