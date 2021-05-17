@@ -55,6 +55,7 @@
             "CreateImages": [
                 {
                     "Name": "${output_image}",
+                    "Family": "gce-custom-image",
                     "SourceDisk": "boot-disk",
                     "NoCleanup": true,
                     "ExactName": true
