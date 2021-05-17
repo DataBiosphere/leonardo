@@ -21,8 +21,8 @@ VALIDATE_WORKFLOW="false"
 # `~/.config/gcloud/application_default_credentials.json` by default.
 SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
 
-# Underscores are not accepted as snapshot name
-OUTPUT_SNAPSHOT_NAME=leo-gce-snapshot-$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
+# Underscores are not accepted as image name
+OUTPUT_IMAGE_NAME=leo-gce-image-$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
 
 PROJECT="broad-dsde-dev"
 REGION="us-central1"
@@ -31,7 +31,7 @@ ZONE="${REGION}-a"
 # The bucket that Daisy uses as scratch area to store source and log files.
 # If it doesn't exist, we create it prior to launching Daisy and
 # the Daisy workflow cleans up all but daisy.log at the end.
-DAISY_BUCKET_PATH="gs://test-leo-gce-snapshot-daisy-scratch-bucket"
+DAISY_BUCKET_PATH="gs://test-leo-gce-image-daisy-scratch-bucket"
 
 # Set this to the tag of the Daisy image you had pulled
 DAISY_IMAGE_TAG="release"
@@ -60,10 +60,10 @@ docker run -it --rm -v "$SOURCE_DIR":/gce-custom-images \
   -default_timeout 60m \
   -oauth /gce-custom-images/application_default_credentials.json \
   -var:base_image "$BASE_IMAGE" \
-  -var:output_snapshot "$OUTPUT_SNAPSHOT_NAME" \
-  -var:gce_snapshots_dir /gce-custom-images \
+  -var:output_image "$OUTPUT_IMAGE_NAME" \
+  -var:gce_images_dir /gce-custom-images \
   -var:installation_script_name prepare_gce_image.sh \
-  /gce-custom-images/leo_gce_snapshot.wf.json
+  /gce-custom-images/gce_image.wf.json
 
 # Daisy doesn't clean it up all so we remove the bucket manually
 gsutil rm -r $DAISY_BUCKET_PATH
