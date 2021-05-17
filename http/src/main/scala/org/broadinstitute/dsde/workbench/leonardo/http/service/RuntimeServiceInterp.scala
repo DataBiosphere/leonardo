@@ -403,8 +403,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // throw 409 if the cluster is not stoppable
-      alreadyStopping = (runtime.status == RuntimeStatus.Stopping || runtime.status == RuntimeStatus.PreStopping)
-      _ <- if (runtime.status.isStoppable || alreadyStopping) F.unit
+      _ <- if (runtime.status.isStoppable || runtime.status.isStopping) F.unit
       else
         F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.googleProject, runtime.runtimeName, runtime.status))
       // stop the runtime
