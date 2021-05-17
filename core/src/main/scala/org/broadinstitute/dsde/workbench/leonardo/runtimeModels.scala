@@ -165,7 +165,7 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   val startableStatuses: Set[RuntimeStatus] = Set(Stopped, Stopping)
 
   // A runtime transitioning to Stopped
-  val stoppingTransitionStatuses: Set[RuntimeStatus] = Set(PreStopping, Stopping)
+  val stoppingStatuses: Set[RuntimeStatus] = Set(PreStopping, Stopping, Stopped)
 
   // Can a user update (i.e. resize) this runtime?
   val updatableStatuses: Set[RuntimeStatus] = Set(Running, Stopped)
@@ -177,7 +177,7 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
     def isStoppable: Boolean = stoppableStatuses contains status
     def isStartable: Boolean = startableStatuses contains status
     def isUpdatable: Boolean = updatableStatuses contains status
-    def isStopping: Boolean = stoppingTransitionStatuses contains status
+    def isStopping: Boolean = stoppingStatuses contains status
   }
 }
 
