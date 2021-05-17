@@ -442,7 +442,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # done extension setup
   STEP_TIMINGS+=($(date +%s))
 
-  # If a user script was specified, copy it into the jupyter docker container and execute it.
+  # If a user script was specified, copy it into the docker container and execute it.
   if [ ! -z "$USER_SCRIPT_URI" ] ; then
     apply_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
   fi
@@ -450,7 +450,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # done user script
   STEP_TIMINGS+=($(date +%s))
 
-  # If a start user script was specified, copy it into the jupyter docker container for consumption during startups.
+  # If a start user script was specified, copy it into the docker container for consumption during startups.
   if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
     apply_start_user_script $JUPYTER_SERVER_NAME $JUPYTER_HOME
   fi
@@ -498,6 +498,16 @@ OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
 
   # For older rstudio images, /etc/rstudio/rserver.conf is using 127.0.0.1 as www-address, which won't work now that we're no longer using `network_mode: host` for GCE VMs
   docker exec ${RSTUDIO_SERVER_NAME} sed -i  "s/127.0.0.1/0.0.0.0/g" /etc/rstudio/rserver.conf
+
+    # If a user script was specified, copy it into the docker container and execute it.
+  if [ ! -z "$USER_SCRIPT_URI" ] ; then
+    apply_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
+  fi
+
+  # If a start user script was specified, copy it into the docker container for consumption during startups.
+  if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
+    apply_start_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
+  fi
 
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
