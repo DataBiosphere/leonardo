@@ -193,6 +193,8 @@ pipeline {
                     gceImages = terraDockerGceImageArray + nonTerraDockerImages
                     images = dataprocImages + gceImages
 
+                    println("\n\n *** Images to cache: ${images}\n")
+
                     googleCredentialFile = "${WORKSPACE}/jenkins/gce-custom-images/${GOOGLE_CREDENTIAL_FILE_NAME}"
                 }
             }
