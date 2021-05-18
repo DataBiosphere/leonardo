@@ -406,9 +406,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (runtime.status.isStoppable || runtime.status.isStopping) F.unit
       else
         F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.googleProject, runtime.runtimeName, runtime.status))
-      // stop the runtime
-      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
-      _ <- publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
+
+      _ <- if (runtime.status.isStopping) F.unit
+      else {
+        // stop the runtime
+        clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
+        publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
+      }
+
     } yield ()
 
   def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
