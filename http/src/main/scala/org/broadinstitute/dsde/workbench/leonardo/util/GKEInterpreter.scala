@@ -1279,8 +1279,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].on_anvil=True""",
       // RBAC configs
-      raw"""galaxy.rbac.enabled=false""",
-      raw"""galaxy.rbac.serviceAccount=${ksa.value}""",
+      raw"""galaxy.serviceAccount.create=false""",
+      raw"""galaxy.serviceAccount.name=${ksa.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
       // Persistence configs
       raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
