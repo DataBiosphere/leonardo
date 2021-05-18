@@ -113,7 +113,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       ServiceAccountName("app1-galaxy-ksa"),
       NamespaceName("ns"),
       savedDisk1,
-      DiskName("disk1-gxy-postgres"),
+      DiskName("disk1-gxy-postges"),
       Some(
         GalaxyRestore(PvcId("galaxy-pvc-id"), PvcId("cvmfs-pvc-id"), AppId(123))
       )
