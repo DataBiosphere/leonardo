@@ -248,6 +248,7 @@ object Boot extends IOApp {
             appDependencies.appDAO,
             googleDependencies.credentials,
             googleDependencies.googleIamDAO,
+            googleDependencies.googleDiskService,
             appDependencies.appDescriptorDAO,
             appDependencies.blocker,
             appDependencies.nodepoolLock

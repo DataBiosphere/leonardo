@@ -556,7 +556,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private[monitor] def createGalaxyPostgresDiskOnlyInGoogle(project: GoogleProject,
                                                             zone: ZoneName,
                                                             appName: AppName,
-                                                            namespaceName: NamespaceName)(
+                                                            dataDiskName: DiskName)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only creating the postgress disk in Google since we are not supporting persistence
@@ -564,9 +564,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     val create = for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(s"Beginning postgres disk creation for app ${appName.value}")
-      operationOpt <- googleDiskService.createDisk(project,
-                                                   zone,
-                                                   gkeInterp.buildGalaxyPostgresDisk(zone, namespaceName))
+      operationOpt <- googleDiskService.createDisk(project, zone, gkeInterp.buildGalaxyPostgresDisk(zone, dataDiskName))
       whenDone = logger.info(ctx.loggingCtx)(
         s"Completed postgres disk creation for app ${appName.value} in project ${project.value}"
       )
@@ -654,7 +652,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
   private[monitor] def deleteGalaxyPostgresDiskOnlyInGoogle(project: GoogleProject,
                                                             zone: ZoneName,
                                                             appName: AppName,
-                                                            namespaceName: NamespaceName)(
+                                                            namespaceName: NamespaceName,
+                                                            dataDiskName: DiskName)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     // TODO: remove post-alpha release of Galaxy. For pre-alpha we are only deleting the postgress disk in Google since we are not supporting persistence
@@ -664,7 +663,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       _ <- logger.info(ctx.loggingCtx)(
         s"Beginning postres disk deletion for app ${appName.value} in project ${project.value}"
       )
-      operation <- googleDiskService.deleteDisk(project, zone, gkeInterp.getGalaxyPostgresDiskName(namespaceName))
+      operation <- gkeInterp.deleteGalaxyPostgresDisk(dataDiskName, namespaceName, project, zone)
       whenDone = logger.info(ctx.loggingCtx)(
         s"Completed postgres disk deletion for app ${appName.value} in project ${project.value}"
       )
@@ -833,17 +832,23 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
       // create second Galaxy disk asynchronously
       createSecondDiskOp = if (msg.appType == Galaxy && msg.createDisk.isDefined) {
-        createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, msg.namespaceName)
-          .adaptError {
-            case e =>
-              PubsubKubernetesError(
-                AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
-                Some(msg.appId),
-                false,
-                None,
-                None
-              )
-          }
+        for {
+          diskId <- F.fromOption(msg.createDisk, DiskNotFoundForAppException(msg.appId, ctx.traceId))
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
+          disk <- F.fromOption(diskOpt, PubsubHandleMessageError.DiskNotFound(diskId))
+
+          res <- createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, disk.name)
+            .adaptError {
+              case e =>
+                PubsubKubernetesError(
+                  AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
+                  Some(msg.appId),
+                  false,
+                  None,
+                  None
+                )
+            }
+        } yield res
       } else F.unit
 
       // build asynchronous task
@@ -894,13 +899,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       task = for {
         // we record the last disk detach timestamp here, before it is removed from galaxy
         // this is needed before we can delete disks
-        postgresOriginalDetachTimestampOpt <- msg.diskId.flatTraverse { _ =>
-          googleDiskService
-            .getDisk(
-              msg.project,
-              zone,
-              gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
-            )
+        postgresOriginalDetachTimestampOpt <- dbApp.app.appResources.disk.flatTraverse { d =>
+          gkeInterp
+            .getGalaxyPostgresDisk(d.name, dbApp.app.appResources.namespace.name, msg.project, zone)
             .map(_.map(_.getLastDetachTimestamp))
         }
 
@@ -929,11 +930,10 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         // detach/delete disk when we need to delete disk
         _ <- msg.diskId.traverse_ { diskId =>
           // we now use the detach timestamp recorded prior to helm uninstall so we can observe when galaxy actually 'detaches' the disk from google's perspective
-          val getPostgresDisk = googleDiskService.getDisk(
-            msg.project,
-            zone,
-            gkeInterp.getGalaxyPostgresDiskName(dbApp.app.appResources.namespace.name)
-          )
+          val getPostgresDisk = gkeInterp.getGalaxyPostgresDisk(dbApp.app.appResources.disk.get.name,
+                                                                dbApp.app.appResources.namespace.name,
+                                                                msg.project,
+                                                                zone)
           val getDataDisk = dbApp.app.appResources.disk.flatTraverse { d =>
             googleDiskService
               .getDisk(
@@ -985,7 +985,8 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
               deleteGalaxyPostgresDiskOnlyInGoogle(msg.project,
                                                    zone,
                                                    msg.appName,
-                                                   dbApp.app.appResources.namespace.name)
+                                                   dbApp.app.appResources.namespace.name,
+                                                   dbApp.app.appResources.disk.get.name)
                 .adaptError {
                   case e =>
                     PubsubKubernetesError(

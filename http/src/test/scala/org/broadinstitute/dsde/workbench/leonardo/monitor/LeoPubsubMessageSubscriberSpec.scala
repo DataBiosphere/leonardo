@@ -640,7 +640,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle create app message with a create cluster" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val disk = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Galaxy)).save().unsafeRunSync()
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -952,7 +952,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "error on create if app doesn't exist" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val disk1 = makePersistentDisk(Some(DiskName("disk1"))).save().unsafeRunSync()
+    val disk1 = makePersistentDisk(None).save().unsafeRunSync()
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -1160,6 +1160,7 @@ class LeoPubsubMessageSubscriberSpec
                                         MockAppDAO,
                                         credentials,
                                         iamDAOKubernetes,
+                                        makeDetachingDiskInterp(),
                                         MockAppDescriptorDAO,
                                         blocker,
                                         lock)
@@ -1321,6 +1322,7 @@ class LeoPubsubMessageSubscriberSpec
                                          MockAppDAO,
                                          credentials,
                                          iamDAOKubernetes,
+                                         makeDetachingDiskInterp(),
                                          MockAppDescriptorDAO,
                                          blocker,
                                          lock)
@@ -1380,6 +1382,7 @@ class LeoPubsubMessageSubscriberSpec
                                    MockAppDAO,
                                    credentials,
                                    iamDAOKubernetes,
+                                   makeDetachingDiskInterp(),
                                    MockAppDescriptorDAO,
                                    blocker,
                                    lock)
@@ -1488,6 +1491,7 @@ class LeoPubsubMessageSubscriberSpec
                                          MockAppDAO,
                                          credentials,
                                          iamDAO,
+                                         makeDetachingDiskInterp(),
                                          MockAppDescriptorDAO,
                                          blocker,
                                          lock)
@@ -1590,6 +1594,7 @@ class LeoPubsubMessageSubscriberSpec
                                         new MockAppDAO(false),
                                         credentials,
                                         iamDAOKubernetes,
+                                        makeDetachingDiskInterp(),
                                         MockAppDescriptorDAO,
                                         blocker,
                                         lock)
@@ -1756,6 +1761,7 @@ class LeoPubsubMessageSubscriberSpec
                            MockAppDAO,
                            credentials,
                            iamDAOKubernetes,
+                           makeDetachingDiskInterp(),
                            MockAppDescriptorDAO,
                            blocker,
                            lock)
