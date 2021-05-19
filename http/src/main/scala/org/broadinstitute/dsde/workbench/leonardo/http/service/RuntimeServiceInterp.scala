@@ -403,17 +403,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // throw 409 if the cluster is not stoppable
-      _ <- if (runtime.status.isStoppable || runtime.status.isStopping) F.unit
-      else
-        F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.googleProject, runtime.runtimeName, runtime.status))
 
       _ <- if (runtime.status.isStopping) F.unit
-      else {
-        // stop the runtime
-        clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
-        publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
-      }
+      else if (runtime.status.isStoppable) {
+        for {
+          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
+          _ <- publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
 
+        } yield ()
+      } else
+        F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.googleProject, runtime.runtimeName, runtime.status))
     } yield ()
 
   def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
