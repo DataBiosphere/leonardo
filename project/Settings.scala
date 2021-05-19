@@ -26,7 +26,10 @@ object Settings {
     Test / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
     Test / scalacOptions --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
-    addCompilerPlugin(scalafixSemanticdb)
+    // Hard-coding the semanticdbVersion to make it work with Scala 2.13.6. It's possible this may be fixed
+    // in a future scalafix version. See: https://scalacenter.github.io/scalafix/docs/users/installation.html
+    semanticdbEnabled := true,
+    semanticdbVersion := "4.4.18"
   )
 
   val commonCompilerSettings = Seq(
