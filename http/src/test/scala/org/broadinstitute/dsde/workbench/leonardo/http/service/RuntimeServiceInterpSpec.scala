@@ -896,6 +896,32 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()
   }
 
+  it should "not stop a stopping runtime and also not error" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val res = for {
+      publisherQueue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      service = makeRuntimeService(publisherQueue)
+      samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
+      testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.PreStopping).save())
+
+      _ <- service.stopRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      res <- withLeoPublisher(publisherQueue) {
+        for {
+          dbRuntimeOpt <- clusterQuery
+            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .transaction
+          message <- publisherQueue.tryDequeue1
+        } yield {
+          dbRuntimeOpt.get.status shouldBe RuntimeStatus.PreStopping
+          message shouldBe (None)
+        }
+      }
+    } yield res
+
+    res.unsafeRunSync()
+  }
+
   it should "start a runtime" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
