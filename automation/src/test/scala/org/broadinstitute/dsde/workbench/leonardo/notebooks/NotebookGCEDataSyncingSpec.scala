@@ -101,8 +101,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
 
               originalRemoteContentSize shouldBe originalLocalContentSize +- 1
 
-              logger.info(s"YOU ARE HERE")
-              notebookPage.modeExists() shouldBe false
+              notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.SafeMode
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
