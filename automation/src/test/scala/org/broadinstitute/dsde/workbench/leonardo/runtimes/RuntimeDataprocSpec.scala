@@ -42,6 +42,12 @@ class RuntimeDataprocSpec
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
   val dependencies = for {
     dataprocService <- googleDataprocService
     storage <- google2StorageResource
@@ -50,7 +56,7 @@ class RuntimeDataprocSpec
 
   "should create a Dataproc cluster in a non-default region" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
-
+    logger.info(s"YOU ARE HERE")
     // In a europe region
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
