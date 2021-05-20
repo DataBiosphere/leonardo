@@ -56,7 +56,7 @@ class RuntimeDataprocSpec
 
   "should create a Dataproc cluster in a non-default region" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
-    logger.info(s"YOU ARE HERE")
+
     // In a europe region
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
@@ -84,7 +84,7 @@ class RuntimeDataprocSpec
 
         // check cluster status in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 1, RegionName("europe-west1"))
-        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west2")
+        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()

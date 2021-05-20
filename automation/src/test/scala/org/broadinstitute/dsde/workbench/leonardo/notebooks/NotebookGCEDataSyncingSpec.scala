@@ -22,12 +22,6 @@ import scala.concurrent.duration._
 class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   override def enableWelder: Boolean = true
 
-  override def withFixture(test: NoArgTest) =
-    if (isRetryable(test))
-      withRetry(super.withFixture(test))
-    else
-      super.withFixture(test)
-
   "NotebookGCEDataSyncingSpec" - {
 
     "Welder should be up" in { runtimeFixture =>
@@ -107,7 +101,8 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
 
               originalRemoteContentSize shouldBe originalLocalContentSize +- 1
 
-              notebookPage.modeExists() shouldBe true
+              logger.info(s"YOU ARE HERE")
+              notebookPage.modeExists() shouldBe false
               notebookPage.getMode() shouldBe NotebookMode.SafeMode
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
