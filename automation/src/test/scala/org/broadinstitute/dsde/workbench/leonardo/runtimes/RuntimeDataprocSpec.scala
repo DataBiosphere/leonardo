@@ -42,12 +42,6 @@ class RuntimeDataprocSpec
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
-  override def withFixture(test: NoArgTest) =
-    if (isRetryable(test))
-      withRetry(super.withFixture(test))
-    else
-      super.withFixture(test)
-
   val dependencies = for {
     dataprocService <- googleDataprocService
     storage <- google2StorageResource
@@ -84,7 +78,7 @@ class RuntimeDataprocSpec
 
         // check cluster status in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 1, RegionName("europe-west1"))
-        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
+        _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west2")
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
