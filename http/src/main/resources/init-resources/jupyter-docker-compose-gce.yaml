@@ -11,7 +11,7 @@ services:
     # The cluster init script will run some scripts as root and then start pyspark as
     # jupyter-user via docker exec.
     # -F will follow the log when the log is created.
-    entrypoint: "tail -F /home/jupyter/notebooks/jupyter.log"
+    entrypoint: "tail -F ${NOTEBOOKS_DIR}/jupyter.log"
     ports:
       - "8000:8000"
     networks:

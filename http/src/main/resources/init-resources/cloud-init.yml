@@ -4,3 +4,14 @@ bootcmd:
 - fsck.ext4 -tvy /dev/sdb
 - mkdir -p /mnt/disks/work
 - mount -t ext4 -O discard,defaults /dev/sdb /mnt/disks/work
+
+write_files:
+  - path: /etc/systemd/system/google-shutdown-scripts.service.d/override.conf
+    permissions: 0644
+    owner: root
+    content: |
+      [Unit]
+      After=docker.service
+
+runcmd:
+  - systemctl daemon-reload

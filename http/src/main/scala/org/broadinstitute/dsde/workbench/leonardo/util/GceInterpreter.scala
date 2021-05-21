@@ -320,7 +320,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       zoneParam <- F.fromOption(
         LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException(
-          "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+          "GceInterpreter shouldn't get a stop dataproc runtime request. Something is very wrong"
         )
       )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
