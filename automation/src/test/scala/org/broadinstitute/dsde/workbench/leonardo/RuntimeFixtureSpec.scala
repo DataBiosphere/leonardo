@@ -41,6 +41,12 @@ abstract class RuntimeFixtureSpec
 
   override type FixtureParam = ClusterFixture
 
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
   override def withFixture(test: OneArgTest): Outcome = {
 
     if (clusterCreationFailureMsg.nonEmpty)
