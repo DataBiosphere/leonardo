@@ -57,14 +57,14 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.proxyServerKey shouldBe GcsPath(CommonTestData.initBucketName, GcsObjectName("test-server.key")).toUri
       result.jupyterServerName shouldBe "jupyter-server"
       result.jupyterServiceAccountCredentials shouldBe ""
-      result.jupyterStartUserScriptOutputUri shouldBe RuntimeTemplateValues
-        .jupyterUserStartScriptOutputUriPath(CommonTestData.stagingBucketName, now)
+      result.startUserScriptOutputUri shouldBe RuntimeTemplateValues
+        .userStartScriptOutputUriPath(CommonTestData.stagingBucketName, now)
         .toUri
       result.updateWelder shouldBe "true"
-      result.jupyterStartUserScriptUri shouldBe GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")).toUri
-      result.jupyterUserScriptOutputUri shouldBe GcsPath(CommonTestData.stagingBucketName,
-                                                         GcsObjectName("userscript_output.txt")).toUri
-      result.jupyterUserScriptUri shouldBe GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")).toUri
+      result.startUserScriptUri shouldBe GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")).toUri
+      result.userScriptOutputUri shouldBe GcsPath(CommonTestData.stagingBucketName,
+                                                  GcsObjectName("userscript_output.txt")).toUri
+      result.userScriptUri shouldBe GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")).toUri
       result.loginHint shouldBe CommonTestData.auditInfo.creator.value
       result.memLimit shouldBe "3758096384b" // 3.5 GB
       result.notebooksDir shouldBe "/home/jupyter/notebooks"

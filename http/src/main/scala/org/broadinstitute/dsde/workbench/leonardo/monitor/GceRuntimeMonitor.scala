@@ -213,7 +213,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
           case GceInstanceStatus.Running =>
             val userScriptOutputFile = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields
               .map(_.stagingBucket)
-              .map(b => RuntimeTemplateValues.jupyterUserScriptOutputUriPath(b))
+              .map(b => RuntimeTemplateValues.userScriptOutputUriPath(b))
 
             val userStartupScriptOutputFile = getUserScript(i)
 
@@ -221,8 +221,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
               validationResult <- validateBothScripts(
                 userScriptOutputFile,
                 userStartupScriptOutputFile,
-                runtimeAndRuntimeConfig.runtime.jupyterUserScriptUri,
-                runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri
+                runtimeAndRuntimeConfig.runtime.userScriptUri,
+                runtimeAndRuntimeConfig.runtime.startUserScriptUri
               )
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
@@ -313,7 +313,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
 
             for {
               validationResult <- validateUserStartupScript(userStartupScript,
-                                                            runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri)
+                                                            runtimeAndRuntimeConfig.runtime.startUserScriptUri)
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
                   checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))

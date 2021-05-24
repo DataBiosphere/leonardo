@@ -8,7 +8,7 @@ import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.cloud.compute.v1.Disk
+import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.container.v1._
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
   tracedRetryF,
   DiskName,
+  GoogleDiskService,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
@@ -41,8 +42,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
-
 import java.util.Base64
+
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -56,6 +59,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   appDao: AppDAO[F],
   credentials: GoogleCredentials,
   googleIamDAO: GoogleIamDAO,
+  googleDiskService: GoogleDiskService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
   blocker: Blocker,
   nodepoolLock: KeyLock[F, KubernetesClusterId]
@@ -369,7 +373,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"googleIamDAO.addIamPolicyBindingOnServiceAccount for GSA ${gsa.value} & KSA ${ksaName.value}"
       ).compile.lastOrError
 
-      //TODO: validate app release is the same as retore release
+      //TODO: validate app release is the same as restore release
       galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(diskId).transaction
 
       // helm install and wait
@@ -819,18 +823,59 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       }
     } yield ()
 
-  private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName, namespaceName: NamespaceName): Disk =
+  private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName, dataDiskName: DiskName): Disk =
     Disk
       .newBuilder()
-      .setName(getGalaxyPostgresDiskName(namespaceName).value)
+      .setName(getGalaxyPostgresDiskName(dataDiskName).value)
       .setZone(zone.value)
       .setSizeGb(config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString)
       .setPhysicalBlockSizeBytes(config.galaxyDiskConfig.postgresDiskBlockSize.bytes.toString)
       .putAllLabels(Map("leonardo" -> "true").asJava)
       .build()
 
-  private[leonardo] def getGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
+  private[leonardo] def getGalaxyPostgresDiskName(dataDiskName: DiskName): DiskName =
+    DiskName(s"${dataDiskName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
+
+  private[leonardo] def getOldStyleGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
     DiskName(s"${namespaceName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
+
+  private[leonardo] def getGalaxyPostgresDisk(diskName: DiskName,
+                                              namespaceName: NamespaceName,
+                                              project: GoogleProject,
+                                              zone: ZoneName)(implicit traceId: Ask[F, AppContext]): F[Option[Disk]] =
+    for {
+      postgresDiskOpt <- googleDiskService
+        .getDisk(
+          project,
+          zone,
+          getGalaxyPostgresDiskName(diskName)
+        )
+      res <- postgresDiskOpt match {
+        case Some(disk) => F.pure(Some(disk))
+        case None =>
+          googleDiskService.getDisk(project, zone, getOldStyleGalaxyPostgresDiskName(namespaceName))
+      }
+    } yield res
+
+  private[leonardo] def deleteGalaxyPostgresDisk(
+    diskName: DiskName,
+    namespaceName: NamespaceName,
+    project: GoogleProject,
+    zone: ZoneName
+  )(implicit traceId: Ask[F, AppContext]): F[Option[Operation]] =
+    for {
+      postgresDiskOpt <- googleDiskService
+        .deleteDisk(
+          project,
+          zone,
+          getGalaxyPostgresDiskName(diskName)
+        )
+      res <- postgresDiskOpt match {
+        case Some(operation) => F.pure(Some(operation))
+        case None =>
+          googleDiskService.deleteDisk(project, zone, getOldStyleGalaxyPostgresDiskName(namespaceName))
+      }
+    } yield res
 
   private[util] def installNginx(dbCluster: KubernetesCluster,
                                  googleCluster: Cluster)(implicit ev: Ask[F, AppContext]): F[IP] =
@@ -896,6 +941,14 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       _ <- logger.info(ctx.loggingCtx)(
         s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
+      postgresDiskNameOpt <- for {
+        disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, nfsDisk.googleProject, nfsDisk.zone)
+      } yield disk.map(x => DiskName(x.getName))
+
+      postgresDiskName <- F.fromOption(
+        postgresDiskNameOpt,
+        AppCreationException(s"No postgres disk found in google for app ${appName.value} ", traceId = Some(ctx.traceId))
+      )
 
       chartValues = buildGalaxyChartOverrideValuesString(
         appName,
@@ -907,6 +960,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         kubernetesServiceAccount,
         namespaceName,
         nfsDisk,
+        postgresDiskName,
         galaxyRestore
       )
 
@@ -1159,6 +1213,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
                                                          ksa: ServiceAccountName,
                                                          namespaceName: NamespaceName,
                                                          nfsDisk: PersistentDisk,
+                                                         postgresDiskName: DiskName,
                                                          galaxyRestore: Option[GalaxyRestore]): List[String] = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -1191,20 +1246,20 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // Storage class configs
       raw"""nfs.storageClass.name=nfs-${release.asString}""",
       raw"""cvmfs.repositories.cvmfs-gxy-data-${release.asString}=data.galaxyproject.org""",
-      raw"""cvmfs.repositories.cvmfs-gxy-main-${release.asString}=main.galaxyproject.org""",
       raw"""cvmfs.cache.alienCache.storageClass=nfs-${release.asString}""",
       raw"""galaxy.persistence.storageClass=nfs-${release.asString}""",
-      raw"""galaxy.cvmfs.data.pvc.storageClassName=cvmfs-gxy-data-${release.asString}""",
-      raw"""galaxy.cvmfs.main.pvc.storageClassName=cvmfs-gxy-main-${release.asString}""",
+      raw"""galaxy.cvmfs.galaxyPersistentVolumeClaims.data.storageClassName=cvmfs-gxy-data-${release.asString}""",
       // Node selector config: this ensures the app is run on the user's nodepool
       raw"""galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""nfs.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       raw"""galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: ${nodepoolName.value}""",
+      raw"""galaxy.postgresql.master.nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Ingress configs
       raw"""galaxy.ingress.path=${ingressPath}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
-      raw"""galaxy.ingress.hosts[0]=${k8sProxyHost}""",
+      raw"""galaxy.ingress.hosts[0].host=${k8sProxyHost}""",
+      raw"""galaxy.ingress.hosts[0].paths[0].path=${ingressPath}""",
       raw"""galaxy.ingress.tls[0].hosts[0]=${k8sProxyHost}""",
       raw"""galaxy.ingress.tls[0].secretName=tls-secret""",
       // Galaxy configs
@@ -1224,8 +1279,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].on_anvil=True""",
       // RBAC configs
-      raw"""galaxy.rbac.enabled=false""",
-      raw"""galaxy.rbac.serviceAccount=${ksa.value}""",
+      raw"""galaxy.serviceAccount.create=false""",
+      raw"""galaxy.serviceAccount.name=${ksa.value}""",
       raw"""rbac.serviceAccount=${ksa.value}""",
       // Persistence configs
       raw"""persistence.nfs.name=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}""",
@@ -1233,14 +1288,13 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
       raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
       raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword}""",
-      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${getGalaxyPostgresDiskName(
-        namespaceName
-      ).value}""",
+      raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName.value}""",
       raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",
       raw"""nfs.persistence.size=${nfsDisk.size.gb.toString}Gi""",
       raw"""galaxy.postgresql.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}-pvc""",
-      raw"""galaxy.persistence.size=200Gi"""
+      // Note Galaxy pvc claim is the nfs disk size minus 50G
+      raw"""galaxy.persistence.size=${(nfsDisk.size.gb - 50).toString}Gi"""
     ) ++ configs ++ galaxyRestoreSettings
   }
 
@@ -1360,7 +1414,7 @@ final case class NodepoolStartException(nodepoolId: NodepoolLeoId) extends AppPr
   override def getMessage: String = s"Failed to poll nodepool start operation to completion for nodepool $nodepoolId"
 }
 
-final case class AppCreationException(message: String) extends AppProcessingException {
+final case class AppCreationException(message: String, traceId: Option[TraceId] = None) extends AppProcessingException {
   override def getMessage: String = message
 }
 

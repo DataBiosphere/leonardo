@@ -26,7 +26,8 @@ object Settings {
     Test / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
     Test / scalacOptions --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
     addCompilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1"),
-    addCompilerPlugin(scalafixSemanticdb)
+    semanticdbEnabled := true,
+    semanticdbVersion := scalafixSemanticdb.revision
   )
 
   val commonCompilerSettings = Seq(
@@ -86,7 +87,7 @@ object Settings {
   val commonSettings =
     commonBuildSettings ++ List(
     organization  := "org.broadinstitute.dsde.workbench",
-    scalaVersion  := "2.13.5",
+    scalaVersion  := "2.13.6",
     resolvers ++= commonResolvers,
     scalacOptions ++= commonCompilerSettings
   )

@@ -156,7 +156,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             case DataprocClusterStatus.Error =>
               val userScriptOutputFile = runtime.asyncRuntimeFields
                 .map(_.stagingBucket)
-                .map(b => RuntimeTemplateValues.jupyterUserScriptOutputUriPath(b))
+                .map(b => RuntimeTemplateValues.userScriptOutputUriPath(b))
               val userStartupScriptOutputFile = dataprocAndComputeInstances
                 .find(_._1.dataprocRole == DataprocRole.Master)
                 .map(_._2)
@@ -166,8 +166,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 validationResult <- validateBothScripts(
                   userScriptOutputFile,
                   userStartupScriptOutputFile,
-                  runtime.jupyterUserScriptUri,
-                  runtime.jupyterStartUserScriptUri
+                  runtime.userScriptUri,
+                  runtime.startUserScriptUri
                 )
                 // If an error occurred in a user script, persist that error instead of the Dataproc error
                 r <- validationResult match {
@@ -243,7 +243,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             val userStartupScriptOutputFile = master.map(_._2).flatMap(getUserScript)
             for {
               validationResult <- validateUserStartupScript(userStartupScriptOutputFile,
-                                                            runtimeAndRuntimeConfig.runtime.jupyterStartUserScriptUri)
+                                                            runtimeAndRuntimeConfig.runtime.startUserScriptUri)
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
                   checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))

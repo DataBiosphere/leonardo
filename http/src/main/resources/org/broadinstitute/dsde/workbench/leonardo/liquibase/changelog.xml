@@ -74,4 +74,5 @@
     <include file="changesets/20210317_add_trace_id.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210324_add_zone_and_region_to_runtime_config.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210414_add_home_dir.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20210505_rename_jupyter_user_script_column.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

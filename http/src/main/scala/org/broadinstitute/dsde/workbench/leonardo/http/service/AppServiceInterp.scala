@@ -124,6 +124,20 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
+      // Fail fast if the Galaxy disk is too small
+      _ <- if (req.appType == AppType.Galaxy) {
+        req.diskConfig.flatMap(_.size).traverse_ { size =>
+          if (size.gb < leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB.gb) {
+            F.raiseError[Unit](
+              BadRequestException(
+                s"Galaxy disk must be at least ${leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB}",
+                Some(ctx.traceId)
+              )
+            )
+          } else F.unit
+        }
+      } else F.unit
+
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
         RuntimeServiceInterp.processPersistentDiskRequest(
           diskReq,
@@ -599,6 +613,7 @@ object LeoAppServiceInterp {
                                  nodepoolConfig: NodepoolConfig,
                                  ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,
+                                 galaxyDiskConfig: GalaxyDiskConfig,
                                  diskConfig: PersistentDiskConfig)
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {

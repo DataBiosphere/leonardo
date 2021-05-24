@@ -165,9 +165,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                        req,
                                        context.now)
 
-            userScriptUriToValidate = req.jupyterUserScriptUri
+            userScriptUriToValidate = req.userScriptUri
               .flatMap(x => UserScriptPath.gcsPrism.getOption(x).map(_.asString))
-            userStartupScriptToValidate = req.jupyterStartUserScriptUri.flatMap(x =>
+            userStartupScriptToValidate = req.startUserScriptUri.flatMap(x =>
               UserScriptPath.gcsPrism.getOption(x).map(_.asString)
             )
 
@@ -403,12 +403,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- if (hasStopPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // throw 409 if the cluster is not stoppable
-      _ <- if (runtime.status.isStoppable) F.unit
-      else
+
+      _ <- if (runtime.status.isStopping) F.unit
+      else if (runtime.status.isStoppable) {
+        for {
+          _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
+          _ <- publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
+
+        } yield ()
+      } else
         F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.googleProject, runtime.runtimeName, runtime.status))
-      // stop the runtime
-      _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
-      _ <- publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
     } yield ()
 
   def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
@@ -824,8 +828,8 @@ object RuntimeServiceInterp {
       googleProject,
       userInfo.userEmail,
       serviceAccountInfo,
-      req.jupyterUserScriptUri,
-      req.jupyterStartUserScriptUri,
+      req.userScriptUri,
+      req.startUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
     ).toMap
 
@@ -864,8 +868,8 @@ object RuntimeServiceInterp {
       proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, allLabels),
       status = RuntimeStatus.PreCreating,
       labels = allLabels,
-      jupyterUserScriptUri = req.jupyterUserScriptUri,
-      jupyterStartUserScriptUri = req.jupyterStartUserScriptUri,
+      userScriptUri = req.userScriptUri,
+      startUserScriptUri = req.startUserScriptUri,
       errors = List.empty,
       dataprocInstances = Set.empty,
       userJupyterExtensionConfig = req.userJupyterExtensionConfig,

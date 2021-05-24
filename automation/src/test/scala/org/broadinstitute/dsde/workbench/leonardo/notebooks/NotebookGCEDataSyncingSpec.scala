@@ -98,8 +98,8 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                                          Welder.getLocalPath(gcsPath, isEditMode))
               logger.info(s"[playground mode] original local content is ${originalLocalContent}")
               val originalLocalContentSize: Int = originalLocalContent.size
-
-              abs(originalRemoteContentSize - originalLocalContentSize)<2 shouldBe true
+              
+              originalRemoteContentSize shouldBe originalLocalContentSize +- 1
 
               notebookPage.modeExists() shouldBe true
               notebookPage.getMode() shouldBe NotebookMode.SafeMode

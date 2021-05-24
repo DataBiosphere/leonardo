@@ -126,7 +126,7 @@ class HttpRoutesSpec
   it should "list runtimes with labels" in isolatedDbTest {
     def runtimesWithLabels(i: Int) =
       defaultCreateRuntimeRequest
-        .copy(jupyterStartUserScriptUri = None)
+        .copy(startUserScriptUri = None)
         .copy(labels = Map(s"label$i" -> s"value$i"))
 
     def serviceAccountLabels: Map[String, String] =

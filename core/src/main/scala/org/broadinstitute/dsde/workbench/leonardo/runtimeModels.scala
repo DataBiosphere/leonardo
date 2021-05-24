@@ -30,8 +30,8 @@ final case class Runtime(id: Long,
                          proxyUrl: URL,
                          status: RuntimeStatus,
                          labels: LabelMap,
-                         jupyterUserScriptUri: Option[UserScriptPath],
-                         jupyterStartUserScriptUri: Option[UserScriptPath],
+                         userScriptUri: Option[UserScriptPath],
+                         startUserScriptUri: Option[UserScriptPath],
                          errors: List[RuntimeError],
                          dataprocInstances: Set[DataprocInstance],
                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
@@ -164,6 +164,9 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
   // Can a user start this runtime?
   val startableStatuses: Set[RuntimeStatus] = Set(Stopped, Stopping)
 
+  // A runtime transitioning to Stopped
+  val stoppingStatuses: Set[RuntimeStatus] = Set(PreStopping, Stopping, Stopped)
+
   // Can a user update (i.e. resize) this runtime?
   val updatableStatuses: Set[RuntimeStatus] = Set(Running, Stopped)
 
@@ -174,6 +177,7 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
     def isStoppable: Boolean = stoppableStatuses contains status
     def isStartable: Boolean = startableStatuses contains status
     def isUpdatable: Boolean = updatableStatuses contains status
+    def isStopping: Boolean = stoppingStatuses contains status
   }
 }
 
@@ -381,8 +385,8 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
                                 googleProject: GoogleProject,
                                 creator: WorkbenchEmail,
                                 serviceAccount: WorkbenchEmail,
-                                notebookUserScript: Option[UserScriptPath],
-                                notebookStartUserScript: Option[UserScriptPath],
+                                userScript: Option[UserScriptPath],
+                                startUserScript: Option[UserScriptPath],
                                 tool: Option[RuntimeImageType]) {
   def toMap: LabelMap =
     Map(
@@ -391,8 +395,8 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
       "googleProject" -> googleProject.value,
       "creator" -> creator.value,
       "clusterServiceAccount" -> serviceAccount.value,
-      "notebookUserScript" -> notebookUserScript.map(_.asString).getOrElse(null),
-      "notebookStartUserScript" -> notebookStartUserScript.map(_.asString).getOrElse(null),
+      "userScript" -> userScript.map(_.asString).getOrElse(null),
+      "startUserScript" -> startUserScript.map(_.asString).getOrElse(null),
       "tool" -> tool.map(_.toString).getOrElse(null)
     ).filterNot(_._2 == null)
 }
