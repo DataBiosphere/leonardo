@@ -11,11 +11,13 @@ import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
 import com.google.cloud.dataproc.v1._
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
   CreateClusterConfig,
   DataprocClusterName,
   DiskName,
@@ -34,8 +36,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMs
 import org.broadinstitute.dsde.workbench.leonardo.model.{InvalidDataprocMachineConfigException, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google._
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
@@ -66,6 +68,11 @@ final case class ClusterResourceConstraintsException(clusterProjectAndName: Runt
 
 final case class RegionNotSupportedException(region: RegionName, traceId: TraceId)
     extends LeoException(s"Region ${region.value} not supported for Dataproc cluster creation",
+                         StatusCodes.Conflict,
+                         traceId = Some(traceId))
+
+final case class GoogleGroupMembershipException(googleGroup: WorkbenchEmail, traceId: TraceId)
+    extends LeoException(s"Google group ${googleGroup} failed to update in a timely manner",
                          StatusCodes.Conflict,
                          traceId = Some(traceId))
 
@@ -439,9 +446,65 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
   def removeClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: WorkbenchEmail): F[Unit] =
     updateClusterIamRoles(googleProject, serviceAccountInfo, createCluster = false)
 
+  // Called at Leo boot time. Sets up the Dataproc image user group if it does not already exist.
+  // Group membership is modified at Dataproc cluster creation time.
   def setupDataprocImageGoogleGroup(implicit ev: Ask[F, AppContext]): F[Unit] =
-    createDataprocImageUserGoogleGroupIfItDoesntExist >>
-      addIamRoleToDataprocImageGroup
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Checking if Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists..."
+      )
+      // Check if the group exists
+      groupOpt <- F.liftIO(
+        IO.fromFuture[Option[Group]](
+          IO(googleDirectoryDAO.getGoogleGroup(config.groupsConfig.dataprocImageProjectGroupEmail))
+        )
+      )
+      // Create the group if it does not exist
+      _ <- groupOpt match {
+        case None =>
+          F.liftIO(
+              IO.fromFuture(
+                IO(
+                  googleDirectoryDAO
+                    .createGroup(
+                      config.groupsConfig.dataprocImageProjectGroupName,
+                      config.groupsConfig.dataprocImageProjectGroupEmail,
+                      Option(googleDirectoryDAO.lockedDownGroupSettings)
+                    )
+                )
+              )
+            )
+            .handleErrorWith {
+              case t if when409(t) => F.unit
+              case t =>
+                F.raiseError(
+                  GoogleGroupCreationException(config.groupsConfig.dataprocImageProjectGroupEmail, t.getMessage)
+                )
+            }
+        case Some(group) =>
+          logger.info(ctx.loggingCtx)(
+            s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
+          )
+      }
+      // Add compute.imageUser role to the group in the custom image's project
+      imageProject <- F.fromOption(parseImageProject(config.dataprocConfig.customDataprocImage),
+                                   ImageProjectNotFoundException)
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Attempting to grant 'compute.imageUser' permissions to '${config.groupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
+      )
+      _ <- retry(
+        F.liftIO(
+          IO(
+            googleIamDAO.addIamRoles(imageProject,
+                                     config.groupsConfig.dataprocImageProjectGroupEmail,
+                                     MemberType.Group,
+                                     Set("roles/compute.imageUser"))
+          )
+        ),
+        when409
+      )
+    } yield ()
 
   /**
    * Add the user's service account to the Google group.
@@ -601,76 +664,6 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
     }
   }
 
-  private def createDataprocImageUserGoogleGroupIfItDoesntExist(implicit ev: Ask[F, AppContext]): F[Unit] =
-    for {
-      ctx <- ev.ask
-      _ <- logger.debug(ctx.loggingCtx)(
-        s"Checking if Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists..."
-      )
-
-      groupOpt <- F.liftIO(
-        IO.fromFuture[Option[Group]](
-          IO(googleDirectoryDAO.getGoogleGroup(config.groupsConfig.dataprocImageProjectGroupEmail))
-        )
-      )
-      _ <- groupOpt.fold(
-        logger.debug(ctx.loggingCtx)(
-          s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' does not exist. Attempting to create it..."
-        ) >> createDataprocImageUserGoogleGroup()
-      )(group =>
-        logger.debug(ctx.loggingCtx)(
-          s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
-        )
-      )
-    } yield ()
-
-  private def createDataprocImageUserGoogleGroup(): F[Unit] =
-    F.liftIO(
-        IO.fromFuture(
-          IO(
-            googleDirectoryDAO
-              .createGroup(
-                config.groupsConfig.dataprocImageProjectGroupName,
-                config.groupsConfig.dataprocImageProjectGroupEmail,
-                Option(googleDirectoryDAO.lockedDownGroupSettings)
-              )
-          )
-        )
-      )
-      .handleErrorWith {
-        case t if when409(t) => F.unit
-        case t =>
-          F.raiseError(
-            GoogleGroupCreationException(config.groupsConfig.dataprocImageProjectGroupEmail, t.getMessage)
-          )
-      }
-
-  private def addIamRoleToDataprocImageGroup(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val computeImageUserRole = Set("roles/compute.imageUser")
-
-    parseImageProject(config.dataprocConfig.customDataprocImage).fold(
-      F.raiseError[Unit](ImageProjectNotFoundException)
-    ) { imageProject =>
-      for {
-        ctx <- ev.ask
-        _ <- logger.debug(ctx.loggingCtx)(
-          s"Attempting to grant 'compute.imageUser' permissions to '${config.groupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
-        )
-        _ <- retry(
-          F.liftIO(
-            IO(
-              googleIamDAO.addIamRoles(imageProject,
-                                       config.groupsConfig.dataprocImageProjectGroupEmail,
-                                       MemberType.Group,
-                                       computeImageUserRole)
-            )
-          ),
-          when409
-        )
-      } yield ()
-    }
-  }
-
   private def updateGroupMembership(groupEmail: WorkbenchEmail, memberEmail: WorkbenchEmail, addToGroup: Boolean)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
@@ -689,6 +682,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
 
     for {
       ctx <- ev.ask
+
+      // Add or remove the member from the group
       isMember <- checkIsMember
       _ <- (isMember, addToGroup) match {
         case (false, true) =>
@@ -698,6 +693,13 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         case _ =>
           F.unit
       }
+
+      // Poll until addition/removal takes effect
+      d: DoneCheckable[Boolean] = (_: Boolean) == addToGroup
+      finalIsMember <- streamFUntilDone(checkIsMember, 30, 2 seconds)(implicitly, d).compile.lastOrError
+      _ <- if (!d.isDone(finalIsMember)) F.raiseError(GoogleGroupMembershipException(groupEmail, ctx.traceId))
+      else F.unit
+
     } yield ()
   }
 
