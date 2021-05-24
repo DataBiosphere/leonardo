@@ -98,7 +98,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                                          Welder.getLocalPath(gcsPath, isEditMode))
               logger.info(s"[playground mode] original local content is ${originalLocalContent}")
               val originalLocalContentSize: Int = originalLocalContent.size
-              
+
               originalRemoteContentSize shouldBe originalLocalContentSize +- 1
 
               notebookPage.modeExists() shouldBe true
@@ -127,7 +127,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               }
 
               //some selectors are omitted to simplify the test with the assumption that if the majority are hidden, they all are
-              val uiElementIds: List[String] = List("save-notbook",
+              val uiElementIds: List[String] = List("save-notebook",
                                                     "new_notebook",
                                                     "open_notebook",
                                                     "copy_notebook",
