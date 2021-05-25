@@ -3,7 +3,6 @@
 bootcmd:
 - fsck.ext4 -tvy /dev/sdb
 - mkdir -p /mnt/disks/work
-- chmod a+rwx /mnt/disks/work
 - mount -t ext4 -O discard,defaults /dev/sdb /mnt/disks/work
 
 write_files:

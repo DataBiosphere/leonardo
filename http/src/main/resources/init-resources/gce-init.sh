@@ -520,8 +520,6 @@ docker image prune -a -f &
 
 log 'All done!'
 
-chmod a+rwx ${WORK_DIRECTORY}
-
 ELAPSED_TIME=$(($END_TIME - $START_TIME))
 log "gce-init.sh took $(display_time $ELAPSED_TIME)"
 log "Step timings: ${STEP_TIMINGS[@]}"
