@@ -257,14 +257,14 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                 .setValue(templateValues.startUserScriptOutputUri)
                 .build()
             )
-            .addItems(
-              Items.newBuilder
-                .setKey("user-data")
-                .setValue(
-                  cloudInitFileContent
-                ) // cloud init log can be found on the instance at /var/log/cloud-init-output.log
-                .build()
-            )
+            //            .addItems(
+            //              Items.newBuilder
+            //                .setKey("user-data")
+            //                .setValue(
+            //                  cloudInitFileContent
+            //                ) // cloud init log can be found on the instance at /var/log/cloud-init-output.log
+            //                .build()
+            //            )
             .addItems(
               Items.newBuilder
                 .setKey("cos-update-strategy")

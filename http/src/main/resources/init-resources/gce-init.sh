@@ -215,6 +215,12 @@ if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
 fi
 
+mount -o discard,defaults /dev/${DISK_DEVICE_ID} /work
+# Ensure persistent disk re-mounts if runtime stops and restarts
+cp /etc/fstab /etc/fstab.backup
+echo UUID=`blkid -s UUID -o value /dev/${DISK_DEVICE_ID}` /work ext4 discard,defaults,nofail 0 2 | tee -a /etc/fstab
+chmod a+rwx /work
+
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
 
