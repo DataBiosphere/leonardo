@@ -66,9 +66,18 @@ object CreateRuntimeParams {
       message.runtimeConfig
     )
 }
+
+sealed trait BootSource extends Product with Serializable {
+  def asString: String
+}
+object BootSource {
+  final case class VmImage(customImage: CustomImage) extends BootSource {
+    def asString: String = customImage.asString
+  }
+}
 final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                              initBucket: GcsBucketName,
-                                             customImage: CustomImage)
+                                             bootSource: BootSource)
 final case class DeleteRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)

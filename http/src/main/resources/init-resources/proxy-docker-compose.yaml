@@ -1,14 +1,13 @@
-version: '2'
+version: '2.4'
 services:
   proxy:
     container_name: "${PROXY_SERVER_NAME}"
     image: "${PROXY_DOCKER_IMAGE}"
-    network_mode: host
     volumes:
-    - /certs/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
-    - /certs/jupyter-server.key:/etc/ssl/private/server.key:ro
-    - /certs/rootCA.pem:/etc/ssl/certs/ca-bundle.crt:ro
-    - /etc/cluster-site.conf:/etc/apache2/sites-enabled/site.conf
+    - ${CERT_DIRECTORY}/jupyter-server.crt:/etc/ssl/certs/server.crt:ro
+    - ${CERT_DIRECTORY}/jupyter-server.key:/etc/ssl/private/server.key:ro
+    - ${CERT_DIRECTORY}/rootCA.pem:/etc/ssl/certs/ca-bundle.crt:ro
+    - ${HOST_PROXY_SITE_CONF_FILE_PATH}:/etc/apache2/sites-enabled/site.conf
     restart: always
     environment:
       HTTPD_PORT: '80'

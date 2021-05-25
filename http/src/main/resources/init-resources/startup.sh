@@ -67,37 +67,84 @@ export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
-
-function failScriptIfError() {
-  if [ $EXIT_CODE -ne 0 ]; then
-    echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
-    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-    exit $EXIT_CODE
-  else
-    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-  fi
-}
+GPU_ENABLED=$(gpuEnabled)
 
 # Overwrite old cert on restart
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
-## This helps when we need to rotate certs.
-notAfter=`openssl x509 -enddate -noout -in /certs/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
+function failScriptIfError() {
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
+    retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+  fi
+}
 
-## If cert is old, then pull latest certs. Update date if we need to rotate cert again
-if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
-  gsutil cp ${SERVER_CRT} /certs
-  gsutil cp ${SERVER_KEY} /certs
-  gsutil cp ${ROOT_CA} /certs
-  docker-compose -f /etc/proxy-docker-compose.yaml restart &> start_output.txt || EXIT_CODE=$?
+function validateCert() {
+  certFileDirectory=$1
+  dockerCompose=$3
+  ## This helps when we need to rotate certs.
+  notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
 
-  failScriptIfError
+  ## If cert is old, then pull latest certs. Update date if we need to rotate cert again
+  if [[ "$notAfter" != *"notAfter=Jul 22"* ]] ; then
+    ${GSUTIL_CMD} cp ${SERVER_CRT} ${certFileDirectory}
+    ${GSUTIL_CMD} cp ${SERVER_KEY} ${certFileDirectory}
+    ${GSUTIL_CMD} cp ${ROOT_CA} ${certFileDirectory}
+
+    if [ "$certFileDirectory" = "/etc" ]
+    then
+      ${dockerCompose} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+    else
+      ${dockerCompose} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+    fi
+
+    failScriptIfError ${GSUTIL_CMD}
+    retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
+FILE=/var/certs/jupyter-server.crt
+if [ -f "$FILE" ]
+then
+    CERT_DIRECTORY='/var/certs'
+    DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
+    GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
+    GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
+    DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
+
+    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
+else
+    CERT_DIRECTORY='/certs'
+    DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
+    GSUTIL_CMD='gsutil'
+    GCLOUD_CMD='gcloud'
+    DOCKER_COMPOSE='docker-compose'
+
+    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
 fi
 
 JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
+
+# Make this run conditionally
+if [ "${GPU_ENABLED}" == "true" ] ; then
+  log 'Installing GPU driver...'
+  cos-extensions install gpu
+  mount --bind /var/lib/nvidia /var/lib/nvidia
+  mount -o remount,exec /var/lib/nvidia
+
+  # Containers will usually restart just fine. But when gpu is enabled,
+  # jupyter container will fail to start until the appropriate volume/device exists.
+  # Hence restart jupyter container here
+  docker restart jupyter-server
+  retry 3 docker exec -d jupyter-server /etc/jupyter/scripts/run-jupyter.sh ${NOTEBOOKS_DIR}
+fi
+
 
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
@@ -107,11 +154,14 @@ fi
 
 if [ "$UPDATE_WELDER" == "true" ] ; then
     # Run welder-docker-compose
-    gcloud auth configure-docker
-    retry 5 docker-compose -f /etc/welder-docker-compose.yaml pull
-    docker-compose -f /etc/welder-docker-compose.yaml stop
-    docker-compose -f /etc/welder-docker-compose.yaml rm -f
-    docker-compose -f /etc/welder-docker-compose.yaml up -d &> start_output.txt || EXIT_CODE=$?
+    ${GCLOUD_CMD} auth configure-docker
+
+    WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+
+    retry 5 ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} pull
+    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop
+    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} rm -f
+    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
 
     failScriptIfError
 fi
@@ -123,14 +173,14 @@ if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
   log "Executing user start script [$START_USER_SCRIPT]..."
   if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
-      docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+      docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     else
-      docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+      docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     fi
   fi
 
   if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-    docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+    docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
   fi
 
   failScriptIfError
@@ -171,12 +221,6 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 
     # Start RStudio server
     docker exec -d $RSTUDIO_SERVER_NAME /init
-fi
-
-# Configuring Welder, if enabled
-if [ "$WELDER_ENABLED" == "true" ] ; then
-    echo "Starting Welder on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-    docker exec -d $WELDER_SERVER_NAME /bin/bash -c "export STAGING_BUCKET=$STAGING_BUCKET && /opt/docker/bin/entrypoint.sh"
 fi
 
 # Resize persistent disk if needed.

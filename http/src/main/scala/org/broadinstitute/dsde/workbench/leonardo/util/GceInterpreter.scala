@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.config.ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbReference}
@@ -62,11 +63,11 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
     for {
       ctx <- ev.ask
 
-      zoneParam <- params.runtimeConfig match {
-        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.zone)
-        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure(x.zone)
+      (zoneParam, gpuConfig) <- params.runtimeConfig match {
+        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure((x.zone, x.gpuConfig))
+        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure((x.zone, x.gpuConfig))
         case _ =>
-          F.raiseError[ZoneName](
+          F.raiseError[(ZoneName, Option[GpuConfig])](
             new RuntimeException(
               "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
             )
@@ -107,8 +108,17 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .compile
         .drain
 
-      initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.gceInitScript.asString))
+      initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.initScript.asString))
+      cloudInit <- F
+        .fromOption(config.clusterResourcesConfig.cloudInit,
+                    new LeoException("No cloud init file defined for GCE VM.", traceId = Some(ctx.traceId)))
+      cloudInitFileContent = scala.io.Source
+        .fromResource(s"${ClusterResourcesConfig.basePath}/${cloudInit.asString}")
+        .getLines()
+        .toList
+        .mkString("\n")
 
+      //TODO: update bootDiskSize
       bootDiskSize <- params.runtimeConfig match {
         case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.bootDiskSize)
         case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure(x.bootDiskSize)
@@ -125,10 +135,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           AttachedDiskInitializeParams
             .newBuilder()
             .setDescription("Leonardo Managed Boot Disk")
-            .setSourceImage(config.gceConfig.customGceImage.asString)
-            .setDiskSizeGb(
-              bootDiskSize.gb.toString
-            )
+            .setSourceImage(config.gceConfig.sourceImage.asString)
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )
@@ -215,11 +222,12 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         .initializeBucketObjects(initBucketName,
                                  templateParams.serviceAccountKey,
                                  templateValues,
-                                 params.customEnvironmentVariables)
+                                 params.customEnvironmentVariables,
+                                 config.clusterResourcesConfig,
+                                 gpuConfig)
         .compile
         .drain
-
-      instance = Instance
+      instanceBuilder = Instance
         .newBuilder()
         .setName(params.runtimeProjectAndName.runtimeName.asString)
         .setDescription("Leonardo Managed VM")
@@ -239,8 +247,8 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           Metadata.newBuilder
             .addItems(
               Items.newBuilder
-                .setKey("startup-script-url")
-                .setValue(initScript.toUri)
+                .setKey("google-logging-enabled")
+                .setValue("true")
                 .build()
             )
             .addItems(
@@ -249,12 +257,50 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                 .setValue(templateValues.startUserScriptOutputUri)
                 .build()
             )
+            .addItems(
+              Items.newBuilder
+                .setKey("user-data")
+                .setValue(
+                  cloudInitFileContent
+                ) // cloud init log can be found on the instance at /var/log/cloud-init-output.log
+                .build()
+            )
+            .addItems(
+              Items.newBuilder
+                .setKey("cos-update-strategy")
+                .setValue(
+                  "update_disabled"
+                ) // `cos-extension install gpu` is only supported on LTS versions. Auto update will update the instance to non lts version
+                .build()
+            )
+            .addItems(
+              Items.newBuilder
+                .setKey("startup-script-url")
+                .setValue(initScript.toUri)
+                .build()
+            )
             .build()
         )
         .putAllLabels(Map("leonardo" -> "true").asJava)
-        //.addGuestAccelerators(???)  // add when we support GPUs
-        //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
-        .build()
+
+      instance = gpuConfig match {
+        case Some(gc) =>
+          val acceleratorType =
+            s"projects/${params.runtimeProjectAndName.googleProject.value}/zones/${zoneParam.value}/acceleratorTypes/${gc.gpuType.asString}"
+          instanceBuilder
+            .addGuestAccelerators(
+              AcceleratorConfig
+                .newBuilder()
+                .setAcceleratorType(acceleratorType)
+                .setAcceleratorCount(gc.numOfGpus)
+                .build()
+            )
+            .setScheduling(Scheduling.newBuilder().setOnHostMaintenance("TERMINATE").build())
+            //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
+            .build()
+        case None => instanceBuilder.build()
+
+      }
 
       operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, zoneParam, instance)
 
@@ -262,7 +308,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
         CreateGoogleRuntimeResponse(
           AsyncRuntimeFields(GoogleId(o.getTargetId), OperationName(o.getName), stagingBucketName, None),
           initBucketName,
-          config.gceConfig.customGceImage
+          BootSource.VmImage(config.gceConfig.sourceImage)
         )
       )
     } yield res
@@ -274,7 +320,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       zoneParam <- F.fromOption(
         LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException(
-          "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
+          "GceInterpreter shouldn't get a stop dataproc runtime request. Something is very wrong"
         )
       )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)

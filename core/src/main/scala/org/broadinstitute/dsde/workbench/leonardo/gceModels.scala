@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import enumeratum.{Enum, EnumEntry}
+import ca.mrvisser.sealerate
 
 /** Google Compute Instance Status
  *  See: https://cloud.google.com/compute/docs/instances/checking-instance-status */
@@ -18,3 +19,29 @@ object GceInstanceStatus extends Enum[GceInstanceStatus] {
   case object Suspended extends GceInstanceStatus
   case object Terminated extends GceInstanceStatus
 }
+
+sealed abstract class GpuType extends Product with Serializable {
+  def asString: String
+}
+object GpuType {
+  final case object NvidiaTeslaT4 extends GpuType {
+    def asString: String = "nvidia-tesla-t4"
+  }
+  final case object NvidiaTeslaV100 extends GpuType {
+    def asString: String = "nvidia-tesla-v100"
+  }
+  final case object NvidiaTeslaP100 extends GpuType {
+    def asString: String = "nvidia-tesla-p100"
+  }
+  final case object NvidiaTeslaP4 extends GpuType {
+    def asString: String = "nvidia-tesla-p4"
+  }
+  final case object NvidiaTeslaK80 extends GpuType {
+    def asString: String = "nvidia-tesla-k80"
+  }
+
+  def values: Set[GpuType] = sealerate.values[GpuType]
+  def stringToObject: Map[String, GpuType] = values.map(v => v.asString -> v).toMap
+}
+
+final case class GpuConfig(gpuType: GpuType, numOfGpus: Int)

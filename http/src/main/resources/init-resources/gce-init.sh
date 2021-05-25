@@ -59,61 +59,6 @@ display_time() {
   printf '%d seconds\n' $S
 }
 
-function apply_user_script() {
-  local CONTAINER_NAME=$1
-  local TARGET_DIR=$2
-
-  log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
-  USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
-  if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
-    gsutil cp ${USER_SCRIPT_URI} /etc
-  else
-    curl $USER_SCRIPT_URI -o /etc/${USER_SCRIPT}
-  fi
-  docker cp /etc/${USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${USER_SCRIPT}
-  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${USER_SCRIPT}
-
-  # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
-  # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
-  # can gain full access to the VM already, so using this flag is not a significant escalation.
-  EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> us_output.txt || EXIT_CODE=$?
-
-  if [ $EXIT_CODE -ne 0 ]; then
-    log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
-    retry 3 gsutil -h "x-goog-meta-passed":"false" cp us_output.txt ${USER_SCRIPT_OUTPUT_URI}
-    exit $EXIT_CODE
-  else
-    retry 3 gsutil -h "x-goog-meta-passed":"true" cp us_output.txt ${USER_SCRIPT_OUTPUT_URI}
-  fi
-}
-
-function apply_start_user_script() {
-  local CONTAINER_NAME=$1
-  local TARGET_DIR=$2
-
-  log "Running start user script $START_USER_SCRIPT_URI in $CONTAINER_NAME container..."
-  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
-  if [[ "$START_USER_SCRIPT_URI" == 'gs://'* ]]; then
-    gsutil cp ${START_USER_SCRIPT_URI} /etc
-  else
-    curl $START_USER_SCRIPT_URI -o /etc/${START_USER_SCRIPT}
-  fi
-  docker cp /etc/${START_USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${START_USER_SCRIPT}
-  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${START_USER_SCRIPT}
-
-  # Keep in sync with startup.sh
-  EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
-  if [ $EXIT_CODE -ne 0 ]; then
-    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
-    retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-    exit $EXIT_CODE
-  else
-    retry 3 gsutil -h "x-goog-meta-passed":"true" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
-  fi
-}
-
 #####################################################################################################
 # Main starts here.
 #####################################################################################################
@@ -173,11 +118,12 @@ RSTUDIO_USER_HOME=/home/rstudio
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
-JUPYTER_DOCKER_COMPOSE_GCE=$(jupyterDockerComposeGce)
+JUPYTER_DOCKER_COMPOSE_GCE=$(jupyterDockerCompose)
 RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
 PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
 WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
 CRYPTO_DETECTOR_DOCKER_COMPOSE=$(cryptoDetectorDockerCompose)
+GPU_DOCKER_COMPOSE=$(gpuDockerCompose)
 PROXY_SITE_CONF=$(proxySiteConf)
 JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
 JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
@@ -188,116 +134,123 @@ USER_SCRIPT_OUTPUT_URI=$(userScriptOutputUri)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
 RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
+GPU_ENABLED=$(gpuEnabled)
+INIT_BUCKET_NAME=$(initBucketName)
 
-mkdir -p /work
-mkdir -p /certs
+CERT_DIRECTORY='/var/certs'
+DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
+WORK_DIRECTORY='/mnt/disks/work'
+GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
+GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
+DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
+
+function apply_user_script() {
+  local CONTAINER_NAME=$1
+  local TARGET_DIR=$2
+
+  log "Running user script $USER_SCRIPT_URI in $CONTAINER_NAME container..."
+  USER_SCRIPT=`basename ${USER_SCRIPT_URI}`
+  if [[ "$USER_SCRIPT_URI" == 'gs://'* ]]; then
+    $GSUTIL_CMD cp ${USER_SCRIPT_URI} /var
+  else
+    curl $USER_SCRIPT_URI -o /var/${USER_SCRIPT}
+  fi
+  docker cp /var/${USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${USER_SCRIPT}
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${USER_SCRIPT}
+
+  # Execute the user script as privileged to allow for deeper customization of VM behavior, e.g. installing
+  # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
+  # can gain full access to the VM already, so using this flag is not a significant escalation.
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> /var/us_output.txt || EXIT_CODE=$?
+
+  if [ $EXIT_CODE -ne 0 ]; then
+    log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp /var/us_output.txt ${USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
+function apply_start_user_script() {
+  local CONTAINER_NAME=$1
+  local TARGET_DIR=$2
+
+  log "Running start user script $START_USER_SCRIPT_URI in $CONTAINER_NAME container..."
+  START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
+  if [[ "$START_USER_SCRIPT_URI" == 'gs://'* ]]; then
+    $GSUTIL_CMD cp ${START_USER_SCRIPT_URI} /var
+  else
+    curl $START_USER_SCRIPT_URI -o /var/${START_USER_SCRIPT}
+  fi
+  docker cp /var/${START_USER_SCRIPT} ${CONTAINER_NAME}:${TARGET_DIR}/${START_USER_SCRIPT}
+  retry 3 docker exec -u root ${CONTAINER_NAME} chmod +x ${TARGET_DIR}/${START_USER_SCRIPT}
+
+  # Keep in sync with startup.sh
+  EXIT_CODE=0
+  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
+  if [ $EXIT_CODE -ne 0 ]; then
+    echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+    exit $EXIT_CODE
+  else
+    retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"true" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
+  fi
+}
+
+mkdir -p ${WORK_DIRECTORY}
+mkdir -p ${CERT_DIRECTORY}
+mkdir -p ${DOCKER_COMPOSE_FILES_DIRECTORY}
 
 log 'Formatting and mounting persistent disk...'
 
 # Format and mount persistent disk
-export DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
-# Only format disk is it hasn't already been formatted
+# Fix this to `sdb`. We've never seen a device name that's not `sdb`,
+# Altho you some images, this cmd $(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+# can be used to find device name, this doesn't work for COS images
+export DISK_DEVICE_ID='sdb'
+## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
 fi
-mount -o discard,defaults /dev/${DISK_DEVICE_ID} /work
-# Ensure persistent disk re-mounts if runtime stops and restarts
-cp /etc/fstab /etc/fstab.backup
-echo UUID=`blkid -s UUID -o value /dev/${DISK_DEVICE_ID}` /work ext4 discard,defaults,nofail 0 2 | tee -a /etc/fstab
-chmod a+rwx /work
 
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
 
+if [ "${GPU_ENABLED}" == "true" ] ; then
+  log 'Installing GPU driver...'
+  cos-extensions install gpu
+  mount --bind /var/lib/nvidia /var/lib/nvidia
+  mount -o remount,exec /var/lib/nvidia
+
+  $GSUTIL_CMD cp ${GPU_DOCKER_COMPOSE} ${DOCKER_COMPOSE_FILES_DIRECTORY}
+fi
+
 log 'Copying secrets from GCS...'
 
 # Add the certificates from the bucket to the VM. They are used by the docker-compose file
-gsutil cp ${SERVER_CRT} /certs
-gsutil cp ${SERVER_KEY} /certs
-gsutil cp ${ROOT_CA} /certs
-gsutil cp ${PROXY_SITE_CONF} /etc
-gsutil cp ${JUPYTER_DOCKER_COMPOSE_GCE} /etc
-gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
-gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
-gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
-gsutil cp ${CRYPTO_DETECTOR_DOCKER_COMPOSE} /etc
+$GSUTIL_CMD cp ${SERVER_CRT} ${CERT_DIRECTORY}
+$GSUTIL_CMD cp ${SERVER_KEY} ${CERT_DIRECTORY}
+$GSUTIL_CMD cp ${ROOT_CA} ${CERT_DIRECTORY}
+$GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
 
-echo "" > /etc/google_application_credentials.env
+echo "" > /var/google_application_credentials.env
 
 # Install env var config
 if [ ! -z "$CUSTOM_ENV_VARS_CONFIG_URI" ] ; then
   log 'Copy custom env vars config...'
-  gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /etc
-fi
-
-# Install RStudio license file, if specified
-if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  STAT_EXIT_CODE=0
-  gsutil -q stat ${RSTUDIO_LICENSE_FILE} || STAT_EXIT_CODE=$?
-  if [ $STAT_EXIT_CODE -eq 0 ] ; then
-    echo "Using RStudio license file $RSTUDIO_LICENSE_FILE"
-    gsutil cp ${RSTUDIO_LICENSE_FILE} /etc/rstudio-license-file.lic
-  else
-    echo "" > /etc/rstudio-license-file.lic
-  fi
+  $GSUTIL_CMD cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
 fi
 
 # done GCS copy
-STEP_TIMINGS+=($(date +%s))
-
-log 'Setting up google-fluentd...'
-
-# Not all images have the directory used for Stackdriver configs. If so, create it
-mkdir -p /etc/google-fluentd/config.d
-
-# Add stack driver configuration for welder
-tee /etc/google-fluentd/config.d/welder.conf << END
-<source>
- @type tail
- format json
- path /work/welder.log
- pos_file /var/tmp/fluentd.welder.pos
- read_from_head true
- tag welder
-</source>
-END
-
-# Add stack driver configuration for jupyter
-tee /etc/google-fluentd/config.d/jupyter.conf << END
-<source>
- @type tail
- format none
- path /work/jupyter.log
- pos_file /var/tmp/fluentd.jupyter.pos
- read_from_head true
- tag jupyter
-</source>
-END
-
-# Add stack driver configuration for user startup and shutdown scripts
-tee /etc/google-fluentd/config.d/daemon.conf << END
-<source>
- @type tail
- format none
- path /var/log/daemon.log
- pos_file /var/tmp/fluentd.google.user.daemon.pos
- read_from_head true
- tag daemon
-</source>
-END
-
-# restarting instead of `service google-fluentd-reload` because of bug:
-# https://github.com/GoogleCloudPlatform/google-fluentd/issues/232
-service google-fluentd restart
-
-# done google-fluentd setup
 STEP_TIMINGS+=($(date +%s))
 
 # If any image is hosted in a GCR registry (detected by regex) then
 # authorize docker to interact with gcr.io.
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
   log 'Authorizing GCR...'
-  gcloud --quiet auth configure-docker
+  ${GCLOUD_CMD} --quiet auth configure-docker
 fi
 
 log 'Starting up the Jupyter...'
@@ -306,39 +259,71 @@ log 'Starting up the Jupyter...'
 # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
 # `docker-compose up` is not retried since if that fails, something is probably broken
 # and wouldn't be remedied by retrying
-COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
-cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
-if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-  COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`)
-  cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`
-fi
-if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
-  cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
-fi
+COMPOSE_FILES=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_DOCKER_COMPOSE}`)
+cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_DOCKER_COMPOSE}`
 if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
-  COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
-  cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
+  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${WELDER_DOCKER_COMPOSE}`)
+  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${WELDER_DOCKER_COMPOSE}`
 fi
+
 # Note: crypto-detector should be started after user containers
 if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
-  COMPOSE_FILES+=(-f /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
-  cat /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`
+  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
+  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`
 fi
 
-docker-compose "${COMPOSE_FILES[@]}" config
-retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
-docker-compose "${COMPOSE_FILES[@]}" up -d
-
-# done docker-compose
-STEP_TIMINGS+=($(date +%s))
-
-# If Welder is installed, start the service.
-# See https://broadworkbench.atlassian.net/browse/IA-1026
-if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
-  log 'Starting Welder (file synchronization service)...'
-  retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
+if [ "${GPU_ENABLED}" == "true" ] ; then
+  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`)
+  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
 fi
+
+if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`)
+  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`
+fi
+
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`
+fi
+
+tee /var/variables.env << END
+CERT_DIRECTORY=${CERT_DIRECTORY}
+WORK_DIRECTORY=${WORK_DIRECTORY}
+PROXY_SERVER_NAME=${PROXY_SERVER_NAME}
+PROXY_DOCKER_IMAGE=${PROXY_DOCKER_IMAGE}
+GOOGLE_PROJECT=${GOOGLE_PROJECT}
+RUNTIME_NAME=${RUNTIME_NAME}
+PROXY_SERVER_HOST_NAME=${PROXY_SERVER_HOST_NAME}
+JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
+JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
+NOTEBOOKS_DIR=${NOTEBOOKS_DIR}
+OWNER_EMAIL=${OWNER_EMAIL}
+WELDER_ENABLED=${WELDER_ENABLED}
+MEM_LIMIT=${MEM_LIMIT}
+WELDER_SERVER_NAME=${WELDER_SERVER_NAME}
+WELDER_DOCKER_IMAGE=${WELDER_DOCKER_IMAGE}
+STAGING_BUCKET=${STAGING_BUCKET}
+WELDER_MEM_LIMIT=${WELDER_MEM_LIMIT}
+CRYPTO_DETECTOR_SERVER_NAME=${CRYPTO_DETECTOR_SERVER_NAME}
+CRYPTO_DETECTOR_DOCKER_IMAGE=${CRYPTO_DETECTOR_DOCKER_IMAGE}
+JUPYTER_SCRIPTS=${JUPYTER_SCRIPTS}
+HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_SITE_CONF}`
+DOCKER_COMPOSE_FILES_DIRECTORY=${DOCKER_COMPOSE_FILES_DIRECTORY}
+RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
+RSTUDIO_DOCKER_IMAGE=${RSTUDIO_DOCKER_IMAGE}
+END
+
+# Create a network that allows containers to talk to each other via exposed ports
+docker network create -d bridge app_network
+
+${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" config
+
+retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull
+
+chmod a+rwx ${WORK_DIRECTORY}
+
+${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
 # done welder start
 STEP_TIMINGS+=($(date +%s))
@@ -346,8 +331,8 @@ STEP_TIMINGS+=($(date +%s))
 # Jupyter-specific setup, only do if Jupyter is installed
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # user package installation directory
-  mkdir -p /work/packages
-  chmod a+rwx /work/packages
+  mkdir -p ${WORK_DIRECTORY}/packages
+  chmod a+rwx ${WORK_DIRECTORY}/packages
 
   # Used to pip install packacges
   JUPYTER_USER_PIP_DIR=$JUPYTER_USER_HOME/.local/lib/python3.7/site-packages
@@ -372,9 +357,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # Install notebook.json
   if [ ! -z "$JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI" ] ; then
     log 'Copy Jupyter frontend notebook config...'
-    gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
+    $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
-    docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+    docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
   fi
 
   # Install NbExtensions
@@ -383,14 +368,14 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     do
       log "Installing Jupyter NB extension [$ext]..."
       if [[ $ext == 'gs://'* ]]; then
-        gsutil cp $ext /etc
+        $GSUTIL_CMD cp $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-        docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
         retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
         JUPYTER_EXTENSION_FILE=`basename $ext`
-        curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
-        docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+        curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
+        docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
         retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_notebook_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
       else
         retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_notebook_extension.sh $ext
@@ -404,9 +389,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     do
       log "Installing Jupyter server extension [$ext]..."
       if [[ $ext == 'gs://'* ]]; then
-        gsutil cp $ext /etc
+        $GSUTIL_CMD cp $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-        docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
         retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       else
         retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
@@ -421,9 +406,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
       log "Installing Jupyter combined extension [$ext]..."
       log $ext
       if [[ $ext == 'gs://'* ]]; then
-        gsutil cp $ext /etc
+        $GSUTIL_CMD cp $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-        docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
         retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
       else
         retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
@@ -439,14 +424,14 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
       log "Installing JupyterLab extension [$ext]..."
       pwd
       if [[ $ext == 'gs://'* ]]; then
-        gsutil cp -r $ext /etc
+        $GSUTIL_CMD cp -r $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
-        docker cp /etc/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
         retry 3 docker exec -e PIP_TARGET=${JUPYTER_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
         JUPYTER_EXTENSION_FILE=`basename $ext`
-        curl $ext -o /etc/${JUPYTER_EXTENSION_FILE}
-        docker cp /etc/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+        curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
+        docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
         retry 3 docker exec -e PIP_TARGET=${JUPYTER_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
       else
         retry 3 docker exec -e PIP_TARGET=${JUPYTER_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
@@ -478,6 +463,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # kernel tries to connect to it.
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
+  # For older jupyter images, jupyter_delocalize.py is using 127.0.0.1 as welder's url, which won't work now that we're no longer using `network_mode: host` for GCE VMs
+  docker exec $JUPYTER_SERVER_NAME sed -i  "s/127.0.0.1/welder/g" /etc/jupyter/custom/jupyter_delocalize.py
+
   log 'Starting Jupyter Notebook...'
   retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
 
@@ -502,13 +490,16 @@ RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
 
   # Add custom_env_vars.env to Renviron.site
-  CUSTOM_ENV_VARS_FILE=/etc/custom_env_vars.env
+  CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
   if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
-    retry 3 docker cp /etc/custom_env_vars.env ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
+    retry 3 docker cp /var/custom_env_vars.env ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
     retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
   fi
 
-  # If a user script was specified, copy it into the docker container and execute it.
+  # For older rstudio images, /etc/rstudio/rserver.conf is using 127.0.0.1 as www-address, which won't work now that we're no longer using `network_mode: host` for GCE VMs
+  docker exec ${RSTUDIO_SERVER_NAME} sed -i  "s/127.0.0.1/0.0.0.0/g" /etc/rstudio/rserver.conf
+
+    # If a user script was specified, copy it into the docker container and execute it.
   if [ ! -z "$USER_SCRIPT_URI" ] ; then
     apply_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
   fi

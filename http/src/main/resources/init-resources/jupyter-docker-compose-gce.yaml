@@ -2,7 +2,7 @@
 # configuring memory options in container mode. See discussion in:
 # https://docs.docker.com/compose/compose-file/#resources
 # https://github.com/docker/compose/issues/4513
-version: '2'
+version: '2.4'
 services:
   jupyter:
     container_name: "${JUPYTER_SERVER_NAME}"
@@ -10,11 +10,15 @@ services:
     # Override entrypoint with a placeholder to keep the container running indefinitely.
     # The cluster init script will run some scripts as root and then start pyspark as
     # jupyter-user via docker exec.
-    entrypoint: "tail -f /dev/null"
-    network_mode: host
+    # -F will follow the log when the log is created.
+    entrypoint: "tail -F ${NOTEBOOKS_DIR}/jupyter.log"
+    ports:
+      - "8000:8000"
+    networks:
+      - app_network
     volumes:
       # shared with welder
-      - "/work:${NOTEBOOKS_DIR}"
+      - "/mnt/disks/work:${NOTEBOOKS_DIR}"
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
@@ -29,7 +33,22 @@ services:
       PIP_TARGET: "${NOTEBOOKS_DIR}/packages"
       R_LIBS: "${NOTEBOOKS_DIR}/packages"
     env_file:
-      - /etc/google_application_credentials.env
-      - /etc/custom_env_vars.env
+      - /var/google_application_credentials.env
+      - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
+  welder:
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
+  crypto-detector:
+    network_mode: "service:jupyter"
+  proxy:
+    ports:
+      - "443:443"
+    networks:
+      - app_network
+networks:
+  app_network:
+    external: true
