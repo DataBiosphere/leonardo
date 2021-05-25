@@ -682,7 +682,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
     val poll = for {
       ctx <- ev.ask
       d: DoneCheckable[Boolean] = (_: Boolean) == addToGroup
-      isMember <- Timer[F].sleep(2 seconds) >> streamFUntilDone(checkIsMember, 30, 2 seconds)(implicitly, d).compile.lastOrError
+      isMember <- Timer[F].sleep(5 seconds) >>
+        streamFUntilDone(checkIsMember, 30, 2 seconds)(implicitly, d).compile.lastOrError
       _ <- if (!d.isDone(isMember)) F.raiseError(GoogleGroupMembershipException(groupEmail, ctx.traceId))
       else F.unit
     } yield ()
