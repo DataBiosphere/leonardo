@@ -157,8 +157,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
           )
 
         // Save the VM image and async fields in the database
-        val clusterImage =
-          RuntimeImage(RuntimeImageType.BootSource, createRuntimeResponse.bootSource.asString, None, ctx.now)
+        val clusterImage = RuntimeImage(RuntimeImageType.VM, createRuntimeResponse.customImage.asString, None, ctx.now)
         (clusterQuery.updateAsyncClusterCreationFields(updateAsyncClusterCreationFields) >> clusterImageQuery.save(
           msg.runtimeId,
           clusterImage
@@ -730,28 +729,6 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
     for {
       ctx <- ev.ask
 
-      // validate diskId from the message exists in DB
-      disk <- msg.createDisk.traverse { diskId =>
-        for {
-          diskOpt <- persistentDiskQuery.getById(diskId).transaction
-          d <- F.fromOption(
-            diskOpt,
-            PubsubKubernetesError(
-              AppError(s"${diskId.value} is not found in database",
-                       ctx.now,
-                       ErrorAction.CreateApp,
-                       ErrorSource.Disk,
-                       None,
-                       Some(ctx.traceId)),
-              Some(msg.appId),
-              false,
-              None,
-              None
-            )
-          )
-        } yield d
-      }
-
       // The "create app" flow potentially does a number of things:
       //  1. creates a Kubernetes cluster if it doesn't exist
       //  2. creates a nodepool within the cluster if it doesn't exist
@@ -838,9 +815,9 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
       }
 
       // create disk asynchronously
-      createDiskOp = disk
-        .traverse(d =>
-          createDisk(CreateDiskMessage.fromDisk(d, Some(ctx.traceId)), Some(FormattedBy.Galaxy), true).adaptError {
+      createDiskOp = msg.createDisk
+        .traverse(diskId =>
+          createDiskForApp(diskId).adaptError {
             case e =>
               PubsubKubernetesError(
                 AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
@@ -854,10 +831,13 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         .void
 
       // create second Galaxy disk asynchronously
-      createSecondDiskOp = if (msg.appType == Galaxy && disk.isDefined) {
-        val d = disk.get //it's safe to do `.get` here because we've verified
+      createSecondDiskOp = if (msg.appType == Galaxy && msg.createDisk.isDefined) {
         for {
-          res <- createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, d.name)
+          diskId <- F.fromOption(msg.createDisk, DiskNotFoundForAppException(msg.appId, ctx.traceId))
+          diskOpt <- persistentDiskQuery.getById(diskId).transaction
+          disk <- F.fromOption(diskOpt, PubsubHandleMessageError.DiskNotFound(diskId))
+
+          res <- createGalaxyPostgresDiskOnlyInGoogle(msg.project, ZoneName("us-central1-a"), msg.appName, disk.name)
             .adaptError {
               case e =>
                 PubsubKubernetesError(
@@ -1161,6 +1141,20 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         )
     }
   }
+
+  private def createDiskForApp(diskId: DiskId)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.info(ctx.loggingCtx)(s"Beginning disk creation for app")
+      diskOpt <- persistentDiskQuery.getById(diskId).transaction
+      disk <- F.fromOption(
+        diskOpt,
+        DiskNotFound(diskId)
+      )
+      _ <- createDisk(CreateDiskMessage.fromDisk(disk, Some(ctx.traceId)), Some(FormattedBy.Galaxy), true)
+    } yield ()
 
   private def createRuntimeErrorHandler(msg: CreateRuntimeMessage,
                                         now: Instant)(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =

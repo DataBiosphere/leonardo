@@ -113,8 +113,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               config.gceConfig.runtimeConfigDefaults.machineType,
               config.gceConfig.runtimeConfigDefaults.diskSize,
               bootDiskSize,
-              config.gceConfig.runtimeConfigDefaults.zone,
-              None
+              config.gceConfig.runtimeConfigDefaults.zone
             )
             runtimeConfig <- req.runtimeConfig
               .fold[F[RuntimeConfigInCreateRuntimeMessage]](F.pure(defaultRuntimeConfig)) { // default to gce if no runtime specific config is provided
@@ -126,8 +125,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                           gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
                           gce.diskSize.getOrElse(config.gceConfig.runtimeConfigDefaults.diskSize),
                           bootDiskSize,
-                          gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
-                          None //TODO, Justin's ticket will take care of this
+                          gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone)
                         ): RuntimeConfigInCreateRuntimeMessage
                       )
                     case dataproc: RuntimeConfigRequest.DataprocConfig =>
@@ -152,8 +150,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                             gce.machineType.getOrElse(config.gceConfig.runtimeConfigDefaults.machineType),
                             diskResult.disk.id,
                             bootDiskSize,
-                            gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone),
-                            None // Some(GpuConfig(GpuType.NvidiaTeslaP4, 1)) TODO, Justin's ticket will take care of this
+                            gce.zone.getOrElse(config.gceConfig.runtimeConfigDefaults.zone)
                           ): RuntimeConfigInCreateRuntimeMessage
                         )
                   }

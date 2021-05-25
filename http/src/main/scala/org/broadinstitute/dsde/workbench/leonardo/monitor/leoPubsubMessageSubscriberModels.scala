@@ -35,8 +35,7 @@ object RuntimeConfigInCreateRuntimeMessage {
     machineType: MachineTypeName,
     diskSize: DiskSize,
     bootDiskSize: DiskSize,
-    zone: ZoneName,
-    gpuConfig: Option[GpuConfig]
+    zone: ZoneName
   ) extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -44,8 +43,7 @@ object RuntimeConfigInCreateRuntimeMessage {
   final case class GceWithPdConfig(machineType: MachineTypeName,
                                    persistentDiskId: DiskId,
                                    bootDiskSize: DiskSize,
-                                   zone: ZoneName,
-                                   gpuConfig: Option[GpuConfig])
+                                   zone: ZoneName)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -470,25 +468,23 @@ object LeoPubsubCodec {
     dataprocConfigEncoder.contramap(x => dataprocInCreateRuntimeMsgToDataprocRuntime(x))
 
   implicit val gceRuntimeConfigInCreateRuntimeMessageEncoder: Encoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =
-    Encoder.forProduct6(
+    Encoder.forProduct5(
       "machineType",
       "diskSize",
       "cloudService",
       "bootDiskSize",
-      "zone",
-      "gpuConfig"
-    )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig))
+      "zone"
+    )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone))
 
   implicit val gceWithPdConfigInCreateRuntimeMessageEncoder
     : Encoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] =
-    Encoder.forProduct6(
+    Encoder.forProduct5(
       "machineType",
       "persistentDiskId",
       "cloudService",
       "bootDiskSize",
-      "zone",
-      "gpuConfig"
-    )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig))
+      "zone"
+    )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone))
 
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfigInCreateRuntimeMessage] = Encoder.instance {
     case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig  => x.asJson
@@ -560,21 +556,19 @@ object LeoPubsubCodec {
   }
 
   implicit val gceConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage.GceConfig] =
-    Decoder.forProduct5(
+    Decoder.forProduct4(
       "machineType",
       "diskSize",
       "bootDiskSize",
-      "zone",
-      "gpuConfig"
+      "zone"
     )(RuntimeConfigInCreateRuntimeMessage.GceConfig.apply)
 
   implicit val gceWithPdConfigInCreateRuntimeMessageDecoder
-    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct5(
+    : Decoder[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig] = Decoder.forProduct4(
     "machineType",
     "persistentDiskId",
     "bootDiskSize",
-    "zone",
-    "gpuConfig"
+    "zone"
   )(RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig.apply)
 
   implicit val runtimeConfigInCreateRuntimeMessageDecoder: Decoder[RuntimeConfigInCreateRuntimeMessage] =

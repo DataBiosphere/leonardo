@@ -76,12 +76,6 @@ object JsonCodec {
   implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.value)
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.entryName)
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.asString)
-  implicit val gpuTypeEncoder: Encoder[GpuType] = Encoder.encodeString.contramap(_.asString)
-
-  implicit val gpuConfigEncoder: Encoder[GpuConfig] = Encoder.forProduct2(
-    "gpuType",
-    "numOfGpus"
-  )(x => GpuConfig.unapply(x).get)
 
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct9(
     "numberOfWorkers",
@@ -349,13 +343,6 @@ object JsonCodec {
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =
     Decoder.decodeString.emap(x => DiskType.stringToObject.get(x).toRight(s"Invalid disk type: $x"))
-  implicit val gpuTypeDecoder: Decoder[GpuType] =
-    Decoder.decodeString.emap(s => GpuType.stringToObject.get(s).toRight(s"unsupported gpuType ${s}"))
-
-  implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(
-    "gpuType",
-    "numOfGpus"
-  )(GpuConfig.apply)
 
   implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct4(
     "machineType",

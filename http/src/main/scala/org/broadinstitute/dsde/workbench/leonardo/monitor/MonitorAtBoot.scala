@@ -205,8 +205,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
                 x.machineType,
                 x.diskSize,
                 bootDiskSize,
-                x.zone,
-                None //TODO: Justin's front leo will populate this properly
+                x.zone
               ): RuntimeConfigInCreateRuntimeMessage
             case x: RuntimeConfig.GceWithPdConfig =>
               for {
@@ -217,8 +216,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
                 x.machineType,
                 diskId,
                 x.bootDiskSize,
-                x.zone,
-                None //TODO: Justin's front leo will populate this properly
+                x.zone
               ): RuntimeConfigInCreateRuntimeMessage
             case _: RuntimeConfig.DataprocConfig =>
               Right(

@@ -42,6 +42,8 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.jupyterCombinedExtensions shouldBe ""
       result.jupyterDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                    GcsObjectName("test-jupyter-docker-compose.yaml")).toUri
+      result.jupyterDockerComposeGce shouldBe GcsPath(CommonTestData.initBucketName,
+                                                      GcsObjectName("test-jupyter-docker-compose-gce.yaml")).toUri
       result.jupyterDockerImage shouldBe CommonTestData.jupyterImage.imageUrl
       result.jupyterLabExtensions shouldBe ""
       result.jupyterNbExtensions shouldBe "gs://bucket-name/extension"

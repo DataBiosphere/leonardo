@@ -47,8 +47,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       RuntimeConfigInCreateRuntimeMessage.GceConfig(MachineTypeName("n1-standard-4"),
                                                     DiskSize(50),
                                                     bootDiskSize = DiskSize(50),
-                                                    zone = ZoneName("us-central1-a"),
-                                                    None),
+                                                    zone = ZoneName("us-central1-a")),
       None
     )
 
@@ -76,8 +75,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
       RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                                           DiskId(2),
                                                           bootDiskSize = DiskSize(50),
-                                                          zone = ZoneName("us-central1-a"),
-                                                          None),
+                                                          zone = ZoneName("us-central1-a")),
       None
     )
 

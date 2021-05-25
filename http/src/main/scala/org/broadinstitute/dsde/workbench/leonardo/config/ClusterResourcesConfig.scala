@@ -1,12 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeResource
 
-case class ClusterResourcesConfig(initScript: RuntimeResource,
-                                  cloudInit: Option[RuntimeResource],
+case class ClusterResourcesConfig(initActionsScript: RuntimeResource,
+                                  gceInitScript: RuntimeResource,
                                   startupScript: RuntimeResource,
                                   shutdownScript: RuntimeResource,
                                   jupyterDockerCompose: RuntimeResource,
-                                  gpuDockerCompose: Option[RuntimeResource], //only applies to GCE runtimes
+                                  jupyterDockerComposeGce: RuntimeResource,
                                   rstudioDockerCompose: RuntimeResource,
                                   proxyDockerCompose: RuntimeResource,
                                   welderDockerCompose: RuntimeResource,

@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, Jupyter, RStudio, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
 import java.nio.file.Path
@@ -56,7 +56,7 @@ object Runtime {
                   labels: Map[String, String]): URL = {
     val tool = runtimeImages
       .map(_.imageType)
-      .filterNot(Set(Welder, BootSource).contains)
+      .filterNot(Set(Welder, VM).contains)
       .headOption
       .orElse(labels.get("tool").flatMap(RuntimeImageType.withNameInsensitiveOption))
       .flatMap(t => RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(t))
@@ -316,9 +316,7 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object Jupyter extends RuntimeImageType
   case object RStudio extends RuntimeImageType
   case object Welder extends RuntimeImageType
-  // This is not strictly an image type. It can either be a custom VM image for dataproc,
-  // or boot disk snapshot for GCE VMs
-  case object BootSource extends RuntimeImageType
+  case object VM extends RuntimeImageType
   case object Proxy extends RuntimeImageType
   case object CryptoDetector extends RuntimeImageType
 

@@ -2,17 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import java.time.format.{DateTimeFormatter, FormatStyle}
 import java.time.{Instant, ZoneId}
+
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
 
 case class RuntimeTemplateValues private (googleProject: String,
-                                          gpuEnabled: Boolean,
                                           clusterName: String,
-                                          initBucketName: String,
                                           stagingBucketName: String,
                                           jupyterDockerImage: String,
                                           rstudioDockerImage: String,
@@ -23,7 +21,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           proxyServerKey: String,
                                           rootCaPem: String,
                                           jupyterDockerCompose: String,
-                                          gpuDockerCompose: String,
+                                          jupyterDockerComposeGce: String,
                                           rstudioDockerCompose: String,
                                           proxyDockerCompose: String,
                                           welderDockerCompose: String,
@@ -72,7 +70,6 @@ case class RuntimeTemplateValues private (googleProject: String,
 }
 
 case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimeProjectAndName,
-                                                gpuEnabled: Boolean,
                                                 stagingBucketName: Option[GcsBucketName],
                                                 runtimeImages: Set[RuntimeImage],
                                                 initBucketName: Option[GcsBucketName],
@@ -109,11 +106,6 @@ object RuntimeTemplateValuesConfig {
   ): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       params.runtimeProjectAndName,
-      params.runtimeConfig match {
-        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => x.gpuConfig.isDefined
-        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => x.gpuConfig.isDefined
-        case _                                                      => false
-      },
       stagingBucketName,
       params.runtimeImages,
       initBucketName,
@@ -150,7 +142,6 @@ object RuntimeTemplateValuesConfig {
                   useGceStartupScript: Boolean): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
-      false, //TODO: Justin's front leo will populate this properly
       runtime.asyncRuntimeFields.map(_.stagingBucket),
       runtime.runtimeImages,
       initBucketName,
@@ -186,9 +177,7 @@ object RuntimeTemplateValues {
         .getOrElse("/home/jupyter-user")
     RuntimeTemplateValues(
       config.runtimeProjectAndName.googleProject.value,
-      config.gpuEnabled,
       config.runtimeProjectAndName.runtimeName.asString,
-      config.initBucketName.map(_.value).getOrElse(""),
       config.stagingBucketName.map(_.value).getOrElse(""),
       config.runtimeImages.find(_.imageType == Jupyter).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
@@ -208,9 +197,7 @@ object RuntimeTemplateValues {
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerCompose.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
-        .flatMap(n =>
-          config.clusterResourcesConfig.gpuDockerCompose.map(d => GcsPath(n, GcsObjectName(d.asString)).toUri)
-        )
+        .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerComposeGce.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.rstudioDockerCompose.asString)).toUri)

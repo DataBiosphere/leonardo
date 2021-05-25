@@ -2,15 +2,15 @@
 # configuring memory options in container mode. See discussion in:
 # https://docs.docker.com/compose/compose-file/#resources
 # https://github.com/docker/compose/issues/4513
-version: '2.4'
+version: '2'
 services:
   rstudio:
     container_name: "${RSTUDIO_SERVER_NAME}"
     image: "${RSTUDIO_DOCKER_IMAGE}"
     # Override the entrypoint from the Dockerfile so rserver starts with the below environment variables
     entrypoint: "tail -f /dev/null"
-    restart: always
     network_mode: host
+    restart: always
     environment:
       # needed to disable auth
       USER: "rstudio"
@@ -20,12 +20,11 @@ services:
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
     volumes:
-      - ${WORK_DIRECTORY}:/home/rstudio
+      - /work:/home/rstudio
+      - /etc/rstudio-license-file.lic:/etc/rstudio-server/license.lic:ro
     env_file:
-      - /var/custom_env_vars.env
+      - /etc/google_application_credentials.env
+      - /etc/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
-  crypto-detector:
-    network_mode: host
-  proxy:
-    network_mode: host
+  

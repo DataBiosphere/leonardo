@@ -23,14 +23,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
-  BootSource,
-  CryptoDetector,
-  Jupyter,
-  Proxy,
-  RStudio,
-  Welder
-}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, VM, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -168,7 +161,7 @@ object CommonTestData {
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", None, Instant.now)
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", None, Instant.now)
   val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now)
-  val customDataprocImage = RuntimeImage(BootSource, "custom_dataproc", None, Instant.now)
+  val customDataprocImage = RuntimeImage(VM, "custom_dataproc", None, Instant.now)
   val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))

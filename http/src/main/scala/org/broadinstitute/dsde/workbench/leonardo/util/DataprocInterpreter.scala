@@ -161,14 +161,12 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           .initializeBucketObjects(initBucketName,
                                    templateParams.serviceAccountKey,
                                    templateValues,
-                                   params.customEnvironmentVariables,
-                                   config.clusterResourcesConfig,
-                                   None)
+                                   params.customEnvironmentVariables)
           .compile
           .drain
 
         // build cluster configuration
-        initScriptResources = List(config.clusterResourcesConfig.initScript)
+        initScriptResources = List(config.clusterResourcesConfig.initActionsScript)
         initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
 
         // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
@@ -269,9 +267,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
             None
           )
         )
-      } yield asyncRuntimeFields.map(s =>
-        CreateGoogleRuntimeResponse(s, initBucketName, BootSource.VmImage(dataprocImage))
-      )
+      } yield asyncRuntimeFields.map(s => CreateGoogleRuntimeResponse(s, initBucketName, dataprocImage))
 
       res <- createOp.handleErrorWith { throwable =>
         cleanUpGoogleResourcesOnError(
