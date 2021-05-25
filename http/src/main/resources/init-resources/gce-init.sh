@@ -270,6 +270,10 @@ fi
 if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`
+
+  # Delete the lines related to `crypto-detector` from jupyter-docker-compose-gce.yaml if crypto mining image is not defined
+  # TODO: This is pretty hacky way. We should improve this. Although, we could also try enable crypto mining for AoU VMs, which is more desirable
+  sed -i '45,46d' ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`
 fi
 
 if [ "${GPU_ENABLED}" == "true" ] ; then
