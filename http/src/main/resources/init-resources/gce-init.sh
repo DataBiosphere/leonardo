@@ -518,7 +518,7 @@ fi
 log 'Pruning docker images...'
 docker image prune -a -f &
 
-log 'All done!'
+log 'Init Script All done!'
 
 chmod a+rwx ${WORK_DIRECTORY}
 
