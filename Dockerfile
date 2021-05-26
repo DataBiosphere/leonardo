@@ -15,8 +15,8 @@ RUN mkdir /helm-go-lib-build && \
 
 FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
 
-# Resolve trivy errors
-# TODO hopefully this is fixed in an upcoming version of graalvm-ce-ol8.
+# Resolve trivy errors related to glibc (CVE-2019-9169)
+# TODO hopefully this will be fixed in an upcoming version of graalvm-ce-ol8.
 # See https://github.com/orgs/graalvm/packages/container/package/graalvm-ce
 RUN microdnf update -y && microdnf reinstall -y glibc-devel
 
