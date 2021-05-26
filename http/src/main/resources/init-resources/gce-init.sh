@@ -321,8 +321,6 @@ ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" config
 
 retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull
 
-chmod a+rwx ${WORK_DIRECTORY}
-
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
 # done welder start

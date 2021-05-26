@@ -3,5 +3,9 @@ services:
   crypto-detector:
     container_name: "${CRYPTO_DETECTOR_SERVER_NAME}"
     image: "${CRYPTO_DETECTOR_DOCKER_IMAGE}"
-    network_mode: host
+    networks:
+      - app_network
     restart: always
+networks:
+  app_network:
+    external: true
