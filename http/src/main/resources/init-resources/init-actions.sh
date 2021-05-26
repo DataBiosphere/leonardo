@@ -485,7 +485,7 @@ END
 
       log 'Starting Jupyter Notebook...'
       sleep 5
-      retry 3 docker exec -d /bin/bash -c "${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
+      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
       STEP_TIMINGS+=($(date +%s))
     fi
