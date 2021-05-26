@@ -16,7 +16,7 @@ RUN mkdir /helm-go-lib-build && \
 FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
 
 # Resolve trivy errors
-RUN microdnf upgrade -y
+RUN microdnf update -y
 
 EXPOSE 8080
 EXPOSE 5050
