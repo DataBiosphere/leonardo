@@ -19,6 +19,3 @@ services:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
       RUNTIME_NAME: "${RUNTIME_NAME}"
       PROXY_SERVER_HOST_NAME: "${PROXY_SERVER_HOST_NAME}"
-networks:
-  app_network:
-    external: true

@@ -6,6 +6,3 @@ services:
     networks:
       - app_network
     restart: always
-networks:
-  app_network:
-    external: true
