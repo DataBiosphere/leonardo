@@ -15,11 +15,8 @@ RUN mkdir /helm-go-lib-build && \
 
 FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
 
-# Borrowed from AppSec blessed image:
-# https://github.com/broadinstitute/dsp-appsec-blessed-images/blob/6a6cee10cb0eb2b5a48516a83d69108eec8faf7f/jre/Dockerfile.8-debian
-RUN apt-get update -q && \
-    apt-get upgrade -qq && \
-    rm -rf /var/lib/apt/lists/*
+# Resolve trivy errors
+RUN microdnf upgrade -y
 
 EXPOSE 8080
 EXPOSE 5050
