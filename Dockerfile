@@ -18,7 +18,7 @@ FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
 # Resolve trivy errors
 # TODO hopefully this is fixed in an upcoming version of graalvm-ce-ol8.
 # See https://github.com/orgs/graalvm/packages/container/package/graalvm-ce
-RUN microdnf upgrade -y && microdnf reinstall -y glibc-devel
+RUN microdnf update -y && microdnf reinstall -y glibc-devel
 
 EXPOSE 8080
 EXPOSE 5050
