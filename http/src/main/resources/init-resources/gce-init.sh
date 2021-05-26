@@ -465,7 +465,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' /etc/jupyter/custom/jupyter_delocalize.py"
 
   # make sure home directory is owned by jupyter-user
-  docker exec -u root $JUPYTER_SERVER_NAME /bin/bash -c "chown -R jupyter-user:users ${JUPYTER_USER_HOME}"
+  docker exec -u root $JUPYTER_SERVER_NAME /bin/bash -c "chown -R jupyter-user:users ${NOTEBOOKS_DIR}"
 
   log 'Starting Jupyter Notebook...'
   retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
