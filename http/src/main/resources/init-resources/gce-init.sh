@@ -332,6 +332,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
+  # make sure home directory is owned by jupyter-user
+  docker exec -u root ${JUPYTER_SERVER_NAME} chown -R jupyter-user:users $JUPYTER_HOME
+
   # Used to pip install packacges
   JUPYTER_USER_PIP_DIR=$JUPYTER_USER_HOME/.local/lib/python3.7/site-packages
 
