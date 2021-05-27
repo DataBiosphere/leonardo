@@ -200,6 +200,10 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # kernel tries to connect to it.
     docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
+    # make sure home directory is owned by jupyter-user
+    docker exec -u root $JUPYTER_SERVER_NAME /bin/bash -c "chown -R jupyter-user:users ${NOTEBOOKS_DIR}" || true
+    docker exec -u root $JUPYTER_SERVER_NAME /bin/bash -c "chown -R jupyter-user:users ${JUPYTER_USER_HOME}/.local/share/jupyter/" || true
+
     docker exec -u jupyter-user -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
