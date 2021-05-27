@@ -7,8 +7,11 @@ services:
   welder:
     container_name: "${WELDER_SERVER_NAME}"
     image: "${WELDER_DOCKER_IMAGE}"
+    ports:
+      - "8080:8080"
+    networks:
+      - app_network
     entrypoint: "/opt/docker/bin/entrypoint.sh"
-    network_mode: host
     restart: always
     environment:
       # TODO what env vars are actually needed here?

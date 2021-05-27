@@ -28,13 +28,6 @@ services:
       - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
-  crypto-detector:
-    network_mode: "service:rstudio"
-  proxy:
-    ports:
-      - "443:443"
-    networks:
-      - app_network
 networks:
   app_network:
     external: true
