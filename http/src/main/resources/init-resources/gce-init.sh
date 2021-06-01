@@ -316,6 +316,8 @@ retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pu
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
+chmod a+rwx ${WORK_DIRECTORY}
+
 # done welder start
 STEP_TIMINGS+=($(date +%s))
 
@@ -514,8 +516,6 @@ log 'Pruning docker images...'
 docker image prune -a -f &
 
 log 'All done!'
-
-chmod a+rwx ${WORK_DIRECTORY}
 
 ELAPSED_TIME=$(($END_TIME - $START_TIME))
 log "gce-init.sh took $(display_time $ELAPSED_TIME)"
