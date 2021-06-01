@@ -117,7 +117,7 @@ then
     GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
     DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
 
-    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
+    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} "${DOCKER_COMPOSE}"
 else
     CERT_DIRECTORY='/certs'
     DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
@@ -125,7 +125,7 @@ else
     GCLOUD_CMD='gcloud'
     DOCKER_COMPOSE='docker-compose'
 
-    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
+    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} "${DOCKER_COMPOSE}"
 fi
 
 JUPYTER_HOME=/etc/jupyter
