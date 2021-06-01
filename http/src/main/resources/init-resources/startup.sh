@@ -74,9 +74,6 @@ SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
-mkdir -p /mnt/disks/work
-chmod a+rwx /mnt/disks/work
-
 FILE=/var/certs/jupyter-server.crt
 if [ -f "$FILE" ]
 then
