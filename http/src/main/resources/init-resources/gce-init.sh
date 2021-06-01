@@ -314,9 +314,10 @@ ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" config
 
 retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull
 
-${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
-
+# This needs to happen before we start up containers
 chmod a+rwx ${WORK_DIRECTORY}
+
+${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
 # done welder start
 STEP_TIMINGS+=($(date +%s))
