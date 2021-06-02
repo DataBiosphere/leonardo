@@ -197,7 +197,7 @@ object CommonTestData {
     Map("lbl1" -> "true"),
     None,
     Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),
-    Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)))),
+    Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)), None, None)),
     None,
     Some(true),
     Some(30.minutes),

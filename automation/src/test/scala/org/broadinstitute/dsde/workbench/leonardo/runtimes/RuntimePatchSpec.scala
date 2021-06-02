@@ -59,7 +59,9 @@ class RuntimePatchSpec
       runtimeConfig = Some(
         RuntimeConfigRequest.GceConfig(
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(10))
+          Some(DiskSize(10)),
+          None,
+          None
         )
       )
     )
@@ -141,7 +143,9 @@ class RuntimePatchSpec
               Some(DiskSize(10)),
               None,
               Map.empty
-            )
+            ),
+            None,
+            None
           )
         )
       )

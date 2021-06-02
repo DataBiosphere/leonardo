@@ -512,7 +512,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
     val req = emptyCreateRuntimeReq.copy(
       runtimeConfig = Some(
-        RuntimeConfigRequest.GceWithPdConfig(machineType = Some(MachineTypeName("n1-standard-4")), persistentDisk)
+        RuntimeConfigRequest.GceWithPdConfig(machineType = Some(MachineTypeName("n1-standard-4")),
+                                             persistentDisk,
+                                             None,
+                                             None)
       )
     )
 
@@ -603,12 +606,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfig = Some(
         RuntimeConfigRequest.GceConfig(machineType = Some(MachineTypeName("n1-standard-4")),
                                        diskSize = Some(DiskSize(500)),
+                                       None,
                                        gpuConfig = gpuConfig)
       )
     )
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      _ <- publisherQueue.tryDequeue1
       r <- runtimeService
         .createRuntime(
           userInfo,

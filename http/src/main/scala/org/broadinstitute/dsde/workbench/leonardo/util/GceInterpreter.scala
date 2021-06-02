@@ -136,6 +136,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
             .newBuilder()
             .setDescription("Leonardo Managed Boot Disk")
             .setSourceImage(config.gceConfig.sourceImage.asString)
+            .setDiskSizeGb(bootDiskSize.gb.toString)
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )

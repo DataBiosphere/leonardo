@@ -481,7 +481,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |""".stripMargin
     val expectedResult = RuntimeConfigRequest.GceWithPdConfig(
       None,
-      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(200)), None, Map.empty)
+      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(200)), None, Map.empty),
+      None,
+      None
     )
     decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
   }
@@ -494,6 +496,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |}
         |""".stripMargin
     val expectedResult = RuntimeConfigRequest.GceConfig(
+      None,
+      None,
       None,
       None
     )
@@ -513,7 +517,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |""".stripMargin
     val expectedResult = RuntimeConfigRequest.GceWithPdConfig(
       None,
-      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(30)), None, Map.empty)
+      PersistentDiskRequest(DiskName("qi-disk-c1"), Some(DiskSize(30)), None, Map.empty),
+      None,
+      None
     )
     decode[RuntimeConfigRequest](jsonString) shouldBe Right(expectedResult)
   }
@@ -615,7 +621,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         RuntimeConfigRequest.GceConfig(
           Some(MachineTypeName("n1-standard-4")),
           Some(DiskSize(100)),
-          Some(ZoneName("us-central2-b"))
+          Some(ZoneName("us-central2-b")),
+          None
         )
       ),
       None,
