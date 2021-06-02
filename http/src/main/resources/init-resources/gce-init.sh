@@ -215,6 +215,8 @@ if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
 fi
 
+mount -t ext4 -O discard,defaults /dev/sdb ${WORK_DIRECTORY}
+
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
 
@@ -245,13 +247,6 @@ fi
 
 # done GCS copy
 STEP_TIMINGS+=($(date +%s))
-
-# If any image is hosted in a GCR registry (detected by regex) then
-# authorize docker to interact with gcr.io.
-if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
-  log 'Authorizing GCR...'
-  ${GCLOUD_CMD} --quiet auth configure-docker
-fi
 
 log 'Starting up the Jupyter...'
 
@@ -320,6 +315,9 @@ docker network create -d bridge app_network
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" config
 
 retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pull
+
+# This needs to happen before we start up containers
+chmod a+rwx ${WORK_DIRECTORY}
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
@@ -464,12 +462,8 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # For older jupyter images, jupyter_delocalize.py is using 127.0.0.1 as welder's url, which won't work now that we're no longer using `network_mode: host` for GCE VMs
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' /etc/jupyter/custom/jupyter_delocalize.py"
 
-  # make sure home directory is owned by jupyter-user
-  docker exec -u root $JUPYTER_SERVER_NAME /bin/bash -c "chown -R jupyter-user:users ${NOTEBOOKS_DIR}" || true
-  docker exec -u root $JUPYTER_SERVER_NAME /bin/bash -c "chown -R jupyter-user:users ${JUPYTER_USER_HOME}/.local/share/jupyter/" || true
-
   log 'Starting Jupyter Notebook...'
-  retry 3 docker exec -u jupyter-user -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
+  retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
   # done start Jupyter
   STEP_TIMINGS+=($(date +%s))
@@ -521,8 +515,6 @@ log 'Pruning docker images...'
 docker image prune -a -f &
 
 log 'All done!'
-
-chmod a+rwx ${WORK_DIRECTORY}
 
 ELAPSED_TIME=$(($END_TIME - $START_TIME))
 log "gce-init.sh took $(display_time $ELAPSED_TIME)"

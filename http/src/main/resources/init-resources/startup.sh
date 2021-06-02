@@ -74,6 +74,29 @@ SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
+FILE=/var/certs/jupyter-server.crt
+# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
+# a dedicated flag that distinguishes gce and dataproc. But this will do for now
+if [ -f "$FILE" ]
+then
+    CERT_DIRECTORY='/var/certs'
+    DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
+    GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
+    GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
+    DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
+
+    fsck.ext4 -tvy /dev/sdb
+    mkdir -p /mnt/disks/work
+    mount -t ext4 -O discard,defaults /dev/sdb /mnt/disks/work
+    chmod a+rwx /mnt/disks/work
+else
+    CERT_DIRECTORY='/certs'
+    DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
+    GSUTIL_CMD='gsutil'
+    GCLOUD_CMD='gcloud'
+    DOCKER_COMPOSE='docker-compose'
+fi
+
 function failScriptIfError() {
   if [ $EXIT_CODE -ne 0 ]; then
     echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
@@ -86,7 +109,6 @@ function failScriptIfError() {
 
 function validateCert() {
   certFileDirectory=$1
-  dockerCompose=$3
   ## This helps when we need to rotate certs.
   notAfter=`openssl x509 -enddate -noout -in ${certFileDirectory}/jupyter-server.crt` # output should be something like `notAfter=Jul 22 13:09:15 2023 GMT`
 
@@ -98,9 +120,9 @@ function validateCert() {
 
     if [ "$certFileDirectory" = "/etc" ]
     then
-      ${dockerCompose} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+      ${DOCKER_COMPOSE} -f /etc/proxy-docker-compose.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
     else
-      ${dockerCompose} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
+      ${DOCKER_COMPOSE} -f /var/docker-compose-files/proxy-docker-compose-gce.yaml restart &> /var/start_output.txt || EXIT_CODE=$?
     fi
 
     failScriptIfError ${GSUTIL_CMD}
@@ -108,25 +130,7 @@ function validateCert() {
   fi
 }
 
-FILE=/var/certs/jupyter-server.crt
-if [ -f "$FILE" ]
-then
-    CERT_DIRECTORY='/var/certs'
-    DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
-    GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
-    GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
-    DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
-
-    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
-else
-    CERT_DIRECTORY='/certs'
-    DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
-    GSUTIL_CMD='gsutil'
-    GCLOUD_CMD='gcloud'
-    DOCKER_COMPOSE='docker-compose'
-
-    validateCert ${CERT_DIRECTORY} ${GSUTIL_CMD} ${DOCKER_COMPOSE}
-fi
+validateCert ${CERT_DIRECTORY}
 
 JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
@@ -200,11 +204,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # kernel tries to connect to it.
     docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
-    # make sure home directory is owned by jupyter-user
-    docker exec -u root $JUPYTER_SERVER_NAME /bin/bash -c "chown -R jupyter-user:users ${NOTEBOOKS_DIR}" || true
-    docker exec -u root $JUPYTER_SERVER_NAME /bin/bash -c "chown -R jupyter-user:users ${JUPYTER_USER_HOME}/.local/share/jupyter/" || true
-
-    docker exec -u jupyter-user -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
         # fix for https://broadworkbench.atlassian.net/browse/IA-1453
