@@ -75,6 +75,7 @@ SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
 ## This is only needed for gce. But doesn't hurt to have it either for non gce VMs
+ls -la /mnt/disks/work
 #mkdir -p /mnt/disks/work
 #chmod a+rwx /mnt/disks/work
 

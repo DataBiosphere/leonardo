@@ -512,6 +512,7 @@ fi
 log 'Pruning docker images...'
 docker image prune -a -f &
 
+chmod a+rwx ${WORK_DIRECTORY}
 log 'All done!'
 
 ELAPSED_TIME=$(($END_TIME - $START_TIME))
