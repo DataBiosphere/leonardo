@@ -74,11 +74,6 @@ SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
-## This is only needed for gce. But doesn't hurt to have it either for non gce VMs
-ls -la /mnt/disks/work
-#mkdir -p /mnt/disks/work
-#chmod a+rwx /mnt/disks/work
-
 FILE=/var/certs/jupyter-server.crt
 if [ -f "$FILE" ]
 then
@@ -132,6 +127,12 @@ validateCert ${CERT_DIRECTORY}
 
 JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
+
+## This is only needed for gce. But doesn't hurt to have it either for non gce VMs
+sleep 5s
+ls -la /mnt/disks/work
+mkdir -p /mnt/disks/work
+chmod a+rwx /mnt/disks/work
 
 # Make this run conditionally
 if [ "${GPU_ENABLED}" == "true" ] ; then

@@ -215,6 +215,7 @@ if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
 fi
 
+sleep 5s
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
 
