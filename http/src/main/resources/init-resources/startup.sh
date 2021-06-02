@@ -75,6 +75,8 @@ SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
 FILE=/var/certs/jupyter-server.crt
+# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
+# a dedicated flag that distinguishes gce and dataproc. But this will do for now
 if [ -f "$FILE" ]
 then
     CERT_DIRECTORY='/var/certs'
@@ -82,6 +84,11 @@ then
     GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
     GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
     DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
+
+    fsck.ext4 -tvy /dev/sdb
+    mkdir -p /mnt/disks/work
+    mount -t ext4 -O discard,defaults /dev/sdb /mnt/disks/work
+    chmod a+rwx /mnt/disks/work
 else
     CERT_DIRECTORY='/certs'
     DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
@@ -127,17 +134,6 @@ validateCert ${CERT_DIRECTORY}
 
 JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
-
-### This is only needed for gce. But doesn't hurt to have it either for non gce VMs
-#sleep 5s
-#ls -la /mnt/disks/work
-#mkdir -p /mnt/disks/work
-#chmod a+rwx /mnt/disks/work
-
-fsck.ext4 -tvy /dev/sdb
-mkdir -p /mnt/disks/work
-mount -t ext4 -O discard,defaults /dev/sdb /mnt/disks/work
-chmod a+rwx /mnt/disks/work
 
 # Make this run conditionally
 if [ "${GPU_ENABLED}" == "true" ] ; then
