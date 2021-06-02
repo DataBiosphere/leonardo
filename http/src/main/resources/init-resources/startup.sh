@@ -128,10 +128,15 @@ validateCert ${CERT_DIRECTORY}
 JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
-## This is only needed for gce. But doesn't hurt to have it either for non gce VMs
-sleep 5s
-ls -la /mnt/disks/work
+### This is only needed for gce. But doesn't hurt to have it either for non gce VMs
+#sleep 5s
+#ls -la /mnt/disks/work
+#mkdir -p /mnt/disks/work
+#chmod a+rwx /mnt/disks/work
+
+fsck.ext4 -tvy /dev/sdb
 mkdir -p /mnt/disks/work
+mount -t ext4 -O discard,defaults /dev/sdb /mnt/disks/work
 chmod a+rwx /mnt/disks/work
 
 # Make this run conditionally
