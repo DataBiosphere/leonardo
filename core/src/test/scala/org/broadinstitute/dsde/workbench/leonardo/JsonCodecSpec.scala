@@ -69,7 +69,7 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |   "cloudService": "GCE",
         |   "zone": "us-west2-b",
         |   "gpuConfig": {
-        |     "gpuType": "nvidia-tesla-t4"
+        |     "gpuType": "nvidia-tesla-t4",
         |     "numOfGpus": 2
         |   }
         |}
