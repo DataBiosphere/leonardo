@@ -200,7 +200,19 @@ class GceRuntimeMonitor[F[_]: Parallel](
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = instance match {
     case None =>
-      checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Can't retrieve instance yet"))
+      nowInstant
+        .flatMap { now =>
+          if (now.toEpochMilli - monitorContext.start.toEpochMilli > 60000)
+            failedRuntime(
+              monitorContext,
+              runtimeAndRuntimeConfig,
+              RuntimeErrorDetails("Can't retrieve instance yet. Possibly runtime creation failed in Google",
+                                  shortMessage = Some("fail_to_create")),
+              Set.empty
+            )
+          else
+            checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Can't retrieve instance yet"))
+        }
     case Some(i) =>
       for {
         context <- ev.ask

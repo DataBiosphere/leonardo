@@ -79,6 +79,7 @@ class RuntimeGceSpec
     res.unsafeRunSync()
   }
 
+  // Not enable this in automation test because we can get `ZONE_RESOURCE_POOL_EXHAUSTED` easily
   "should be able to create a VM with GPU enabled" in { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
@@ -110,8 +111,8 @@ class RuntimeGceSpec
             val deviceNameOutput =
               """
                 |import tensorflow as tf
-                |device_name = tf.test.gpu_device_name()
-                |print(device_name)
+                |gpus = tf.config.experimental.list_physical_devices('GPU')
+                |print(gpus)
                 |""".stripMargin
             val output = notebookPage.executeCell(deviceNameOutput).get
             output.contains("GPU:0") shouldBe true
