@@ -114,8 +114,8 @@ class RuntimeGceSpec
                 |print(device_name)
                 |""".stripMargin
             val output = notebookPage.executeCell(deviceNameOutput).get
-            output should contain("GPU:0")
-            output should contain("GPU:1")
+            output.contains("GPU:0") shouldBe true
+            output.contains("GPU:1") shouldBe true
           }
         })
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
