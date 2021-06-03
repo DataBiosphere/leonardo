@@ -110,7 +110,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               // Import the TSV into a Hail table
               val importResult =
                 notebookPage.executeCell(s"table = hl.import_table('${tsvUri}', impute=True)", timeout = 5.minutes)
-              importResult shouldBe 'defined
+              importResult shouldBe Symbol("defined")
               importResult.get should include("Finished type imputation")
 
               // Verify the Hail table
@@ -133,7 +133,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
             // Localize the CSV
             val localizeResult = notebookPage.executeCell(s"! gsutil cp ${gcsPath.toUri} .")
-            localizeResult shouldBe 'defined
+            localizeResult shouldBe Symbol("defined")
             localizeResult.get should include("Operation completed")
 
             // Read the CSV into a pandas DataFrame
@@ -153,7 +153,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             // Import the DataFrame into a Hail table
             val result =
               notebookPage.executeCell(s"samples = hl.Table.from_pandas(df, key = 'sample')", timeout = 5.minutes)
-            result shouldBe 'defined
+            result shouldBe Symbol("defined")
             result.get should not include ("FatalError")
             result.get should not include ("PythonException")
             result.get should include("Coerced sorted dataset")

@@ -33,7 +33,7 @@ class InstanceComponentSpec extends AnyFlatSpecLike with TestComponent with GcsP
       instanceQuery.updateStatusAndIpForCluster(savedCluster1.id, GceInstanceStatus.Provisioning, Some(IP("4.5.6.7")))
     } shouldEqual 1
     val updated = dbFutureValue(instanceQuery.getInstanceByKey(masterInstance.key))
-    updated shouldBe 'defined
+    updated shouldBe Symbol("defined")
     updated.get.status shouldBe GceInstanceStatus.Provisioning
     updated.get.ip shouldBe Some(IP("4.5.6.7"))
   }

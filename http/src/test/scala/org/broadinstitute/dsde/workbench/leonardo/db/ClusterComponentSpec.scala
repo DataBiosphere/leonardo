@@ -297,7 +297,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
 
     val retrievedCluster = dbFutureValue(clusterQuery.getClusterById(savedCluster.id))
 
-    retrievedCluster shouldBe 'defined
+    retrievedCluster shouldBe Symbol("defined")
     retrievedCluster.get.customEnvironmentVariables shouldBe expectedEvs
     retrievedCluster.get shouldBe savedCluster
   }
@@ -345,7 +345,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         )
       ).attempt
     } yield {
-      retrievedRuntime shouldBe 'defined
+      retrievedRuntime shouldBe Symbol("defined")
       runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(savedDisk.id)
       error.isLeft shouldBe true
     }

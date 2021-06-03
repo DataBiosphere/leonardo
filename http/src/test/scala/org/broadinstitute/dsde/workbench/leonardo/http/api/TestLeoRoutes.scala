@@ -163,7 +163,7 @@ trait TestLeoRoutes {
   protected def validateCookie(setCookie: Option[`Set-Cookie`],
                                expectedCookie: HttpCookiePair = tokenCookie,
                                age: Long = tokenAge): Unit = {
-    setCookie shouldBe 'defined
+    setCookie shouldBe Symbol("defined")
     val cookie = setCookie.get.cookie
     cookie.name shouldBe expectedCookie.name
     cookie.value shouldBe expectedCookie.value

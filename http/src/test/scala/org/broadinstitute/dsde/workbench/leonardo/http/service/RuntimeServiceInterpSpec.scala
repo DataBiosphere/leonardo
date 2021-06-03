@@ -126,7 +126,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val clusterRequest = emptyCreateRuntimeReq.copy(userJupyterExtensionConfig =
       Some(
         UserJupyterExtensionConfig(nbExtensions =
-          Map("notebookExtension" -> s"gs://bucket/${Stream.continually('a').take(1025).mkString}")
+          Map("notebookExtension" -> s"gs://bucket/${LazyList.continually('a').take(1025).mkString}")
         )
       )
     )
@@ -792,12 +792,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       listRuntimeResponse1,
       listRuntimeResponse2
     )
-    runtimeService.listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes")).unsafeRunSync.toSet shouldBe Set(
+    runtimeService.listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes")).unsafeRunSync().toSet shouldBe Set(
       listRuntimeResponse1
     )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
-      .unsafeToFuture
+      .unsafeToFuture()
       .futureValue
       .toSet shouldBe Set(listRuntimeResponse1)
     runtimeService.listRuntimes(userInfo, None, Map("_labels" -> "a=b")).unsafeRunSync().toSet shouldBe Set(
@@ -1573,7 +1573,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         "foo" -> "bar"
       )
 
-      persistedDisk shouldBe 'defined
+      persistedDisk shouldBe Symbol("defined")
       persistedDisk.get shouldEqual disk
     }
 

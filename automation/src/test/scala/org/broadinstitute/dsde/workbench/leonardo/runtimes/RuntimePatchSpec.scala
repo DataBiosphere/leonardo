@@ -112,7 +112,7 @@ class RuntimePatchSpec
         res.diskSize shouldBe newDiskSize
       }
     }
-    res.unsafeRunSync
+    res.unsafeRunSync()
   }
 
   //this is an end to end test of the pub/sub infrastructure
@@ -186,7 +186,7 @@ class RuntimePatchSpec
           res.machineType shouldBe newMasterMachineType
         }
       }
-      res.unsafeRunSync
+      res.unsafeRunSync()
   }
 
   "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs (Tags.SmokeTest, Retryable) in {
@@ -279,6 +279,6 @@ class RuntimePatchSpec
           res.diskSize shouldBe newDiskSize
         }
       }
-      res.unsafeRunSync
+      res.unsafeRunSync()
   }
 }

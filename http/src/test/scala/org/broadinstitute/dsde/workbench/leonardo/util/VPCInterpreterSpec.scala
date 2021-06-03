@@ -89,7 +89,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     computeService.firewallMap.size shouldBe 3
     vpcConfig.firewallsToAdd.foreach { fwConfig =>
       val fw = computeService.firewallMap.get(FirewallRuleName(s"${fwConfig.namePrefix}-us-central1"))
-      fw shouldBe 'defined
+      fw shouldBe Symbol("defined")
       fw.get.getNetwork shouldBe s"projects/${project.value}/global/networks/${vpcConfig.networkName.value}"
       fw.get.getTargetTagsList.asScala shouldBe List(vpcConfig.networkTag.value)
       fw.get.getAllowedList.asScala.map(_.getIPProtocol).toSet shouldBe fwConfig.allowed.map(_.protocol).toSet

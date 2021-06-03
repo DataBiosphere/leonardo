@@ -329,7 +329,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(StopRuntimeMessage(runtime.id, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
-      updatedRuntime shouldBe 'defined
+      updatedRuntime shouldBe Symbol("defined")
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
     }
 
@@ -362,7 +362,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(StartRuntimeMessage(runtime.id, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
-      updatedRuntime shouldBe 'defined
+      updatedRuntime shouldBe Symbol("defined")
       updatedRuntime.get.status shouldBe RuntimeStatus.Starting
     }
 
@@ -449,10 +449,10 @@ class LeoPubsubMessageSubscriberSpec
       )
     } yield {
       // runtime should be Stopping
-      updatedRuntime shouldBe 'defined
+      updatedRuntime shouldBe Symbol("defined")
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
       // machine type should not be updated yet
-      updatedRuntimeConfig shouldBe 'defined
+      updatedRuntimeConfig shouldBe Symbol("defined")
       updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-standard-4")
     }
 
@@ -481,10 +481,10 @@ class LeoPubsubMessageSubscriberSpec
           patchInProgress <- patchQuery.isInprogress(runtime.id).transaction
         } yield {
           // runtime should be Starting after having gone through a stop -> update -> start
-          updatedRuntime shouldBe 'defined
+          updatedRuntime shouldBe Symbol("defined")
           updatedRuntime.get.status shouldBe RuntimeStatus.Starting
           // machine type should be updated
-          updatedRuntimeConfig shouldBe 'defined
+          updatedRuntimeConfig shouldBe Symbol("defined")
           updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
           patchInProgress shouldBe false
         }
@@ -523,10 +523,10 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
       } yield {
         // runtime should be Starting after having gone through a stop -> start
-        updatedRuntime shouldBe 'defined
+        updatedRuntime shouldBe Symbol("defined")
         updatedRuntime.get.status shouldBe RuntimeStatus.Starting
         // machine type should be updated
-        updatedDisk shouldBe 'defined
+        updatedDisk shouldBe Symbol("defined")
         updatedDisk.get.size shouldBe DiskSize(200)
       }
 
@@ -561,10 +561,10 @@ class LeoPubsubMessageSubscriberSpec
       )
     } yield {
       // runtime should still be Stopped
-      updatedRuntime shouldBe 'defined
+      updatedRuntime shouldBe Symbol("defined")
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopped
       // machine type and disk size should be updated
-      updatedRuntimeConfig shouldBe 'defined
+      updatedRuntimeConfig shouldBe Symbol("defined")
       updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
       updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.GceConfig].diskSize shouldBe DiskSize(1024)
     }
@@ -582,7 +582,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(CreateDiskMessage.fromDisk(disk, Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe 'defined
+      updatedDisk shouldBe Symbol("defined")
       updatedDisk.get.googleId.get.value shouldBe "target"
     }
 
@@ -599,7 +599,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(DeleteDiskMessage(disk.id, Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe 'defined
+      updatedDisk shouldBe Symbol("defined")
       updatedDisk.get.status shouldBe DiskStatus.Deleting
     }
 
@@ -631,7 +631,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(UpdateDiskMessage(disk.id, DiskSize(550), Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe 'defined
+      updatedDisk shouldBe Symbol("defined")
       //TODO: fix tests
 //      updatedDisk.get.size shouldBe DiskSize(550)
     }
@@ -992,7 +992,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 40)
@@ -1076,7 +1076,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1117,7 +1117,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(disk.id), Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
@@ -1329,7 +1329,7 @@ class LeoPubsubMessageSubscriberSpec
                                          blocker,
                                          lock)
       leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
-                                        diskInterp = makeDetachingDiskInterp,
+                                        diskInterp = makeDetachingDiskInterp(),
                                         gkeInterpreter = gkeInterp)
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
@@ -1424,7 +1424,7 @@ class LeoPubsubMessageSubscriberSpec
         Some(tr)
       )
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       _ <- leoSubscriber.handleCreateAppMessage(msg)
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
@@ -1702,7 +1702,7 @@ class LeoPubsubMessageSubscriberSpec
       tr <- traceId.ask[TraceId]
       msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
       queue <- InspectableQueue.bounded[IO, Task[IO]](10)
-      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp)
+      leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
       asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
       // send message twice
       _ <- leoSubscriber.handleDeleteAppMessage(msg)
@@ -1727,7 +1727,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(message)
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe 'defined
+      updatedDisk shouldBe Symbol("defined")
       updatedDisk.get.googleId.get.value shouldBe "target"
     }
 
@@ -1746,7 +1746,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(message)
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe 'defined
+      updatedDisk shouldBe Symbol("defined")
       updatedDisk.get.status shouldBe DiskStatus.Deleting
     }
 
@@ -1770,7 +1770,7 @@ class LeoPubsubMessageSubscriberSpec
 
   def makeLeoSubscriber(
     runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
-    asyncTaskQueue: InspectableQueue[IO, Task[IO]] = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync,
+    asyncTaskQueue: InspectableQueue[IO, Task[IO]] = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync(),
     computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     gkeInterpreter: GKEInterpreter[IO] = makeGKEInterp(nodepoolLock.unsafeRunSync(), appRelease = List.empty),
     diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
