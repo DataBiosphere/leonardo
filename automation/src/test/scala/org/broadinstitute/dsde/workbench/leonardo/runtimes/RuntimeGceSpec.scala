@@ -88,15 +88,17 @@ class RuntimeGceSpec
     // In a europe zone
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
-        RuntimeConfigRequest.GceWithPdConfig(Some(MachineTypeName("n1-standard-4")),
-                                             PersistentDiskRequest(
-                                               diskName,
-                                               None,
-                                               None,
-                                               Map.empty
-                                             ),
-                                             None,
-                                             Some(GpuConfig(GpuType.NvidiaTeslaT4, 2)))
+        RuntimeConfigRequest.GceWithPdConfig(
+          Some(MachineTypeName("n1-standard-4")),
+          PersistentDiskRequest(
+            diskName,
+            None,
+            None,
+            Map.empty
+          ),
+          Some(ZoneName("us-west1-a")),
+          Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
+        )
       ),
       toolDockerImage = toolImage
     )
