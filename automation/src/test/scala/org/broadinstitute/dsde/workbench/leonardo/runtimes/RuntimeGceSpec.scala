@@ -80,7 +80,7 @@ class RuntimeGceSpec
   }
 
   // Not enable this in automation test because we can get `ZONE_RESOURCE_POOL_EXHAUSTED` easily
-  "should be able to create a VM with GPU enabled" in { project =>
+  "should be able to create a VM with GPU enabled" ignore { project =>
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
 

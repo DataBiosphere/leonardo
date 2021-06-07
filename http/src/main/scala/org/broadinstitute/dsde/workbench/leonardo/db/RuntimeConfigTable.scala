@@ -25,7 +25,6 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def zone = column[Option[ZoneName]]("zone", O.Length(254))
   def region = column[Option[RegionName]]("region", O.Length(254))
   def gpuType = column[Option[GpuType]]("gpuType", O.Length(254))
-  //TODO use class instead of int when we aren't working on same branch
   def numOfGpus = column[Option[Int]]("numOfGpus")
 
   def * =

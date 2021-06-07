@@ -148,7 +148,7 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           val javaOutput = notebookPage.executeCell("""system('java --version', intern = TRUE)""")
-          javaOutput shouldBe Symbol("defined")
+          javaOutput shouldBe defined
           javaOutput.get should include("OpenJDK Runtime Environment")
           javaOutput.get should not include ("not found")
         }

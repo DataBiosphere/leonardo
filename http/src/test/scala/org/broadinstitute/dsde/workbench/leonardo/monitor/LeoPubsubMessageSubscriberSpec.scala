@@ -163,8 +163,8 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
-      updatedRuntime shouldBe Symbol("defined")
-      updatedRuntime.get.asyncRuntimeFields shouldBe Symbol("defined")
+      updatedRuntime shouldBe defined
+      updatedRuntime.get.asyncRuntimeFields shouldBe defined
       updatedRuntime.get.asyncRuntimeFields.get.stagingBucket.value should startWith("leostaging")
       updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
       updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
@@ -202,7 +202,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(CreateRuntimeMessage.fromRuntime(runtime, gceRuntimeConfigRequest, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
-      updatedRuntime shouldBe Symbol("defined")
+      updatedRuntime shouldBe defined
       updatedRuntime.get.asyncRuntimeFields shouldBe Some(asyncFields)
       updatedRuntime.get.runtimeImages shouldBe runtime.runtimeImages
     }
@@ -329,7 +329,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(StopRuntimeMessage(runtime.id, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
-      updatedRuntime shouldBe Symbol("defined")
+      updatedRuntime shouldBe defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
     }
 
@@ -362,7 +362,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(StartRuntimeMessage(runtime.id, Some(tr)))
       updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
     } yield {
-      updatedRuntime shouldBe Symbol("defined")
+      updatedRuntime shouldBe defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Starting
     }
 
@@ -449,10 +449,10 @@ class LeoPubsubMessageSubscriberSpec
       )
     } yield {
       // runtime should be Stopping
-      updatedRuntime shouldBe Symbol("defined")
+      updatedRuntime shouldBe defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
       // machine type should not be updated yet
-      updatedRuntimeConfig shouldBe Symbol("defined")
+      updatedRuntimeConfig shouldBe defined
       updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-standard-4")
     }
 
@@ -481,10 +481,10 @@ class LeoPubsubMessageSubscriberSpec
           patchInProgress <- patchQuery.isInprogress(runtime.id).transaction
         } yield {
           // runtime should be Starting after having gone through a stop -> update -> start
-          updatedRuntime shouldBe Symbol("defined")
+          updatedRuntime shouldBe defined
           updatedRuntime.get.status shouldBe RuntimeStatus.Starting
           // machine type should be updated
-          updatedRuntimeConfig shouldBe Symbol("defined")
+          updatedRuntimeConfig shouldBe defined
           updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
           patchInProgress shouldBe false
         }
@@ -523,10 +523,10 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
       } yield {
         // runtime should be Starting after having gone through a stop -> start
-        updatedRuntime shouldBe Symbol("defined")
+        updatedRuntime shouldBe defined
         updatedRuntime.get.status shouldBe RuntimeStatus.Starting
         // machine type should be updated
-        updatedDisk shouldBe Symbol("defined")
+        updatedDisk shouldBe defined
         updatedDisk.get.size shouldBe DiskSize(200)
       }
 
@@ -561,10 +561,10 @@ class LeoPubsubMessageSubscriberSpec
       )
     } yield {
       // runtime should still be Stopped
-      updatedRuntime shouldBe Symbol("defined")
+      updatedRuntime shouldBe defined
       updatedRuntime.get.status shouldBe RuntimeStatus.Stopped
       // machine type and disk size should be updated
-      updatedRuntimeConfig shouldBe Symbol("defined")
+      updatedRuntimeConfig shouldBe defined
       updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
       updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.GceConfig].diskSize shouldBe DiskSize(1024)
     }
@@ -582,7 +582,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(CreateDiskMessage.fromDisk(disk, Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe Symbol("defined")
+      updatedDisk shouldBe defined
       updatedDisk.get.googleId.get.value shouldBe "target"
     }
 
@@ -599,7 +599,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(DeleteDiskMessage(disk.id, Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe Symbol("defined")
+      updatedDisk shouldBe defined
       updatedDisk.get.status shouldBe DiskStatus.Deleting
     }
 
@@ -631,7 +631,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(UpdateDiskMessage(disk.id, DiskSize(550), Some(tr)))
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe Symbol("defined")
+      updatedDisk shouldBe defined
       //TODO: fix tests
 //      updatedDisk.get.size shouldBe DiskSize(550)
     }
@@ -1727,7 +1727,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(message)
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe Symbol("defined")
+      updatedDisk shouldBe defined
       updatedDisk.get.googleId.get.value shouldBe "target"
     }
 
@@ -1746,7 +1746,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- leoSubscriber.messageResponder(message)
       updatedDisk <- persistentDiskQuery.getById(disk.id).transaction
     } yield {
-      updatedDisk shouldBe Symbol("defined")
+      updatedDisk shouldBe defined
       updatedDisk.get.status shouldBe DiskStatus.Deleting
     }
 

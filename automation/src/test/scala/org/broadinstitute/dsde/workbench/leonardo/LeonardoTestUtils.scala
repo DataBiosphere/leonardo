@@ -238,7 +238,7 @@ trait LeonardoTestUtils
     labelCheck(cluster.labels, expectedName, expectedProject, cluster.creator, clusterRequest)
 
     if (bucketCheck) {
-      cluster.stagingBucket shouldBe Symbol("defined")
+      cluster.stagingBucket shouldBe defined
 
       implicit val patienceConfig: PatienceConfig = storagePatience
       googleStorageDAO.bucketExists(GcsBucketName(cluster.stagingBucket.get.value)).futureValue shouldBe true

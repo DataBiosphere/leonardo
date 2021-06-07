@@ -1573,7 +1573,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         "foo" -> "bar"
       )
 
-      persistedDisk shouldBe Symbol("defined")
+      persistedDisk shouldBe defined
       persistedDisk.get shouldEqual disk
     }
 

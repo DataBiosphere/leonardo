@@ -15,7 +15,7 @@ class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           val result = notebookPage.executeCell("!command -v wondershaper")
-          result shouldBe Symbol("defined")
+          result shouldBe defined
           result.get should include("/usr/sbin/wondershaper")
         }
       }

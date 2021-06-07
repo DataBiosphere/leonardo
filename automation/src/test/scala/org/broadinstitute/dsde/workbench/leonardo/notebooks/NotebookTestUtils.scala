@@ -139,7 +139,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
 
     val installOutput = notebookPage.executeCell(s"!$pip install $packageName")
-    installOutput shouldBe Symbol("defined")
+    installOutput shouldBe defined
     installOutput.get should include(s"Collecting $packageName")
     installOutput.get should include("Installing collected packages:")
     installOutput.get should include("Successfully installed")
