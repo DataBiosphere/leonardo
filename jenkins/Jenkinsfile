@@ -448,9 +448,9 @@ pipeline {
                                             gsutil rm -r $GCE_IMAGE_BUCKET
 
                                             # Make the image public
-                                            gcloud beta compute images add-iam-policy-binding \\
-                                                projects/$GOOGLE_PROJECT/global/images/${customGceImageBaseName}-${imageID} \\
-                                                --member='allAuthenticatedUsers' \\
+                                            gcloud beta compute images add-iam-policy-binding \
+                                                projects/$GOOGLE_PROJECT/global/images/${customGceImageBaseName}-${imageID} \
+                                                --member='allAuthenticatedUsers' \
                                                 --role='roles/compute.imageUser'
                                         """
                                     }
