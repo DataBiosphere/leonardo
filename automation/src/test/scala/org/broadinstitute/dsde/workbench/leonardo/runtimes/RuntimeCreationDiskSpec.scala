@@ -49,7 +49,9 @@ class RuntimeCreationDiskSpec
       runtimeConfig = Some(
         RuntimeConfigRequest.GceConfig(
           None,
-          Some(DiskSize(20))
+          Some(DiskSize(20)),
+          None,
+          None
         )
       )
     )
@@ -94,7 +96,9 @@ class RuntimeCreationDiskSpec
             Some(diskSize),
             None,
             Map.empty
-          )
+          ),
+          None,
+          None
         )
       )
     )
@@ -147,7 +151,9 @@ class RuntimeCreationDiskSpec
               Some(DiskSize(500)), //this will be ignored since in this test we'll pre create a disk
               None,
               Map.empty
-            )
+            ),
+            None,
+            None
           )
         )
       )

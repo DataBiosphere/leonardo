@@ -197,7 +197,7 @@ object CommonTestData {
     Map("lbl1" -> "true"),
     None,
     Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),
-    Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)))),
+    Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)), None, None)),
     None,
     Some(true),
     Some(30.minutes),
@@ -211,7 +211,8 @@ object CommonTestData {
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
                             DiskSize(500),
                             bootDiskSize = Some(DiskSize(50)),
-                            zone = ZoneName("us-west2-b"))
+                            zone = ZoneName("us-west2-b"),
+                            None)
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(Some(0),
                                         Some(MachineTypeName("n1-standard-4")),
@@ -221,16 +222,22 @@ object CommonTestData {
                                         None,
                                         None,
                                         Map.empty[String, String])
+
+  val gpuConfig = Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
   val gceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
                             DiskSize(500),
                             bootDiskSize = Some(DiskSize(50)),
-                            zone = ZoneName("us-west2-b"))
+                            zone = ZoneName("us-west2-b"),
+                            None)
+
+  val gceRuntimeConfigWithGpu = gceRuntimeConfig.copy(gpuConfig = gpuConfig)
   val gceWithPdRuntimeConfig =
     RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                   Some(DiskId(1234)),
                                   DiskSize(50),
-                                  ZoneName("us-west2-b"))
+                                  ZoneName("us-west2-b"),
+                                  None)
 
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)

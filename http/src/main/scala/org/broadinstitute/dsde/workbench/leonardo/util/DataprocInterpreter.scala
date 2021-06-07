@@ -295,7 +295,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
           new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
         )
-        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
+        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, blocker)
         _ <- params.runtimeAndRuntimeConfig.runtime.dataprocInstances.find(_.dataprocRole == Master).traverse {
           instance =>
             googleComputeService
@@ -325,7 +325,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
       )
-      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
+      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, blocker)
       _ <- googleDataprocService.stopCluster(
         params.runtimeAndRuntimeConfig.runtime.googleProject,
         region,
@@ -349,7 +349,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         params.runtimeAndRuntimeConfig.runtimeConfig.machineType,
         dataprocConfig.region
       )
-      metadata <- getStartupScript(params.runtimeAndRuntimeConfig.runtime,
+      metadata <- getStartupScript(params.runtimeAndRuntimeConfig,
                                    params.welderAction,
                                    params.initBucket,
                                    blocker,

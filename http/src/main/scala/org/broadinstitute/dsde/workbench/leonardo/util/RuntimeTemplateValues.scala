@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import java.time.format.{DateTimeFormatter, FormatStyle}
 import java.time.{Instant, ZoneId}
+
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -10,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateR
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
 
 case class RuntimeTemplateValues private (googleProject: String,
-                                          gpuEnabled: Boolean,
+                                          gpuEnabled: String,
                                           clusterName: String,
                                           initBucketName: String,
                                           stagingBucketName: String,
@@ -136,7 +137,7 @@ object RuntimeTemplateValuesConfig {
       false
     )
 
-  def fromRuntime(runtime: Runtime,
+  def fromRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                   initBucketName: Option[GcsBucketName],
                   serviceAccountKey: Option[ServiceAccountKey],
                   imageConfig: ImageConfig,
@@ -147,10 +148,15 @@ object RuntimeTemplateValuesConfig {
                   clusterResourceConstraints: Option[RuntimeResourceConstraints],
                   runtimeOperation: RuntimeOperation,
                   welderAction: Option[WelderAction],
-                  useGceStartupScript: Boolean): RuntimeTemplateValuesConfig =
+                  useGceStartupScript: Boolean): RuntimeTemplateValuesConfig = {
+    val runtime = runtimeAndRuntimeConfig.runtime
     RuntimeTemplateValuesConfig(
       RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
-      false, //TODO: Justin's front leo will populate this properly
+      runtimeAndRuntimeConfig.runtimeConfig match {
+        case gce: RuntimeConfig.GceConfig       => gce.gpuConfig.isDefined
+        case gce: RuntimeConfig.GceWithPdConfig => gce.gpuConfig.isDefined
+        case _: RuntimeConfig.DataprocConfig    => false
+      },
       runtime.asyncRuntimeFields.map(_.stagingBucket),
       runtime.runtimeImages,
       initBucketName,
@@ -172,6 +178,7 @@ object RuntimeTemplateValuesConfig {
       false,
       useGceStartupScript
     )
+  }
 }
 
 object RuntimeTemplateValues {
@@ -186,7 +193,7 @@ object RuntimeTemplateValues {
         .getOrElse("/home/jupyter-user")
     RuntimeTemplateValues(
       config.runtimeProjectAndName.googleProject.value,
-      config.gpuEnabled,
+      config.gpuEnabled.toString,
       config.runtimeProjectAndName.runtimeName.asString,
       config.initBucketName.map(_.value).getOrElse(""),
       config.stagingBucketName.map(_.value).getOrElse(""),

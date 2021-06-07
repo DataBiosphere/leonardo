@@ -87,7 +87,8 @@ object Config {
       machineType = config.as[MachineTypeName]("machineType"),
       diskSize = config.as[DiskSize]("diskSize"),
       bootDiskSize = Some(config.as[DiskSize]("bootDiskSize")),
-      zone = config.as[ZoneName]("zone")
+      zone = config.as[ZoneName]("zone"),
+      gpuConfig = None
     )
   }
 

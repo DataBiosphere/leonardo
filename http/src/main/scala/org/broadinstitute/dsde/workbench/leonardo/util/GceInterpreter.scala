@@ -136,6 +136,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
             .newBuilder()
             .setDescription("Leonardo Managed Boot Disk")
             .setSourceImage(config.gceConfig.sourceImage.asString)
+            .setDiskSizeGb(bootDiskSize.gb.toString)
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )
@@ -323,7 +324,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           "GceInterpreter shouldn't get a stop dataproc runtime request. Something is very wrong"
         )
       )
-      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
+      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, blocker)
       _ <- googleComputeService.addInstanceMetadata(
         params.runtimeAndRuntimeConfig.runtime.googleProject,
         zoneParam,
@@ -349,7 +350,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       resourceConstraints <- getResourceConstraints(params.runtimeAndRuntimeConfig.runtime.googleProject,
                                                     zoneParam,
                                                     params.runtimeAndRuntimeConfig.runtimeConfig.machineType)
-      metadata <- getStartupScript(params.runtimeAndRuntimeConfig.runtime,
+      metadata <- getStartupScript(params.runtimeAndRuntimeConfig,
                                    params.welderAction,
                                    params.initBucket,
                                    blocker,
@@ -397,7 +398,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
             "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
           )
         )
-        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig.runtime, blocker)
+        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, blocker)
         _ <- googleComputeService
           .addInstanceMetadata(
             params.runtimeAndRuntimeConfig.runtime.googleProject,

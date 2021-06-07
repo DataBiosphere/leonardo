@@ -151,7 +151,9 @@ object RuntimeFixtureSpec {
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(
           machineType = Some(MachineTypeName("n1-standard-4")),
-          diskSize = Some(DiskSize(100))
+          diskSize = Some(DiskSize(100)),
+          None,
+          None
         )
       case CloudService.Dataproc =>
         RuntimeConfigRequest.DataprocConfig(

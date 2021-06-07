@@ -80,7 +80,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     "should include Content-Security-Policy in headers" in { runtimeFixture =>
       val headers = Notebook.getApiHeaders(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
-      contentSecurityHeader shouldBe 'defined
+      contentSecurityHeader shouldBe defined
       contentSecurityHeader.get.value should include("https://bvdp-saturn-dev.appspot.com")
       contentSecurityHeader.get.value should not include ("https://bvdp-saturn-prod.appspot.com")
       contentSecurityHeader.get.value should not include ("*.terra.bio")

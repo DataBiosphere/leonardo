@@ -163,7 +163,7 @@ trait TestLeoRoutes {
   protected def validateCookie(setCookie: Option[`Set-Cookie`],
                                expectedCookie: HttpCookiePair = tokenCookie,
                                age: Long = tokenAge): Unit = {
-    setCookie shouldBe 'defined
+    setCookie shouldBe defined
     val cookie = setCookie.get.cookie
     cookie.name shouldBe expectedCookie.name
     cookie.value shouldBe expectedCookie.value
@@ -178,7 +178,7 @@ trait TestLeoRoutes {
   protected def validateRawCookie(setCookie: Option[HttpHeader],
                                   expectedCookie: HttpCookiePair = tokenCookie,
                                   age: Long = tokenAge): Unit = {
-    setCookie shouldBe Symbol("defined")
+    setCookie shouldBe defined
     setCookie.get.name shouldBe "Set-Cookie"
 
     // test execution loses some milliseconds, so round Max-Age before validation
@@ -190,7 +190,7 @@ trait TestLeoRoutes {
 
   protected def validateUnsetRawCookie(setCookie: Option[HttpHeader],
                                        expectedCookie: HttpCookiePair = tokenCookie): Unit = {
-    setCookie shouldBe Symbol("defined")
+    setCookie shouldBe defined
     setCookie.get.name shouldBe "Set-Cookie"
     setCookie.get.value shouldBe s"${tokenName}=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None"
   }

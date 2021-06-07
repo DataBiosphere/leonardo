@@ -251,7 +251,8 @@ object RuntimeRoutes {
         .downField("persistentDisk")
         .as[PersistentDiskRequest]
       zone <- x.downField("zone").as[Option[ZoneName]]
-    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd, zone)
+      gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
+    } yield RuntimeConfigRequest.GceWithPdConfig(machineType, pd, zone, gpu)
   }
 
   implicit val gceConfigRequestDecoder: Decoder[RuntimeConfigRequest.GceConfig] = Decoder.instance { x =>
@@ -261,7 +262,8 @@ object RuntimeRoutes {
         .downField("diskSize")
         .as[Option[DiskSize]]
       zone <- x.downField("zone").as[Option[ZoneName]]
-    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize, zone)
+      gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
+    } yield RuntimeConfigRequest.GceConfig(machineType, diskSize, zone, gpu)
   }
 
   val invalidPropertiesError =
@@ -345,12 +347,13 @@ object RuntimeRoutes {
             machineType <- x.downField("machineType").as[Option[MachineTypeName]]
             pd <- x.downField("persistentDisk").as[Option[PersistentDiskRequest]]
             zone <- x.downField("zone").as[Option[ZoneName]]
+            gpu <- x.downField("gpuConfig").as[Option[GpuConfig]]
             res <- pd match {
-              case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p, zone).asRight[DecodingFailure]
+              case Some(p) => RuntimeConfigRequest.GceWithPdConfig(machineType, p, zone, gpu).asRight[DecodingFailure]
               case None =>
                 x.downField("diskSize")
                   .as[Option[DiskSize]]
-                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d, zone))
+                  .map(d => RuntimeConfigRequest.GceConfig(machineType, d, zone, gpu))
             }
           } yield res
       }

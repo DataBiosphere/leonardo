@@ -68,7 +68,7 @@ class StatusRoutesSpec
         responseAs[StatusCheckResponse].ok shouldEqual false
         responseAs[StatusCheckResponse].systems.keySet shouldEqual Set(Database, Sam)
         responseAs[StatusCheckResponse].systems(Sam).ok shouldBe false
-        responseAs[StatusCheckResponse].systems(Sam).messages shouldBe Symbol("defined")
+        responseAs[StatusCheckResponse].systems(Sam).messages shouldBe defined
         responseAs[StatusCheckResponse].systems(Database).ok shouldBe true
         responseAs[StatusCheckResponse].systems(Database).messages shouldBe None
         status shouldEqual StatusCodes.InternalServerError

@@ -27,7 +27,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 //          val output = notebookPage.executeCell("""data(iris)
 //                                                  |skim(iris)""".stripMargin)
 //
-//          output shouldBe 'defined
+//          output shouldBe defined
 //          output.get should not include ("<U+")
 //          output.get should include("▂▇▅▇▆▅▂▂") TODO: re-enable this once we understand why `Variable type: numeric` doesn't show any data the same way https://github.com/ropensci/skimr does
         }
@@ -72,7 +72,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val installTimeout = 2.minutes
 
           val output = notebookPage.executeCell("""install.packages("httr")""", installTimeout)
-          output shouldBe 'defined
+          output shouldBe defined
           output.get should include("Installing package into")
           output.get should include("/home/jupyter-user/notebooks/packages")
 
@@ -98,7 +98,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""install.packages('mlr')""", installTimeout)
-          installOutput shouldBe 'defined
+          installOutput shouldBe defined
           installOutput.get should include("Installing package into")
           installOutput.get should include("/home/jupyter-user/notebooks/packages")
           installOutput.get should not include ("Installation failed")
@@ -134,7 +134,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val installTimeout = 5.minutes
 
           val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
-          installOutput shouldBe 'defined
+          installOutput shouldBe defined
           installOutput.get should include("Installing package into")
           installOutput.get should include("/home/jupyter-user/notebooks/packages")
           installOutput.get should not include ("cannot find -lgfortran")
