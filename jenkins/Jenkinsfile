@@ -446,6 +446,12 @@ pipeline {
     
                                             # Daisy doesn't clean it up all so we remove the bucket manually
                                             gsutil rm -r $GCE_IMAGE_BUCKET
+
+                                            # Make the image public
+                                            gcloud beta compute images add-iam-policy-binding \\
+                                                projects/$GOOGLE_PROJECT/global/images/${customGceImageBaseName}-${imageID} \\
+                                                --member='allAuthenticatedUsers' \\
+                                                --role='roles/compute.imageUser'
                                         """
                                     }
                                 }
