@@ -11,13 +11,11 @@ import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
 import com.google.cloud.dataproc.v1._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.google2.{
-  streamFUntilDone,
   CreateClusterConfig,
   DataprocClusterName,
   DiskName,
@@ -679,15 +677,6 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       F.liftIO(IO.fromFuture(IO(googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail)))),
       when409
     )
-    val poll = for {
-      ctx <- ev.ask
-      d: DoneCheckable[Boolean] = (_: Boolean) == addToGroup
-      isMember <- Timer[F].sleep(5 seconds) >>
-        streamFUntilDone(checkIsMember, 30, 2 seconds)(implicitly, d).compile.lastOrError
-      _ <- if (!d.isDone(isMember)) F.raiseError(GoogleGroupMembershipException(groupEmail, ctx.traceId))
-      else F.unit
-    } yield ()
-
     for {
       ctx <- ev.ask
       // Add or remove the member from the group
@@ -695,12 +684,10 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       _ <- (isMember, addToGroup) match {
         case (false, true) =>
           logger.info(ctx.loggingCtx)(s"Adding '$memberEmail' to group '$groupEmail'...") >>
-            addMemberToGroup >>
-            poll
+            addMemberToGroup
         case (true, false) =>
           logger.info(ctx.loggingCtx)(s"Removing '$memberEmail' from group '$groupEmail'...") >>
-            removeMemberFromGroup >>
-            poll
+            removeMemberFromGroup
         case _ =>
           F.unit
       }
