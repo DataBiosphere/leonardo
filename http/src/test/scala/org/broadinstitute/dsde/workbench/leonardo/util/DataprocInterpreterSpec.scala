@@ -176,7 +176,7 @@ class DataprocInterpreterSpec
                                                             MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             erroredIamDAO,
-                                                            FakeGoogleResourceService,
+                                                            MockGoogleResourceService,
                                                             MockWelderDAO,
                                                             blocker)
 
@@ -231,6 +231,11 @@ class DataprocInterpreterSpec
 
       Future.failed(testException)
     }
+  }
+
+  private object MockGoogleResourceService extends FakeGoogleResourceService {
+    override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
+      IO(Some(1234567890))
   }
 
 }

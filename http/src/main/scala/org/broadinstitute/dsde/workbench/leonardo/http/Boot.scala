@@ -396,9 +396,9 @@ object Boot extends IOApp {
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
       cryptoMiningUserPublisher <- GooglePublisher.resource[F](cryptominingTopicPublisherConfig)
       gkeService <- GKEService.resource(Paths.get(pathToCredentialJson), blocker, semaphore)
+
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
       // (e.g. if the subnet isn't ready when creating an instance).
-
       googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(RetryPredicates.standardGoogleRetryPredicate,
                                                                            RetryPredicates.whenStatusCode(400))
 
@@ -409,13 +409,19 @@ object Boot extends IOApp {
         googleComputeRetryPolicy
       )
 
+      googleDataprocRetryPolicy = RetryPredicates.retryConfigWithPredicates(
+        RetryPredicates.standardGoogleRetryPredicate,
+        RetryPredicates.whenStatusCode(400)
+      )
+
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
           pathToCredentialJson,
           blocker,
           semaphore,
-          dataprocConfig.supportedRegions
+          dataprocConfig.supportedRegions,
+          googleDataprocRetryPolicy
         )
 
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson), blocker)
