@@ -122,15 +122,12 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         _ <- vpcAlg.setUpProjectFirewalls(
           SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network, machineConfig.region)
         )
-        resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
-                                                            machineConfig.masterMachineType,
-                                                            machineConfig.region)
-
-        // Set up IAM roles necessary to create a cluster.
-        _ <- createClusterIamRoles(params.runtimeProjectAndName.googleProject, params.serviceAccountInfo)
 
         // Add member to the Google Group that has the IAM role to pull the Dataproc image
         _ <- updateDataprocImageGroupMembership(params.runtimeProjectAndName.googleProject, createCluster = true)
+
+        // Set up IAM roles for the pet service account necessary to create a cluster.
+        _ <- createClusterIamRoles(params.runtimeProjectAndName.googleProject, params.serviceAccountInfo)
 
         // Create the bucket in the cluster's google project and populate with initialization files.
         // ACLs are granted so the cluster service account can access the files at initialization time.
@@ -147,6 +144,10 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
                                params.serviceAccountInfo)
           .compile
           .drain
+
+        resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
+                                                            machineConfig.masterMachineType,
+                                                            machineConfig.region)
 
         templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
           params,
