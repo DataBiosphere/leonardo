@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio, VM, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, ValueObject, WorkbenchEmail}
 import java.nio.file.Path
@@ -56,7 +56,7 @@ object Runtime {
                   labels: Map[String, String]): URL = {
     val tool = runtimeImages
       .map(_.imageType)
-      .filterNot(Set(Welder, VM).contains)
+      .filterNot(Set(Welder, BootSource).contains)
       .headOption
       .orElse(labels.get("tool").flatMap(RuntimeImageType.withNameInsensitiveOption))
       .flatMap(t => RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(t))
@@ -232,7 +232,8 @@ object RuntimeConfig {
     bootDiskSize: Option[
       DiskSize
     ], //This is optional for supporting old runtimes which only have 1 disk. All new runtime will have a boot disk
-    zone: ZoneName
+    zone: ZoneName,
+    gpuConfig: Option[GpuConfig] //This is optional since not all runtimes use gpus
   ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -241,7 +242,8 @@ object RuntimeConfig {
   final case class GceWithPdConfig(machineType: MachineTypeName,
                                    persistentDiskId: Option[DiskId],
                                    bootDiskSize: DiskSize,
-                                   zone: ZoneName)
+                                   zone: ZoneName,
+                                   gpuConfig: Option[GpuConfig])
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -316,7 +318,9 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object Jupyter extends RuntimeImageType
   case object RStudio extends RuntimeImageType
   case object Welder extends RuntimeImageType
-  case object VM extends RuntimeImageType
+  // This is not strictly an image type. It can either be a custom VM image for dataproc,
+  // or boot disk snapshot for GCE VMs
+  case object BootSource extends RuntimeImageType
   case object Proxy extends RuntimeImageType
   case object CryptoDetector extends RuntimeImageType
 

@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 import org.scalatest.DoNotDiscover
 import org.scalatest.time.{Minutes, Seconds, Span}
+import org.scalatest.tagobjects.Retryable
 
 import scala.concurrent.duration._
 import scala.math.abs
@@ -79,7 +80,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
       }
     }
 
-    "open notebook in playground mode should work" in { runtimeFixture =>
+    "open notebook in playground mode should work" taggedAs Retryable in { runtimeFixture =>
       val sampleNotebook = ResourceFile("bucket-tests/gcsFile2.ipynb")
       val isEditMode = false
 

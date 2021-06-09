@@ -23,11 +23,11 @@ terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:1.0.14"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:1.0.14"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:1.1.2"
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.2"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.3"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.6"
 
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:f411762"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
-anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:0.0.11"
+anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:3.13.0"
 
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.3"
 google_cloud_toolbox="gcr.io/google-containers/toolbox:20200603-00"

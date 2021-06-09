@@ -13,7 +13,13 @@ RUN mkdir /helm-go-lib-build && \
     cd helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 
-FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.0.0.2
+FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
+
+# Resolve trivy errors related to glibc (CVE-2019-9169)
+# TODO hopefully this will be fixed in an upcoming version of graalvm-ce-ol8.
+# For releases see https://github.com/orgs/graalvm/packages/container/package/graalvm-ce
+RUN microdnf install -y yum \
+  && yum upgrade -y glibc-devel --allowerasing
 
 EXPOSE 8080
 EXPOSE 5050

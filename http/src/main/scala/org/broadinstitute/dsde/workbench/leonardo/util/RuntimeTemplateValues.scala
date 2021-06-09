@@ -7,10 +7,13 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetect
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
 
 case class RuntimeTemplateValues private (googleProject: String,
+                                          gpuEnabled: String,
                                           clusterName: String,
+                                          initBucketName: String,
                                           stagingBucketName: String,
                                           jupyterDockerImage: String,
                                           rstudioDockerImage: String,
@@ -21,7 +24,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           proxyServerKey: String,
                                           rootCaPem: String,
                                           jupyterDockerCompose: String,
-                                          jupyterDockerComposeGce: String,
+                                          gpuDockerCompose: String,
                                           rstudioDockerCompose: String,
                                           proxyDockerCompose: String,
                                           welderDockerCompose: String,
@@ -70,6 +73,7 @@ case class RuntimeTemplateValues private (googleProject: String,
 }
 
 case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimeProjectAndName,
+                                                gpuEnabled: Boolean,
                                                 stagingBucketName: Option[GcsBucketName],
                                                 runtimeImages: Set[RuntimeImage],
                                                 initBucketName: Option[GcsBucketName],
@@ -106,6 +110,11 @@ object RuntimeTemplateValuesConfig {
   ): RuntimeTemplateValuesConfig =
     RuntimeTemplateValuesConfig(
       params.runtimeProjectAndName,
+      params.runtimeConfig match {
+        case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => x.gpuConfig.isDefined
+        case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => x.gpuConfig.isDefined
+        case _                                                      => false
+      },
       stagingBucketName,
       params.runtimeImages,
       initBucketName,
@@ -128,7 +137,7 @@ object RuntimeTemplateValuesConfig {
       false
     )
 
-  def fromRuntime(runtime: Runtime,
+  def fromRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                   initBucketName: Option[GcsBucketName],
                   serviceAccountKey: Option[ServiceAccountKey],
                   imageConfig: ImageConfig,
@@ -139,9 +148,15 @@ object RuntimeTemplateValuesConfig {
                   clusterResourceConstraints: Option[RuntimeResourceConstraints],
                   runtimeOperation: RuntimeOperation,
                   welderAction: Option[WelderAction],
-                  useGceStartupScript: Boolean): RuntimeTemplateValuesConfig =
+                  useGceStartupScript: Boolean): RuntimeTemplateValuesConfig = {
+    val runtime = runtimeAndRuntimeConfig.runtime
     RuntimeTemplateValuesConfig(
       RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
+      runtimeAndRuntimeConfig.runtimeConfig match {
+        case gce: RuntimeConfig.GceConfig       => gce.gpuConfig.isDefined
+        case gce: RuntimeConfig.GceWithPdConfig => gce.gpuConfig.isDefined
+        case _: RuntimeConfig.DataprocConfig    => false
+      },
       runtime.asyncRuntimeFields.map(_.stagingBucket),
       runtime.runtimeImages,
       initBucketName,
@@ -163,6 +178,7 @@ object RuntimeTemplateValuesConfig {
       false,
       useGceStartupScript
     )
+  }
 }
 
 object RuntimeTemplateValues {
@@ -177,7 +193,9 @@ object RuntimeTemplateValues {
         .getOrElse("/home/jupyter-user")
     RuntimeTemplateValues(
       config.runtimeProjectAndName.googleProject.value,
+      config.gpuEnabled.toString,
       config.runtimeProjectAndName.runtimeName.asString,
+      config.initBucketName.map(_.value).getOrElse(""),
       config.stagingBucketName.map(_.value).getOrElse(""),
       config.runtimeImages.find(_.imageType == Jupyter).map(_.imageUrl).getOrElse(""),
       config.runtimeImages.find(_.imageType == RStudio).map(_.imageUrl).getOrElse(""),
@@ -197,7 +215,9 @@ object RuntimeTemplateValues {
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerCompose.asString)).toUri)
         .getOrElse(""),
       config.initBucketName
-        .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.jupyterDockerComposeGce.asString)).toUri)
+        .flatMap(n =>
+          config.clusterResourcesConfig.gpuDockerCompose.map(d => GcsPath(n, GcsObjectName(d.asString)).toUri)
+        )
         .getOrElse(""),
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.rstudioDockerCompose.asString)).toUri)

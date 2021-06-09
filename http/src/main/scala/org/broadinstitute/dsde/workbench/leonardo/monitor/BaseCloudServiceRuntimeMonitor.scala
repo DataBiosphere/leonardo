@@ -154,7 +154,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             )
           case _ =>
             logger.info(ctx.loggingCtx)(
-              s"failedRuntime: moving runtime with id  ${runtimeAndRuntimeConfig.runtime.id} to Error status."
+              s"failedRuntime: moving runtime with id  ${runtimeAndRuntimeConfig.runtime.id} to Error status because ${errorDetails.longMessage}"
             ) >> clusterQuery
               .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Error, ctx.now)
               .transaction

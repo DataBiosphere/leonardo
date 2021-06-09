@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.makePersistentDisk
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
-import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, LeonardoTestSuite, RuntimeConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{DiskSize, GpuConfig, GpuType, LeonardoTestSuite, RuntimeConfig}
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -39,13 +39,15 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       MachineTypeName("n1-standard-4"),
       DiskSize(100),
       Some(DiskSize(50)),
-      ZoneName("us-west2-b")
+      ZoneName("us-west2-b"),
+      None
     )
     val runtimeConfig2 = RuntimeConfig.GceConfig(
       MachineTypeName("n1-standard-4"),
       DiskSize(100),
       None,
-      ZoneName("us-west2-b")
+      ZoneName("us-west2-b"),
+      Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
     )
     val res = for {
       now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)
@@ -69,7 +71,8 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
         MachineTypeName("n1-standard-4"),
         Some(savedDisk.id),
         DiskSize(50),
-        ZoneName("us-west2-b")
+        ZoneName("us-west2-b"),
+        Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
       )
       id <- RuntimeConfigQueries.insertRuntimeConfig(runtimeConfig, Instant.ofEpochMilli(now)).transaction
       rc <- RuntimeConfigQueries.getRuntimeConfig(id).transaction

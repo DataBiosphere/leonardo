@@ -18,6 +18,7 @@ import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+import org.scalatest.tagobjects.Retryable
 
 import scala.concurrent.duration._
 
@@ -29,6 +30,12 @@ class RuntimePatchSpec
     with NotebookTestUtils {
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
 
   //this is an end to end test of the pub/sub infrastructure
   "Patch endpoint should perform a stop/start transition for GCE VM" taggedAs Tags.SmokeTest in { googleProject =>
@@ -52,7 +59,9 @@ class RuntimePatchSpec
       runtimeConfig = Some(
         RuntimeConfigRequest.GceConfig(
           Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(10))
+          Some(DiskSize(10)),
+          None,
+          None
         )
       )
     )
@@ -103,7 +112,7 @@ class RuntimePatchSpec
         res.diskSize shouldBe newDiskSize
       }
     }
-    res.unsafeRunSync
+    res.unsafeRunSync()
   }
 
   //this is an end to end test of the pub/sub infrastructure
@@ -134,7 +143,9 @@ class RuntimePatchSpec
               Some(DiskSize(10)),
               None,
               Map.empty
-            )
+            ),
+            None,
+            None
           )
         )
       )
@@ -175,10 +186,10 @@ class RuntimePatchSpec
           res.machineType shouldBe newMasterMachineType
         }
       }
-      res.unsafeRunSync
+      res.unsafeRunSync()
   }
 
-  "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs Tags.SmokeTest in {
+  "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       val newMasterMachineType = MachineTypeName("n1-standard-2")
       val newDiskSize = DiskSize(60)
@@ -268,6 +279,6 @@ class RuntimePatchSpec
           res.diskSize shouldBe newDiskSize
         }
       }
-      res.unsafeRunSync
+      res.unsafeRunSync()
   }
 }

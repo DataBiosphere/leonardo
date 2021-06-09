@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.{defaultCreateRuntime2Request, getRuntime}
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookTestUtils
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
@@ -60,7 +60,8 @@ class RuntimeGceSpec
             None,
             Map.empty
           ),
-          Some(targetZone)
+          Some(targetZone),
+          None
         )
       )
     )
@@ -71,6 +72,55 @@ class RuntimeGceSpec
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].zone shouldBe targetZone
         disk <- LeonardoApiClient.getDisk(project, getRuntimeResponse.diskConfig.get.name)
         _ = disk.zone shouldBe targetZone
+        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
+      } yield ()
+    }
+
+    res.unsafeRunSync()
+  }
+
+  // Not enable this in automation test because we can get `ZONE_RESOURCE_POOL_EXHAUSTED` easily
+  "should be able to create a VM with GPU enabled" ignore { project =>
+    val runtimeName = randomClusterName
+    val diskName = genDiskName.sample.get
+
+    val toolImage = ContainerImage.fromImageUrl("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:qi-gpu") // Use the default base image once we migrate to use gpu images by default
+    // In a europe zone
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.GceWithPdConfig(
+          Some(MachineTypeName("n1-standard-4")),
+          PersistentDiskRequest(
+            diskName,
+            None,
+            None,
+            Map.empty
+          ),
+          Some(ZoneName("us-west1-a")),
+          Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
+        )
+      ),
+      toolDockerImage = toolImage
+    )
+
+    val res = dependencies.use { deps =>
+      implicit val httpClient = deps.httpClient
+      for {
+        runtime <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
+        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
+        _ <- IO(withWebDriver { implicit driver =>
+          withNewNotebook(clusterCopy, Python3) { notebookPage =>
+            val deviceNameOutput =
+              """
+                |import tensorflow as tf
+                |gpus = tf.config.experimental.list_physical_devices('GPU')
+                |print(gpus)
+                |""".stripMargin
+            val output = notebookPage.executeCell(deviceNameOutput).get
+            output.contains("GPU:0") shouldBe true
+            output.contains("GPU:1") shouldBe true
+          }
+        })
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
     }

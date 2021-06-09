@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   ContainerRegistry,
   DataprocInstance,
   DiskSize,
+  GpuConfig,
   LabelMap,
   Runtime,
   RuntimeConfig,
@@ -22,9 +23,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import java.net.URL
 import java.time.Instant
+
 import scala.concurrent.duration.FiniteDuration
 
 sealed trait RuntimeConfigRequest extends Product with Serializable {
@@ -34,7 +35,8 @@ object RuntimeConfigRequest {
   final case class GceConfig(
     machineType: Option[MachineTypeName],
     diskSize: Option[DiskSize],
-    zone: Option[ZoneName] = None
+    zone: Option[ZoneName],
+    gpuConfig: Option[GpuConfig]
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }
@@ -42,7 +44,8 @@ object RuntimeConfigRequest {
   final case class GceWithPdConfig(
     machineType: Option[MachineTypeName],
     persistentDisk: PersistentDiskRequest,
-    zone: Option[ZoneName] = None
+    zone: Option[ZoneName],
+    gpuConfig: Option[GpuConfig]
   ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.GCE
   }

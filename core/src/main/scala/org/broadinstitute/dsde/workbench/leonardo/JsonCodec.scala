@@ -76,6 +76,12 @@ object JsonCodec {
   implicit val diskIdEncoder: Encoder[DiskId] = Encoder.encodeLong.contramap(_.value)
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.entryName)
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.asString)
+  implicit val gpuTypeEncoder: Encoder[GpuType] = Encoder.encodeString.contramap(_.asString)
+
+  implicit val gpuConfigEncoder: Encoder[GpuConfig] = Encoder.forProduct2(
+    "gpuType",
+    "numOfGpus"
+  )(x => GpuConfig.unapply(x).get)
 
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct9(
     "numberOfWorkers",
@@ -99,13 +105,14 @@ object JsonCodec {
      x.cloudService,
      x.region)
   )
-  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct5(
+  implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct6(
     "machineType",
     "diskSize",
     "cloudService",
     "bootDiskSize",
-    "zone"
-  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone))
+    "zone",
+    "gpuConfig"
+  )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig))
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
     "serverExtensions",
@@ -128,13 +135,14 @@ object JsonCodec {
     "homeDirectory",
     "timestamp"
   )(x => RuntimeImage.unapply(x).get)
-  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct5(
+  implicit val gceWithPdConfigEncoder: Encoder[RuntimeConfig.GceWithPdConfig] = Encoder.forProduct6(
     "machineType",
     "persistentDiskId",
     "cloudService",
     "bootDiskSize",
-    "zone"
-  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone))
+    "zone",
+    "gpuConfig"
+  )(x => (x.machineType, x.persistentDiskId, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig))
 
   implicit val runtimeConfigEncoder: Encoder[RuntimeConfig] = Encoder.instance(x =>
     x match {
@@ -343,19 +351,28 @@ object JsonCodec {
     Decoder.decodeString.emap(x => DiskStatus.withNameOption(x).toRight(s"Invalid disk status: $x"))
   implicit val diskTypeDecoder: Decoder[DiskType] =
     Decoder.decodeString.emap(x => DiskType.stringToObject.get(x).toRight(s"Invalid disk type: $x"))
+  implicit val gpuTypeDecoder: Decoder[GpuType] =
+    Decoder.decodeString.emap(s => GpuType.stringToObject.get(s).toRight(s"unsupported gpuType ${s}"))
 
-  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct4(
+  implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(
+    "gpuType",
+    "numOfGpus"
+  )(GpuConfig.apply)
+
+  implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct5(
     "machineType",
     "persistentDiskId",
     "bootDiskSize",
-    "zone"
+    "zone",
+    "gpuConfig"
   )(RuntimeConfig.GceWithPdConfig.apply)
-  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct4(
+  implicit val gceConfigDecoder: Decoder[RuntimeConfig.GceConfig] = Decoder.forProduct5(
     "machineType",
     "diskSize",
     "bootDiskSize",
-    "zone"
-  )((mt, ds, bds, z) => RuntimeConfig.GceConfig(mt, ds, bds, z))
+    "zone",
+    "gpuConfig"
+  )((mt, ds, bds, z, gpu) => RuntimeConfig.GceConfig(mt, ds, bds, z, gpu))
 
   implicit val persistentDiskRequestDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
     for {

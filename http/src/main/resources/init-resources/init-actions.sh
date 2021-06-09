@@ -175,6 +175,11 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export MEM_LIMIT=$(memLimit)
     export WELDER_MEM_LIMIT=$(welderMemLimit)
     export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
+    export CERT_DIRECTORY='/certs'
+    export WORK_DIRECTORY='/work'
+    export DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
+    PROXY_SITE_CONF=$(proxySiteConf)
+    export HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_SITE_CONF}`
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)
@@ -199,6 +204,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
     RSTUDIO_SCRIPTS=/etc/rstudio/scripts
     RSTUDIO_USER_HOME=/home/rstudio
+    INIT_BUCKET_NAME=$(initBucketName)
 
     STEP_TIMINGS+=($(date +%s))
 
@@ -212,12 +218,8 @@ if [[ "${ROLE}" == 'Master' ]]; then
     gsutil cp ${SERVER_CRT} /certs
     gsutil cp ${SERVER_KEY} /certs
     gsutil cp ${ROOT_CA} /certs
-    gsutil cp ${PROXY_SITE_CONF} /etc
-    gsutil cp ${JUPYTER_DOCKER_COMPOSE} /etc
-    gsutil cp ${RSTUDIO_DOCKER_COMPOSE} /etc
-    gsutil cp ${PROXY_DOCKER_COMPOSE} /etc
-    gsutil cp ${WELDER_DOCKER_COMPOSE} /etc
-    gsutil cp ${CRYPTO_DETECTOR_DOCKER_COMPOSE} /etc
+    gsutil cp gs://${INIT_BUCKET_NAME}/* ${DOCKER_COMPOSE_FILES_DIRECTORY}
+
 
     # Needed because docker-compose can't handle symlinks
     touch /hadoop_gcs_connector_metadata_cache
@@ -264,13 +266,13 @@ END
     # Install env var config
     if [ ! -z ${CUSTOM_ENV_VARS_CONFIG_URI} ] ; then
       log 'Copy custom env vars config...'
-      gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /etc
+      gsutil cp ${CUSTOM_ENV_VARS_CONFIG_URI} /var
     fi
 
     if [ ! -z ${SERVICE_ACCOUNT_CREDENTIALS} ] ; then
-      echo "GOOGLE_APPLICATION_CREDENTIALS=/etc/${SERVICE_ACCOUNT_CREDENTIALS}" > /etc/google_application_credentials.env
+      echo "GOOGLE_APPLICATION_CREDENTIALS=/var/${SERVICE_ACCOUNT_CREDENTIALS}" > /var/google_application_credentials.env
     else
-      echo "" > /etc/google_application_credentials.env
+      echo "" > /var/google_application_credentials.env
     fi
 
     # Install RStudio license file, if specified
@@ -300,23 +302,28 @@ END
     # Note the `docker-compose pull` is retried to avoid intermittent network errors, but
     # `docker-compose up` is not retried.
     COMPOSE_FILES=(-f /etc/`basename ${PROXY_DOCKER_COMPOSE}`)
+
     cat /etc/`basename ${PROXY_DOCKER_COMPOSE}`
-    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
-      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
-    fi
-    if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
-      cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
-    fi
+
     if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${WELDER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi
+
     # Note: cryto detector should be started after user containers
     if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
       cat /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`
+    fi
+
+    if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
+    fi
+
+    if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+      COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
+      cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
 
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
@@ -341,13 +348,6 @@ END
         log 'Copying SA into Welder Docker...'
         docker cp /etc/${SERVICE_ACCOUNT_CREDENTIALS} ${WELDER_SERVER_NAME}:/etc/${SERVICE_ACCOUNT_CREDENTIALS}
       fi
-    fi
-
-    # if Welder is installed, start the service.
-    # See https://broadworkbench.atlassian.net/browse/IA-1026
-    if [ ! -z ${WELDER_DOCKER_IMAGE} ] && [ "${WELDER_ENABLED}" == "true" ] ; then
-      log 'Starting Welder file synchronization service...'
-      retry 3 docker exec -d ${WELDER_SERVER_NAME} /opt/docker/bin/entrypoint.sh
     fi
 
     STEP_TIMINGS+=($(date +%s))
@@ -481,7 +481,7 @@ END
       docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
       log 'Starting Jupyter Notebook...'
-      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}
+      retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
       STEP_TIMINGS+=($(date +%s))
     fi
@@ -503,10 +503,10 @@ RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
 
       # Add custom_env_vars.env to Renviron.site
-      CUSTOM_ENV_VARS_FILE=/etc/custom_env_vars.env
+      CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
       if [ -f "$CUSTOM_ENV_VARS_FILE" ]; then
-        retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/etc/custom_env_vars.env
-        retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/etc/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
+        retry 3 docker cp ${CUSTOM_ENV_VARS_FILE} ${RSTUDIO_SERVER_NAME}:/usr/local/lib/R/var/custom_env_vars.env
+        retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'cat /usr/local/lib/R/var/custom_env_vars.env >> /usr/local/lib/R/etc/Renviron.site'
       fi
 
       # If a user script was specified, copy it into the docker container and execute it.

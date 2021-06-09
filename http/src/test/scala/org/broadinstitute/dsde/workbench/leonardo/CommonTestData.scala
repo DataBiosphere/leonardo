@@ -23,7 +23,14 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo
 import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.DockerHub
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, VM, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
+  BootSource,
+  CryptoDetector,
+  Jupyter,
+  Proxy,
+  RStudio,
+  Welder
+}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -161,7 +168,7 @@ object CommonTestData {
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", None, Instant.now)
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", None, Instant.now)
   val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now)
-  val customDataprocImage = RuntimeImage(VM, "custom_dataproc", None, Instant.now)
+  val customDataprocImage = RuntimeImage(BootSource, "custom_dataproc", None, Instant.now)
   val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
@@ -190,7 +197,7 @@ object CommonTestData {
     Map("lbl1" -> "true"),
     None,
     Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket"), GcsObjectName("script.sh")))),
-    Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)))),
+    Some(RuntimeConfigRequest.GceConfig(Some(MachineTypeName("n1-standard-4")), Some(DiskSize(100)), None, None)),
     None,
     Some(true),
     Some(30.minutes),
@@ -204,7 +211,8 @@ object CommonTestData {
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
                             DiskSize(500),
                             bootDiskSize = Some(DiskSize(50)),
-                            zone = ZoneName("us-west2-b"))
+                            zone = ZoneName("us-west2-b"),
+                            None)
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(Some(0),
                                         Some(MachineTypeName("n1-standard-4")),
@@ -214,16 +222,22 @@ object CommonTestData {
                                         None,
                                         None,
                                         Map.empty[String, String])
+
+  val gpuConfig = Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
   val gceRuntimeConfig =
     RuntimeConfig.GceConfig(MachineTypeName("n1-standard-4"),
                             DiskSize(500),
                             bootDiskSize = Some(DiskSize(50)),
-                            zone = ZoneName("us-west2-b"))
+                            zone = ZoneName("us-west2-b"),
+                            None)
+
+  val gceRuntimeConfigWithGpu = gceRuntimeConfig.copy(gpuConfig = gpuConfig)
   val gceWithPdRuntimeConfig =
     RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
                                   Some(DiskId(1234)),
                                   DiskSize(50),
-                                  ZoneName("us-west2-b"))
+                                  ZoneName("us-west2-b"),
+                                  None)
 
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)

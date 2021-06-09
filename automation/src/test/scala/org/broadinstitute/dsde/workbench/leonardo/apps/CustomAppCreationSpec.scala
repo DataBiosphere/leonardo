@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreat
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
+import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -20,7 +21,13 @@ class CustomAppCreationSpec
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
-  "create and delete a custom app" in { _ =>
+  override def withFixture(test: NoArgTest) =
+    if (isRetryable(test))
+      withRetry(super.withFixture(test))
+    else
+      super.withFixture(test)
+
+  "create and delete a custom app" taggedAs Retryable in { _ =>
     withNewProject { googleProject =>
       val appName = randomAppName
 

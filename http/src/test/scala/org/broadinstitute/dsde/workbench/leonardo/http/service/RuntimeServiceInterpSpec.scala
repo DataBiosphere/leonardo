@@ -126,7 +126,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val clusterRequest = emptyCreateRuntimeReq.copy(userJupyterExtensionConfig =
       Some(
         UserJupyterExtensionConfig(nbExtensions =
-          Map("notebookExtension" -> s"gs://bucket/${Stream.continually('a').take(1025).mkString}")
+          Map("notebookExtension" -> s"gs://bucket/${LazyList.continually('a').take(1025).mkString}")
         )
       )
     )
@@ -512,7 +512,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
     val req = emptyCreateRuntimeReq.copy(
       runtimeConfig = Some(
-        RuntimeConfigRequest.GceWithPdConfig(machineType = Some(MachineTypeName("n1-standard-4")), persistentDisk)
+        RuntimeConfigRequest.GceWithPdConfig(machineType = Some(MachineTypeName("n1-standard-4")),
+                                             persistentDisk,
+                                             None,
+                                             None)
       )
     )
 
@@ -545,7 +548,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
         bootDiskSize = DiskSize(60),
-        zone = ZoneName("us-central1-a")
+        zone = ZoneName("us-central1-a"),
+        None
       ) //TODO: this is a problem in terms of inconsistency
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(runtime, runtimeConfigRequest, Some(context.traceId))
@@ -566,7 +570,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
                                                                               bootDiskSize = DiskSize(60),
-                                                                              zone = ZoneName("us-central1-a"))
+                                                                              zone = ZoneName("us-central1-a"),
+                                                                              None)
         )
       message shouldBe expectedMessage
     }
@@ -588,6 +593,48 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService.deleteRuntime(DeleteRuntimeRequest(userInfo, project, name0, false)).attempt
     } yield {
       r.swap.toOption.get.isInstanceOf[RuntimeCannotBeDeletedException] shouldBe true
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "create a runtime with a gpu config" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+
+    val gpuConfig = Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
+    val req = emptyCreateRuntimeReq.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.GceConfig(machineType = Some(MachineTypeName("n1-standard-4")),
+                                       diskSize = Some(DiskSize(500)),
+                                       None,
+                                       gpuConfig = gpuConfig)
+      )
+    )
+
+    val res = for {
+      _ <- publisherQueue.tryDequeue1
+      r <- runtimeService
+        .createRuntime(
+          userInfo,
+          project,
+          name0,
+          req
+        )
+        .attempt
+      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(project, name0).transaction
+      runtime = runtimeOpt.get
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      message <- publisherQueue.dequeue1
+    } yield {
+      r shouldBe Right(())
+      runtime.googleProject shouldBe project
+      runtime.runtimeName shouldBe name0
+      runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].gpuConfig shouldBe gpuConfig
+      message
+        .asInstanceOf[CreateRuntimeMessage]
+        .runtimeConfig
+        .asInstanceOf[RuntimeConfigInCreateRuntimeMessage.GceConfig]
+        .gpuConfig shouldBe gpuConfig
     }
 
     res.unsafeRunSync()
@@ -745,12 +792,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       listRuntimeResponse1,
       listRuntimeResponse2
     )
-    runtimeService.listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes")).unsafeRunSync.toSet shouldBe Set(
+    runtimeService.listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes")).unsafeRunSync().toSet shouldBe Set(
       listRuntimeResponse1
     )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
-      .unsafeToFuture
+      .unsafeToFuture()
       .futureValue
       .toSet shouldBe Set(listRuntimeResponse1)
     runtimeService.listRuntimes(userInfo, None, Map("_labels" -> "a=b")).unsafeRunSync().toSet shouldBe Set(
@@ -845,7 +892,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .GceWithPdConfig(MachineTypeName("n1-standard-4"),
                              Some(pd.id),
                              bootDiskSize = DiskSize(50),
-                             zone = ZoneName("us-central1-a"))
+                             zone = ZoneName("us-central1-a"),
+                             None)
         )
       )
 
@@ -1525,7 +1573,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         "foo" -> "bar"
       )
 
-      persistedDisk shouldBe 'defined
+      persistedDisk shouldBe defined
       persistedDisk.get shouldEqual disk
     }
 
@@ -1634,7 +1682,8 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                         Some(savedDisk.id),
                                         bootDiskSize = DiskSize(50),
-                                        ZoneName("us-central1-a"))
+                                        ZoneName("us-central1-a"),
+                                        None)
         )
       )
       req = PersistentDiskRequest(savedDisk.name, Some(savedDisk.size), Some(savedDisk.diskType), savedDisk.labels)

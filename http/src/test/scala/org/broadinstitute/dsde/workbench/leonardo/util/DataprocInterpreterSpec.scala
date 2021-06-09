@@ -53,7 +53,7 @@ class DataprocInterpreterSpec
   val testClusterClusterProjectAndName = RuntimeProjectAndName(testCluster.googleProject, testCluster.runtimeName)
 
   val bucketHelperConfig =
-    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig, clusterResourcesConfig)
+    BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
 
@@ -137,7 +137,7 @@ class DataprocInterpreterSpec
         )
         .unsafeToFuture()
         .futureValue
-    res.get.customImage shouldBe Config.dataprocConfig.customDataprocImage
+    res.get.bootSource.asInstanceOf[BootSource.VmImage].customImage shouldBe Config.dataprocConfig.customDataprocImage
     val clusterWithLegacyImage = LeoLenses.runtimeToRuntimeImages
       .modify(_ =>
         Set(
@@ -160,7 +160,9 @@ class DataprocInterpreterSpec
         .unsafeToFuture()
         .futureValue
 
-    resForLegacyImage.get.customImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
+    resForLegacyImage.get.bootSource
+      .asInstanceOf[BootSource.VmImage]
+      .customImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
   }
 
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
@@ -174,7 +176,7 @@ class DataprocInterpreterSpec
                                                             MockGoogleDiskService,
                                                             mockGoogleDirectoryDAO,
                                                             erroredIamDAO,
-                                                            FakeGoogleResourceService,
+                                                            MockGoogleResourceService,
                                                             MockWelderDAO,
                                                             blocker)
 
@@ -229,6 +231,11 @@ class DataprocInterpreterSpec
 
       Future.failed(testException)
     }
+  }
+
+  private object MockGoogleResourceService extends FakeGoogleResourceService {
+    override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
+      IO(Some(1234567890))
   }
 
 }

@@ -51,7 +51,8 @@ object LeoLenses {
                 "Can't use this RuntimeConfig as RuntimeConfigInCreateRuntimeMessage due to bootDiskSize not defined"
               )
             ),
-          x.zone
+          x.zone,
+          x.gpuConfig
         )
       )
     case x: RuntimeConfig.GceWithPdConfig =>
@@ -64,7 +65,8 @@ object LeoLenses {
             )
           ),
           x.bootDiskSize,
-          x.zone
+          x.zone,
+          x.gpuConfig
         )
       )
     case x: RuntimeConfig.DataprocConfig =>
@@ -75,14 +77,16 @@ object LeoLenses {
         x.machineType,
         x.diskSize,
         Some(x.bootDiskSize),
-        x.zone
+        x.zone,
+        x.gpuConfig
       )
     case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig =>
       RuntimeConfig.GceWithPdConfig(
         x.machineType,
         Some(x.persistentDiskId),
         x.bootDiskSize,
-        x.zone
+        x.zone,
+        x.gpuConfig
       )
     case x: RuntimeConfigInCreateRuntimeMessage.DataprocConfig =>
       dataprocInCreateRuntimeMsgToDataprocRuntime(x)

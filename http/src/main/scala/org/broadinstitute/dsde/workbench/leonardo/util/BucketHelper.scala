@@ -12,14 +12,16 @@ import com.google.cloud.Identity
 import fs2._
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
+import org.broadinstitute.dsde.workbench.leonardo.model.{LeoInternalServerError, ServiceAccountProvider}
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
-class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelperConfig,
-                                                             google2StorageDAO: GoogleStorageService[F],
-                                                             serviceAccountProvider: ServiceAccountProvider[F],
-                                                             blocker: Blocker)(implicit val logger: Logger[F]) {
+import scala.io.Source
+
+class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
+                                                 google2StorageDAO: GoogleStorageService[F],
+                                                 serviceAccountProvider: ServiceAccountProvider[F],
+                                                 blocker: Blocker)(implicit val logger: Logger[F], F: Concurrent[F]) {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 
@@ -92,8 +94,10 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
     initBucketName: GcsBucketName,
     serviceAccountKey: Option[ServiceAccountKey],
     templateValues: RuntimeTemplateValues,
-    customClusterEnvironmentVariables: Map[String, String]
-  ): Stream[F, Unit] = {
+    customClusterEnvironmentVariables: Map[String, String],
+    clusterResourcesConfig: ClusterResourcesConfig,
+    gpuConfig: Option[GpuConfig]
+  )(implicit ev: Ask[F, TraceId]): Stream[F, Unit] = {
     // Build a mapping of (name, value) pairs with which to apply templating logic to resources
     val replacements = templateValues.toMap
 
@@ -125,13 +129,12 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
       Stream
         .emits(
           List(
-            config.clusterResourcesConfig.jupyterDockerCompose,
-            config.clusterResourcesConfig.jupyterDockerComposeGce,
-            config.clusterResourcesConfig.rstudioDockerCompose,
-            config.clusterResourcesConfig.proxyDockerCompose,
-            config.clusterResourcesConfig.proxySiteConf,
-            config.clusterResourcesConfig.welderDockerCompose,
-            config.clusterResourcesConfig.cryptoDetectorDockerCompose
+            clusterResourcesConfig.jupyterDockerCompose,
+            clusterResourcesConfig.rstudioDockerCompose,
+            clusterResourcesConfig.proxyDockerCompose,
+            clusterResourcesConfig.proxySiteConf,
+            clusterResourcesConfig.welderDockerCompose,
+            clusterResourcesConfig.cryptoDetectorDockerCompose
           )
         )
         .covary[F]
@@ -142,13 +145,44 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
           )).compile.drain
         }
 
+    val uploadGpuDockerCompose = gpuConfig.traverse { gC =>
+      val additionalGpuConfigString = (1 to gC.numOfGpus)
+        .map(x => s"""
+                     |      - "/dev/nvidia${x - 1}:/dev/nvidia${x - 1}"""".stripMargin)
+        .mkString("", "", "\n")
+
+      for {
+        traceId <- ev.ask
+        gpuDockerCompose <- F.fromEither(
+          clusterResourcesConfig.gpuDockerCompose.toRight(
+            LeoInternalServerError(
+              "This is impossible. If GPU config is defined, then gpuDockerCompose should be defined as well",
+              Some(traceId)
+            )
+          )
+        )
+        sourceStream = (Stream
+          .fromIterator(
+            Source
+              .fromResource(s"${ClusterResourcesConfig.basePath}/${gpuDockerCompose.asString}")
+              .getLines()
+          )
+          .intersperse("\n") ++ Stream.emit(additionalGpuConfigString).covary[F]).flatMap(s =>
+          Stream.emits(s.getBytes(java.nio.charset.Charset.forName("UTF-8"))).covary[F]
+        )
+        _ <- (sourceStream through google2StorageDAO.streamUploadBlob(
+          initBucketName,
+          GcsBlobName(gpuDockerCompose.asString)
+        )).compile.drain
+      } yield ()
+    }.void
+
     val uploadTemplatedResources =
       Stream
         .emits(
           List(
-            config.clusterResourcesConfig.initActionsScript,
-            config.clusterResourcesConfig.gceInitScript,
-            config.clusterResourcesConfig.jupyterNotebookFrontendConfigUri
+            clusterResourcesConfig.initScript,
+            clusterResourcesConfig.jupyterNotebookFrontendConfigUri
           )
         )
         .evalMap { r =>
@@ -168,10 +202,15 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
     } yield ()
 
     val uploadCustomEnvVars = Stream.emits(customEnvVars.getBytes(StandardCharsets.UTF_8)) through google2StorageDAO
-      .streamUploadBlob(initBucketName, GcsBlobName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString))
+      .streamUploadBlob(initBucketName, GcsBlobName(clusterResourcesConfig.customEnvVarsConfigUri.asString))
 
-    Stream(uploadRawFiles, uploadRawResources, uploadTemplatedResources, uploadPrivateKey, uploadCustomEnvVars).parJoin(
-      5
+    Stream(uploadRawFiles,
+           uploadRawResources,
+           uploadTemplatedResources,
+           uploadPrivateKey,
+           uploadCustomEnvVars,
+           Stream.eval(uploadGpuDockerCompose)).parJoin(
+      6
     )
   }
 
@@ -186,5 +225,4 @@ class BucketHelper[F[_]: Concurrent: ContextShift: Parallel](config: BucketHelpe
 case class BucketHelperConfig(imageConfig: ImageConfig,
                               welderConfig: WelderConfig,
                               proxyConfig: ProxyConfig,
-                              clusterFilesConfig: SecurityFilesConfig,
-                              clusterResourcesConfig: ClusterResourcesConfig)
+                              clusterFilesConfig: SecurityFilesConfig)

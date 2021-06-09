@@ -297,7 +297,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
 
     val retrievedCluster = dbFutureValue(clusterQuery.getClusterById(savedCluster.id))
 
-    retrievedCluster shouldBe 'defined
+    retrievedCluster shouldBe defined
     retrievedCluster.get.customEnvironmentVariables shouldBe expectedEvs
     retrievedCluster.get shouldBe savedCluster
   }
@@ -329,7 +329,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                         Some(savedDisk.id),
                                         bootDiskSize = DiskSize(50),
-                                        zone = ZoneName("us-west2-b"))
+                                        zone = ZoneName("us-west2-b"),
+                                        None)
         )
       )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
@@ -339,11 +340,12 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                         Some(DiskId(-1)),
                                         bootDiskSize = DiskSize(50),
-                                        zone = ZoneName("us-west2-b"))
+                                        zone = ZoneName("us-west2-b"),
+                                        None)
         )
       ).attempt
     } yield {
-      retrievedRuntime shouldBe 'defined
+      retrievedRuntime shouldBe defined
       runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(savedDisk.id)
       error.isLeft shouldBe true
     }
