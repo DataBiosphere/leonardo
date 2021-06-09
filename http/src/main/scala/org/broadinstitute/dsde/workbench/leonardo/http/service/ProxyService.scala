@@ -248,7 +248,8 @@ class ProxyService(
       hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
       _ <- hostStatus match {
         case HostReady(_) =>
-          dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
+          loggerIO.info(s"DEBUGGINGGGGGGG enqueueing ${UpdateDateAccessMessage(runtimeName, googleProject, ctx.now)}") >>
+            dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
