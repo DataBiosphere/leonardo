@@ -13,7 +13,6 @@ import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.tagobjects.Retryable
 
 import scala.concurrent.duration._
-import scala.math.abs
 
 /**
  * This spec verifies data syncing functionality, including notebook edit mode, playground mode,
