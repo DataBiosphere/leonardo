@@ -3,7 +3,7 @@ import sbt._
 object Dependencies {
   val scalaV = "2.13"
 
-  val akkaV = "2.6.14"
+  val akkaV = "2.6.15"
   val akkaHttpV = "10.2.4"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
@@ -104,7 +104,7 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.3.5"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.4.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.1" % Test // brought in for FakeStorageInterpreter
 
@@ -131,7 +131,7 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
-    "com.github.pureconfig" %% "pureconfig" % "0.14.1" % Provided,
+    "com.github.pureconfig" %% "pureconfig" % "0.16.0" % Provided,
     sealerate,
     enumeratum,
     http4sCirce,
