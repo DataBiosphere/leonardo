@@ -68,6 +68,8 @@ class NotebookBioconductorKernelSpec extends RuntimeFixtureSpec with NotebookTes
           val installTimeout = 15 minutes
 
           // new packages should install to directory where PD is mounted
+          notebookPage.executeCell("""BiocManager::install('RGtk2')""", installTimeout)
+          notebookPage.executeCell("library(RGtk2)")
           notebookPage.executeCell("find.package('RGtk2')").get should include("/home/jupyter-user/notebooks/packages")
         }
       }

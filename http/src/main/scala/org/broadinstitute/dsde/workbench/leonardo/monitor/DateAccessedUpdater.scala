@@ -44,9 +44,7 @@ class DateAccessedUpdater[F[_]: ContextShift: Timer](
     }
 
   private def updateDateAccessed(msg: UpdateDateAccessMessage): F[Unit] =
-    metrics.incrementCounter("jupyterAccessCount") >> logger.info(
-      s"111 updating ${msg.runtimeName} to ${msg.dateAccessd}"
-    ) >>
+    metrics.incrementCounter("jupyterAccessCount") >>
       clusterQuery
         .clearKernelFoundBusyDateByProjectAndName(msg.googleProject, msg.runtimeName, msg.dateAccessd)
         .flatMap(_ =>
