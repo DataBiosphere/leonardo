@@ -95,6 +95,13 @@ else
     GSUTIL_CMD='gsutil'
     GCLOUD_CMD='gcloud'
     DOCKER_COMPOSE='docker-compose'
+
+    # Update old welder docker-compose file's entrypoint
+    sed -i  "s/tail -f \/dev\/null/\/opt\/docker\/bin\/entrypoint.sh/g" /etc/welder-docker-compose.yaml
+
+    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop
+    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} rm -f
+    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
 fi
 
 function failScriptIfError() {
