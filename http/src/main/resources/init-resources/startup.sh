@@ -85,10 +85,11 @@ then
     GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
     DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
     WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+    export WORK_DIRECTORY='/mnt/disks/work'
 
     fsck.ext4 -tvy /dev/sdb
     mkdir -p /mnt/disks/work
-    mount -t ext4 -O discard,defaults /dev/sdb /mnt/disks/work
+    mount -t ext4 -O discard,defaults /dev/sdb ${WORK_DIRECTORY}
     chmod a+rwx /mnt/disks/work
 else
     CERT_DIRECTORY='/certs'
@@ -97,6 +98,7 @@ else
     GCLOUD_CMD='gcloud'
     DOCKER_COMPOSE='docker-compose'
     WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+    export WORK_DIRECTORY=/work
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
       # Update old welder docker-compose file's entrypoint
