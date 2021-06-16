@@ -84,10 +84,12 @@ then
     GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
     GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
     DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
+    WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+    export WORK_DIRECTORY='/mnt/disks/work'
 
     fsck.ext4 -tvy /dev/sdb
     mkdir -p /mnt/disks/work
-    mount -t ext4 -O discard,defaults /dev/sdb /mnt/disks/work
+    mount -t ext4 -O discard,defaults /dev/sdb ${WORK_DIRECTORY}
     chmod a+rwx /mnt/disks/work
 else
     CERT_DIRECTORY='/certs'
@@ -95,6 +97,17 @@ else
     GSUTIL_CMD='gsutil'
     GCLOUD_CMD='gcloud'
     DOCKER_COMPOSE='docker-compose'
+    WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+    export WORK_DIRECTORY=/work
+
+    if [ "$WELDER_ENABLED" == "true" ] ; then
+      # Update old welder docker-compose file's entrypoint
+      sed -i  "s/tail -f \/dev\/null/\/opt\/docker\/bin\/entrypoint.sh/g" /etc/welder-docker-compose.yaml
+
+      ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop
+      ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} rm -f
+      ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
+    fi
 fi
 
 function failScriptIfError() {
@@ -159,8 +172,6 @@ fi
 if [ "$UPDATE_WELDER" == "true" ] ; then
     # Run welder-docker-compose
     ${GCLOUD_CMD} auth configure-docker
-
-    WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
 
     retry 5 ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} pull
     ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop
