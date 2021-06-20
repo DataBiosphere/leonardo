@@ -59,7 +59,7 @@ object Dependencies {
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.50.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
-  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.6.1"
+  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV
