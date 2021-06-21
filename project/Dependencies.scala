@@ -7,7 +7,7 @@ object Dependencies {
   val akkaHttpV = "10.2.4"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
-  val scalaLoggingV = "3.9.3"
+  val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.9"
   val slickV = "3.3.3"
   val http4sVersion = "0.21.24"
