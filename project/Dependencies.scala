@@ -7,7 +7,7 @@ object Dependencies {
   val akkaHttpV = "10.2.4"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
-  val scalaLoggingV = "3.9.3"
+  val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.9"
   val slickV = "3.3.3"
   val http4sVersion = "0.21.24"
@@ -59,7 +59,7 @@ object Dependencies {
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.50.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
-  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.6.1"
+  val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
   val akkaHttp: ModuleID =          "com.typesafe.akka" %% "akka-http"            % akkaHttpV
@@ -68,7 +68,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.38.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.38.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -106,7 +106,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.4.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.1" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.2" % Test // brought in for FakeStorageInterpreter
 
   val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.0"
