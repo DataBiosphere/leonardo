@@ -138,8 +138,6 @@ class RuntimeCreationDiskSpec
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
-
-    logger.info(s"runtime Name ${runtimeWithDataName} googleProject ${googleProject}")
     
     val res = dependencies.use { dep =>
       implicit val client = dep.httpClient
