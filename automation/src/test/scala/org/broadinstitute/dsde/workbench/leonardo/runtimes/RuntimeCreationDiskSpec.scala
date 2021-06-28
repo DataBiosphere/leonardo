@@ -139,6 +139,8 @@ class RuntimeCreationDiskSpec
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
 
+    logger.info(s"runtime Name ${runtimeWithDataName} googleProject ${googleProject}")
+    
     val res = dependencies.use { dep =>
       implicit val client = dep.httpClient
 
@@ -202,7 +204,6 @@ class RuntimeCreationDiskSpec
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
         getDiskAttempt = getDisk(googleProject, diskName).attempt
 
-        _ <- logger.info(s"runtime Name ${runtimeWithDataName} googleProject ${googleProject}")
         // Disk deletion may take some time so we're retrying to reduce flaky test failures
         diskResp <- streamFUntilDone(getDiskAttempt, 15, 5 seconds).compile.lastOrError
       } yield {
