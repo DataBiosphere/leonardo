@@ -139,7 +139,6 @@ class RuntimeCreationDiskSpec
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get
 
-    
     val res = dependencies.use { dep =>
       implicit val client = dep.httpClient
 
