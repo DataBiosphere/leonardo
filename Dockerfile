@@ -15,10 +15,11 @@ RUN mkdir /helm-go-lib-build && \
 
 FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
 
-# Resolve trivy errors related to glibc (CVE-2019-9169)
+# Resolve trivy errors related to glibc (CVE-2019-9169) and lz4-libs (CVE-2021-3520)
 # TODO hopefully this will be fixed in an upcoming version of graalvm-ce-ol8.
 # For releases see https://github.com/orgs/graalvm/packages/container/package/graalvm-ce
 RUN microdnf install -y yum \
+  && yum install -y lz4-devel \
   && yum upgrade -y glibc-devel --allowerasing
 
 EXPOSE 8080
@@ -29,7 +30,8 @@ ENV HELM_DEBUG 1
 # WARNING: If you are changing any versions here, update it in the reference.conf
 ENV TERRA_APP_SETUP_VERSION 0.0.2
 ENV TERRA_APP_VERSION 0.3.0
-ENV GALAXY_VERSION 1.0.0
+# This is galaxykubeman 1.1.0, which references Galaxy 21.05
+ENV GALAXY_VERSION 1.1.0
 ENV NGINX_VERSION 3.23.0
 
 RUN mkdir /leonardo
