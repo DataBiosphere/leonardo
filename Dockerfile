@@ -19,7 +19,7 @@ FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
 # TODO hopefully this will be fixed in an upcoming version of graalvm-ce-ol8.
 # For releases see https://github.com/orgs/graalvm/packages/container/package/graalvm-ce
 RUN microdnf install -y yum \
-  && yum install lz4-devel \
+  && yum install -y lz4-devel \
   && yum upgrade -y glibc-devel --allowerasing
 
 EXPOSE 8080
