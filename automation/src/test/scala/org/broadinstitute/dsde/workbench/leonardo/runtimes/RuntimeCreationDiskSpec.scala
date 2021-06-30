@@ -209,7 +209,15 @@ class RuntimeCreationDiskSpec
         runtime.diskConfig.map(_.size) shouldBe Some(diskSize)
         stoppedRuntime.status shouldBe ClusterStatus.Stopped
         stoppedRuntime.diskConfig.map(_.name) shouldBe Some(diskName)
-        diskResp.swap.toOption.get.asInstanceOf[RestError].statusCode shouldBe Status.NotFound
+        diskResp match {
+          case Left(value) =>
+            value match {
+              case RestError(_, Status.NotFound, _) => succeed
+              case e                                => fail("getDisk failed", e)
+            }
+          case Right(value) =>
+            fail(s"disk shouldn't exist anymore. But we get ${value}")
+        }
       }
     }
 

@@ -315,8 +315,8 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       req.googleProject,
                       disk.zone,
                       OperationName(op.getName),
-                      3 seconds,
-                      5,
+                      1 seconds,
+                      30,
                       None
                     )(
                       F.unit,
