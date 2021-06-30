@@ -1278,6 +1278,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       raw"""galaxy.configs.file_sources_conf\.yml[0].namespace=${cluster.googleProject.value}""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].on_anvil=True""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].writable=True""",
       // RBAC configs
       raw"""galaxy.serviceAccount.create=false""",
       raw"""galaxy.serviceAccount.name=${ksa.value}""",
