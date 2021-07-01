@@ -124,9 +124,19 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
             headers = Headers.of(Header("Accept", "application/json"))
           )
         )(onError)
-      // GHCR accepts a personal github access token for private repo support, but it seems to
-      // work for public images as long as any token is sent.
-      case ContainerRegistry.GHCR => F.pure(Some(Token("")))
+      // If it's GHCR, request a noop token from GitHub
+      case ContainerRegistry.GHCR =>
+        httpClient.expectOptionOr[Token](
+          Request[F](
+            method = Method.GET,
+            uri = ghcrAuthUri
+              .withPath("/token")
+              .withQueryParam("scope", s"repository:${parsedImage.imageName}:pull")
+              .withQueryParam("service", "registry.docker.io"),
+            // must be Accept: application/json not Accept: application/vnd.docker.distribution.manifest.v2+json
+            headers = Headers.of(Header("Accept", "application/json"))
+          )
+        )(onError)
     }
 
   private def onError(response: Response[F])(implicit ev: Ask[F, TraceId]): F[Throwable] =
@@ -175,6 +185,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
 
 object HttpDockerDAO {
   val dockerHubAuthUri = Uri.unsafeFromString("https://auth.docker.io")
+  val ghcrAuthUri = Uri.unsafeFromString("https://ghcr.io")
   val dockerHubRegistryUri = Uri.unsafeFromString("https://registry-1.docker.io")
   val clusterToolEnv = Map(Jupyter -> "JUPYTER_HOME", RStudio -> "RSTUDIO_HOME")
 
