@@ -131,8 +131,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
             method = Method.GET,
             uri = ghcrAuthUri
               .withPath("/token")
-              .withQueryParam("scope", s"repository:${parsedImage.imageName}:pull")
-              .withQueryParam("service", "registry.docker.io"),
+              .withQueryParam("scope", s"repository:${parsedImage.imageName}:pull"),
             // must be Accept: application/json not Accept: application/vnd.docker.distribution.manifest.v2+json
             headers = Headers.of(Header("Accept", "application/json"))
           )
