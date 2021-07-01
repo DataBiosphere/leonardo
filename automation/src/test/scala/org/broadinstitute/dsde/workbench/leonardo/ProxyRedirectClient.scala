@@ -18,8 +18,11 @@ import org.http4s.{HttpRoutes, _}
 import scala.concurrent.ExecutionContext
 
 object ProxyRedirectClient extends RestClient with LazyLogging {
-  // Note: change to "localhost" if running tests locally
-  val host = java.net.InetAddress.getLocalHost.getHostName
+  // If test is running in headless mode, hostname needs to work in a docker container
+  val host = sys.props.get("headless") match {
+    case Some("true") => java.net.InetAddress.getLocalHost.getHostName
+    case _            => "localhost"
+  }
 
   // Singleton http4s server to serve the proxy redirect page.
   // Explanation of the type:
