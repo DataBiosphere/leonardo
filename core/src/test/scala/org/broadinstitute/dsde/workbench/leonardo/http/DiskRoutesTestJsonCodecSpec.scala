@@ -1,82 +1,76 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import io.circe.{Decoder, Encoder}
-import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
+import DiskRoutesTestJsonCodec._
+import io.circe.parser._
+import org.broadinstitute.dsde.workbench.google2._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
-object DiskRoutesTestJsonCodec {
-  implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] = Encoder.forProduct4(
-    "labels",
-    "size",
-    "diskType",
-    "blockSize"
-  )(x =>
-    (
-      x.labels,
-      x.size,
-      x.diskType,
-      x.blockSize
-    )
-  )
+import java.time.Instant
 
-  implicit val getDiskResponseDecoder: Decoder[GetPersistentDiskResponse] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[DiskId]
-      googleProject <- x.downField("googleProject").as[GoogleProject]
-      zone <- x.downField("zone").as[ZoneName]
-      name <- x.downField("name").as[DiskName]
-      googleId <- x.downField("googleId").as[Option[GoogleId]]
-      serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
-      status <- x.downField("status").as[DiskStatus]
-      auditInfo <- x.downField("auditInfo").as[AuditInfo]
-      size <- x.downField("size").as[DiskSize]
-      diskType <- x.downField("diskType").as[DiskType]
-      blockSize <- x.downField("blockSize").as[BlockSize]
-      labels <- x.downField("labels").as[LabelMap]
-    } yield GetPersistentDiskResponse(
-      id,
-      googleProject,
-      zone,
-      name,
-      googleId,
-      serviceAccount,
-      // TODO samResource probably shouldn't be in the GetPersistentDiskResponse
-      // if it's not in the encoder
+class DiskRoutesTestJsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
+  it should "decode DataprocConfig properly" in {
+    val inputString =
+      """
+        |{
+        |    "id": 107,
+        |    "googleProject": "gpalloc-dev-master-tzprbkr",
+        |    "zone": "us-central1-a",
+        |    "name": "rzxybksgvy",
+        |    "googleId": "3579418231488887016",
+        |    "serviceAccount": "b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com",
+        |    "status": "Ready",
+        |    "auditInfo":
+        |    {
+        |        "creator": "ron.weasley@test.firecloud.org",
+        |        "createdDate": "2021-07-01T18:14:27.688698Z",
+        |        "destroyedDate": null,
+        |        "dateAccessed": "2021-07-01T18:14:30.915Z"
+        |    },
+        |    "size": 451,
+        |    "diskType": "pd-standard",
+        |    "blockSize": 4096,
+        |    "labels":
+        |    {
+        |        "diskName": "rzxybksgvy",
+        |        "creator": "ron.weasley@test.firecloud.org",
+        |        "googleProject": "gpalloc-dev-master-tzprbkr",
+        |        "serviceAccount": "b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com"
+        |    }
+        |}
+        |""".stripMargin
+
+    val res = decode[GetPersistentDiskResponse](inputString)
+    val expected = GetPersistentDiskResponse(
+      DiskId(107),
+      GoogleProject("gpalloc-dev-master-tzprbkr"),
+      ZoneName("us-central1-a"),
+      DiskName("rzxybksgvy"),
+      Some(GoogleId("3579418231488887016")),
+      WorkbenchEmail("b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com"),
       PersistentDiskSamResourceId("test"),
-      status,
-      auditInfo,
-      size,
-      diskType,
-      blockSize,
-      labels
+      DiskStatus.Ready,
+      AuditInfo(
+        WorkbenchEmail("ron.weasley@test.firecloud.org"),
+        Instant.parse("2021-07-01T18:14:27.688698Z"),
+        None,
+        Instant.parse("2021-07-01T18:14:30.915Z")
+      ),
+      DiskSize(451),
+      DiskType.Standard,
+      BlockSize(4096),
+      Map(
+        "diskName" -> "rzxybksgvy",
+        "creator" -> "ron.weasley@test.firecloud.org",
+        "googleProject" -> "gpalloc-dev-master-tzprbkr",
+        "serviceAccount" -> "b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com"
+      )
     )
+    res shouldBe (Right(expected))
   }
 
-  implicit val listDiskResponseDecoder: Decoder[ListPersistentDiskResponse] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[DiskId]
-      googleProject <- x.downField("googleProject").as[GoogleProject]
-      zone <- x.downField("zone").as[ZoneName]
-      name <- x.downField("name").as[DiskName]
-      status <- x.downField("status").as[DiskStatus]
-      auditInfo <- x.downField("auditInfo").as[AuditInfo]
-      size <- x.downField("size").as[DiskSize]
-      diskType <- x.downField("diskType").as[DiskType]
-      blockSize <- x.downField("blockSize").as[BlockSize]
-    } yield ListPersistentDiskResponse(
-      id,
-      googleProject,
-      zone,
-      name,
-      status,
-      auditInfo,
-      size,
-      diskType,
-      blockSize
-    )
-  }
 }
