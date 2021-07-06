@@ -18,9 +18,15 @@ FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
 # Resolve trivy errors related to glibc (CVE-2019-9169) and lz4-libs (CVE-2021-3520)
 # TODO hopefully this will be fixed in an upcoming version of graalvm-ce-ol8.
 # For releases see https://github.com/orgs/graalvm/packages/container/package/graalvm-ce
-RUN microdnf install -y yum \
-  && yum install -y lz4-devel \
-  && yum upgrade -y glibc-devel --allowerasing
+#RUN microdnf install -y yum \
+#  && yum install -y lz4-devel \
+#  && yum upgrade -y glibc-devel --allowerasing
+
+# Taken from https://github.com/graalvm/container/blob/master/community/Dockerfile.ol8-java11
+RUN microdnf update -y oraclelinux-release-el8 \
+    && microdnf --enablerepo ol8_codeready_builder install bzip2-devel ed gcc gcc-c++ gcc-gfortran gzip file fontconfig less libcurl-devel make openssl openssl-devel readline-devel tar glibc-langpack-en \
+    vi which xz-devel zlib-devel findutils glibc-static libstdc++ libstdc++-devel libstdc++-static zlib-static \
+    && microdnf clean all
 
 EXPOSE 8080
 EXPOSE 5050
