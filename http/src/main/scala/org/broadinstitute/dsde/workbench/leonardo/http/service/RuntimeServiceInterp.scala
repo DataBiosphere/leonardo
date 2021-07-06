@@ -321,8 +321,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                     )(
                       F.unit,
                       F.raiseError(
-                        new RuntimeException(
-                          s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner"
+                        LeoInternalServerError(
+                          s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner",
+                          Some(ctx.traceId)
                         )
                       ),
                       F.unit

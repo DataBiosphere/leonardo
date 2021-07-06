@@ -1,12 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.util.concurrent.Executors
-
 import cats.effect.concurrent.Ref
 import cats.effect.{Blocker, ContextShift, IO, Timer}
-import com.typesafe.scalalogging.LazyLogging
 import fs2._
-import org.broadinstitute.dsde.workbench.service.RestClient
 import org.http4s.client.Client
 import org.http4s.dsl.io._
 import org.http4s.headers.`Content-Type`
@@ -15,10 +11,11 @@ import org.http4s.server.Server
 import org.http4s.server.blaze._
 import org.http4s.{HttpRoutes, _}
 
+import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 
 // This is for setting `REFERER` header in automation tests
-object ProxyRedirectClient extends RestClient with LazyLogging {
+object ProxyRedirectClient {
   // If test is running in headless mode, hostname needs to work in a docker container
   val host = sys.props.get("headless") match {
     case Some("true") => java.net.InetAddress.getLocalHost.getHostName

@@ -17,9 +17,10 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
-import org.http4s.client.middleware.Logger
+import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
 import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
@@ -27,6 +28,7 @@ import scala.util.control.NoStackTrace
 
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
+  implicit val logger: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
   implicit def http4sBody[A](body: A)(implicit encoder: EntityEncoder[IO, A]): EntityBody[IO] =
     encoder.toEntity(body).body
@@ -40,10 +42,12 @@ object LeonardoApiClient {
   implicit def getRuntimeDoneCheckable[A]: DoneCheckable[GetRuntimeResponseCopy] =
     (op: GetRuntimeResponseCopy) => op.status == ClusterStatus.Running || op.status == ClusterStatus.Error
 
-  val client: Resource[IO, Client[IO]] = for {
-    blockingEc <- ExecutionContexts.cachedThreadPool[IO]
-    client <- blaze.BlazeClientBuilder[IO](blockingEc).resource
-  } yield Logger[IO](logHeaders = true, logBody = true)(client)
+  def client(implicit timer: Timer[IO]): Resource[IO, Client[IO]] =
+    for {
+      blockingEc <- ExecutionContexts.cachedThreadPool[IO]
+      retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5))
+      client <- blaze.BlazeClientBuilder[IO](blockingEc).resource.map(c => Retry(retryPolicy)(c))
+    } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
   val rootUri = Uri.unsafeFromString(LeonardoConfig.Leonardo.apiUrl)
   val defaultCreateDiskRequest = CreateDiskRequest(
@@ -351,14 +355,25 @@ object LeonardoApiClient {
   )(implicit client: Client[IO], authHeader: Authorization): IO[GetPersistentDiskResponse] =
     for {
       traceIdHeader <- genTraceIdHeader()
-      r <- client.expectOr[GetPersistentDiskResponse](
-        Request[IO](
-          method = Method.GET,
-          headers = Headers.of(authHeader, traceIdHeader),
-          uri = rootUri
-            .withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
+      r <- client
+        .run(
+          Request[IO](
+            method = Method.GET,
+            headers = Headers.of(authHeader, traceIdHeader),
+            uri = rootUri
+              .withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
+          )
         )
-      )(onError(s"Failed to get disk ${googleProject.value}/${diskName.value}"))
+        .use { resp =>
+          if (resp.status.isSuccess)
+            resp.as[GetPersistentDiskResponse]
+          else {
+            for {
+              body <- resp.bodyText.compile.foldMonoid
+              rr <- IO.raiseError[GetPersistentDiskResponse](RestError("getDisk failed", resp.status, Some(body)))
+            } yield rr
+          }
+        }
     } yield r
 
   def listDisk(
