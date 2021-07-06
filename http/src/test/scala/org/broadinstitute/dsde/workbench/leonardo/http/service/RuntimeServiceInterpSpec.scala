@@ -190,7 +190,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
                          Config.imageConfig.jupyterImage.imageUrl,
-                         Some(Paths.get("/home/jupyter-user")),
+                         Some(Paths.get("/home/jupyter")),
                          context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
@@ -316,7 +316,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
                          Config.imageConfig.jupyterImage.imageUrl,
-                         Some(Paths.get("/home/jupyter-user")),
+                         Some(Paths.get("/home/jupyter")),
                          context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
@@ -375,7 +375,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
                          Config.imageConfig.jupyterImage.imageUrl,
-                         Some(Paths.get("/home/jupyter-user")),
+                         Some(Paths.get("/home/jupyter")),
                          context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
@@ -557,7 +557,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
                          Config.imageConfig.jupyterImage.imageUrl,
-                         Some(Paths.get("/home/jupyter-user")),
+                         Some(Paths.get("/home/jupyter")),
                          context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),

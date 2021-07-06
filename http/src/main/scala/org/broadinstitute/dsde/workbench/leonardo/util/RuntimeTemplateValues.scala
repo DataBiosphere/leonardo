@@ -190,7 +190,7 @@ object RuntimeTemplateValues {
       config.runtimeImages
         .find(_.imageType == Jupyter)
         .flatMap(_.homeDirectory.map(_.toString))
-        .getOrElse("/home/jupyter-user")
+        .getOrElse("/home/jupyter")
     RuntimeTemplateValues(
       config.runtimeProjectAndName.googleProject.value,
       config.gpuEnabled.toString,

@@ -123,7 +123,7 @@ class DataprocInterpreterSpec
         Set(
           RuntimeImage(RuntimeImageType.Jupyter,
                        "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1",
-                       Some(Paths.get("/home/jupyter-user")),
+                       Some(Paths.get("/home/jupyter")),
                        Instant.now)
         )
       )(testCluster)
@@ -143,7 +143,7 @@ class DataprocInterpreterSpec
         Set(
           RuntimeImage(RuntimeImageType.Jupyter,
                        "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da",
-                       Some(Paths.get("/home/jupyter-user")),
+                       Some(Paths.get("/home/jupyter")),
                        Instant.now)
         )
       )(testCluster)
