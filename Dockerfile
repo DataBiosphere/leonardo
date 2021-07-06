@@ -13,7 +13,7 @@ RUN mkdir /helm-go-lib-build && \
     cd helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 
-FROM us.gcr.io/broad-dsp-gcr-public/base/jre:11-alpine
+FROM us.gcr.io/broad-dsp-gcr-public/base/jre:11-debian
 
 EXPOSE 8080
 EXPOSE 5050
