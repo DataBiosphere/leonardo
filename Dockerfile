@@ -49,12 +49,12 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # Leonardo will install the chart from local version.
 # We are also cacheing charts so they are not downloaded with every helm-install
 
-RUN pushd /leonardo && \
+RUN cd /leonardo && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
-    popd
+    cd /
 
 # Add Leonardo as a service (it will start when the container starts)
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
