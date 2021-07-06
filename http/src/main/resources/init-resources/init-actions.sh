@@ -480,6 +480,10 @@ END
       # kernel tries to connect to it.
       docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
+      # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
+      # A better to do this might be to take welder host as an argument to the script
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
+
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 
