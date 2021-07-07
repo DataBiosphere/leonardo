@@ -13,14 +13,7 @@ RUN mkdir /helm-go-lib-build && \
     cd helm-go-lib && \
     go build -o libhelm.so -buildmode=c-shared main.go
 
-FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.1.0
-
-# Resolve trivy errors related to glibc (CVE-2019-9169) and lz4-libs (CVE-2021-3520)
-# TODO hopefully this will be fixed in an upcoming version of graalvm-ce-ol8.
-# For releases see https://github.com/orgs/graalvm/packages/container/package/graalvm-ce
-RUN microdnf install -y yum \
-  && yum install -y lz4-devel \
-  && yum upgrade -y glibc-devel --allowerasing
+FROM us.gcr.io/broad-dsp-gcr-public/base/jre:11-debian
 
 EXPOSE 8080
 EXPOSE 5050
@@ -56,12 +49,12 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
 # Leonardo will install the chart from local version.
 # We are also cacheing charts so they are not downloaded with every helm-install
 
-RUN pushd /leonardo && \
+RUN cd /leonardo && \
     helm pull terra-app-setup-charts/terra-app-setup --version $TERRA_APP_SETUP_VERSION --untar && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
-    popd
+    cd /
 
 # Add Leonardo as a service (it will start when the container starts)
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')

@@ -57,7 +57,7 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.50.0"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.51.0"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
@@ -68,7 +68,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.38.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.39.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -177,7 +177,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.2" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.4" % "test",
     "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
