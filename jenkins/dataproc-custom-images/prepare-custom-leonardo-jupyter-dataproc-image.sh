@@ -140,6 +140,7 @@ log 'Installing Docker...'
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 retry 5 apt-get update
 
+rm -rf /var/lib/docker
 mkdir -p /etc/docker
 touch /etc/docker/daemon.json
 cat > /etc/docker/daemon.json <<EOF
