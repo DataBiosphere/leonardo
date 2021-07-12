@@ -19,7 +19,7 @@ VALIDATE_WORKFLOW="false"
 # The source directory should contain `application_default_credentials.json`
 # which can be generated via `gcloud auth application-default login` and is saved at
 # `~/.config/gcloud/application_default_credentials.json` by default.
-SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
+SOURCE_DIR="/Users/qi/workspace/leonardo/jenkins/gce-custom-images"
 
 # Underscores are not accepted as image name
 OUTPUT_IMAGE_NAME=leo-gce-image-$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
