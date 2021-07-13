@@ -1,0 +1,31 @@
+version: '2.4'
+services:
+  cromwell-mysql:
+    image: mysql:5.7.15
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=cromwell
+      - MYSQL_USER=cromwell
+      - MYSQL_PASSWORD=cromwell
+      - MYSQL_DATABASE=cromwell
+    volumes:
+      - /work/cromwell/mysqlstore:/var/lib/mysql
+    network_mode: host
+  cromwell-app:
+    container_name: "${CROMWELL_SERVER_NAME}"
+    image: "${CROMWELL_DOCKER_IMAGE}"
+    ports:
+      - "8002:8002"
+    depends_on:
+      - cromwell-mysql
+    environment:
+      # TODO make dynamic
+      JAVA_OPTS: -server -Xms2g -Xmx2g -XX:NewSize=512m -XX:MaxNewSize=512m -XX:SurvivorRatio=8 -XX:+UseG1GC -XX:+CMSParallelRemarkEnabled -XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=60 -XX:+ScavengeBeforeFullGC -XX:+CMSScavengeBeforeRemark -Xlog:gc*::time,level,tags -verbose:gc -Xlog:classhisto*=trace -Dscala.concurrent.context.minThreads=10 -Dscala.concurrent.context.numThreads=10 -Dscala.concurrent.context.maxThreads=10 -Dconfig.file=/etc/cromwell.conf
+      CROMWELL_ARGS: server
+    volumes:
+      - /work/cromwell/cromwell.conf:/etc/cromwell.conf:ro
+      - /work/cromwell/cromwell_papi_v2_beta_config.conf:/etc/cromwell_papi_v2_beta_config.conf:ro
+      - /work/cromwell/cromwell-reference-images.conf:/etc/cromwell-reference-images.conf:ro
+    restart: always
+    network_mode: host

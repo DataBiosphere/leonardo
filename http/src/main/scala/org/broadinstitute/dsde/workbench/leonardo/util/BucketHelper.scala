@@ -134,7 +134,9 @@ class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
             clusterResourcesConfig.proxyDockerCompose,
             clusterResourcesConfig.proxySiteConf,
             clusterResourcesConfig.welderDockerCompose,
-            clusterResourcesConfig.cryptoDetectorDockerCompose
+            clusterResourcesConfig.cryptoDetectorDockerCompose,
+            clusterResourcesConfig.cromwellDockerCompose,
+            clusterResourcesConfig.cromwellReferenceImages
           )
         )
         .covary[F]
@@ -182,7 +184,9 @@ class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
         .emits(
           List(
             clusterResourcesConfig.initScript,
-            clusterResourcesConfig.jupyterNotebookFrontendConfigUri
+            clusterResourcesConfig.jupyterNotebookFrontendConfigUri,
+            clusterResourcesConfig.cromwellConf,
+            clusterResourcesConfig.cromwellPapiV2BetaConfig
           )
         )
         .evalMap { r =>

@@ -14,7 +14,11 @@ case class ClusterResourcesConfig(initScript: RuntimeResource,
                                   proxySiteConf: RuntimeResource,
                                   jupyterNotebookConfigUri: RuntimeResource,
                                   jupyterNotebookFrontendConfigUri: RuntimeResource,
-                                  customEnvVarsConfigUri: RuntimeResource)
+                                  customEnvVarsConfigUri: RuntimeResource,
+                                  cromwellDockerCompose: RuntimeResource,
+                                  cromwellConf: RuntimeResource,
+                                  cromwellReferenceImages: RuntimeResource,
+                                  cromwellPapiV2BetaConfig: RuntimeResource)
 
 object ClusterResourcesConfig {
   val basePath = "init-resources"

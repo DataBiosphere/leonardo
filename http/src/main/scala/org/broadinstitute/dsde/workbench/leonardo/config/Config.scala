@@ -181,7 +181,11 @@ object Config {
         config.as[RuntimeResource]("proxySiteConf"),
         config.as[RuntimeResource]("jupyterNotebookConfigUri"),
         config.as[RuntimeResource]("jupyterNotebookFrontendConfigUri"),
-        config.as[RuntimeResource]("customEnvVarsConfigUri")
+        config.as[RuntimeResource]("customEnvVarsConfigUri"),
+        config.as[RuntimeResource]("cromwellDockerCompose"),
+        config.as[RuntimeResource]("cromwellConf"),
+        config.as[RuntimeResource]("cromwellReferenceImages"),
+        config.as[RuntimeResource]("cromwellPapiV2BetaConfig")
       )
   }
 
