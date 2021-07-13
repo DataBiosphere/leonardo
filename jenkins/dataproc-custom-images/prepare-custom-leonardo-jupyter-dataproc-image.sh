@@ -147,7 +147,7 @@ cat > /etc/docker/daemon.json <<EOF
 {
   "storage-driver": "devicemapper",
   "storage-opts": [
-     "dm.basesize=50G"
+     "dm.basesize=60G"
   ]
 }
 EOF
