@@ -142,7 +142,7 @@ DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
 GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
 GCLOUD_CMD='docker run --rm -v /var:/var -v /home/.docker:/.docker gcr.io/google-containers/toolbox:20200603-00 gcloud'
-DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -v "$PWD:$PWD" -w="$PWD" cryptopants/docker-compose-gcr'
+DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -w=/var cryptopants/docker-compose-gcr"
 
 function apply_user_script() {
   local CONTAINER_NAME=$1
