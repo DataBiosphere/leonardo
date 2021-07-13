@@ -11,6 +11,7 @@ services:
       - MYSQL_DATABASE=cromwell
     volumes:
       - ${WORK_DIRECTORY}/cromwell/mysqlstore:/var/lib/mysql
+    restart: always
     network_mode: host
   cromwell-app:
     container_name: "${CROMWELL_SERVER_NAME}"

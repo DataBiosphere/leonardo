@@ -12,6 +12,7 @@ services:
       - MYSQL_DATABASE=cromwell
     volumes:
       - ${WORK_DIRECTORY}/cromwell/mysqlstore:/var/lib/mysql
+    restart: always
     networks:
       - app_network
   cromwell-app:
