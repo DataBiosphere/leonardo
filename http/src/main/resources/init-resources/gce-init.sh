@@ -141,8 +141,13 @@ CERT_DIRECTORY='/var/certs'
 DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
 GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
-GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
+GCLOUD_CMD='docker run --rm -v /var:/var -v /:/.docker gcr.io/google-containers/toolbox:20200603-00 gcloud'
 DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
+
+if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
+  log 'Authorizing GCR...'
+  ${GCLOUD_CMD} --quiet auth configure-docker
+fi
 
 function apply_user_script() {
   local CONTAINER_NAME=$1
