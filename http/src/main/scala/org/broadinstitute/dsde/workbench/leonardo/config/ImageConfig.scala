@@ -18,5 +18,7 @@ final case class ImageConfig(
   jupyterImageRegex: String,
   rstudioImageRegex: String,
   broadDockerhubImageRegex: String,
-  defaultJupyterUserHome: Path
+  defaultJupyterUserHome: Path,
+  cromwellServerName: String,
+  cromwellImage: ContainerImage
 )

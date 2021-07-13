@@ -18,7 +18,7 @@ services:
       - app_network
     volumes:
       # shared with welder
-      - "/mnt/disks/work:${NOTEBOOKS_DIR}"
+      - "${WORK_DIRECTORY}:${NOTEBOOKS_DIR}"
     restart: always
     environment:
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"

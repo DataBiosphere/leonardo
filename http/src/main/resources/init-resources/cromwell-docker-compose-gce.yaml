@@ -1,6 +1,7 @@
 version: '2.4'
 services:
   cromwell-mysql:
+    container_name: mysql
     image: mysql:5.7.15
     ports:
       - "3306:3306"
@@ -10,7 +11,7 @@ services:
       - MYSQL_PASSWORD=cromwell
       - MYSQL_DATABASE=cromwell
     volumes:
-      - /work/cromwell/mysqlstore:/var/lib/mysql
+      - ${WORK_DIRECTORY}/cromwell/mysqlstore:/var/lib/mysql
     networks:
       - app_network
   cromwell-app:
@@ -25,9 +26,9 @@ services:
       JAVA_OPTS: -server -Xms2g -Xmx2g -XX:NewSize=512m -XX:MaxNewSize=512m -XX:SurvivorRatio=8 -XX:+UseG1GC -XX:+CMSParallelRemarkEnabled -XX:+UseCMSInitiatingOccupancyOnly -XX:CMSInitiatingOccupancyFraction=60 -XX:+ScavengeBeforeFullGC -XX:+CMSScavengeBeforeRemark -Xlog:gc*::time,level,tags -verbose:gc -Xlog:classhisto*=trace -Dscala.concurrent.context.minThreads=10 -Dscala.concurrent.context.numThreads=10 -Dscala.concurrent.context.maxThreads=10 -Dconfig.file=/etc/cromwell.conf
       CROMWELL_ARGS: server
     volumes:
-      - /work/cromwell/cromwell.conf:/etc/cromwell.conf:ro
-      - /work/cromwell/cromwell_papi_v2_beta_config.conf:/etc/cromwell_papi_v2_beta_config.conf:ro
-      - /work/cromwell/cromwell-reference-images.conf:/etc/cromwell-reference-images.conf:ro
+      - /var/docker-compose-files/cromwell.conf:/etc/cromwell.conf:ro
+      - /var/docker-compose-files/cromwell_papi_v2_beta_config.conf:/etc/cromwell_papi_v2_beta_config.conf:ro
+      - /var/docker-compose-files/cromwell-reference-images.conf:/etc/cromwell-reference-images.conf:ro
     restart: always
     networks:
       - app_network

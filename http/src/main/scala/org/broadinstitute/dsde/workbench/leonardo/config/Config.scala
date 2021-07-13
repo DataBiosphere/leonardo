@@ -152,7 +152,9 @@ object Config {
       config.getString("jupyterImageRegex"),
       config.getString("rstudioImageRegex"),
       config.getString("broadDockerhubImageRegex"),
-      Paths.get(config.getString("defaultJupyterUserHome"))
+      Paths.get(config.getString("defaultJupyterUserHome")),
+      config.getString("cromwellContainerName"),
+      config.as[ContainerImage]("cromwellImage")
     )
   }
 

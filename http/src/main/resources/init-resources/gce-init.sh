@@ -105,6 +105,8 @@ export MEM_LIMIT=$(memLimit)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 export WELDER_ENABLED=$(welderEnabled)
+export CROMWELL_DOCKER_IMAGE=$(cromwellDockerImage)
+export CROMWELL_SERVER_NAME=$(cromwellServerName)
 
 START_USER_SCRIPT_URI=$(startUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
@@ -124,6 +126,7 @@ PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
 WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
 CRYPTO_DETECTOR_DOCKER_COMPOSE=$(cryptoDetectorDockerCompose)
 GPU_DOCKER_COMPOSE=$(gpuDockerCompose)
+CROMWELL_DOCKER_COMPOSE=$(cromwellDockerCompose)
 PROXY_SITE_CONF=$(proxySiteConf)
 JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
 JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
@@ -282,6 +285,11 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`
 fi
 
+if [ ! -z "$CROMWELL_DOCKER_IMAGE" ] ; then
+  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CROMWELL_DOCKER_COMPOSE}`)
+  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CROMWELL_DOCKER_COMPOSE}`
+fi
+
 tee /var/variables.env << END
 CERT_DIRECTORY=${CERT_DIRECTORY}
 WORK_DIRECTORY=${WORK_DIRECTORY}
@@ -307,6 +315,8 @@ HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PRO
 DOCKER_COMPOSE_FILES_DIRECTORY=${DOCKER_COMPOSE_FILES_DIRECTORY}
 RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
 RSTUDIO_DOCKER_IMAGE=${RSTUDIO_DOCKER_IMAGE}
+CROMWELL_DOCKER_IMAGE=${CROMWELL_DOCKER_IMAGE}
+CROMWELL_SERVER_NAME=${CROMWELL_SERVER_NAME}
 END
 
 # Create a network that allows containers to talk to each other via exposed ports
