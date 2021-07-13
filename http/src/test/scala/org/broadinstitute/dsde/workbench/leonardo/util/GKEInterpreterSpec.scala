@@ -11,12 +11,14 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{kubernetesClusterQuery, nodepoolQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, kubernetesClusterQuery, nodepoolQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import java.nio.file.Files
 import java.util.Base64
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -151,6 +153,20 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       savedCluster <- IO(makeKubeCluster(1).save())
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
       m = DeleteNodepoolParams(savedNodepool.id, savedCluster.googleProject)
+      _ <- gkeInterp.deleteAndPollNodepool(m)
+      nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
+    } yield {
+      nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "modify db entry on error" in isolatedDbTest {
+    val res = for{
+      savedCluster <- IO(makeKubeCluster(1).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      m = DeleteNodepoolParams(savedNodepool.id, GoogleProject("wx-billing-10"))
       _ <- gkeInterp.deleteAndPollNodepool(m)
       nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
     } yield {
