@@ -17,7 +17,6 @@ import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MockGoogleDiskService}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import java.nio.file.Files
 import java.util.Base64
