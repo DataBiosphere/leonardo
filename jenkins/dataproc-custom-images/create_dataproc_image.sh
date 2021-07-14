@@ -18,7 +18,7 @@ WORK_DIR=`pwd`/jenkins/dataproc-custom-images/dataproc-custom-images
 pushd $WORK_DIR
 
 # Your testing project
-GOOGLE_PROJECT="qi-billing-galaxy"
+GOOGLE_PROJECT="broad-dsp-gcr-public"
 REGION="us-central1"
 ZONE="${REGION}-a"
 
