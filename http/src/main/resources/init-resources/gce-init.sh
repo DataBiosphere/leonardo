@@ -209,13 +209,14 @@ log 'Formatting and mounting persistent disk...'
 # Fix this to `sdb`. We've never seen a device name that's not `sdb`,
 # Altho you some images, this cmd $(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 # can be used to find device name, this doesn't work for COS images
-export DISK_DEVICE_ID='sdb'
+DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
 fi
 
-mount -t ext4 -O discard,defaults /dev/sdb ${WORK_DIRECTORY}
+mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
 
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
