@@ -117,54 +117,6 @@ class DataprocInterpreterSpec
     mockGoogleIamDAO.serviceAccountKeys shouldBe 'empty
   }
 
-  it should "be able to determine appropriate custom dataproc image" in isolatedDbTest {
-    val cluster = LeoLenses.runtimeToRuntimeImages
-      .modify(_ =>
-        Set(
-          RuntimeImage(RuntimeImageType.Jupyter,
-                       "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.0.1",
-                       Some(Paths.get("/home/jupyter")),
-                       Instant.now)
-        )
-      )(testCluster)
-
-    val dataprocConfig = LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get
-    val res =
-      dataprocInterp
-        .createRuntime(
-          CreateRuntimeParams
-            .fromCreateRuntimeMessage(CreateRuntimeMessage.fromRuntime(cluster, dataprocConfig, None))
-        )
-        .unsafeToFuture()
-        .futureValue
-    res.get.bootSource.asInstanceOf[BootSource.VmImage].customImage shouldBe Config.dataprocConfig.customDataprocImage
-    val clusterWithLegacyImage = LeoLenses.runtimeToRuntimeImages
-      .modify(_ =>
-        Set(
-          RuntimeImage(RuntimeImageType.Jupyter,
-                       "us.gcr.io/broad-dsp-gcr-public/leonardo-jupyter:5c51ce6935da",
-                       Some(Paths.get("/home/jupyter")),
-                       Instant.now)
-        )
-      )(testCluster)
-
-    val resForLegacyImage =
-      dataprocInterp
-        .createRuntime(
-          CreateRuntimeParams.fromCreateRuntimeMessage(
-            CreateRuntimeMessage.fromRuntime(clusterWithLegacyImage,
-                                             LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
-                                             None)
-          )
-        )
-        .unsafeToFuture()
-        .futureValue
-
-    resForLegacyImage.get.bootSource
-      .asInstanceOf[BootSource.VmImage]
-      .customImage shouldBe Config.dataprocConfig.legacyCustomDataprocImage
-  }
-
   it should "retry 409 errors when adding IAM roles" in isolatedDbTest {
     implicit val patienceConfig = PatienceConfig(timeout = 5.minutes)
     val erroredIamDAO = new ErroredMockGoogleIamDAO(409)

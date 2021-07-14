@@ -106,7 +106,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- claimAttempt match {
         case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
         case Right(billingProject) =>
-          IO(sys.props.put(gpallocProjectKey, billingProject.value)) // >> createInitialRuntime(billingProject)
+          IO(sys.props.put(gpallocProjectKey, billingProject.value)) >> createInitialRuntime(billingProject)
       }
       proxyRedirectServer <- ProxyRedirectClient.baseUri
       _ <- loggerIO.info(s"Serving proxy redirect page at ${proxyRedirectServer.renderString}")
