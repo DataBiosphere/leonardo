@@ -514,6 +514,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
           operationOpt <- gkeService.deleteNodepool(
             NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
           )
+
           lastOp <- operationOpt
             .traverse(op =>
               gkeService
@@ -525,38 +526,29 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
             )
             .compile
             .lastOrError
+
           _ <- lastOp.traverse_ { op =>
             if (op.isDone) {
               logger.info(ctx.loggingCtx)(
                 s"Delete nodepool operation has finished for nodepool ${params.nodepoolId}"
               )
-
-              logger.info(ctx.loggingCtx)(
-                s"Status is ${op.getStatus}"
-              )
             } else if (op.getStatus == '5') {
               logger.info(ctx.loggingCtx)(
                 s"Nodepool does not exist. ${params.nodepoolId}"
               )
-              logger.info(ctx.loggingCtx)(
-                s"Status is ${op.getStatus}"
-              )
-            } else {
-              logger.info(ctx.loggingCtx)(
-                s"Status is ${op.getStatus}"
-              )
+
+            } else
               logger.error(
                 ctx.loggingCtx(
                   s"Delete nodepool operation has failed or timed out for nodepool ${params.nodepoolId}"
                 )
               ) >>
                 F.raiseError[Unit](NodepoolDeletionException(params.nodepoolId))
-            }
           }
         } yield operationOpt
       }
 
-      _ <- operationOpt.traverse(_ => nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction)
+      _ <- nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction
     } yield ()
 
   // This function DOES NOT update the app status to deleted after polling is complete

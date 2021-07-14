@@ -161,18 +161,4 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
     res.unsafeRunSync()
   }
-
-  it should "modify db entry on error" in isolatedDbTest {
-    val res = for{
-      savedCluster <- IO(makeKubeCluster(1).save())
-      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
-      m = DeleteNodepoolParams(savedNodepool.id, GoogleProject("wx-billing-10"))
-      _ <- gkeInterp.deleteAndPollNodepool(m)
-      nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
-    } yield {
-      nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
-    }
-
-    res.unsafeRunSync()
-  }
 }
