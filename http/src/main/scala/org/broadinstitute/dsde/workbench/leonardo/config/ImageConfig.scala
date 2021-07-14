@@ -7,7 +7,6 @@ final case class ImageConfig(
   welderDockerHubImage: ContainerImage,
   welderHash: String,
   jupyterImage: ContainerImage,
-  legacyJupyterImage: ContainerImage,
   proxyImage: ContainerImage,
   cryptoDetectorImage: ContainerImage,
   jupyterContainerName: String,

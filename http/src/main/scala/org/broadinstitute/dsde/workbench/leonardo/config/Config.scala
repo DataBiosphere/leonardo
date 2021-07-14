@@ -141,7 +141,6 @@ object Config {
         .getOrElse(throw new RuntimeException(s"Invalid welder image: $welderDockerHubUri:$welderHash")),
       config.getString("welderHash"),
       config.as[ContainerImage]("jupyterImage"),
-      config.as[ContainerImage]("legacyJupyterImage"),
       config.as[ContainerImage]("proxyImage"),
       config.as[ContainerImage]("cryptoDetectorImage"),
       config.getString("jupyterContainerName"),
