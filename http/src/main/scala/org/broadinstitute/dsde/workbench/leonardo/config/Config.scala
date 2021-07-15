@@ -95,7 +95,6 @@ object Config {
   implicit private val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.getStringList("defaultScopes").asScala.toSet,
-      config.as[DataprocCustomImage]("legacyCustomDataprocImage"),
       config.as[DataprocCustomImage]("customDataprocImage"),
       config.getAs[MemorySize]("dataprocReservedMemory"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),

@@ -209,7 +209,8 @@ log 'Formatting and mounting persistent disk...'
 # Fix this to `sdb`. We've never seen a device name that's not `sdb`,
 # Altho you some images, this cmd $(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 # can be used to find device name, this doesn't work for COS images
-DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
