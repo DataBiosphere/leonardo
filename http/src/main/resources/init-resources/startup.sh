@@ -75,7 +75,8 @@ SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
 FILE=/var/certs/jupyter-server.crt
-DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
 # This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
 # a dedicated flag that distinguishes gce and dataproc. But this will do for now
