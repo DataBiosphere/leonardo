@@ -37,6 +37,8 @@ services:
       - /var/custom_env_vars.env
     # See https://docs.docker.com/engine/reference/run/#user-memory-constraints
     mem_limit: ${MEM_LIMIT}   # hard limit on memory consumption by the container
+    extra_hosts:
+      - "firecloud-orchestration-fiab.dsde-dev.broadinstitute.org:34.71.114.233"
 networks:
   app_network:
     external: true
