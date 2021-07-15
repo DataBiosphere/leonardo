@@ -30,6 +30,8 @@ services:
       - /var/docker-compose-files/cromwell.conf:/etc/cromwell.conf:ro
       - /var/docker-compose-files/cromwell_papi_v2_beta_config.conf:/etc/cromwell_papi_v2_beta_config.conf:ro
       - /var/docker-compose-files/cromwell-reference-images.conf:/etc/cromwell-reference-images.conf:ro
+      - ${WORK_DIRECTORY}/cromwell/executions:/cromwell-executions
+      - ${WORK_DIRECTORY}/cromwell/workflow-logs:/cromwell-workflow-logs
     restart: always
     networks:
       - app_network
