@@ -12,7 +12,7 @@ set -e -x
 # Credentials can be refreshed via 'gcloud auth application-default login' with project set to 'broad-dsde-dev' using
 # Broad account. They are saved at '~/.config/gcloud/application_default_credentials.json' by default.
 #
-# Usage: under `leonardo` root dir, `jenkins/dataproc-custom-images/create_dataproc_image.sh qi-713-1008`
+# Usage: under `leonardo` root dir, `jenkins/dataproc-custom-images/create_dataproc_image.sh`
 WORK_DIR=`pwd`/jenkins/dataproc-custom-images/dataproc-custom-images
 
 pushd $WORK_DIR
@@ -25,7 +25,7 @@ ZONE="${REGION}-a"
 customDataprocImageBaseName="test"
 dp_version_formatted="1-4-51-debian10"
 # This needs to be unique for each run
-imageID=$1
+imageID=$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
 
 gcloud config set dataproc/region us-central1
 

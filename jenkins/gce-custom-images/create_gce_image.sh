@@ -24,14 +24,14 @@ SOURCE_DIR="$PWD/jenkins/gce-custom-images"
 # Underscores are not accepted as image name
 OUTPUT_IMAGE_NAME=leo-gce-image-$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
 
-PROJECT="broad-dsde-dev"
+PROJECT="broad-dsp-gcr-public"
 REGION="us-central1"
 ZONE="${REGION}-a"
 
 # The bucket that Daisy uses as scratch area to store source and log files.
 # If it doesn't exist, we create it prior to launching Daisy and
 # the Daisy workflow cleans up all but daisy.log at the end.
-DAISY_BUCKET_PATH="gs://test-leo-gce-image-daisy-scratch-bucket"
+DAISY_BUCKET_PATH="gs://qi-test"
 
 # Set this to the tag of the Daisy image you had pulled
 DAISY_IMAGE_TAG="release"
