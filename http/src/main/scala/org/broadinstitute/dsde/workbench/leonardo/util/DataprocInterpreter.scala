@@ -177,11 +177,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         initScriptResources = List(config.clusterResourcesConfig.initScript)
         initScripts = initScriptResources.map(resource => GcsPath(initBucketName, GcsObjectName(resource.asString)))
 
-        // If user is using https://github.com/DataBiosphere/terra-docker/tree/master#terra-base-images for jupyter image, then
-        // we will use the new custom dataproc image
-        dataprocImage = if (params.runtimeImages.exists(_.imageUrl == config.imageConfig.legacyJupyterImage.imageUrl))
-          config.dataprocConfig.legacyCustomDataprocImage
-        else config.dataprocConfig.customDataprocImage
+        // If we need to support 2 version of dataproc custom image, we'll update this
+        dataprocImage = config.dataprocConfig.customDataprocImage
 
         gceClusterConfig = {
           val bldr = GceClusterConfig

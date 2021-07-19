@@ -480,6 +480,19 @@ END
       # kernel tries to connect to it.
       docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
+      # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
+      # A better to do this might be to take welder host as an argument to the script
+      docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
+
+      docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+           && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
+           && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
+           && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+           && mkdir -p $JUPYTER_HOME/nbconfig"
+
       log 'Starting Jupyter Notebook...'
       retry 3 docker exec -d ${JUPYTER_SERVER_NAME} /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
 

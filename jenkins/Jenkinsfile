@@ -124,7 +124,7 @@ String getChangeDescription(LinkedHashMap<String,String> versionMap) {
 }
 
 pipeline {
-    agent { label 'node212' }
+    agent { label 'node217' }
 
     options {
         // We don't want to be building more than one PR's changes at once, we will queue them instead
@@ -150,7 +150,7 @@ pipeline {
             description: "The path for the bucket where the custom Dataproc image generation logs will be stored")
         string(name: "GCE_IMAGE_BUCKET", defaultValue: "gs://leo-gce-image-creation-logs",
             description: "The path for the bucket where the custom GCE image generation logs will be stored")
-        string(name: "DATAPROC_VERSIONS", defaultValue: "1.2.79-debian9 1.4.51-debian10",
+        string(name: "DATAPROC_VERSIONS", defaultValue: "1.4.51-debian10",
             description: "A custom image will be build for each of these dataproc versions")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check only if you want to manually specify all of the custom image versions below.")
@@ -410,7 +410,7 @@ pipeline {
                                                     --zone $ZONE \
                                                     --gcs-bucket $DATAPROC_IMAGE_BUCKET \
                                                     --project-id=$GOOGLE_PROJECT \
-                                                    --disk-size=50"
+                                                    --disk-size=65"
                                             """
                                         )
                                     }

@@ -15,23 +15,23 @@ set -e -x
 
 # Set this to "true" if you want to validate the workflow without actually executing it
 VALIDATE_WORKFLOW="false"
-
+PWD=`pwd`
 # The source directory should contain `application_default_credentials.json`
 # which can be generated via `gcloud auth application-default login` and is saved at
 # `~/.config/gcloud/application_default_credentials.json` by default.
-SOURCE_DIR="/Users/kyuksel/github/leonardo/jenkins/gce-custom-images"
+SOURCE_DIR="$PWD/jenkins/gce-custom-images"
 
 # Underscores are not accepted as image name
 OUTPUT_IMAGE_NAME=leo-gce-image-$(whoami)-$(date +"%Y-%m-%d-%H-%M-%S")
 
-PROJECT="broad-dsde-dev"
+PROJECT="broad-dsp-gcr-public"
 REGION="us-central1"
 ZONE="${REGION}-a"
 
 # The bucket that Daisy uses as scratch area to store source and log files.
 # If it doesn't exist, we create it prior to launching Daisy and
 # the Daisy workflow cleans up all but daisy.log at the end.
-DAISY_BUCKET_PATH="gs://test-leo-gce-image-daisy-scratch-bucket"
+DAISY_BUCKET_PATH="gs://qi-test"
 
 # Set this to the tag of the Daisy image you had pulled
 DAISY_IMAGE_TAG="release"

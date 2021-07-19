@@ -190,7 +190,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
                          Config.imageConfig.jupyterImage.imageUrl,
-                         Some(Paths.get("/home/jupyter-user")),
+                         Some(Paths.get("/home/jupyter")),
                          context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
@@ -316,7 +316,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
                          Config.imageConfig.jupyterImage.imageUrl,
-                         Some(Paths.get("/home/jupyter-user")),
+                         Some(Paths.get("/home/jupyter")),
                          context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
@@ -375,7 +375,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
                          Config.imageConfig.jupyterImage.imageUrl,
-                         Some(Paths.get("/home/jupyter-user")),
+                         Some(Paths.get("/home/jupyter")),
                          context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
@@ -547,7 +547,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
-        bootDiskSize = DiskSize(60),
+        bootDiskSize = DiskSize(70),
         zone = ZoneName("us-central1-a"),
         None
       ) //TODO: this is a problem in terms of inconsistency
@@ -557,7 +557,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           runtimeImages = Set(
             RuntimeImage(RuntimeImageType.Jupyter,
                          Config.imageConfig.jupyterImage.imageUrl,
-                         Some(Paths.get("/home/jupyter-user")),
+                         Some(Paths.get("/home/jupyter")),
                          context.now),
             RuntimeImage(RuntimeImageType.Welder, Config.imageConfig.welderGcrImage.imageUrl, None, context.now),
             RuntimeImage(RuntimeImageType.Proxy, Config.imageConfig.proxyImage.imageUrl, None, context.now),
@@ -569,7 +569,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(60),
+                                                                              bootDiskSize = DiskSize(70),
                                                                               zone = ZoneName("us-central1-a"),
                                                                               None)
         )

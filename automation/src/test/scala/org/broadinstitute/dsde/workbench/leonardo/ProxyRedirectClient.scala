@@ -1,12 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.util.concurrent.Executors
-
 import cats.effect.concurrent.Ref
 import cats.effect.{Blocker, ContextShift, IO, Timer}
-import com.typesafe.scalalogging.LazyLogging
 import fs2._
-import org.broadinstitute.dsde.workbench.service.RestClient
 import org.http4s.client.Client
 import org.http4s.dsl.io._
 import org.http4s.headers.`Content-Type`
@@ -15,9 +11,11 @@ import org.http4s.server.Server
 import org.http4s.server.blaze._
 import org.http4s.{HttpRoutes, _}
 
+import java.util.concurrent.Executors
 import scala.concurrent.ExecutionContext
 
-object ProxyRedirectClient extends RestClient with LazyLogging {
+// This is for setting `REFERER` header in automation tests
+object ProxyRedirectClient {
   // If test is running in headless mode, hostname needs to work in a docker container
   val host = sys.props.get("headless") match {
     case Some("true") => java.net.InetAddress.getLocalHost.getHostName
@@ -29,10 +27,13 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
   //   `Ref` is a cats-effect reference, used to cache a single instance of the server
   //   `Server[IO]` is the actual server instance
   //   `IO[Unit]` is used to shut down the server. See documentation for http4s `ServerBuilder.allocated`.
-  private val singletonServer: Ref[IO, (Server[IO], IO[Unit])] = Ref.unsafe(server.unsafeRunSync())
+  private val singletonServer: IO[Ref[IO, (Server[IO], IO[Unit])]] = server.flatMap(s => Ref.of(s))
 
   def baseUri: IO[Uri] =
-    singletonServer.get.map(s => Uri.unsafeFromString(s"http://${host}:${s._1.address.getPort}"))
+    for {
+      server <- singletonServer
+      uri <- server.get.map(s => Uri.unsafeFromString(s"http://${host}:${s._1.address.getPort}"))
+    } yield uri
 
   def get(rurl: String): IO[Uri] =
     baseUri.map(_.withPath("proxyRedirectClient").withQueryParam("rurl", rurl))
@@ -58,7 +59,7 @@ object ProxyRedirectClient extends RestClient with LazyLogging {
     } yield r
 
   def stopServer(): IO[Unit] =
-    singletonServer.get.flatMap(_._2)
+    singletonServer.flatMap(server => server.get.flatMap(_._2))
 
   private def onError(message: String)(response: Response[IO]): IO[Throwable] =
     for {

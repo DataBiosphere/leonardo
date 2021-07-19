@@ -141,8 +141,14 @@ CERT_DIRECTORY='/var/certs'
 DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
 GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
-GCLOUD_CMD='docker run --rm -v /var:/var -v /home/.docker:/.docker gcr.io/google-containers/toolbox:20200603-00 gcloud'
-DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -w=/var cryptopants/docker-compose-gcr"
+GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
+
+if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
+  log 'Authorizing GCR...'
+  DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -w=/var cryptopants/docker-compose-gcr"
+else
+  DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1"
+fi
 
 function apply_user_script() {
   local CONTAINER_NAME=$1
@@ -209,13 +215,15 @@ log 'Formatting and mounting persistent disk...'
 # Fix this to `sdb`. We've never seen a device name that's not `sdb`,
 # Altho you some images, this cmd $(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 # can be used to find device name, this doesn't work for COS images
-export DISK_DEVICE_ID='sdb'
+USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
+
 ## Only format disk is it hasn't already been formatted
 if [ "$IS_GCE_FORMATTED" == "false" ] ; then
   mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/${DISK_DEVICE_ID}
 fi
 
-mount -t ext4 -O discard,defaults /dev/sdb ${WORK_DIRECTORY}
+mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
 
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
@@ -461,6 +469,15 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # For older jupyter images, jupyter_delocalize.py is using 127.0.0.1 as welder's url, which won't work now that we're no longer using `network_mode: host` for GCE VMs
   docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/127.0.0.1/welder/g' /etc/jupyter/custom/jupyter_delocalize.py"
+
+  docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
+       && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && ls -la $JUPYTER_HOME/custom/extension_entry_jupyter.js \
+       && cp $JUPYTER_HOME/custom/extension_entry_jupyter.js $JUPYTER_USER_HOME/.jupyter/custom/custom.js \
+       && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
+       && mkdir -p $JUPYTER_HOME/nbconfig"
 
   log 'Starting Jupyter Notebook...'
   retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"
