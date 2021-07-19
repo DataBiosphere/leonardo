@@ -1,7 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import akka.stream.Attributes.none
 import cats.effect.IO
+import cats.mtl.Ask
+import com.google.container.v1.Operation
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
@@ -11,12 +14,13 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeKubeCluster, makeNodepool}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO}
-import org.broadinstitute.dsde.workbench.leonardo.db.{kubernetesClusterQuery, nodepoolQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.db.{TestComponent, kubernetesClusterQuery, nodepoolQuery}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GKEModels, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.model.TraceId
 
 import java.nio.file.Files
 import java.util.Base64
@@ -160,4 +164,37 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
     res.unsafeRunSync()
   }
+
+  it should "deleteAndPollNodepool handles errored nodepool deletion" in isolatedDbTest {
+    val mockGKEService = new MockGKEService {
+      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(implicit ev: Ask[IO, TraceId]): IO[Option[Operation]] = IO.pure(None)
+    }
+
+    val gkeInterpDelete =
+      new GKEInterpreter[IO](Config.gkeInterpConfig,
+        vpcInterp,
+        mockGKEService,
+        MockKubernetesService,
+        MockHelm,
+        MockAppDAO,
+        credentials,
+        googleIamDao,
+        MockGoogleDiskService,
+        MockAppDescriptorDAO,
+        blocker,
+        nodepoolLock.unsafeRunSync())
+
+    val res = for {
+      savedCluster <- IO(makeKubeCluster(1).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      m = DeleteNodepoolParams(savedNodepool.id, savedCluster.googleProject)
+      _ <- gkeInterpDelete.deleteAndPollNodepool(m)
+      nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
+    } yield {
+      nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
+    }
+
+    res.unsafeRunSync()
+  }
 }
+
