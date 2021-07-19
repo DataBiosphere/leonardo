@@ -315,14 +315,15 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       req.googleProject,
                       disk.zone,
                       OperationName(op.getName),
-                      3 seconds,
-                      5,
+                      1 seconds,
+                      30,
                       None
                     )(
                       F.unit,
                       F.raiseError(
-                        new RuntimeException(
-                          s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner"
+                        LeoInternalServerError(
+                          s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner",
+                          Some(ctx.traceId)
                         )
                       ),
                       F.unit

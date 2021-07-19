@@ -95,7 +95,6 @@ object Config {
   implicit private val dataprocConfigReader: ValueReader[DataprocConfig] = ValueReader.relative { config =>
     DataprocConfig(
       config.getStringList("defaultScopes").asScala.toSet,
-      config.as[DataprocCustomImage]("legacyCustomDataprocImage"),
       config.as[DataprocCustomImage]("customDataprocImage"),
       config.getAs[MemorySize]("dataprocReservedMemory"),
       config.as[RuntimeConfig.DataprocConfig]("runtimeDefaults"),
@@ -141,7 +140,6 @@ object Config {
         .getOrElse(throw new RuntimeException(s"Invalid welder image: $welderDockerHubUri:$welderHash")),
       config.getString("welderHash"),
       config.as[ContainerImage]("jupyterImage"),
-      config.as[ContainerImage]("legacyJupyterImage"),
       config.as[ContainerImage]("proxyImage"),
       config.as[ContainerImage]("cryptoDetectorImage"),
       config.getString("jupyterContainerName"),

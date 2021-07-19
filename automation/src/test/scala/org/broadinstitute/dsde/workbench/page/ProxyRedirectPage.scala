@@ -26,39 +26,42 @@ trait ProxyRedirectPage[P <: Page] extends Page with PageUtil[P] with WebBrowser
 
       // Test connection to the proxy redirect server before loading it in WebDriver
       proxyRedirectUrl <- ProxyRedirectClient.get(url).map(_.renderString)
-      _ <- LeonardoApiClient.client.use { implicit client =>
-        fs2.Stream
-          .retry(
-            IO(logger.info(s"Testing connection to ${proxyRedirectUrl}")) >> ProxyRedirectClient.testConnection(url),
-            2 seconds,
-            _ * 2,
-            5
-          )
-          .compile
-          .lastOrError
+      res <- LeonardoApiClient.client.use { implicit client =>
+        for {
+          _ <- fs2.Stream
+            .retry(
+              IO(logger.info(s"Testing connection to ${proxyRedirectUrl}")) >> ProxyRedirectClient.testConnection(url),
+              2 seconds,
+              _ * 2,
+              5
+            )
+            .compile
+            .lastOrError
+          _ <- IO(logger.info(s"Proxy redirect server is up at ${proxyRedirectUrl}"))
+
+          // Go to the proxy redirect page, specifying the target page as the `rurl`. This will automatically
+          // redirect to the target page. This is done so the Referer is set correctly.
+          redirect = for {
+            _ <- IO(logger.info(s"Going to redirect page at url ${proxyRedirectUrl}"))
+            _ <- IO(go.to(proxyRedirectUrl))
+            _ <- IO(logger.info(s"Waiting for redirect page at url ${proxyRedirectUrl} to redirect"))
+            res <- IO(awaitLoaded())
+            _ <- IO(logger.info(s"Successfully redirected to ${url}"))
+          } yield res
+
+          // Retry above operation
+          r <- fs2.Stream
+            .retry(
+              redirect,
+              2 seconds,
+              _ * 2,
+              3
+            )
+            .compile
+            .lastOrError
+        } yield r
       }
-      _ <- IO(logger.info(s"Proxy redirect server is up at ${proxyRedirectUrl}"))
 
-      // Go to the proxy redirect page, specifying the target page as the `rurl`. This will automatically
-      // redirect to the target page. This is done so the Referer is set correctly.
-      redirect = for {
-        _ <- IO(logger.info(s"Going to redirect page at url ${proxyRedirectUrl}"))
-        _ <- IO(go.to(proxyRedirectUrl))
-        _ <- IO(logger.info(s"Waiting for redirect page at url ${proxyRedirectUrl} to redirect"))
-        res <- IO(awaitLoaded())
-        _ <- IO(logger.info(s"Successfully redirected to ${url}"))
-      } yield res
-
-      // Retry above operation
-      res <- fs2.Stream
-        .retry(
-          redirect,
-          2 seconds,
-          _ * 2,
-          3
-        )
-        .compile
-        .lastOrError
     } yield res
 
     res.unsafeRunSync()

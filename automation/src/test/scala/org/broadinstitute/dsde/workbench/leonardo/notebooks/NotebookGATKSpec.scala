@@ -15,10 +15,6 @@ class NotebookGATKSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     "should install Python packages, R, GATK, Samtools, and Java" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
-          val pythonOutput = notebookPage.executeCell("""! pip3 show tensorflow_cpu""")
-          pythonOutput shouldBe defined
-          pythonOutput.get should include("Name: tensorflow-cpu")
-
           val rOutput = notebookPage.executeCell("""! R --version""")
           rOutput shouldBe defined
           rOutput.get should include("R version")

@@ -73,7 +73,7 @@ class RuntimeCreationDiskSpec
                 )
                 .get
               res should include("/dev/sdb")
-              res should include("/home/jupyter-user/notebooks")
+              res should include("/home/jupyter/notebooks")
             }
           }
         )
@@ -168,7 +168,7 @@ class RuntimeCreationDiskSpec
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val createNewFile =
-              """! echo 'this should save' >> /home/jupyter-user/notebooks/test.txt""".stripMargin
+              """! echo 'this should save' >> /home/jupyter/notebooks/test.txt""".stripMargin
             notebookPage.executeCell(createNewFile)
             notebookPage.executeCell("! pip install beautifulSoup4")
           }
@@ -182,7 +182,7 @@ class RuntimeCreationDiskSpec
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val res = notebookPage.executeCell("! df -H").get
             res should include("/dev/sdb")
-            res should include("/home/jupyter-user/notebooks")
+            res should include("/home/jupyter/notebooks")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeName, false)
@@ -193,10 +193,10 @@ class RuntimeCreationDiskSpec
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
             val persistedData =
-              """! cat /home/jupyter-user/notebooks/test.txt""".stripMargin
+              """! cat /home/jupyter/notebooks/test.txt""".stripMargin
             notebookPage.executeCell(persistedData).get should include("this should save")
             val persistedPackage = "! pip show beautifulSoup4"
-            notebookPage.executeCell(persistedPackage).get should include("/home/jupyter-user/notebooks/packages")
+            notebookPage.executeCell(persistedPackage).get should include("/home/jupyter/notebooks/packages")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
@@ -209,7 +209,15 @@ class RuntimeCreationDiskSpec
         runtime.diskConfig.map(_.size) shouldBe Some(diskSize)
         stoppedRuntime.status shouldBe ClusterStatus.Stopped
         stoppedRuntime.diskConfig.map(_.name) shouldBe Some(diskName)
-        diskResp.swap.toOption.get.asInstanceOf[RestError].statusCode shouldBe Status.NotFound
+        diskResp match {
+          case Left(value) =>
+            value match {
+              case RestError(_, Status.NotFound, _) => succeed
+              case e                                => fail("getDisk failed", e)
+            }
+          case Right(value) =>
+            fail(s"disk shouldn't exist anymore. But we get ${value}")
+        }
       }
     }
 

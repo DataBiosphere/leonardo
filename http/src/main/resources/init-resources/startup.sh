@@ -75,6 +75,9 @@ SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
 
 FILE=/var/certs/jupyter-server.crt
+USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
+DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
+
 # This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
 # a dedicated flag that distinguishes gce and dataproc. But this will do for now
 if [ -f "$FILE" ]
@@ -87,10 +90,10 @@ then
     WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
     export WORK_DIRECTORY='/mnt/disks/work'
 
-    fsck.ext4 -tvy /dev/sdb
+    fsck.ext4 -tvy /dev/${DISK_DEVICE_ID}
     mkdir -p /mnt/disks/work
-    mount -t ext4 -O discard,defaults /dev/sdb ${WORK_DIRECTORY}
-    chmod a+rwx /mnt/disks/work
+    mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
+  chmod a+rwx /mnt/disks/work
 else
     CERT_DIRECTORY='/certs'
     DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
@@ -215,7 +218,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # kernel tries to connect to it.
     docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
-    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /usr/local/bin/jupyter notebook)"
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
         # fix for https://broadworkbench.atlassian.net/browse/IA-1453
@@ -240,4 +243,4 @@ fi
 
 # Resize persistent disk if needed.
 echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-resize2fs /dev/sdb
+resize2fs /dev/${DISK_DEVICE_ID}

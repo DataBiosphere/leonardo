@@ -17,13 +17,13 @@ set -e -x
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
-terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:0.0.20"
-terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:0.1.2"
-terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:1.0.14"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:1.0.14"
-terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:0.1.2"
-terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:1.1.2"
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.2"
+terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.0"
+terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.0"
+terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.0.0"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.0.0"
+terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.0"
+terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.0.0"
+terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.6"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.6"
 
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:f411762"
@@ -140,6 +140,18 @@ log 'Installing Docker...'
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 retry 5 apt-get update
 
+rm -rf /var/lib/docker
+mkdir -p /etc/docker
+touch /etc/docker/daemon.json
+cat > /etc/docker/daemon.json <<EOF
+{
+  "storage-driver": "devicemapper",
+  "storage-opts": [
+     "dm.basesize=60G"
+  ]
+}
+EOF
+
 dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
 # The message that is non-fatal is `Sub-process /usr/bin/dpkg returned an error code (1).`
@@ -171,6 +183,7 @@ else
     log "ERROR-VAR_NULL_OR_UNSET: docker_image_var_names. Will not pull docker images."
 fi
 
+docker info
 log 'Cached docker images:'
 docker images
 
