@@ -166,7 +166,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     res.unsafeRunSync()
   }
 
-  it should "deleteAndPollNodepool handles errored nodepool deletion" in isolatedDbTest {
+  it should "mark a nodepool as Deleted in DB when it doesn't exist in Google" in isolatedDbTest {
     val mockGKEService = new MockGKEService {
       override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
         implicit ev: Ask[IO, TraceId]
