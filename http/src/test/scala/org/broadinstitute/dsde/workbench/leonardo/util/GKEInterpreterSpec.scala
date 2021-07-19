@@ -36,18 +36,20 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            new MockComputePollOperation)
 
   val gkeInterp =
-    new GKEInterpreter[IO](Config.gkeInterpConfig,
-                           vpcInterp,
-                           MockGKEService,
-                           MockKubernetesService,
-                           MockHelm,
-                           MockAppDAO,
-                           credentials,
-                           googleIamDao,
-                           MockGoogleDiskService,
-                           MockAppDescriptorDAO,
-                           blocker,
-                           nodepoolLock.unsafeRunSync())
+    new GKEInterpreter[IO](
+      Config.gkeInterpConfig,
+      vpcInterp,
+      MockGKEService,
+      MockKubernetesService,
+      MockHelm,
+      MockAppDAO,
+      credentials,
+      googleIamDao,
+      MockGoogleDiskService,
+      MockAppDescriptorDAO,
+      blocker,
+      nodepoolLock.unsafeRunSync()
+    )
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
@@ -166,11 +168,14 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "deleteAndPollNodepool handles errored nodepool deletion" in isolatedDbTest {
     val mockGKEService = new MockGKEService {
-      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(implicit ev: Ask[IO, TraceId]): IO[Option[Operation]] = IO.pure(None)
+      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[Operation]] = IO.pure(None)
     }
 
     val gkeInterpDelete =
-      new GKEInterpreter[IO](Config.gkeInterpConfig,
+      new GKEInterpreter[IO](
+        Config.gkeInterpConfig,
         vpcInterp,
         mockGKEService,
         MockKubernetesService,
@@ -181,7 +186,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         MockGoogleDiskService,
         MockAppDescriptorDAO,
         blocker,
-        nodepoolLock.unsafeRunSync())
+        nodepoolLock.unsafeRunSync()
+      )
 
     val res = for {
       savedCluster <- IO(makeKubeCluster(1).save())
