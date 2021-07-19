@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import akka.stream.Attributes.none
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.container.v1.Operation
@@ -197,4 +196,3 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     res.unsafeRunSync()
   }
 }
-
