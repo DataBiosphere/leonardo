@@ -211,7 +211,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
     # update container MEM_LIMIT to reflect VM's MEM_LIMIT
-    docker update $JUPYTER_SERVER_NAME --memory $MEM_LIMIT
+    docker update $JUPYTER_SERVER_NAME --memory $MEM_LIMIT --memory-swap $MEM_LIMIT
 
     # See IA-1901: Jupyter UI stalls indefinitely on initial R kernel connection after cluster create/resume
     # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
@@ -232,7 +232,7 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
     echo "Starting RStudio on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
     # update container MEM_LIMIT to reflect VM's MEM_LIMIT
-    docker update $RSTUDIO_SERVER_NAME --memory $MEM_LIMIT
+    docker update $RSTUDIO_SERVER_NAME --memory $MEM_LIMIT --memory-swap $MEM_LIMIT
 
     # Warm up R before starting the RStudio session (see above comment).
     docker exec $RSTUDIO_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
