@@ -418,7 +418,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
             ctxStarting = Ask.const[F, AppContext](
               AppContext(ctx.traceId, now)
             )
-            _ <- startAndUpdateRuntime(runtime, msg.newMachineType)(ctxStarting)
+            _ <- startAndUpdateRuntime(runtime, runtimeConfig, msg.newMachineType)(ctxStarting)
           } yield ()
           _ <- asyncTasks.enqueue1(
             Task(ctx.traceId,
@@ -453,20 +453,21 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
 
   private def startAndUpdateRuntime(
     runtime: Runtime,
+    runtimeConfig: RuntimeConfig,
     targetMachineType: Option[MachineTypeName]
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       _ <- targetMachineType.traverse(m =>
         runtimeConfig.cloudService.interpreter
           .updateMachineType(UpdateMachineTypeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), m, ctx.now))
       )
+      updatedRuntimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       initBucket <- clusterQuery.getInitBucket(runtime.id).transaction
       bucketName <- F.fromOption(initBucket.map(_.bucketName),
                                  new RuntimeException(s"init bucket not found for ${runtime.projectNameString} in DB"))
-      _ <- runtimeConfig.cloudService.interpreter
-        .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), bucketName))
+      _ <- updatedRuntimeConfig.cloudService.interpreter
+        .startRuntime(StartRuntimeParams(RuntimeAndRuntimeConfig(runtime, updatedRuntimeConfig), bucketName))
       _ <- dbRef.inTransaction {
         clusterQuery.updateClusterStatus(
           runtime.id,
@@ -475,7 +476,7 @@ class LeoPubsubMessageSubscriber[F[_]: Timer: ContextShift: Parallel](
         )
       }
       _ <- patchQuery.updatePatchAsComplete(runtime.id).transaction.void
-      _ <- runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Starting).compile.drain
+      _ <- updatedRuntimeConfig.cloudService.process(runtime.id, RuntimeStatus.Starting).compile.drain
     } yield ()
 
   private[monitor] def handleCreateDiskMessage(msg: CreateDiskMessage)(
