@@ -716,7 +716,9 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
 
     val yarnProps = Map(
       // Helps with debugging
-      "yarn:yarn.log-aggregation-enable" -> "true"
+      "yarn:yarn.log-aggregation-enable" -> "true",
+      // Allows submitting jobs through the YARN Resource Manager web UI
+      "yarn:yarn.resourcemanager.webapp.methods-allowed" -> "ALL"
     )
 
     val stackdriverProps = Map("dataproc:dataproc.monitoring.stackdriver.enable" -> "true")
