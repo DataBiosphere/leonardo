@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.effect.IO
+import cats.mtl.Ask
+import com.google.container.v1.Operation
 import org.broadinstitute.dsde.workbench.google.mock.MockGoogleIamDAO
 import org.broadinstitute.dsde.workbench.google2.GKEModels.NodepoolName
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesPodStatus, PodStatus}
@@ -16,7 +18,9 @@ import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsp.Release
 import org.broadinstitute.dsp.mocks._
 import org.scalatest.flatspec.AnyFlatSpecLike
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, GKEModels, MockGoogleDiskService}
+import org.broadinstitute.dsde.workbench.model.TraceId
+
 import java.nio.file.Files
 import java.util.Base64
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -32,18 +36,20 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            new MockComputePollOperation)
 
   val gkeInterp =
-    new GKEInterpreter[IO](Config.gkeInterpConfig,
-                           vpcInterp,
-                           MockGKEService,
-                           MockKubernetesService,
-                           MockHelm,
-                           MockAppDAO,
-                           credentials,
-                           googleIamDao,
-                           MockGoogleDiskService,
-                           MockAppDescriptorDAO,
-                           blocker,
-                           nodepoolLock.unsafeRunSync())
+    new GKEInterpreter[IO](
+      Config.gkeInterpConfig,
+      vpcInterp,
+      MockGKEService,
+      MockKubernetesService,
+      MockHelm,
+      MockAppDAO,
+      credentials,
+      googleIamDao,
+      MockGoogleDiskService,
+      MockAppDescriptorDAO,
+      blocker,
+      nodepoolLock.unsafeRunSync()
+    )
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
@@ -152,6 +158,42 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
       m = DeleteNodepoolParams(savedNodepool.id, savedCluster.googleProject)
       _ <- gkeInterp.deleteAndPollNodepool(m)
+      nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
+    } yield {
+      nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
+    }
+
+    res.unsafeRunSync()
+  }
+
+  it should "mark a nodepool as Deleted in DB when it doesn't exist in Google" in isolatedDbTest {
+    val mockGKEService = new MockGKEService {
+      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[Operation]] = IO.pure(None)
+    }
+
+    val gkeInterpDelete =
+      new GKEInterpreter[IO](
+        Config.gkeInterpConfig,
+        vpcInterp,
+        mockGKEService,
+        MockKubernetesService,
+        MockHelm,
+        MockAppDAO,
+        credentials,
+        googleIamDao,
+        MockGoogleDiskService,
+        MockAppDescriptorDAO,
+        blocker,
+        nodepoolLock.unsafeRunSync()
+      )
+
+    val res = for {
+      savedCluster <- IO(makeKubeCluster(1).save())
+      savedNodepool <- IO(makeNodepool(1, savedCluster.id).save())
+      m = DeleteNodepoolParams(savedNodepool.id, savedCluster.googleProject)
+      _ <- gkeInterpDelete.deleteAndPollNodepool(m)
       nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
     } yield {
       nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted

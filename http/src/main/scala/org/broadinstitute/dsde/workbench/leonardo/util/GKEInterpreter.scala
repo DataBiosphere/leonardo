@@ -541,7 +541,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         } yield operationOpt
       }
 
-      _ <- operationOpt.traverse(_ => nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction)
+      _ <- nodepoolQuery.markAsDeleted(params.nodepoolId, ctx.now).transaction
     } yield ()
 
   // This function DOES NOT update the app status to deleted after polling is complete
