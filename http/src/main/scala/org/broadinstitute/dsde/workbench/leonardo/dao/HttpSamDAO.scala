@@ -339,17 +339,25 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           )
         )(s => Effect[F].pure(s))
       )
-      authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
-      resp <- httpClient.expectOptionOr[GetGoogleSubjectIdResponse](
-        Request[F](
-          method = Method.GET,
-          uri = config.samUri.withPath(
-            s"/register/user/v2/self/info"
-          ),
-          headers = Headers.of(authHeader)
-        )
-      )(onError)
+      resp <- getUserSubjectIdFromToken(token)
     } yield resp.map(_.userSubjectId)
+
+  override def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] =
+   {
+     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+
+     for {
+       resp <- httpClient.expectOptionOr[GetGoogleSubjectIdResponse](
+         Request[F](
+           method = Method.GET,
+           uri = config.samUri.withPath(
+             s"/register/user/v2/self/info"
+           ),
+           headers = Headers.of(authHeader)
+         )
+       )(onError)
+     } yield resp.map(_.userSubjectId)
+   }
 }
 
 object HttpSamDAO {

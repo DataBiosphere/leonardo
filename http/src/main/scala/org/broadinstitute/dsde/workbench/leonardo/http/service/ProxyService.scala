@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, TerminalName}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, SamDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
@@ -91,6 +91,7 @@ class ProxyService(
   dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
   googleOauth2Service: GoogleOAuth2Service[IO],
   proxyResolver: ProxyResolver[IO],
+  samDAO: SamDAO[IO],
   blocker: Blocker
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
@@ -124,6 +125,8 @@ class ProxyService(
           val res = for {
             now <- nowInstant
             userInfo <- googleOauth2Service.getUserInfoFromToken(key)
+            userOpt <- samDAO.getUserSubjectIdFromToken(key)
+            _ <- IO.fromOption(userOpt)(AuthenticationError(Some(userInfo.userEmail)))
           } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
           res.unsafeRunSync()
         }
