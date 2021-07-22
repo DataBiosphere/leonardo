@@ -69,6 +69,8 @@ trait SamDAO[F[_]] {
   def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: Ask[F, TraceId]
   ): F[Option[UserSubjectId]]
+
+  def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal
