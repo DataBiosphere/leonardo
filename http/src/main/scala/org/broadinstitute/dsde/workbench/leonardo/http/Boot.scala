@@ -134,6 +134,7 @@ object Boot extends IOApp {
         appDependencies.dateAccessedUpdaterQueue,
         googleDependencies.googleOauth2DAO,
         appDependencies.proxyResolver,
+        appDependencies.samDAO,
         appDependencies.blocker
       )
       val statusService = new StatusService(appDependencies.samDAO, appDependencies.dbReference, applicationConfig)

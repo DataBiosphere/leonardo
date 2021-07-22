@@ -192,7 +192,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO(billingProjects.remove((r, userEmailToAuthorization(creatorEmail))))
       case r: AppSamResourceId =>
         IO(apps.remove((r, userEmailToAuthorization(creatorEmail)))) >>
-          IO(apps.remove((r, userEmailToAuthorization(projectOwnerEmail))))
+          IO(apps.remove((r, userEmailToAuthorization(projectOwnerEmail)))).void
     }
 
   override def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
@@ -250,6 +250,9 @@ class MockSamDAO extends SamDAO[IO] {
   def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: Ask[IO, TraceId]
   ): IO[Option[UserSubjectId]] = IO.pure(None)
+
+  def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[UserSubjectId]] =
+    IO.pure(Some(UserSubjectId("test")))
 }
 
 object MockSamDAO {

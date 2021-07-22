@@ -19,7 +19,7 @@ object CookieSupport {
    */
   def setTokenCookie(userInfo: UserInfo, cookieName: String): Directive0 =
     //setCookie(buildCookie(userInfo, cookieName))
-    respondWithHeaders(buildRawCookie(userInfo, cookieName))
+    respondWithHeaders(buildRawCookie(userInfo))
 
   /**
    * Unsets a token cookie in the HTTP response.
@@ -37,7 +37,7 @@ object CookieSupport {
       path = Some("/") // needed so it works for AJAX requests
     )
 
-  private def buildRawCookie(userInfo: UserInfo, cookieName: String): RawHeader =
+  private def buildRawCookie(userInfo: UserInfo) =
     RawHeader(
       name = "Set-Cookie",
       value =

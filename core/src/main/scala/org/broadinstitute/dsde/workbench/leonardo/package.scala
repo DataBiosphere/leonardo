@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench
 
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 import cats.syntax.all._
 import cats.{Applicative, Functor}
@@ -17,7 +16,7 @@ package object leonardo {
 
   // convenience to get now as a F[Instant] using a Timer
   def nowInstant[F[_]: Timer: Functor]: F[Instant] =
-    Timer[F].clock.realTime(TimeUnit.MILLISECONDS).map(Instant.ofEpochMilli)
+    Timer[F].clock.instantNow
 
   // converts an Ask[F, RuntimeServiceContext] to an  Ask[F, TraceId]
   // (you'd think Ask would have a `map` function)
