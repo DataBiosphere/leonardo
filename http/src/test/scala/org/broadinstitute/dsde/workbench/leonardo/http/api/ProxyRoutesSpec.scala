@@ -10,18 +10,26 @@ import akka.http.scaladsl.model.ws.{TextMessage, WebSocketRequest}
 import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import cats.effect.IO
+import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO, TerminalName}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  JupyterDAO,
+  MockJupyterDAO,
+  MockSamDAO,
+  TerminalName,
+  UserSubjectId
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.{dataDecoder, Data}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockDiskServiceInterp, MockProxyService, TestProxy}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.mockito.Mockito.{verify, _}
 import org.scalatest.concurrent.ScalaFutures
@@ -168,7 +176,7 @@ class ProxyRoutesSpec
                            runtimeDnsCache,
                            kubernetesDnsCache,
                            MockGoogleOAuth2Service,
-                           Some(queue))
+                           queue = Some(queue))
     proxyService.samResourceCache.put(RuntimeCacheKey(GoogleProject(googleProject), RuntimeName(clusterName)),
                                       Some(runtimeSamResource.resourceId))
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
@@ -425,6 +433,41 @@ class ProxyRoutesSpec
 
     // cache should now contain the token
     proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe true
+  }
+
+  it should "reject setCookie if user is not registered" in {
+    val samDao = new MockSamDAO {
+      override def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[UserSubjectId]] =
+        IO.pure(None)
+    }
+    val proxyService =
+      new MockProxyService(proxyConfig,
+                           MockJupyterDAO,
+                           whitelistAuthProvider,
+                           runtimeDnsCache,
+                           kubernetesDnsCache,
+                           MockGoogleOAuth2Service,
+                           samDAO = Some(samDao))
+    val httpRoutes = new HttpRoutes(
+      swaggerConfig,
+      statusService,
+      proxyService,
+      runtimeService,
+      MockDiskServiceInterp,
+      leoKubernetesService,
+      userInfoDirectives,
+      contentSecurityPolicy,
+      refererConfig
+    )
+    // cache should not initially contain the token
+    proxyService.googleTokenCache.asMap().containsKey(tokenCookie.value) shouldBe false
+    // login request with Authorization header should succeed and return a Set-Cookie header
+    Get(s"/proxy/$googleProject/$clusterName/setCookie")
+      .addHeader(Authorization(OAuth2BearerToken(tokenCookie.value)))
+      .addHeader(Origin("http://example.com"))
+      .addHeader(Referer(Uri(validRefererUri))) ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.Unauthorized
+    }
   }
 
   it should "handle preflight OPTIONS requests" in {
