@@ -247,6 +247,10 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
 
         softwareConfig = getSoftwareConfig(params.runtimeProjectAndName.googleProject, machineConfig)
 
+        // Enables Dataproc Component Gateway. Used for enabling cluster web UIs.
+        // See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
+        endpointConfig = EndpointConfig.newBuilder().setEnableHttpPortAccess(true).build()
+
         createClusterConfig = CreateClusterConfig(
           gceClusterConfig,
           nodeInitializationActions,
@@ -254,7 +258,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           workerConfig,
           secondaryWorkerConfig,
           stagingBucketName,
-          softwareConfig
+          softwareConfig,
+          Some(endpointConfig)
         )
 
         op <- googleDataprocService.createCluster(
