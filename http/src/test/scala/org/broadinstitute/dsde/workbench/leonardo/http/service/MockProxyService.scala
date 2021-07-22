@@ -9,7 +9,7 @@ import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, MockJupyterDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, MockJupyterDAO, MockSamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.model._
@@ -44,6 +44,7 @@ class MockProxyService(
                          queue.getOrElse(InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
                          googleOauth2Service,
                          LocalProxyResolver,
+                         new MockSamDAO(),
                          Blocker.liftExecutionContext(ExecutionContext.global)) {
 
   override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =

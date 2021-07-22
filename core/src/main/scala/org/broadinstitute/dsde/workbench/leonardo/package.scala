@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench
 
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 import cats.syntax.all._
 import cats.{Applicative, Functor}
