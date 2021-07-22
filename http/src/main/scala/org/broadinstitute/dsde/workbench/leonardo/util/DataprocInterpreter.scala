@@ -245,7 +245,9 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
             .getOrElse((None, None))
         } else (None, None)
 
-        softwareConfig = getSoftwareConfig(params.runtimeProjectAndName.googleProject, machineConfig)
+        softwareConfig = getSoftwareConfig(params.runtimeProjectAndName.googleProject,
+                                           params.runtimeProjectAndName.runtimeName,
+                                           machineConfig)
 
         // Enables Dataproc Component Gateway. Used for enabling cluster web UIs.
         // See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
@@ -713,6 +715,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
   }
 
   private def getSoftwareConfig(googleProject: GoogleProject,
+                                runtimeName: RuntimeName,
                                 machineConfig: RuntimeConfig.DataprocConfig): SoftwareConfig = {
     val dataprocProps = if (machineConfig.numberOfWorkers == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
@@ -737,10 +740,14 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       "spark:spark.hadoop.fs.gs.requester.pays.project.id" -> googleProject.value
     )
 
+    val knoxProps = Map(
+      "knox:gateway.path" -> s"proxy/${googleProject.value}/${runtimeName.asString}/gateway"
+    )
+
     SoftwareConfig
       .newBuilder()
       .putAllProperties(
-        (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ machineConfig.properties).asJava
+        (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ knoxProps ++ machineConfig.properties).asJava
       )
       .build()
   }
