@@ -124,7 +124,6 @@ class ProxyService(
           // (now + tokenExpiresIn).
           val res = for {
             now <- nowInstant
-            _ <- loggerIO.info("2222")
             userInfo <- googleOauth2Service.getUserInfoFromToken(key)
             userOpt <- samDAO.getUserSubjectIdFromToken(key)
             _ <- IO.fromOption(userOpt)(AuthenticationError(Some(userInfo.userEmail)))
@@ -141,7 +140,6 @@ class ProxyService(
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
     for {
-      _ <- loggerIO.info("33333")
       cache <- blocker.blockOn(IO(googleTokenCache.get(token))).adaptError {
         case e: AuthenticationError => e
         case _                      =>
