@@ -1,3 +1,4 @@
+jenkins/gce-custom-images/application_default_credentials.json
 .bsp/
 .idea/
 .metals

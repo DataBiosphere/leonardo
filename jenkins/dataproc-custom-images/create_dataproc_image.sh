@@ -14,13 +14,15 @@ set -e -x
 #
 # Usage: under `leonardo` root dir, `jenkins/dataproc-custom-images/create_dataproc_image.sh`
 WORK_DIR=`pwd`/jenkins/dataproc-custom-images/dataproc-custom-images
-
-pushd $WORK_DIR
-
 # Your testing project
 GOOGLE_PROJECT="broad-dsp-gcr-public"
 REGION="us-central1"
 ZONE="${REGION}-a"
+TEST_BUCKET='gs://dataproc_custom_image_test'
+
+gsutil ls $TEST_BUCKET || gsutil mb -b on -p $GOOGLE_PROJECT -l $REGION "$TEST_BUCKET"
+
+pushd $WORK_DIR
 
 customDataprocImageBaseName="test"
 dp_version_formatted="1-4-51-debian10"
@@ -34,8 +36,10 @@ python generate_custom_image.py \
     --dataproc-version "1.4.51-debian10" \
     --customization-script ../prepare-custom-leonardo-jupyter-dataproc-image.sh \
     --zone $ZONE \
-    --gcs-bucket "gs://qi-test" \
+    --gcs-bucket $TEST_BUCKET \
     --project-id=$GOOGLE_PROJECT \
     --disk-size=60
 
 popd
+
+gsutil rm -r $TEST_BUCKET
