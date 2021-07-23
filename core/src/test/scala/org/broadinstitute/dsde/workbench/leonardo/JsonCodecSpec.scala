@@ -19,7 +19,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
         |   "masterDiskSize": 500,
         |   "numberOfPreemptibleWorkers": -1,
         |   "cloudService": "DATAPROC",
-        |   "region": "us-west2"
+        |   "region": "us-west2",
+        |   "componentGatewayEnabled": true
         |}
         |""".stripMargin
 
@@ -33,7 +34,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
       None,
       Some(-1),
       Map.empty,
-      RegionName("us-west2")
+      RegionName("us-west2"),
+      true
     )
     res shouldBe (Right(expected))
   }

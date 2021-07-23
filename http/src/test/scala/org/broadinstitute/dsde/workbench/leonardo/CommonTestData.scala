@@ -139,7 +139,9 @@ object CommonTestData {
     workerDiskSize = None,
     numberOfWorkerLocalSSDs = None,
     numberOfPreemptibleWorkers = None,
-    properties = Map.empty
+    properties = Map.empty,
+    region = Some(singleNodeDefaultMachineConfig.region),
+    componentGatewayEnabled = Some(singleNodeDefaultMachineConfig.componentGatewayEnabled)
   )
 
   val mockSamDAO = new MockSamDAO
@@ -191,7 +193,8 @@ object CommonTestData {
                                  None,
                                  None,
                                  Map.empty,
-                                 RegionName("us-central1"))
+                                 RegionName("us-central1"),
+                                 true)
 
   val defaultCreateRuntimeRequest = CreateRuntime2Request(
     Map("lbl1" -> "true"),
@@ -214,14 +217,18 @@ object CommonTestData {
                             zone = ZoneName("us-west2-b"),
                             None)
   val defaultRuntimeConfigRequest =
-    RuntimeConfigRequest.DataprocConfig(Some(0),
-                                        Some(MachineTypeName("n1-standard-4")),
-                                        Some(DiskSize(500)),
-                                        None,
-                                        None,
-                                        None,
-                                        None,
-                                        Map.empty[String, String])
+    RuntimeConfigRequest.DataprocConfig(
+      Some(0),
+      Some(MachineTypeName("n1-standard-4")),
+      Some(DiskSize(500)),
+      None,
+      None,
+      None,
+      None,
+      Map.empty[String, String],
+      Some(RegionName("us-central1")),
+      Some(true)
+    )
 
   val gpuConfig = Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
   val gceRuntimeConfig =

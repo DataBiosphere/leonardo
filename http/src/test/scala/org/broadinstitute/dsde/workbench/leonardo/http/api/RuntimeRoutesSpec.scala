@@ -45,7 +45,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       None,
       None,
-      Map("spark:spark.executor.cores" -> "4")
+      Map("spark:spark.executor.cores" -> "4"),
+      None,
+      None
     )
     decode[RuntimeConfigRequest.DataprocConfig](jsonString) shouldBe Right(expectedResult)
   }
@@ -187,7 +189,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       None,
       None,
-      Map.empty
+      Map.empty,
+      None,
+      None
     )
     decodeResult shouldBe Right(expectedRuntimeConfig)
   }
@@ -202,7 +206,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |      "numberOfWorkerLocalSSDs" : 0,
         |      "service" : "DATAPROC",
         |      "numberOfPreemptibleWorkers" : 0,
-        |      "masterMachineType" : "test-master-machine-type"
+        |      "masterMachineType" : "test-master-machine-type",
+        |      "componentGatewayEnabled": true
         |}
         |""".stripMargin
 
@@ -218,7 +223,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Some(DiskSize(100)),
       Some(0),
       Some(0),
-      Map.empty
+      Map.empty,
+      None,
+      Some(true)
     )
     decodeResult shouldBe Right(expectedRuntimeConfig)
   }
@@ -287,7 +294,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
           None,
           None,
           None,
-          Map.empty
+          Map.empty,
+          None,
+          None
         )
       ),
       Some(

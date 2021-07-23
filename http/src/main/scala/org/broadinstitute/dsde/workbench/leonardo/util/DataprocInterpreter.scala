@@ -251,9 +251,10 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
 
         // Enables Dataproc Component Gateway. Used for enabling cluster web UIs.
         // See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
-        endpointConfig = if (machineConfig.componentGatewayEnabled)
-          Some(EndpointConfig.newBuilder().setEnableHttpPortAccess(true).build())
-        else None
+        endpointConfig = EndpointConfig
+          .newBuilder()
+          .setEnableHttpPortAccess(machineConfig.componentGatewayEnabled)
+          .build()
 
         createClusterConfig = CreateClusterConfig(
           gceClusterConfig,
