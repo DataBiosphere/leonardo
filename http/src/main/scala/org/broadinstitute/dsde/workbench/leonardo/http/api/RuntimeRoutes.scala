@@ -299,37 +299,53 @@ object RuntimeRoutes {
         .as[Option[Int]]
         .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
       region <- c.downField("region").as[Option[RegionName]]
+      componentGatewayEnabled <- c.downField("componentGatewayEnabled").as[Option[Boolean]]
       res <- numberOfWorkersInput match {
         case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
         case Some(0) =>
           Right(
             RuntimeConfigRequest
-              .DataprocConfig(Some(0), masterMachineType, masterDiskSize, None, None, None, None, properties)
+              .DataprocConfig(Some(0),
+                              masterMachineType,
+                              masterDiskSize,
+                              None,
+                              None,
+                              None,
+                              None,
+                              properties,
+                              region,
+                              componentGatewayEnabled)
           )
         case Some(1) => Left(oneWorkerSpecifiedDecodingFailure)
         case Some(x) =>
           Right(
-            RuntimeConfigRequest.DataprocConfig(Some(x),
-                                                masterMachineType,
-                                                masterDiskSize,
-                                                workerMachineType,
-                                                workerDiskSize,
-                                                numberOfWorkerLocalSSDs,
-                                                numberOfPreemptibleWorkers,
-                                                properties,
-                                                region)
+            RuntimeConfigRequest.DataprocConfig(
+              Some(x),
+              masterMachineType,
+              masterDiskSize,
+              workerMachineType,
+              workerDiskSize,
+              numberOfWorkerLocalSSDs,
+              numberOfPreemptibleWorkers,
+              properties,
+              region,
+              componentGatewayEnabled
+            )
           )
         case None =>
           Right(
-            RuntimeConfigRequest.DataprocConfig(None,
-                                                masterMachineType,
-                                                masterDiskSize,
-                                                workerMachineType,
-                                                workerDiskSize,
-                                                numberOfWorkerLocalSSDs,
-                                                numberOfPreemptibleWorkers,
-                                                properties,
-                                                region)
+            RuntimeConfigRequest.DataprocConfig(
+              None,
+              masterMachineType,
+              masterDiskSize,
+              workerMachineType,
+              workerDiskSize,
+              numberOfWorkerLocalSSDs,
+              numberOfPreemptibleWorkers,
+              properties,
+              region,
+              componentGatewayEnabled
+            )
           )
       }
     } yield res

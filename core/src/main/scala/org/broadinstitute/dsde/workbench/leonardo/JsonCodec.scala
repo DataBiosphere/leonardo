@@ -290,6 +290,7 @@ object JsonCodec {
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
       region <- c.downField("region").as[RegionName]
+      componentGatewayEnabled <- c.downField("componentGatewayEnabled").as[Boolean]
     } yield RuntimeConfig.DataprocConfig(
       numberOfWorkers,
       masterMachineType,
@@ -299,7 +300,8 @@ object JsonCodec {
       numberOfWorkerLocalSSDs,
       numberOfPreemptibleWorkers,
       properties,
-      region
+      region,
+      componentGatewayEnabled
     )
   }
 

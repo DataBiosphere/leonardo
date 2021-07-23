@@ -251,7 +251,9 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
 
         // Enables Dataproc Component Gateway. Used for enabling cluster web UIs.
         // See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
-        endpointConfig = EndpointConfig.newBuilder().setEnableHttpPortAccess(true).build()
+        endpointConfig = if (machineConfig.componentGatewayEnabled)
+          Some(EndpointConfig.newBuilder().setEnableHttpPortAccess(true).build())
+        else None
 
         createClusterConfig = CreateClusterConfig(
           gceClusterConfig,
@@ -261,7 +263,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           secondaryWorkerConfig,
           stagingBucketName,
           softwareConfig,
-          Some(endpointConfig)
+          endpointConfig
         )
 
         op <- googleDataprocService.createCluster(
@@ -740,9 +742,12 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       "spark:spark.hadoop.fs.gs.requester.pays.project.id" -> googleProject.value
     )
 
-    val knoxProps = Map(
-      "knox:gateway.path" -> s"proxy/${googleProject.value}/${runtimeName.asString}/gateway"
-    )
+    val knoxProps =
+      if (machineConfig.componentGatewayEnabled)
+        Map(
+          "knox:gateway.path" -> s"proxy/${googleProject.value}/${runtimeName.asString}/gateway"
+        )
+      else Map.empty
 
     SoftwareConfig
       .newBuilder()

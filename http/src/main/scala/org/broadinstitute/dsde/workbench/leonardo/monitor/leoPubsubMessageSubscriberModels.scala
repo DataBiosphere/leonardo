@@ -59,7 +59,8 @@ object RuntimeConfigInCreateRuntimeMessage {
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
-                                  region: RegionName)
+                                  region: RegionName,
+                                  componentGatewayEnabled: Boolean)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
@@ -83,7 +84,8 @@ object RuntimeConfigInCreateRuntimeMessage {
           None,
           None,
           dataproc.properties,
-          dataproc.region.getOrElse(default.region)
+          dataproc.region.getOrElse(default.region),
+          dataproc.componentGatewayEnabled.getOrElse(default.componentGatewayEnabled)
         )
       case Some(numWorkers) =>
         val wds = dataproc.workerDiskSize.orElse(default.workerDiskSize)
@@ -96,7 +98,8 @@ object RuntimeConfigInCreateRuntimeMessage {
           dataproc.numberOfWorkerLocalSSDs.orElse(default.numberOfWorkerLocalSSDs),
           dataproc.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
           dataproc.properties,
-          dataproc.region.getOrElse(default.region)
+          dataproc.region.getOrElse(default.region),
+          dataproc.componentGatewayEnabled.getOrElse(default.componentGatewayEnabled)
         )
     }
   }
@@ -546,6 +549,7 @@ object LeoPubsubCodec {
       propertiesOpt <- c.downField("properties").as[Option[LabelMap]]
       properties = propertiesOpt.getOrElse(Map.empty)
       region <- c.downField("region").as[RegionName]
+      componentGatewayEnabled <- c.downField("componentGatewayEnabled").as[Boolean]
     } yield RuntimeConfigInCreateRuntimeMessage.DataprocConfig(
       numberOfWorkers,
       masterMachineType,
@@ -555,7 +559,8 @@ object LeoPubsubCodec {
       numberOfWorkerLocalSSDs,
       numberOfPreemptibleWorkers,
       properties,
-      region
+      region,
+      componentGatewayEnabled
     )
   }
 
