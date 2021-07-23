@@ -69,7 +69,8 @@ class RuntimeDataprocSpec
           None,
           Some(1),
           Map.empty,
-          Some(RegionName("europe-west1"))
+          Some(RegionName("europe-west1")),
+          Some(true)
         )
       ),
       toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -107,7 +108,9 @@ class RuntimeDataprocSpec
           Some(DiskSize(100)),
           None,
           Some(5),
-          Map.empty
+          Map.empty,
+          None,
+          Some(true)
         )
       ),
       toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -189,7 +192,9 @@ class RuntimeDataprocSpec
               Some(DiskSize(100)),
               None,
               Some(5),
-              Map.empty
+              Map.empty,
+              None,
+              Some(true)
             )
           ),
           toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -282,7 +287,7 @@ class RuntimeDataprocSpec
                              dataproc: GoogleDataprocService[IO],
                              expectedNumWorkers: Int,
                              expectedPreemptibles: Int,
-                             expectedRegion: RegionName): IO[Unit] =
+                             expectedRegion: RegionName)(implicit httpClient: Client[IO]): IO[Unit] =
     for {
       // check cluster status in Dataproc
       clusterOpt <- dataproc.getCluster(project, expectedRegion, DataprocClusterName(runtimeName.asString))
@@ -312,6 +317,11 @@ class RuntimeDataprocSpec
                 k.isPreemptible shouldBe true
             }
           )
+      }
+
+      // verify web interfaces return OK status
+      _ <- List("yarn", "jobhistory", "sparkhistory", "apphistory", "hdfs").traverse_ { path =>
+        LeonardoApiClient.testSparkWebUi(project, runtimeName, path)
       }
     } yield ()
 
