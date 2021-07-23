@@ -52,6 +52,8 @@ object Dependencies {
   val excludeFirestore = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-firestore")
   val excludeBouncyCastle = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-jdk15on")
   val excludeBouncyCastleExt = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-ext-jdk15on")
+  val excludeBouncyCastleUtil = ExclusionRule(organization = "org.bouncycastle", name = s"bcutil-jdk15on")
+  val excludeBouncyCastlePkix = ExclusionRule(organization = "org.bouncycastle", name = s"bcpkix-jdk15on")
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
 
@@ -89,6 +91,8 @@ object Dependencies {
     excludeFirestore,
     excludeBouncyCastle,
     excludeBouncyCastleExt,
+    excludeBouncyCastleUtil,
+    excludeBouncyCastlePkix,
     excludeSundrCodegen,
     excludeGuava)
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeGuava, excludeStatsD)
