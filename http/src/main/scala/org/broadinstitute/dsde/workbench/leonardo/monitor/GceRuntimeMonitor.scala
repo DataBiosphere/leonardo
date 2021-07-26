@@ -206,8 +206,10 @@ class GceRuntimeMonitor[F[_]: Parallel](
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              RuntimeErrorDetails("Can't retrieve instance yet. Possibly runtime creation failed in Google",
-                                  shortMessage = Some("fail_to_create")),
+              RuntimeErrorDetails(
+                "Can't retrieve instance yet. Possibly runtime creation failed in Google due to `ZONE_RESOURCE_POOL_EXHAUSTED` error. Refer to https://support.terra.bio/hc/en-us/articles/4403307463067 for creating the VM in a different zone",
+                shortMessage = Some("fail_to_create")
+              ),
               Set.empty
             )
           else
