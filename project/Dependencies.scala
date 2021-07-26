@@ -55,7 +55,7 @@ object Dependencies {
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.5"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.51.1"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
@@ -178,7 +178,7 @@ object Dependencies {
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.4" % "test",
-    "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
+    "ch.qos.logback" % "logback-classic" % "1.2.5" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
