@@ -20,7 +20,7 @@ object Dependencies {
   val serviceTestV = s"0.19-$workbenchLibsHash"
   val workbenchModelV = s"0.14-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
-  val workbenchGoogle2V = "0.21-bc72733e-SNAP"
+  val workbenchGoogle2V = "0.21-d89d5792-SNAP"
   val workbenchOpenTelemetryV = s"0.1-$workbenchLibsHash"
   val workbenchErrorReportingV = s"0.1-$workbenchLibsHash"
 
@@ -56,6 +56,9 @@ object Dependencies {
   val excludeBouncyCastlePkix = ExclusionRule(organization = "org.bouncycastle", name = s"bcpkix-jdk15on")
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
+  val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
+  val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
+  val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.5"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
@@ -89,12 +92,16 @@ object Dependencies {
     excludeGoogleError,
     excludeHttpComponent,
     excludeFirestore,
+    excludeKms,
+    excludeBigQuery,
+    excludeCloudBilling,
     excludeBouncyCastle,
     excludeBouncyCastleExt,
     excludeBouncyCastleUtil,
     excludeBouncyCastlePkix,
     excludeSundrCodegen,
     excludeGuava)
+
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
