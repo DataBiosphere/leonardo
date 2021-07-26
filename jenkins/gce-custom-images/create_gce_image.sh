@@ -65,5 +65,10 @@ docker run -it --rm -v "$SOURCE_DIR":/gce-custom-images \
   -var:installation_script_name prepare_gce_image.sh \
   /gce-custom-images/gce_image.wf.json
 
+gcloud beta compute images add-iam-policy-binding \
+    projects/$GOOGLE_PROJECT/global/images/${OUTPUT_IMAGE_NAME} \
+    --member='allAuthenticatedUsers' \
+    --role='roles/compute.imageUser'
+
 # Daisy doesn't clean it up all so we remove the bucket manually
 gsutil rm -r $DAISY_BUCKET_PATH
