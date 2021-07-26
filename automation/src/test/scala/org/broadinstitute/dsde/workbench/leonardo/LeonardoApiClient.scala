@@ -18,13 +18,14 @@ import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.http4s._
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
-import org.http4s.client.{blaze, Client}
+import org.http4s.client.Client
 import org.http4s.headers._
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
+import org.http4s.blaze.client
 
 object LeonardoApiClient {
   val defaultMediaType = `Content-Type`(MediaType.application.json)
@@ -46,7 +47,7 @@ object LeonardoApiClient {
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[IO]
       retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5))
-      client <- blaze.BlazeClientBuilder[IO](blockingEc).resource.map(c => Retry(retryPolicy)(c))
+      client <- client.BlazeClientBuilder[IO](blockingEc).resource.map(c => Retry(retryPolicy)(c))
     } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
   val rootUri = Uri.unsafeFromString(LeonardoConfig.Leonardo.apiUrl)

@@ -8,7 +8,7 @@ import org.http4s.dsl.io._
 import org.http4s.headers.`Content-Type`
 import org.http4s.implicits._
 import org.http4s.server.Server
-import org.http4s.server.blaze._
+import org.http4s.blaze.server._
 import org.http4s.{HttpRoutes, _}
 
 import java.util.concurrent.Executors
