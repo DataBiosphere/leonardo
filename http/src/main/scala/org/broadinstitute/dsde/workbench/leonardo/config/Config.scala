@@ -79,7 +79,7 @@ object Config {
         config.getAs[Int]("numberOfPreemptibleWorkers"),
         Map.empty,
         config.as[RegionName]("region"),
-        config.getBoolean("componentGatewayEnabled")
+        false // Not used; default defined in RuntimeConfigRequest.DataprocConfig decoder
       )
   }
 

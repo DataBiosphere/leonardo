@@ -314,7 +314,7 @@ object RuntimeRoutes {
                               None,
                               properties,
                               region,
-                              componentGatewayEnabled)
+                              componentGatewayEnabled.getOrElse(false))
           )
         case Some(1) => Left(oneWorkerSpecifiedDecodingFailure)
         case Some(x) =>
@@ -329,7 +329,7 @@ object RuntimeRoutes {
               numberOfPreemptibleWorkers,
               properties,
               region,
-              componentGatewayEnabled
+              componentGatewayEnabled.getOrElse(false)
             )
           )
         case None =>
@@ -344,7 +344,7 @@ object RuntimeRoutes {
               numberOfPreemptibleWorkers,
               properties,
               region,
-              componentGatewayEnabled
+              componentGatewayEnabled.getOrElse(false)
             )
           )
       }

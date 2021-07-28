@@ -166,7 +166,7 @@ object RuntimeFixtureSpec {
           numberOfPreemptibleWorkers = None,
           properties = Map.empty,
           region = None,
-          componentGatewayEnabled = None
+          componentGatewayEnabled = true
         )
 
     }

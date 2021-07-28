@@ -70,7 +70,7 @@ class RuntimeDataprocSpec
           Some(1),
           Map.empty,
           Some(RegionName("europe-west1")),
-          Some(true)
+          true
         )
       ),
       toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -110,7 +110,7 @@ class RuntimeDataprocSpec
           Some(5),
           Map.empty,
           None,
-          Some(true)
+          true
         )
       ),
       toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -194,7 +194,7 @@ class RuntimeDataprocSpec
               Some(5),
               Map.empty,
               None,
-              Some(true)
+              true
             )
           ),
           toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))

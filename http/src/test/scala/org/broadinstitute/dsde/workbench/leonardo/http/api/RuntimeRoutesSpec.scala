@@ -47,7 +47,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       Map("spark:spark.executor.cores" -> "4"),
       None,
-      None
+      false
     )
     decode[RuntimeConfigRequest.DataprocConfig](jsonString) shouldBe Right(expectedResult)
   }
@@ -191,7 +191,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       Map.empty,
       None,
-      None
+      false
     )
     decodeResult shouldBe Right(expectedRuntimeConfig)
   }
@@ -225,7 +225,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Some(0),
       Map.empty,
       None,
-      Some(true)
+      true
     )
     decodeResult shouldBe Right(expectedRuntimeConfig)
   }
@@ -296,7 +296,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
           None,
           Map.empty,
           None,
-          None
+          false
         )
       ),
       Some(

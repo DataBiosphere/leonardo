@@ -219,7 +219,7 @@ class RuntimePatchSpec
             None,
             Map.empty,
             None,
-            None
+            true
           )
         )
       )

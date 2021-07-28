@@ -141,7 +141,7 @@ object CommonTestData {
     numberOfPreemptibleWorkers = None,
     properties = Map.empty,
     region = Some(singleNodeDefaultMachineConfig.region),
-    componentGatewayEnabled = Some(singleNodeDefaultMachineConfig.componentGatewayEnabled)
+    componentGatewayEnabled = singleNodeDefaultMachineConfig.componentGatewayEnabled
   )
 
   val mockSamDAO = new MockSamDAO
@@ -227,7 +227,7 @@ object CommonTestData {
       None,
       Map.empty[String, String],
       Some(RegionName("us-central1")),
-      Some(true)
+      true
     )
 
   val gpuConfig = Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))

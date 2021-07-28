@@ -85,7 +85,7 @@ object RuntimeConfigInCreateRuntimeMessage {
           None,
           dataproc.properties,
           dataproc.region.getOrElse(default.region),
-          dataproc.componentGatewayEnabled.getOrElse(default.componentGatewayEnabled)
+          dataproc.componentGatewayEnabled
         )
       case Some(numWorkers) =>
         val wds = dataproc.workerDiskSize.orElse(default.workerDiskSize)
@@ -99,7 +99,7 @@ object RuntimeConfigInCreateRuntimeMessage {
           dataproc.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
           dataproc.properties,
           dataproc.region.getOrElse(default.region),
-          dataproc.componentGatewayEnabled.getOrElse(default.componentGatewayEnabled)
+          dataproc.componentGatewayEnabled
         )
     }
   }

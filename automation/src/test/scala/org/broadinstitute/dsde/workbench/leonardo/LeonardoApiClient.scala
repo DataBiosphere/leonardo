@@ -88,7 +88,7 @@ object LeonardoApiClient {
         None,
         Map.empty,
         None,
-        None
+        true
       )
     ),
     None,
