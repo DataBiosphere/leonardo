@@ -4,7 +4,7 @@ object Dependencies {
   val scalaV = "2.13"
 
   val akkaV = "2.6.15"
-  val akkaHttpV = "10.2.4"
+  val akkaHttpV = "10.2.5"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.4"
@@ -55,7 +55,7 @@ object Dependencies {
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.3"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.5"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.51.1"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
@@ -104,7 +104,7 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.4.1"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.4.2"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.2" % Test // brought in for FakeStorageInterpreter
 
@@ -178,7 +178,7 @@ object Dependencies {
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.4" % "test",
-    "ch.qos.logback" % "logback-classic" % "1.2.3" % "test",
+    "ch.qos.logback" % "logback-classic" % "1.2.5" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
