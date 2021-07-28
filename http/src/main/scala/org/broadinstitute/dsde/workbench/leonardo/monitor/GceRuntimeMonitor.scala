@@ -206,8 +206,10 @@ class GceRuntimeMonitor[F[_]: Parallel](
             failedRuntime(
               monitorContext,
               runtimeAndRuntimeConfig,
-              RuntimeErrorDetails("Can't retrieve instance yet. Possibly runtime creation failed in Google",
-                                  shortMessage = Some("fail_to_create")),
+              RuntimeErrorDetails(
+                "Creation may have failed due to temporary resource unavailability of GPUs in Google Cloud Platform (`ZONE_RESOURCE_POOL_EXHAUSTED` error). Please try again later or refer to http://broad.io/different-zone for creating a cloud environment in a different zone.",
+                shortMessage = Some("fail_to_create")
+              ),
               Set.empty
             )
           else
