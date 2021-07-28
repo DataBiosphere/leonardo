@@ -1613,7 +1613,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/proxy/{googleProject}/{runtimeName}/spark-yarn":
+  "/proxy/{googleProject}/{runtimeName}/yarn":
     get:
       summary: YARN Resource Manager
       description: >
@@ -1668,7 +1668,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/proxy/{googleProject}/{runtimeName}/spark-jobhistory":
+  "/proxy/{googleProject}/{runtimeName}/jobhistory":
     get:
       summary: MapReduce Job History
       description: >
@@ -1723,7 +1723,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/proxy/{googleProject}/{runtimeName}/spark-apphistory":
+  "/proxy/{googleProject}/{runtimeName}/apphistory":
     get:
       summary: YARN Application Timeline
       description: >
@@ -1778,7 +1778,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/proxy/{googleProject}/{runtimeName}/spark-sparkhistory":
+  "/proxy/{googleProject}/{runtimeName}/sparkhistory":
     get:
       summary: Spark History Server
       description: >
@@ -1833,7 +1833,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  "/proxy/{googleProject}/{runtimeName}/spark-hdfs":
+  "/proxy/{googleProject}/{runtimeName}/hdfs":
     get:
       summary: HDFS NameNode
       description: >
