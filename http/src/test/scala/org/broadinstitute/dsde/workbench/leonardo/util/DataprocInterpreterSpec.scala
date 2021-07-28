@@ -14,9 +14,10 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGoogleDataprocService,
   FakeGoogleResourceService,
-  MockComputePollOperation
+  MockComputePollOperation,
+  MockGoogleDiskService
 }
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, MockGoogleDiskService, RegionName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -53,7 +54,7 @@ class DataprocInterpreterSpec
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider, blocker)
+    new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
 
   val mockGoogleResourceService = new FakeGoogleResourceService {
     override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
@@ -74,8 +75,7 @@ class DataprocInterpreterSpec
                                                    mockGoogleDirectoryDAO,
                                                    mockGoogleIamDAO,
                                                    mockGoogleResourceService,
-                                                   MockWelderDAO,
-                                                   blocker)
+                                                   MockWelderDAO)
 
   override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
@@ -98,7 +98,7 @@ class DataprocInterpreterSpec
                                                None)
             )
         )
-        .unsafeToFuture()
+        .unsafeToFuture()(cats.effect.unsafe.implicits.global)
         .futureValue
 
     // verify the returned cluster
@@ -127,8 +127,7 @@ class DataprocInterpreterSpec
                                                             mockGoogleDirectoryDAO,
                                                             erroredIamDAO,
                                                             MockGoogleResourceService,
-                                                            MockWelderDAO,
-                                                            blocker)
+                                                            MockWelderDAO)
 
     val exception =
       erroredDataprocInterp
@@ -140,7 +139,7 @@ class DataprocInterpreterSpec
                                                None)
             )
         )
-        .unsafeToFuture()
+        .unsafeToFuture()(cats.effect.unsafe.implicits.global)
         .failed
         .futureValue
     exception shouldBe a[GoogleJsonResponseException]
@@ -163,7 +162,7 @@ class DataprocInterpreterSpec
       .getClusterResourceContraints(testClusterClusterProjectAndName,
                                     runtimeConfig.machineType,
                                     RegionName("us-central1"))
-      .unsafeRunSync()
+      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m
     resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(768)

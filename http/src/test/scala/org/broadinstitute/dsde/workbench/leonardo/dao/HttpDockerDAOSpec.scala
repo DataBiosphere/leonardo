@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import io.circe.CursorOp.DownField
 import io.circe.DecodingFailure
 import io.circe.parser.decode
@@ -9,13 +10,11 @@ import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry.{DockerHub, 
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
-import org.http4s.client.blaze.BlazeClientBuilder
+import org.http4s.blaze.client.BlazeClientBuilder
 import org.http4s.client.middleware.Logger
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-
-import scala.concurrent.ExecutionContext.global
 
 class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
   val jupyterImages = List(
@@ -64,7 +63,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
   def withDockerDAO(testCode: HttpDockerDAO[IO] => Any): Unit = {
     val dockerDAOResource = for {
-      client <- BlazeClientBuilder[IO](global).resource
+      client <- BlazeClientBuilder[IO](scala.concurrent.ExecutionContext.global).resource
       clientWithLogging = Logger[IO](logHeaders = true, logBody = false)(client)
       dockerDAO = HttpDockerDAO[IO](clientWithLogging)
     } yield dockerDAO
@@ -76,7 +75,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     case (tool, images) =>
       images.foreach { image =>
         it should s"detect tool=$tool for image $image" in withDockerDAO { dockerDAO =>
-          val response = nowInstant.flatMap(n => dockerDAO.detectTool(image, None, n)).unsafeRunSync()
+          val response = IO.realTimeInstant.flatMap(n => dockerDAO.detectTool(image, None, n)).unsafeRunSync()
           response.imageType shouldBe tool
         }
       }
@@ -90,7 +89,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     } yield {
       response shouldBe Left(ImageParseException(ctx.traceId, image))
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should s"detect invalid GCR image if image doesn't have proper environment variables set" in withDockerDAO {
@@ -102,7 +101,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       } yield {
         response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       }
-      res.unsafeRunSync()
+      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should s"detect invalid dockerhub image if image doesn't have proper environment variables set" in withDockerDAO {
@@ -114,7 +113,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       } yield {
         response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       }
-      res.unsafeRunSync()
+      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "detect invalid ghcr image if image doesn't have proper environment variables set" in withDockerDAO {
@@ -126,7 +125,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       } yield {
         response.isLeft shouldBe true
       }
-      res.unsafeRunSync()
+      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "correctly decode 'container_config' field from Docker API response if it exists" in {
@@ -188,7 +187,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
 
   it should s"detect tool RStudio for image rtitle/anvil-rstudio-base:0.0.1" in withDockerDAO { dockerDAO =>
     val image = ContainerImage("rtitle/anvil-rstudio-base:0.0.1", DockerHub)
-    val response = nowInstant.flatMap(n => dockerDAO.detectTool(image, None, n)).unsafeRunSync()
+    val response = IO.realTimeInstant.flatMap(n => dockerDAO.detectTool(image, None, n)).unsafeRunSync()
     response.imageType shouldBe RStudio
   }
 }

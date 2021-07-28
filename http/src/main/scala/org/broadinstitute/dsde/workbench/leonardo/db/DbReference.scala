@@ -1,23 +1,22 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.sql.{Connection, SQLTimeoutException}
-
-import cats.effect.concurrent.Semaphore
-import cats.effect.{Async, Blocker, ContextShift, Resource}
-import com.google.common.base.Throwables
-import com.typesafe.scalalogging.LazyLogging
 import _root_.liquibase.database.jvm.JdbcConnection
 import _root_.liquibase.resource.{ClassLoaderResourceAccessor, ResourceAccessor}
 import _root_.liquibase.{Contexts, Liquibase}
+import cats.effect.std.Semaphore
+import cats.effect.{Async, Resource}
+import cats.syntax.all._
+import com.google.common.base.Throwables
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.LiquibaseConfig
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.typelevel.log4cats.Logger
 import slick.basic.DatabaseConfig
 import slick.jdbc.{JdbcBackend, JdbcProfile, TransactionIsolation}
 import sun.security.provider.certpath.SunCertPathBuilderException
-import LeoProfile.api._
-import org.typelevel.log4cats.Logger
-import cats.syntax.all._
 
+import java.sql.{Connection, SQLTimeoutException}
 import scala.concurrent.Future
 
 object DbReference extends LazyLogging {
@@ -48,9 +47,8 @@ object DbReference extends LazyLogging {
         throw e
     }
 
-  def init[F[_]: Async: ContextShift: Logger](config: LiquibaseConfig,
-                                              concurrentDbAccessPermits: Semaphore[F],
-                                              blocker: Blocker): Resource[F, DbReference[F]] = {
+  def init[F[_]: Async: Logger](config: LiquibaseConfig,
+                                concurrentDbAccessPermits: Semaphore[F]): Resource[F, DbReference[F]] = {
     val dbConfig =
       DatabaseConfig.forConfig[JdbcProfile]("mysql", org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
 
@@ -61,26 +59,24 @@ object DbReference extends LazyLogging {
         Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
       else Async[F].unit
       _ <- Resource.eval(initLiquibase)
-    } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits, blocker)
+    } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits)
   }
 }
 
 trait DbReference[F[_]] {
-  def dataAccess: DataAccess
   def inTransaction[T](
     dbio: DBIO[T],
     isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead
   ): F[T]
 }
 
-private[db] class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[JdbcProfile],
-                                                   database: JdbcBackend#DatabaseDef,
-                                                   concurrentDbAccessPermits: Semaphore[F],
-                                                   blocker: Blocker)
+private[db] class DbRef[F[_]](dbConfig: DatabaseConfig[JdbcProfile],
+                              database: JdbcBackend#DatabaseDef,
+                              concurrentDbAccessPermits: Semaphore[F])(implicit F: Async[F])
     extends DbReference[F] {
   import LeoProfile.api._
 
-  val dataAccess = new DataAccess(blocker)
+  val dataAccess = DataAccess
 
   private def inTransactionFuture[T](
     dbio: DBIO[T],
@@ -92,17 +88,13 @@ private[db] class DbRef[F[_]: Async: ContextShift](dbConfig: DatabaseConfig[Jdbc
     dbio: DBIO[T],
     isolationLevel: TransactionIsolation = TransactionIsolation.RepeatableRead
   ): F[T] =
-    concurrentDbAccessPermits.withPermit(
-      blocker.blockOn(Async.fromFuture(Async[F].delay(inTransactionFuture(dbio, isolationLevel))))
-    )
+    concurrentDbAccessPermits.permit.use(_ => F.fromFuture(F.delay(inTransactionFuture(dbio, isolationLevel))))
 
   private[db] def close(): Unit =
     database.close()
 }
 
-final class DataAccess(blocker: Blocker) {
-  implicit val executionContext = blocker.blockingContext
-
+object DataAccess {
   def truncateAll(): DBIO[Int] =
     // important to keep the right order for referential integrity !
     // if table X has a Foreign Key to table Y, delete table X first

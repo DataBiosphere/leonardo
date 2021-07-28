@@ -6,15 +6,14 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-
 import _root_.fs2._
 import _root_.org.typelevel.log4cats.Logger
 import _root_.io.circe._
 import _root_.io.circe.syntax._
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect, Resource, Timer}
+import cats.effect.std.Dispatcher
+import cats.effect.{Async, Resource}
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.api.services.plus.PlusScopes
@@ -42,10 +41,9 @@ import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
-class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, blocker: Blocker)(
+class HttpSamDAO[F[_]](httpClient: Client[F], config: HttpSamDaoConfig, dispatcher: Dispatcher[F])(
   implicit logger: Logger[F],
-  cs: ContextShift[F],
-  timer: Timer[F],
+  F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends SamDAO[F]
     with Http4sClientDsl[F] {
@@ -60,22 +58,21 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       new CacheLoader[UserEmailAndProject, Option[String]] {
         def load(userEmailAndProject: UserEmailAndProject): Option[String] = {
           implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
-          getPetAccessToken(userEmailAndProject.userEmail, userEmailAndProject.googleProject).toIO
-            .unsafeRunSync()
+          dispatcher.unsafeRunSync(getPetAccessToken(userEmailAndProject.userEmail, userEmailAndProject.googleProject))
         }
       }
     )
 
   val recordCacheMetricsProcess: Stream[F, Unit] =
     CacheMetrics("petTokenCache")
-      .process(() => Effect[F].delay(petTokenCache.size), () => Effect[F].delay(petTokenCache.stats))
+      .process(() => F.delay(petTokenCache.size), () => F.delay(petTokenCache.stats))
 
   def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse] =
     metrics.incrementCounter("sam/status") >>
       httpClient.expectOr[StatusCheckResponse](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(s"/status")
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/status"))
         )
       )(onError)
 
@@ -92,9 +89,9 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           method = Method.GET,
           uri = config.samUri
             .withPath(
-              s"/api/resources/v2/${resourceType.asString}/${resource}/action/${action}"
+              Uri.Path.unsafeFromString(s"/api/resources/v2/${resourceType.asString}/${resource}/action/${action}")
             ),
-          headers = Headers.of(authHeader)
+          headers = Headers(authHeader)
         )
       )(onError)
     } yield res
@@ -109,8 +106,12 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         Request[F](
           method = Method.GET,
           uri = config.samUri
-            .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}/actions"),
-          headers = Headers.of(authHeader)
+            .withPath(
+              Uri.Path.unsafeFromString(
+                s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}/actions"
+              )
+            ),
+          headers = Headers(authHeader)
         )
       )(onError)
   }
@@ -123,8 +124,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       resp <- httpClient.expectOr[List[ListResourceResponse[R]]](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(s"/api/resources/v2/${sr.resourceType.asString}"),
-          headers = Headers.of(authHeader)
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
+          headers = Headers(authHeader)
         )
       )(onError)
     } yield resp.flatMap(r => r.samPolicyNames.map(pn => (r.samResourceId, pn)))
@@ -137,12 +138,12 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       traceId <- ev.ask
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
         _.fold(
-          Effect[F].raiseError[String](
+          F.raiseError[String](
             AuthProviderException(traceId,
                                   s"No pet SA found for ${creatorEmail} in ${googleProject}",
                                   StatusCodes.Unauthorized)
           )
-        )(s => Effect[F].pure(s))
+        )(s => F.pure(s))
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- logger.info(
@@ -154,15 +155,18 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
-            headers = Headers.of(authHeader)
+              .withPath(
+                Uri.Path
+                  .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+              ),
+            headers = Headers(authHeader)
           )
         )
         .use { resp =>
           if (resp.status.isSuccess)
-            Effect[F].unit
+            F.unit
           else
-            onError(resp).flatMap(Effect[F].raiseError[Unit])
+            onError(resp).flatMap(F.raiseError[Unit])
         }
     } yield ()
 
@@ -175,12 +179,12 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       traceId <- ev.ask
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
         _.fold(
-          Effect[F].raiseError[String](
+          F.raiseError[String](
             AuthProviderException(traceId,
                                   s"No pet SA found for ${creatorEmail} in ${googleProject}",
                                   StatusCodes.Unauthorized)
           )
-        )(s => Effect[F].pure(s))
+        )(s => F.pure(s))
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- logger.info(
@@ -196,16 +200,16 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.POST,
             uri = config.samUri
-              .withPath(s"/api/resources/v2/${sr.resourceType.asString}"),
-            headers = Headers.of(authHeader, `Content-Type`(MediaType.application.json)),
+              .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
+            headers = Headers(authHeader, `Content-Type`(MediaType.application.json)),
             body = Stream.emits(CreateSamResourceRequest(resource, policies, parent).asJson.noSpaces.getBytes)
           )
         )
         .use { resp =>
           if (resp.status.isSuccess)
-            Effect[F].unit
+            F.unit
           else
-            onError(resp).flatMap(Effect[F].raiseError[Unit])
+            onError(resp).flatMap(F.raiseError[Unit])
         }
     } yield ()
 
@@ -217,12 +221,12 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       traceId <- ev.ask
       token <- getCachedPetAccessToken(creatorEmail, googleProject).flatMap(
         _.fold(
-          Effect[F].raiseError[String](
+          F.raiseError[String](
             AuthProviderException(traceId,
                                   s"No pet SA found for ${creatorEmail} in ${googleProject}",
                                   StatusCodes.Unauthorized)
           )
-        )(s => Effect[F].pure(s))
+        )(s => F.pure(s))
       )
       authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
       _ <- metrics.incrementCounter(s"sam/deleteResource/${sr.resourceType.asString}")
@@ -231,8 +235,11 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.DELETE,
             uri = config.samUri
-              .withPath(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}"),
-            headers = Headers.of(authHeader)
+              .withPath(
+                Uri.Path
+                  .unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}/${sr.resourceIdAsString(resource)}")
+              ),
+            headers = Headers(authHeader)
           )
         )
         .use { resp =>
@@ -241,8 +248,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
               logger.info(
                 s"Fail to delete ${googleProject}/${sr.resourceIdAsString(resource)} because ${sr.resourceType.asString} doesn't exist in SAM"
               )
-            case s if (s.isSuccess) => Effect[F].unit
-            case _                  => onError(resp).flatMap(Effect[F].raiseError[Unit])
+            case s if (s.isSuccess) => F.unit
+            case _                  => onError(resp).flatMap(F.raiseError[Unit])
           }
         }
     } yield ()
@@ -254,8 +261,9 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       httpClient.expectOptionOr[WorkbenchEmail](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(s"/api/google/v1/user/petServiceAccount/${googleProject.value}"),
-          headers = Headers.of(authorization)
+          uri = config.samUri
+            .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/user/petServiceAccount/${googleProject.value}")),
+          headers = Headers(authorization)
         )
       )(onError)
 
@@ -267,8 +275,11 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.GET,
             uri = config.samUri
-              .withPath(s"/api/google/v1/user/proxyGroup/${URLEncoder.encode(userEmail.value, UTF_8.name)}"),
-            headers = Headers.of(authHeader)
+              .withPath(
+                Uri.Path
+                  .unsafeFromString(s"/api/google/v1/user/proxyGroup/${URLEncoder.encode(userEmail.value, UTF_8.name)}")
+              ),
+            headers = Headers(authHeader)
           )
         )(onError)
     }
@@ -277,7 +288,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
     implicit ev: Ask[F, TraceId]
   ): F[Option[String]] =
     if (config.petCacheEnabled) {
-      blocker.blockOn(Effect[F].delay(petTokenCache.get(UserEmailAndProject(userEmail, googleProject))))
+      F.delay(petTokenCache.get(UserEmailAndProject(userEmail, googleProject)))
     } else {
       getPetAccessToken(userEmail, googleProject)
     }
@@ -288,7 +299,7 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
         config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
       )
       scopedCredential = credential.createScoped(saScopes.asJava)
-      _ <- Resource.eval(Effect[F].delay(scopedCredential.refresh))
+      _ <- Resource.eval(F.delay(scopedCredential.refresh))
     } yield scopedCredential.getAccessToken.getTokenValue
 
   private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
@@ -303,15 +314,16 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
           Request[F](
             method = Method.GET,
             uri = config.samUri.withPath(
-              s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"
+              Uri.Path.unsafeFromString(
+                s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"
+              )
             ),
-            headers = Headers.of(leoAuth)
+            headers = Headers(leoAuth)
           )
         )(onError)
         token <- userPetKey.traverse { key =>
           val keyStream = new ByteArrayInputStream(key.toString().getBytes)
-          Effect[F]
-            .delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
+          F.delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
             .map(_.refreshAccessToken.getTokenValue)
         }
       } yield token
@@ -332,12 +344,12 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       _ <- metrics.incrementCounter("sam/getSubjectId")
       token <- getCachedPetAccessToken(userEmail, googleProject).flatMap(
         _.fold(
-          Effect[F].raiseError[String](
+          F.raiseError[String](
             AuthProviderException(traceId,
                                   s"No pet SA found for ${userEmail} in ${googleProject}",
                                   StatusCodes.Unauthorized)
           )
-        )(s => Effect[F].pure(s))
+        )(s => F.pure(s))
       )
       resp <- getUserSubjectIdFromToken(token)
     } yield resp
@@ -349,10 +361,8 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
       resp <- httpClient.expectOptionOr[GetGoogleSubjectIdResponse](
         Request[F](
           method = Method.GET,
-          uri = config.samUri.withPath(
-            s"/register/user/v2/self/info"
-          ),
-          headers = Headers.of(authHeader)
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info")),
+          headers = Headers(authHeader)
         )
       )(onError)
     } yield resp.map(_.userSubjectId)
@@ -360,15 +370,12 @@ class HttpSamDAO[F[_]: Effect](httpClient: Client[F], config: HttpSamDaoConfig, 
 }
 
 object HttpSamDAO {
-  def apply[F[_]: Effect](
+  def apply[F[_]: Async](
     httpClient: Client[F],
     config: HttpSamDaoConfig,
-    blocker: Blocker
-  )(implicit logger: Logger[F],
-    contextShift: ContextShift[F],
-    timer: Timer[F],
-    metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
-    new HttpSamDAO[F](httpClient, config, blocker)
+    dispatcher: Dispatcher[F]
+  )(implicit logger: Logger[F], metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
+    new HttpSamDAO[F](httpClient, config, dispatcher)
 
   implicit val samRoleEncoder: Encoder[SamRole] = Encoder.encodeString.contramap(_.asString)
   implicit val projectActionEncoder: Encoder[ProjectAction] = Encoder.encodeString.contramap(_.asString)

@@ -25,6 +25,14 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         PollMonitorConfig(5, 3 seconds),
         PollMonitorConfig(5, 3 seconds),
         PollMonitorConfig(5, 3 seconds)
+      ),
+      GalaxyDiskConfig(
+        "nfs-disk",
+        DiskSize(100),
+        "postgres-disk",
+        "gxy-postres-disk",
+        DiskSize(10),
+        BlockSize(4096)
       )
     )
 

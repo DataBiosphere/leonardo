@@ -3,6 +3,7 @@ package runtimes
 
 import cats.data.NonEmptyList
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import com.google.cloud.Identity
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
@@ -76,7 +77,7 @@ class RuntimeGceSpec
       } yield ()
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   // Not enable this in automation test because we can get `ZONE_RESOURCE_POOL_EXHAUSTED` easily
@@ -125,7 +126,7 @@ class RuntimeGceSpec
       } yield ()
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   "should run a user script and startup script for Jupyter" in { project =>

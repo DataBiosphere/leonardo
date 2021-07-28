@@ -1,9 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import akka.http.scaladsl.model.Uri.Host
-import cats.effect.concurrent.Ref
-import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect, Timer}
+import cats.effect.{Async, Ref}
+import cats.effect.std.Dispatcher
 import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import fs2.Stream
@@ -30,16 +29,16 @@ final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: R
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
  */
-class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
+class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
   hostToIpMapping: Ref[F, Map[Host, IP]],
-  blocker: Blocker
-)(implicit F: Effect[F], ec: ExecutionContext) {
+  dispatcher: Dispatcher[F]
+)(implicit F: Async[F], ec: ExecutionContext) {
 
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
-    blocker.blockOn(Effect[F].delay(projectClusterToHostStatus.get(key)))
+    F.blocking(projectClusterToHostStatus.get(key))
   def size: Long = projectClusterToHostStatus.size
   def stats: CacheStats = projectClusterToHostStatus.stats
 
@@ -52,7 +51,8 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
       new CacheLoader[RuntimeDnsCacheKey, HostStatus] {
         def load(key: RuntimeDnsCacheKey): HostStatus = {
           val res = for {
-            _ <- Logger[F].debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
+            _ <- Logger[F]
+              .debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
             runtimeOpt <- dbRef.inTransaction {
               clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
             }
@@ -64,15 +64,14 @@ class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
             }
           } yield hostStatus
 
-          res.toIO.unsafeRunSync()
+          dispatcher.unsafeRunSync(res)
         }
       }
     )
 
   val recordCacheMetricsProcess: Stream[F, Unit] =
     CacheMetrics("runtimeDnsCache")
-      .process(() => Effect[F].delay(projectClusterToHostStatus.size),
-               () => Effect[F].delay(projectClusterToHostStatus.stats))
+      .process(() => F.blocking(projectClusterToHostStatus.size), () => F.blocking(projectClusterToHostStatus.stats))
 
   private def host(googleId: GoogleId): Host =
     Host(googleId.value + proxyConfig.proxyDomain)

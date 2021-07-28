@@ -6,9 +6,9 @@ import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
+import cats.effect.std.Dispatcher
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -62,7 +62,7 @@ trait TestLeoRoutes {
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider, blocker)
+    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                          FakeGoogleResourceService,
                                          FakeGoogleComputeService,
@@ -77,16 +77,14 @@ trait TestLeoRoutes {
                                 mockGoogleDirectoryDAO,
                                 mockGoogleIamDAO,
                                 FakeGoogleResourceService,
-                                MockWelderDAO,
-                                blocker)
+                                MockWelderDAO)
   val gceInterp =
     new GceInterpreter[IO](Config.gceInterpreterConfig,
                            bucketHelper,
                            vpcInterp,
                            FakeGoogleComputeService,
                            MockGoogleDiskService,
-                           MockWelderDAO,
-                           blocker)
+                           MockWelderDAO)
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
@@ -96,20 +94,25 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue()
   )
 
-  val runtimeDnsCache =
-    new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, hostToIpMapping, blocker)
-  val kubernetesDnsCache =
-    new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, hostToIpMapping, blocker)
+  val runtimeDnsCacheResource = Dispatcher[IO].map(d =>
+    new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, hostToIpMapping, d)
+  )
+  val kubernetesDnsCacheResource = Dispatcher[IO].map(d =>
+    new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, hostToIpMapping, d)
+  )
 
-  val proxyService =
-    new MockProxyService(proxyConfig,
-                         MockJupyterDAO,
-                         whitelistAuthProvider,
-                         runtimeDnsCache,
-                         kubernetesDnsCache,
-                         MockGoogleOAuth2Service)
+  val proxyServiceResource = for {
+    runtimeDnsCache <- runtimeDnsCacheResource
+    kubernetesDnsCache <- kubernetesDnsCacheResource
+  } yield new MockProxyService(proxyConfig,
+                               MockJupyterDAO,
+                               whitelistAuthProvider,
+                               runtimeDnsCache,
+                               kubernetesDnsCache,
+                               MockGoogleOAuth2Service)
+
   val statusService =
-    new StatusService(mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
+    new StatusService(mockSamDAO, testDbRef, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
   val corsSupport = new CorsSupport(contentSecurityPolicy)
   val statusRoutes = new StatusRoutes(statusService)
@@ -136,26 +139,31 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue()
   )
 
-  val httpRoutes = new HttpRoutes(
-    swaggerConfig,
-    statusService,
-    proxyService,
-    runtimeService,
-    MockDiskServiceInterp,
-    leoKubernetesService,
-    userInfoDirectives,
-    contentSecurityPolicy,
-    refererConfig
+  val httpRoutesResource = proxyServiceResource.map { proxyService =>
+    new HttpRoutes(
+      swaggerConfig,
+      statusService,
+      proxyService,
+      runtimeService,
+      MockDiskServiceInterp,
+      leoKubernetesService,
+      userInfoDirectives,
+      contentSecurityPolicy,
+      refererConfig
+    )
+  }
+
+  val timedHttpRoutes = proxyServiceResource.map(proxyService =>
+    new HttpRoutes(swaggerConfig,
+                   statusService,
+                   proxyService,
+                   runtimeService,
+                   MockDiskServiceInterp,
+                   leoKubernetesService,
+                   timedUserInfoDirectives,
+                   contentSecurityPolicy,
+                   refererConfig)
   )
-  val timedHttpRoutes = new HttpRoutes(swaggerConfig,
-                                       statusService,
-                                       proxyService,
-                                       runtimeService,
-                                       MockDiskServiceInterp,
-                                       leoKubernetesService,
-                                       timedUserInfoDirectives,
-                                       contentSecurityPolicy,
-                                       refererConfig)
 
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r

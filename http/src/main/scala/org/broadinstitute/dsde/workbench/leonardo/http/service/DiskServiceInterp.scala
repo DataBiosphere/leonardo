@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
+import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.typelevel.log4cats.StructuredLogger
@@ -25,9 +26,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+
 import java.time.Instant
 import java.util.UUID
-
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 
 import scala.concurrent.ExecutionContext
@@ -35,7 +36,7 @@ import scala.concurrent.ExecutionContext
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
                                         serviceAccountProvider: ServiceAccountProvider[F],
-                                        publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
+                                        publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
@@ -82,7 +83,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
               }
             //TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
-            _ <- publisherQueue.enqueue1(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
+            _ <- publisherQueue.offer(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
           } yield ()
       }
     } yield ()
@@ -170,7 +171,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, diskName, ctx.traceId))
       else F.unit
       // delete the disk
-      _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction.void >> publisherQueue.enqueue1(
+      _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction.void >> publisherQueue.offer(
         DeleteDiskMessage(disk.id, Some(ctx.traceId))
       )
 
@@ -208,7 +209,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- if (disk.status.isUpdatable) F.unit
       else
         F.raiseError[Unit](DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = ctx.traceId))
-      _ <- publisherQueue.enqueue1(
+      _ <- publisherQueue.offer(
         UpdateDiskMessage(disk.id, req.size, Some(ctx.traceId))
       )
     } yield ()

@@ -2,10 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.util.UUID
-import cats.effect.{Async, ContextShift, Timer}
+import cats.effect.Async
+import cats.effect.std.Queue
 import cats.syntax.all._
 import fs2.Stream
-import fs2.concurrent.InspectableQueue
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.config.AutoFreezeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.JupyterDAO
@@ -19,10 +19,10 @@ import scala.concurrent.ExecutionContext
 /**
  * This monitor periodically sweeps the Leo database and auto pause clusters that have been running for too long.
  */
-class AutopauseMonitor[F[_]: ContextShift: Timer](
+class AutopauseMonitor[F[_]](
   config: AutoFreezeConfig,
   jupyterDAO: JupyterDAO[F],
-  publisherQueue: InspectableQueue[F, LeoPubsubMessage]
+  publisherQueue: Queue[F, LeoPubsubMessage]
 )(implicit F: Async[F],
   metrics: OpenTelemetryMetrics[F],
   logger: StructuredLogger[F],
@@ -38,7 +38,7 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
   private[monitor] val autoPauseCheck: F[Unit] =
     for {
       clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
-      now <- nowInstant
+      now <- F.realTimeInstant
       pauseableClusters <- clusters.toList.filterA { cluster =>
         jupyterDAO.isAllKernelsIdle(cluster.googleProject, cluster.runtimeName).attempt.flatMap {
           case Left(t) =>
@@ -80,16 +80,14 @@ class AutopauseMonitor[F[_]: ContextShift: Timer](
         for {
           _ <- clusterQuery.updateClusterStatus(cl.id, RuntimeStatus.PreStopping, now).transaction
           _ <- logger.info(Map("traceId" -> traceId.asString))(s"Auto freezing runtime ${cl.projectNameString}")
-          _ <- publisherQueue.enqueue1(LeoPubsubMessage.StopRuntimeMessage(cl.id, Some(traceId)))
+          _ <- publisherQueue.offer(LeoPubsubMessage.StopRuntimeMessage(cl.id, Some(traceId)))
         } yield ()
       }
     } yield ()
 }
 
 object AutopauseMonitor {
-  def apply[F[_]: Timer: ContextShift](config: AutoFreezeConfig,
-                                       jupyterDAO: JupyterDAO[F],
-                                       publisherQueue: InspectableQueue[F, LeoPubsubMessage])(
+  def apply[F[_]](config: AutoFreezeConfig, jupyterDAO: JupyterDAO[F], publisherQueue: Queue[F, LeoPubsubMessage])(
     implicit F: Async[F],
     metrics: OpenTelemetryMetrics[F],
     logger: StructuredLogger[F],

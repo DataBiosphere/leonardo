@@ -4,7 +4,7 @@ package util
 import _root_.org.typelevel.log4cats.StructuredLogger
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
-import cats.effect.{Async, _}
+import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.gax.rpc.ApiException
@@ -74,7 +74,7 @@ final case class GoogleGroupMembershipException(googleGroup: WorkbenchEmail, tra
                          StatusCodes.Conflict,
                          traceId = Some(traceId))
 
-class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
+class DataprocInterpreter[F[_]: Parallel](
   config: DataprocInterpreterConfig,
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
@@ -84,11 +84,9 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
   googleDirectoryDAO: GoogleDirectoryDAO,
   googleIamDAO: GoogleIamDAO,
   googleResourceService: GoogleResourceService[F],
-  welderDao: WelderDAO[F],
-  blocker: Blocker
+  welderDao: WelderDAO[F]
 )(implicit val F: Async[F],
   executionContext: ExecutionContext,
-  contextShift: ContextShift[IO], // needed for IO.fromFuture(...)
   metrics: OpenTelemetryMetrics[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F])
@@ -308,7 +306,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
           LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
           new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
         )
-        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, blocker)
+        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
         _ <- params.runtimeAndRuntimeConfig.runtime.dataprocInstances.find(_.dataprocRole == Master).traverse {
           instance =>
             googleComputeService
@@ -338,7 +336,7 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
       )
-      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, blocker)
+      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
       _ <- googleDataprocService.stopCluster(
         params.runtimeAndRuntimeConfig.runtime.googleProject,
         region,
@@ -365,7 +363,6 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
       metadata <- getStartupScript(params.runtimeAndRuntimeConfig,
                                    params.welderAction,
                                    params.initBucket,
-                                   blocker,
                                    resourceConstraints,
                                    false)
 
@@ -461,24 +458,20 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         s"Checking if Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists..."
       )
       // Check if the group exists
-      groupOpt <- F.liftIO(
-        IO.fromFuture[Option[Group]](
-          IO(googleDirectoryDAO.getGoogleGroup(config.groupsConfig.dataprocImageProjectGroupEmail))
-        )
+      groupOpt <- F.fromFuture[Option[Group]](
+        F.blocking(googleDirectoryDAO.getGoogleGroup(config.groupsConfig.dataprocImageProjectGroupEmail))
       )
       // Create the group if it does not exist
       _ <- groupOpt match {
         case None =>
-          F.liftIO(
-              IO.fromFuture(
-                IO(
-                  googleDirectoryDAO
-                    .createGroup(
-                      config.groupsConfig.dataprocImageProjectGroupName,
-                      config.groupsConfig.dataprocImageProjectGroupEmail,
-                      Option(googleDirectoryDAO.lockedDownGroupSettings)
-                    )
-                )
+          F.fromFuture(
+              F.delay(
+                googleDirectoryDAO
+                  .createGroup(
+                    config.groupsConfig.dataprocImageProjectGroupName,
+                    config.groupsConfig.dataprocImageProjectGroupEmail,
+                    Option(googleDirectoryDAO.lockedDownGroupSettings)
+                  )
               )
             )
             .handleErrorWith {
@@ -500,8 +493,8 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
         s"Attempting to grant 'compute.imageUser' permissions to '${config.groupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
       )
       _ <- retry(
-        F.liftIO(
-          IO(
+        F.fromFuture(
+          F.delay(
             googleIamDAO.addIamRoles(imageProject,
                                      config.groupsConfig.dataprocImageProjectGroupEmail,
                                      MemberType.Group,
@@ -648,13 +641,11 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
                                     createCluster: Boolean): F[Unit] = {
     def retryIam(project: GoogleProject, email: WorkbenchEmail, roles: Set[String]): F[Unit] = {
       val action = if (createCluster) {
-        F.liftIO(
-          IO.fromFuture(IO(googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void))
-        )
+
+        F.fromFuture(F.delay(googleIamDAO.addIamRoles(project, email, MemberType.ServiceAccount, roles).void))
       } else {
-        F.liftIO(
-          IO.fromFuture(IO(googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void))
-        )
+
+        F.fromFuture(F.delay(googleIamDAO.removeIamRoles(project, email, MemberType.ServiceAccount, roles).void))
       }
       retry(action, when409)
     }
@@ -674,15 +665,15 @@ class DataprocInterpreter[F[_]: Timer: Parallel: ContextShift](
     implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     val checkIsMember = retry(
-      F.liftIO(IO.fromFuture(IO(googleDirectoryDAO.isGroupMember(groupEmail, memberEmail)))),
+      F.fromFuture(F.delay(googleDirectoryDAO.isGroupMember(groupEmail, memberEmail))),
       when409
     )
     val addMemberToGroup = retry(
-      F.liftIO(IO.fromFuture(IO(googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail)))),
+      F.fromFuture(F.delay(googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail))),
       when409
     )
     val removeMemberFromGroup = retry(
-      F.liftIO(IO.fromFuture(IO(googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail)))),
+      F.fromFuture(F.delay(googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail))),
       when409
     )
     for {

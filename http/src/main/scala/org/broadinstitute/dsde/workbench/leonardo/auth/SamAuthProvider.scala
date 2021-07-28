@@ -1,17 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package auth
 
-import java.util.UUID
-import java.util.concurrent.TimeUnit
-
 import cats.data.NonEmptyList
-import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect, Sync, Timer}
-import cats.syntax.all._
+import cats.effect.std.Dispatcher
+import cats.effect.{Async, Sync}
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader}
 import fs2.Stream
-import org.typelevel.log4cats.Logger
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
@@ -24,13 +20,16 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
+import org.typelevel.log4cats.Logger
 
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
-class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao: SamDAO[F],
-                                                                         config: SamAuthProviderConfig,
-                                                                         saProvider: ServiceAccountProvider[F],
-                                                                         blocker: Blocker)(implicit cs: ContextShift[F])
+class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](samDao: SamDAO[F],
+                                                          config: SamAuthProviderConfig,
+                                                          saProvider: ServiceAccountProvider[F],
+                                                          dispatcher: Dispatcher[F])(implicit F: Async[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
@@ -46,14 +45,13 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
       new CacheLoader[AuthCacheKey, java.lang.Boolean] {
         override def load(key: AuthCacheKey): java.lang.Boolean = {
           implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
-          checkPermission(key.samResourceType, key.samResource, key.action, key.authorization).toIO
-            .unsafeRunSync()
+          dispatcher.unsafeRunSync(checkPermission(key.samResourceType, key.samResource, key.action, key.authorization))
         }
       }
     )
 
   val recordCacheMetricsProcess: Stream[F, Unit] =
-    CacheMetrics("authCache").process(() => Effect[F].delay(authCache.size), () => Effect[F].delay(authCache.stats))
+    CacheMetrics("authCache").process(() => F.delay(authCache.size), () => F.delay(authCache.stats))
 
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],
@@ -61,14 +59,12 @@ class SamAuthProvider[F[_]: Effect: Logger: Timer: OpenTelemetryMetrics](samDao:
   ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     if (config.authCacheEnabled && sr.cacheableActions.contains(action)) {
-      blocker.blockOn(
-        Effect[F].delay(
-          authCache
-            .get(
-              AuthCacheKey(sr.resourceType, sr.resourceIdAsString(samResource), authHeader, sr.actionAsString(action))
-            )
-            .booleanValue()
-        )
+      F.blocking(
+        authCache
+          .get(
+            AuthCacheKey(sr.resourceType, sr.resourceIdAsString(samResource), authHeader, sr.actionAsString(action))
+          )
+          .booleanValue()
       )
     } else {
       checkPermission(sr.resourceType, sr.resourceIdAsString(samResource), sr.actionAsString(action), authHeader)

@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 import cats.effect.IO
 import cats.Eq
 import cats.syntax.all._
-import fs2.concurrent.InspectableQueue
+import cats.effect.std.Queue
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppStatus,
   AppType,
@@ -50,50 +50,50 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
 
   it should "recover RuntimeStatus.Stopping properly" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Stopping).save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       (msg eqv Some(LeoPubsubMessage.StopRuntimeMessage(runtime.id, None))) shouldBe (true)
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "recover RuntimeStatus.Deleting properly" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Deleting).save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       (msg eqv Some(LeoPubsubMessage.DeleteRuntimeMessage(runtime.id, None, None))) shouldBe (true)
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "recover RuntimeStatus.Starting properly" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       (msg eqv Some(LeoPubsubMessage.StartRuntimeMessage(runtime.id, None))) shouldBe (true)
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "recover RuntimeStatus.Creating properly" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       val runtimeConfigInCreateRuntimeMessage = LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get
       (msg eqv Some(
@@ -104,12 +104,12 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         )
       )) shouldBe (true)
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "recover AppStatus.Provisioning properly with cluster and nodepool creation" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       cluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Provisioning).save())
       nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Provisioning).save())
@@ -119,7 +119,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
       savedApp <- IO(appWithDisk.save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       val expected = CreateAppMessage(
         cluster.googleProject,
@@ -134,12 +134,12 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(expected)) shouldBe true
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "recover AppStatus.Provisioning properly with nodepool creation" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       cluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Provisioning).save())
@@ -148,7 +148,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
       savedApp <- IO(appWithDisk.save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       val expected = CreateAppMessage(
         cluster.googleProject,
@@ -163,12 +163,12 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(expected)) shouldBe true
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "recover AppStatus.Provisioning properly" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       cluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Running).save())
@@ -177,7 +177,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
       savedApp <- IO(appWithDisk.save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       val expected = CreateAppMessage(
         cluster.googleProject,
@@ -192,12 +192,12 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(expected)) shouldBe true
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "recover AppStatus.Deleting properly" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       cluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Deleting).save())
@@ -206,7 +206,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
       savedApp <- IO(appWithDisk.save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       val expected = DeleteAppMessage(
         savedApp.id,
@@ -217,12 +217,12 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(expected)) shouldBe true
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "ignore non-monitored apps" in isolatedDbTest {
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
       monitorAtBoot = createMonitorAtBoot(queue)
       cluster <- IO(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save())
       nodepool <- IO(makeNodepool(2, cluster.id).copy(status = NodepoolStatus.Running).save())
@@ -231,15 +231,16 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
       savedApp <- IO(appWithDisk.save())
       _ <- monitorAtBoot.process.take(1).compile.drain
-      msg <- queue.tryDequeue1
+      msg <- queue.tryTake
     } yield {
       msg shouldBe None
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   def createMonitorAtBoot(
-    queue: InspectableQueue[IO, LeoPubsubMessage] = InspectableQueue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync
+    queue: Queue[IO, LeoPubsubMessage] =
+      Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
   ): MonitorAtBoot[IO] =
     new MonitorAtBoot[IO](queue, org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting)
 }

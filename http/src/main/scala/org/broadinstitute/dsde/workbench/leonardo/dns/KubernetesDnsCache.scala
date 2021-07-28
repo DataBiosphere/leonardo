@@ -1,13 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import akka.http.scaladsl.model.Uri.Host
-import cats.effect.concurrent.Ref
-import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect, Timer}
+import cats.effect.std.Dispatcher
+import cats.effect.{Async, Ref}
 import cats.syntax.all._
 import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
 import fs2.Stream
-import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.AppName
 import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
@@ -18,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.Logger
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
@@ -30,18 +29,20 @@ final case class KubernetesDnsCacheKey(googleProject: GoogleProject, appName: Ap
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
  */
-final class KubernetesDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
+final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   cacheConfig: CacheConfig,
   hostToIpMapping: Ref[F, Map[Host, IP]],
-  blocker: Blocker
-)(implicit F: Effect[F], ec: ExecutionContext) {
+  dispatcher: Dispatcher[F]
+)(implicit F: Async[F], ec: ExecutionContext) {
 
   def getHostStatus(key: KubernetesDnsCacheKey): F[HostStatus] =
-    blocker.blockOn(Effect[F].delay(hostStatusCache.get(key)))
+    F.blocking(hostStatusCache.get(key))
   def size: Long = hostStatusCache.size
   def stats: CacheStats = hostStatusCache.stats
+
+  val underlyingGuavaCache = CacheBuilder.newBuilder().maximumSize(10000L).build[KubernetesDnsCacheKey, HostStatus]
 
   private val hostStatusCache =
     CacheBuilder.newBuilder
@@ -61,14 +62,14 @@ final class KubernetesDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryM
               }
             } yield hostStatus
 
-            res.toIO.unsafeRunSync()
+            dispatcher.unsafeRunSync(res)
           }
         }
       )
 
   val recordCacheMetricsProcess: Stream[F, Unit] =
     CacheMetrics("kubernetesDnsCache")
-      .process(() => Effect[F].delay(hostStatusCache.size), () => Effect[F].delay(hostStatusCache.stats))
+      .process(() => F.delay(hostStatusCache.size), () => F.delay(hostStatusCache.stats))
 
   private def hostStatusByAppResult(appResult: GetAppResult): F[HostStatus] =
     appResult.cluster.asyncFields.map(_.loadBalancerIp) match {

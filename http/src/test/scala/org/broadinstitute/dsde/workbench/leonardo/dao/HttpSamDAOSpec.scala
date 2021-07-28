@@ -2,9 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import java.nio.file.Paths
-
 import cats.effect.IO
-import cats.syntax.all._
+import cats.effect.std.Dispatcher
+import cats.effect.unsafe.implicits.global
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
@@ -55,36 +55,45 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config, blocker)
-    val expectedResponse = StatusCheckResponse(
-      true,
-      Map(
-        OpenDJ -> SubsystemStatus(true, None),
-        GoogleIam -> SubsystemStatus(true, None),
-        GoogleGroups -> SubsystemStatus(true, None),
-        GooglePubSub -> SubsystemStatus(true, None)
+    val res = Dispatcher[IO].use { d =>
+      val samDao = new HttpSamDAO(okSam, config, d)
+      val expectedResponse = StatusCheckResponse(
+        true,
+        Map(
+          OpenDJ -> SubsystemStatus(true, None),
+          GoogleIam -> SubsystemStatus(true, None),
+          GoogleGroups -> SubsystemStatus(true, None),
+          GooglePubSub -> SubsystemStatus(true, None)
+        )
       )
-    )
-    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
+      samDao.getStatus.map(s => s shouldBe expectedResponse)
+    }
+
+    res.unsafeRunSync
   }
 
   it should "get Sam ok status with no systems" in {
-    val okResponse =
-      """
-        |{
-        |  "ok": true,
-        |  "systems": {
-        |  }
-        |}
-        |""".stripMargin
-    val okSam = Client.fromHttpApp[IO](
-      HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
-    )
+    val res = Dispatcher[IO].use { d =>
+      val okResponse =
+        """
+          |{
+          |  "ok": true,
+          |  "systems": {
+          |  }
+          |}
+          |""".stripMargin
+      val okSam = Client.fromHttpApp[IO](
+        HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+      )
 
-    val samDao = new HttpSamDAO(okSam, config, blocker)
-    val expectedResponse = StatusCheckResponse(true, Map.empty)
+      val samDao = new HttpSamDAO(okSam, config, d)
+      val expectedResponse = StatusCheckResponse(true, Map.empty)
 
-    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
+      samDao.getStatus.map(s => s shouldBe expectedResponse)
+    }
+
+    res.unsafeRunSync
+
   }
 
   it should "get Sam unhealthy status with no systems" in {
@@ -107,13 +116,18 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config, blocker)
-    val expectedResponse =
-      StatusCheckResponse(false,
-                          Map(GoogleIam -> SubsystemStatus(true, None),
-                              OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
+    val res = Dispatcher[IO].use { d =>
+      val samDao = new HttpSamDAO(okSam, config, d)
+      val expectedResponse =
+        StatusCheckResponse(false,
+                            Map(GoogleIam -> SubsystemStatus(true, None),
+                                OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
 
-    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
+      samDao.getStatus.map(s => s shouldBe expectedResponse)
+    }
+
+    res.unsafeRunSync
+
   }
 
   it should "throws exception once client times out" in {
@@ -125,15 +139,18 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       }
     )
     val clientWithRetry = Retry(retryPolicy)(errorSam)
-    val samDao = new HttpSamDAO(clientWithRetry, config, blocker)
 
-    val res = for {
-      result <- samDao.getStatus.attempt
-    } yield {
-      result shouldBe Left(FakeException("retried 5 times"))
+    val res = Dispatcher[IO].use { d =>
+      val samDao = new HttpSamDAO(clientWithRetry, config, d)
+
+      for {
+        result <- samDao.getStatus.attempt
+      } yield {
+        result shouldBe Left(FakeException("retried 5 times"))
+      }
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 }
 

@@ -1,9 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
-import java.util.concurrent.TimeoutException
-import cats.syntax.all._
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
+import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GoogleDiskService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
@@ -12,13 +12,12 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, R
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials}
+import org.http4s.{AuthScheme, Credentials, Status}
+import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
+import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
-import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.http4s.Status
-import org.scalatest.tagobjects.Retryable
 
 @DoNotDiscover
 class RuntimeCreationDiskSpec
@@ -34,8 +33,6 @@ class RuntimeCreationDiskSpec
       withRetry(super.withFixture(test))
     else
       super.withFixture(test)
-
-  val zone = ZoneName("us-central1-a")
 
   val dependencies = for {
     diskService <- googleDiskService
@@ -79,7 +76,7 @@ class RuntimeCreationDiskSpec
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
       } yield ()
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   "create runtime with SSD disk" in { googleProject =>
@@ -145,7 +142,7 @@ class RuntimeCreationDiskSpec
         // Validate disk is detached
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
         ioa = getRuntime(googleProject, runtimeName).attempt
-        res <- testTimer.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
+        res <- IO.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
         _ <- if (res.isDone) IO.unit
         else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
         disk <- LeonardoApiClient.getDisk(googleProject, diskName)
@@ -159,7 +156,7 @@ class RuntimeCreationDiskSpec
         ) //assume we won't have multiple disks with same name in the same project in tests
       }
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   "create runtime and attach an existing persistent disk" taggedAs Retryable in { googleProject =>
@@ -251,7 +248,7 @@ class RuntimeCreationDiskSpec
       }
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 }
 

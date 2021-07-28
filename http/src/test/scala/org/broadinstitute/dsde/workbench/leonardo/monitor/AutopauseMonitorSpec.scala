@@ -2,15 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.temporal.ChronoUnit
-
+import cats.syntax.all._
 import cats.effect.IO
-import cats.effect.concurrent.Deferred
+import cats.effect.Deferred
 import fs2.Stream
-import fs2.concurrent.InspectableQueue
+import cats.effect.std.Queue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{JupyterDAO, MockJupyterDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO}
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -26,8 +26,8 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     }
 
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
-      now <- nowInstant
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
+      now <- IO.realTimeInstant
       runningRuntime <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Running,
@@ -37,13 +37,13 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
-      event <- queue.tryDequeue1
+      event <- queue.tryTake
     } yield {
       status.get shouldBe (RuntimeStatus.PreStopping)
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "not auto freeze the cluster if jupyter kernel is still running" in isolatedDbTest {
@@ -53,8 +53,8 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     }
 
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
-      now <- nowInstant
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
+      now <- IO.realTimeInstant
       runningRuntime <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Running,
@@ -64,13 +64,13 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
-      event <- queue.tryDequeue1
+      event <- queue.tryTake
     } yield {
       status.get shouldBe (RuntimeStatus.Running)
       event shouldBe (None)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "auto freeze the cluster if we fail to get jupyter kernel status" in isolatedDbTest {
@@ -80,8 +80,8 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     }
 
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
-      now <- nowInstant
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
+      now <- IO.realTimeInstant
       runningRuntime <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Running,
@@ -91,13 +91,13 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
-      event <- queue.tryDequeue1
+      event <- queue.tryTake
     } yield {
       status.get shouldBe (RuntimeStatus.PreStopping)
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "auto freeze the cluster if the max kernel busy time is exceeded" in isolatedDbTest {
@@ -107,8 +107,8 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
     }
 
     val res = for {
-      queue <- InspectableQueue.bounded[IO, LeoPubsubMessage](10)
-      now <- nowInstant
+      queue <- Queue.bounded[IO, LeoPubsubMessage](10)
+      now <- IO.realTimeInstant
       runningRuntime <- IO(
         makeCluster(1)
           .copy(
@@ -122,22 +122,22 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
       status <- clusterQuery.getClusterStatus(runningRuntime.id).transaction
-      event <- queue.tryDequeue1
+      event <- queue.tryTake
     } yield {
       status.get shouldBe (RuntimeStatus.PreStopping)
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   private def monitor(
     jupyterDAO: JupyterDAO[IO] = MockJupyterDAO,
-    publisherQueue: InspectableQueue[IO, LeoPubsubMessage]
+    publisherQueue: Queue[IO, LeoPubsubMessage]
   )(waitDuration: FiniteDuration): IO[Unit] = {
     val monitor = AutopauseMonitor[IO](autoFreezeConfig, jupyterDAO, publisherQueue)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
-      val signal = Stream.sleep(waitDuration).evalMap(_ => signalToStop.complete(()))
+      val signal = Stream.sleep[IO](waitDuration).evalMap(_ => signalToStop.complete(())).void
       val p = Stream(monitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)
         .parJoin(3)
       p ++ Stream.eval(signalToStop.get)

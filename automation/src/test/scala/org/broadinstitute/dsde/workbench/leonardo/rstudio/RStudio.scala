@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.Referer
-import cats.effect.{IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoConfig, ProxyRedirectClient, RuntimeName}
@@ -17,13 +16,14 @@ object RStudio extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  private val refererUrl = ProxyRedirectClient.baseUri.map(_.renderString).unsafeRunSync()
+  private val refererUrl =
+    ProxyRedirectClient.baseUri.renderString
 
-  def rstudioPath(googleProject: GoogleProject, clusterName: RuntimeName): String =
+  private def rstudioPath(googleProject: GoogleProject, clusterName: RuntimeName): String =
     s"proxy/${googleProject.value}/${clusterName.asString}/rstudio/"
 
-  def get(googleProject: GoogleProject,
-          clusterName: RuntimeName)(implicit token: AuthToken, webDriver: WebDriver, timer: Timer[IO]): RStudioPage = {
+  def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken,
+                                                                  webDriver: WebDriver): RStudioPage = {
     val path = rstudioPath(googleProject, clusterName)
     logger.info(s"Get rstudio: GET /$path")
     new RStudioPage(url + path)

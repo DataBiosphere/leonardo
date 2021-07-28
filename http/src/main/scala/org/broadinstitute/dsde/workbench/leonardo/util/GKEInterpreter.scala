@@ -3,12 +3,11 @@ package leonardo
 package util
 
 import _root_.org.typelevel.log4cats.StructuredLogger
-import cats.Parallel
-import cats.effect.{Async, Blocker, ConcurrentEffect, ContextShift, IO, Timer}
+import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.cloud.compute.v1.{Disk, Operation}
+import com.google.cloud.compute.v1.Disk
 import com.google.container.v1._
 import org.broadinstitute.dsde.workbench.DoneCheckableInstances._
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
@@ -34,23 +33,23 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO, CustomAppService}
-import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, kubernetesClusterQuery, nodepoolQuery, _}
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.PubsubKubernetesError
+import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra._
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp._
 import org.http4s.Uri
+
 import java.util.Base64
-
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
-class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
+class GKEInterpreter[F[_]](
   config: GKEInterpreterConfig,
   vpcAlg: VPCAlgebra[F],
   gkeService: org.broadinstitute.dsde.workbench.google2.GKEService[F],
@@ -61,13 +60,8 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
   googleIamDAO: GoogleIamDAO,
   googleDiskService: GoogleDiskService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
-  blocker: Blocker,
   nodepoolLock: KeyLock[F, KubernetesClusterId]
-)(implicit val executionContext: ExecutionContext,
-  contextShift: ContextShift[IO],
-  logger: StructuredLogger[F],
-  dbRef: DbReference[F],
-  F: ConcurrentEffect[F])
+)(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
     extends GKEAlgebra[F] {
 
   override def createCluster(params: CreateClusterParams)(
@@ -171,9 +165,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Polling cluster creation for cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
-      defaultNodepool <- F.fromOption(dbCluster.nodepools.find(_.isDefault),
-                                      DefaultNodepoolNotFoundException(dbCluster.id))
-
+      _ <- F.fromOption(dbCluster.nodepools.find(_.isDefault), DefaultNodepoolNotFoundException(dbCluster.id))
       // Poll GKE until completion
       lastOp <- gkeService
         .pollOperation(
@@ -267,7 +259,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         for {
           opOpt <- gkeService.createNodepool(req)
           lastOpOpt <- opOpt.traverse { op =>
-            Timer[F].sleep(10 seconds) >> gkeService
+            F.sleep(10 seconds) >> gkeService
               .pollOperation(
                 KubernetesOperationId(params.googleProject, dbCluster.location, op.getName),
                 config.monitorConfig.nodepoolCreate.interval,
@@ -355,14 +347,12 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       // This string is constructed based on Google requirements to associate a GSA to a KSA
       // (https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identity#creating_a_relationship_between_ksas_and_gsas)
       ksaToGsa = s"${googleProject.value}.svc.id.goog[${namespaceName.value}/${ksaName.value}]"
-      call = Async[F].liftIO(
-        IO.fromFuture(
-          IO(
-            googleIamDAO.addIamPolicyBindingOnServiceAccount(googleProject,
-                                                             gsa,
-                                                             WorkbenchEmail(ksaToGsa),
-                                                             Set("roles/iam.workloadIdentityUser"))
-          )
+      call = F.fromFuture(
+        F.delay(
+          googleIamDAO.addIamPolicyBindingOnServiceAccount(googleProject,
+                                                           gsa,
+                                                           WorkbenchEmail(ksaToGsa),
+                                                           Set("roles/iam.workloadIdentityUser"))
         )
       )
       retryConfig = RetryPredicates.retryConfigWithPredicates(
@@ -509,7 +499,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         s"Beginning nodepool deletion for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
-      operationOpt <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
+      _ <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
         for {
           operationOpt <- gkeService.deleteNodepool(
             NodepoolId(dbCluster.getGkeClusterId, dbNodepool.nodepoolName)
@@ -823,22 +813,6 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
       }
     } yield ()
 
-  private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName, dataDiskName: DiskName): Disk =
-    Disk
-      .newBuilder()
-      .setName(getGalaxyPostgresDiskName(dataDiskName).value)
-      .setZone(zone.value)
-      .setSizeGb(config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString)
-      .setPhysicalBlockSizeBytes(config.galaxyDiskConfig.postgresDiskBlockSize.bytes.toString)
-      .putAllLabels(Map("leonardo" -> "true").asJava)
-      .build()
-
-  private[leonardo] def getGalaxyPostgresDiskName(dataDiskName: DiskName): DiskName =
-    DiskName(s"${dataDiskName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
-
-  private[leonardo] def getOldStyleGalaxyPostgresDiskName(namespaceName: NamespaceName): DiskName =
-    DiskName(s"${namespaceName.value}-${config.galaxyDiskConfig.postgresDiskNameSuffix}")
-
   private[leonardo] def getGalaxyPostgresDisk(diskName: DiskName,
                                               namespaceName: NamespaceName,
                                               project: GoogleProject,
@@ -848,32 +822,16 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
         .getDisk(
           project,
           zone,
-          getGalaxyPostgresDiskName(diskName)
+          getGalaxyPostgresDiskName(diskName, config.galaxyDiskConfig.postgresDiskNameSuffix)
         )
       res <- postgresDiskOpt match {
         case Some(disk) => F.pure(Some(disk))
         case None =>
-          googleDiskService.getDisk(project, zone, getOldStyleGalaxyPostgresDiskName(namespaceName))
-      }
-    } yield res
-
-  private[leonardo] def deleteGalaxyPostgresDisk(
-    diskName: DiskName,
-    namespaceName: NamespaceName,
-    project: GoogleProject,
-    zone: ZoneName
-  )(implicit traceId: Ask[F, AppContext]): F[Option[Operation]] =
-    for {
-      postgresDiskOpt <- googleDiskService
-        .deleteDisk(
-          project,
-          zone,
-          getGalaxyPostgresDiskName(diskName)
-        )
-      res <- postgresDiskOpt match {
-        case Some(operation) => F.pure(Some(operation))
-        case None =>
-          googleDiskService.deleteDisk(project, zone, getOldStyleGalaxyPostgresDiskName(namespaceName))
+          googleDiskService.getDisk(
+            project,
+            zone,
+            getOldStyleGalaxyPostgresDiskName(namespaceName, config.galaxyDiskConfig.postgresDiskNameSuffix)
+          )
       }
     } yield res
 
@@ -1130,8 +1088,7 @@ class GKEInterpreter[F[_]: Parallel: ContextShift: Timer](
 
       // The helm client requires the ca cert passed as a file - hence writing a temp file before helm invocation.
       caCertFile <- writeTempFile(s"gke_ca_cert_${dbCluster.id}_${now.toEpochMilli}",
-                                  Base64.getDecoder.decode(googleCluster.getMasterAuth.getClusterCaCertificate),
-                                  blocker)
+                                  Base64.getDecoder.decode(googleCluster.getMasterAuth.getClusterCaCertificate))
 
       helmAuthContext = AuthContext(
         org.broadinstitute.dsp.Namespace(namespaceName.value),

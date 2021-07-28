@@ -2,20 +2,19 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 package google
 
-import cats.effect.concurrent.Semaphore
-import cats.effect.{Async, Blocker, ContextShift, Resource, Sync, Timer}
+import cats.effect.std.Semaphore
+import cats.effect.{Async, Resource, Sync}
 import cats.mtl.Ask
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.services.oauth2.Oauth2
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.typelevel.log4cats.StructuredLogger
 
 trait GoogleOAuth2Service[F[_]] {
   def getUserInfoFromToken(accessToken: String)(implicit ev: Ask[F, TraceId]): F[UserInfo]
 }
 object GoogleOAuth2Service {
-  def resource[F[_]: Async: ContextShift: Timer: StructuredLogger](
-    blocker: Blocker,
+  def resource[F[_]: Async: StructuredLogger](
     blockerBound: Semaphore[F]
   ): Resource[F, GoogleOAuth2Service[F]] =
     for {
@@ -25,5 +24,5 @@ object GoogleOAuth2Service {
       client = new Oauth2.Builder(httpTransport, jsonFactory, null)
         .setApplicationName("leonardo")
         .build()
-    } yield new GoogleOAuth2Interpreter[F](client, blocker, blockerBound)
+    } yield new GoogleOAuth2Interpreter[F](client, blockerBound)
 }

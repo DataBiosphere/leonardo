@@ -1,16 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import cats.effect.{Async, Effect, Timer}
+import cats.effect.Async
 import cats.syntax.all._
 import com.google.common.cache.CacheStats
 import fs2.Stream
-import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.Logger
 
 import scala.concurrent.duration._
 
 class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implicit F: Async[F],
-                                                                          timer: Timer[F],
                                                                           metrics: OpenTelemetryMetrics[F],
                                                                           logger: Logger[F]) {
   def process(sizeF: () => F[Long], statsF: () => F[CacheStats]): Stream[F, Unit] =
@@ -32,7 +31,7 @@ class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implic
     } yield ()
 }
 object CacheMetrics {
-  def apply[F[_]: Timer: Effect: OpenTelemetryMetrics: Logger](name: String,
-                                                               interval: FiniteDuration = 1 minute): CacheMetrics[F] =
+  def apply[F[_]: Async: OpenTelemetryMetrics: Logger](name: String,
+                                                       interval: FiniteDuration = 1 minute): CacheMetrics[F] =
     new CacheMetrics(name, interval)
 }

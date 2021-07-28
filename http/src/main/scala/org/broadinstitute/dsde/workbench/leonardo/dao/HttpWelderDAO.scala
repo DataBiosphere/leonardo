@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import cats.effect.{Concurrent, ContextShift, Timer}
+import cats.effect.Async
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
@@ -11,7 +11,7 @@ import org.http4s.client.Client
 import org.http4s.{Method, Request, Uri}
 import org.typelevel.log4cats.Logger
 
-class HttpWelderDAO[F[_]: Concurrent: Timer: ContextShift: Logger](
+class HttpWelderDAO[F[_]: Async: Logger](
   val runtimeDnsCache: RuntimeDnsCache[F],
   client: Client[F]
 )(

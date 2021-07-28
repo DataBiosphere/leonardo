@@ -8,6 +8,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
+import cats.effect.std.Queue
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
@@ -60,7 +61,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            googleStorageService: GoogleStorageService[F],
                                            googleComputeService: GoogleComputeService[F],
                                            computePollOperation: ComputePollOperation[F],
-                                           publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
+                                           publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
@@ -198,7 +199,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeConfigToSave = LeoLenses.runtimeConfigPrism.reverseGet(runtimeConfig)
             saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
-            _ <- publisherQueue.enqueue1(
+            _ <- publisherQueue.offer(
               CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
             )
           } yield ()
@@ -357,7 +358,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // caller must manually delete the disk in this situation. We have the same behavior for apps.
       _ <- if (runtime.asyncRuntimeFields.isDefined) {
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreDeleting, ctx.now).transaction >> publisherQueue
-          .enqueue1(
+          .offer(
             DeleteRuntimeMessage(runtime.id, persistentDiskToDelete, Some(ctx.traceId))
           )
       } else {
@@ -375,7 +376,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       // throw 404 if not existent
-      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      runtimeOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(googleProject, runtimeName)(scala.concurrent.ExecutionContext.global)
+        .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Finish query for active runtime")))
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](
@@ -412,7 +415,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       else if (runtime.status.isStoppable) {
         for {
           _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStopping, ctx.now).transaction
-          _ <- publisherQueue.enqueue1(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
+          _ <- publisherQueue.offer(StopRuntimeMessage(runtime.id, Some(ctx.traceId)))
 
         } yield ()
       } else
@@ -425,7 +428,9 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       ctx <- as.ask
       // throw 404 if not existent
-      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(googleProject, runtimeName).transaction
+      runtimeOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(googleProject, runtimeName)(scala.concurrent.ExecutionContext.global)
+        .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done query for active runtime")))
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
@@ -460,7 +465,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // start the runtime
       ctx <- as.ask
       _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStarting, ctx.now).transaction
-      _ <- publisherQueue.enqueue1(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
+      _ <- publisherQueue.offer(StartRuntimeMessage(runtime.id, Some(ctx.traceId)))
     } yield ()
 
   override def updateRuntime(
@@ -715,7 +720,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            None,
                                            None,
                                            Some(traceId))
-        publisherQueue.enqueue1(message).as(message)
+        publisherQueue.offer(message).as(message)
       }
       // we only need to return the message that might cause a start/stop transition
     } yield msg
@@ -789,7 +794,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             targetNumPreemptibles,
             Some(context.traceId)
           )
-          publisherQueue.enqueue1(message).as(message)
+          publisherQueue.offer(message).as(message)
         }
     } yield msg
 

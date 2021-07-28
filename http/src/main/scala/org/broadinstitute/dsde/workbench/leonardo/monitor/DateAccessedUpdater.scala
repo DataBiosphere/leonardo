@@ -1,27 +1,26 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
-import java.time.Instant
-
 import cats.data.Chain
-import cats.effect.{Concurrent, ContextShift, Timer}
+import cats.effect.Async
+import cats.effect.std.Queue
 import cats.syntax.all._
 import fs2.Stream
-import fs2.concurrent.InspectableQueue
-import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.Logger
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration.FiniteDuration
 
-class DateAccessedUpdater[F[_]: ContextShift: Timer](
+class DateAccessedUpdater[F[_]](
   config: DateAccessedUpdaterConfig,
-  queue: InspectableQueue[F, UpdateDateAccessMessage]
-)(implicit F: Concurrent[F],
+  queue: Queue[F, UpdateDateAccessMessage]
+)(implicit F: Async[F],
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F],
   logger: Logger[F],
@@ -34,14 +33,16 @@ class DateAccessedUpdater[F[_]: ContextShift: Timer](
     )).repeat
 
   private[monitor] val check: F[Unit] =
-    queue.tryDequeueChunk1(config.maxUpdate).flatMap { chunks =>
-      chunks
-        .traverse(c =>
-          messagesToUpdate(c.toChain)
-            .traverse(updateDateAccessed)
-        )
-        .void
-    }
+    Stream
+      .fromQueueUnterminated(queue)
+      .chunkLimit(config.maxUpdate)
+      .evalMap { chunk =>
+        messagesToUpdate(chunk.toChain)
+          .traverse(updateDateAccessed)
+          .void
+      }
+      .compile
+      .drain
 
   private def updateDateAccessed(msg: UpdateDateAccessMessage): F[Unit] =
     metrics.incrementCounter("jupyterAccessCount") >>

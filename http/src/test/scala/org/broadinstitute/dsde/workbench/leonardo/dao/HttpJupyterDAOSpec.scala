@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
+import cats.effect.IO
+import cats.effect.std.Dispatcher
 import io.circe.parser
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -48,11 +50,15 @@ class HttpJupyterDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuit
   }
 
   it should "return true for isAllKernelsIdle if host is down" in {
-    val clusterDnsCache =
-      new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, hostToIpMapping, blocker)
+    val res = Dispatcher[IO].use { d =>
+      val clusterDnsCache =
+        new RuntimeDnsCache(proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, hostToIpMapping, d)
 
-    val jupyterDAO = new HttpJupyterDAO(clusterDnsCache, FakeHttpClient.client)
-    val res = jupyterDAO.isAllKernelsIdle(GoogleProject("project1"), RuntimeName("rt"))
-    res.unsafeRunSync() shouldBe (true)
+      val jupyterDAO = new HttpJupyterDAO(clusterDnsCache, FakeHttpClient.client)
+      val res = jupyterDAO.isAllKernelsIdle(GoogleProject("project1"), RuntimeName("rt"))
+      res.map(r => r shouldBe true)
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 }

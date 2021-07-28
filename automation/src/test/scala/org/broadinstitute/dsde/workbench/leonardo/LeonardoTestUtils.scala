@@ -1,8 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
-import cats.effect.concurrent.Semaphore
-import cats.effect.IO
+import cats.effect.std.Semaphore
+import cats.effect.{IO, Ref}
+import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
@@ -27,7 +28,8 @@ import org.broadinstitute.dsde.workbench.util._
 import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
-import org.scalatest.Suite
+import org.http4s.server.Server
+import org.scalatest.{Suite, TestSuite}
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
@@ -54,7 +56,7 @@ trait LeonardoTestUtils
     with ScalaFutures
     with Retry
     with RandomUtil {
-  this: Suite =>
+  this: TestSuite =>
 
   val system: ActorSystem = ActorSystem("leotests")
   val logDir = new File("output")
@@ -88,21 +90,22 @@ trait LeonardoTestUtils
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
   )
 
-  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker)
+  val google2StorageResource = GoogleStorageService.resource[IO](LeonardoConfig.GCS.pathToQAJson)
   val googleDiskService =
-    GoogleDiskService.resource[IO](LeonardoConfig.GCS.pathToQAJson, blocker, Semaphore[IO](10).unsafeRunSync())
-  val concurrentClusterCreationPermits
-    : Semaphore[IO] = Semaphore[IO](5).unsafeRunSync() //Since we're using the same google project, we can reach bucket creation quota limit
+    GoogleDiskService.resource[IO](LeonardoConfig.GCS.pathToQAJson, Semaphore[IO](10).unsafeRunSync())
+  val concurrentClusterCreationPermits: Semaphore[IO] = Semaphore[IO](5).unsafeRunSync()(
+    cats.effect.unsafe.implicits.global
+  ) //Since we're using the same google project, we can reach bucket creation quota limit
 
   val googleComputeService =
-    GoogleComputeService.resource(LeonardoConfig.GCS.pathToQAJson, blocker, Semaphore[IO](10).unsafeRunSync())
+    GoogleComputeService.resource(LeonardoConfig.GCS.pathToQAJson,
+                                  Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.implicits.global))
   val googleDataprocService = for {
     compute <- googleComputeService
     dp <- GoogleDataprocService
       .resource(
         compute,
         LeonardoConfig.GCS.pathToQAJson,
-        blocker,
         semaphore,
         Set(RegionName("us-central1"), RegionName("europe-west1"))
       )
@@ -303,7 +306,7 @@ trait LeonardoTestUtils
     val res = LeonardoApiClient.client.use { c =>
       implicit val client: Client[IO] = c
       for {
-        _ <- concurrentClusterCreationPermits.withPermit(
+        _ <- concurrentClusterCreationPermits.permit.use(_ =>
           LeonardoApiClient.createRuntime(
             googleProject,
             runtimeName,
@@ -316,7 +319,7 @@ trait LeonardoTestUtils
       } yield resp
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   def monitorCreateRuntime(
@@ -449,7 +452,7 @@ trait LeonardoTestUtils
       LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
     }
 
-    waitForRunning.unsafeRunSync()
+    waitForRunning.unsafeRunSync()(cats.effect.unsafe.implicits.global)
 
     logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
     val getResult = Try(Notebook.getApi(googleProject, runtimeName))
@@ -547,7 +550,7 @@ trait LeonardoTestUtils
       } else IO(logger.info(s"not going to delete runtime ${googleProject}/${cluster.clusterName}"))
     } yield t
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   def withNewErroredRuntime[T](

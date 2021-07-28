@@ -1,12 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.http.scaladsl.model.Uri.Host
-import cats.effect.{Blocker, ContextShift, Resource, Sync}
+import cats.effect.{Resource, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
 import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
+import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthy
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
 import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
@@ -22,7 +23,7 @@ import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
 import shapeless._
 import slick.dbio.DBIO
 
-import java.nio.file.{Files, Path}
+import java.nio.file.Path
 import java.sql.SQLDataException
 
 package object http {
@@ -35,27 +36,27 @@ package object http {
   implicit def cloudServiceOps(cloudService: CloudService): CloudServiceOps = new CloudServiceOps(cloudService)
 
   val serviceData = ServiceData(Some("leonardo"), BuildTimeVersion.version)
-  def readFileToString[F[_]: Sync: ContextShift](path: Path, blocker: Blocker): F[String] =
-    io.file
-      .readAll[F](path, blocker, 4096)
-      .through(text.utf8Decode)
+  def readFileToString[F[_]: Sync: Files](path: Path): F[String] =
+    Files[F]
+      .readAll(fs2.io.file.Path.fromNioPath(path))
+      .through(text.utf8.decode)
       .through(text.lines)
       .fold(List.empty[String]) { case (acc, str) => str :: acc }
       .map(_.reverse.mkString("\n"))
       .compile
       .lastOrError
 
-  def readFileToBytes[F[_]: Sync: ContextShift](path: Path, blocker: Blocker): F[List[Byte]] =
-    io.file
-      .readAll(path, blocker, 4096)
+  def readFileToBytes[F[_]: Sync: Files](path: Path): F[List[Byte]] =
+    Files[F]
+      .readAll(fs2.io.file.Path.fromNioPath(path))
       .compile
       .to(List)
 
-  def writeTempFile[F[_]: Sync: ContextShift](prefix: String, data: Array[Byte], blocker: Blocker): F[Path] =
+  def writeTempFile[F[_]: Sync: Files](prefix: String, data: Array[Byte]): F[Path] =
     for {
-      path <- Sync[F].delay(Files.createTempFile(prefix, null))
+      path <- Sync[F].delay(java.nio.file.Files.createTempFile(prefix, null))
       _ <- Sync[F].delay(path.toFile.deleteOnExit())
-      _ <- Stream.emits(data).through(io.file.writeAll(path, blocker)).compile.drain
+      _ <- Stream.emits(data).through(Files[F].writeAll(fs2.io.file.Path.fromNioPath(path))).compile.drain
     } yield path
 
   // This hostname is used by the ProxyService and also needs to be specified in the Galaxy ingress resource

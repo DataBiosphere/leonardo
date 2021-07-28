@@ -106,7 +106,7 @@ abstract class RuntimeFixtureSpec
       }
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   /**

@@ -1,17 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
-import java.time.Instant
-
-import cats.effect.concurrent.Semaphore
+import cats.effect.std.Semaphore
 import cats.effect.{IO, Resource}
-import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfig}
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
   CommonTestData,
   DefaultNodepool,
   GcsPathUtils,
   KubernetesCluster,
+  KubernetesClusterLeoId,
   LeonardoTestSuite,
   Nodepool,
   PersistentDisk,
@@ -27,6 +26,7 @@ import slick.basic.DatabaseConfig
 import slick.dbio.DBIO
 import slick.jdbc.JdbcProfile
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
@@ -42,7 +42,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true)
 
   // Not using beforeAll because the dbRef is needed before beforeAll is called
-  implicit protected lazy val testDbRef: DbRef[IO] = initDbRef.unsafeRunSync()
+  implicit protected lazy val testDbRef: DbRef[IO] = initDbRef.unsafeRunSync()(cats.effect.unsafe.implicits.global)
 
   override def afterAll(): Unit = {
     testDbRef.close()
@@ -66,11 +66,19 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
           sys.props.put(initWithLiquibaseProp, "done")
         )
       else IO.unit
-    } yield new DbRef[IO](dbConfig, db, concurrentPermits, blocker)
+    } yield new DbRef[IO](dbConfig, db, concurrentPermits)
 
-  def dbFutureValue[T](f: DBIO[T]): T = testDbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()
+  def dbFutureValue[T](f: DBIO[T]): T =
+    testDbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()(cats.effect.unsafe.implicits.global)
   def dbFailure[T](f: DBIO[T]): Throwable =
-    testDbRef.inTransaction(f).attempt.timeout(30 seconds).unsafeRunSync().swap.toOption.get
+    testDbRef
+      .inTransaction(f)
+      .attempt
+      .timeout(30 seconds)
+      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .swap
+      .toOption
+      .get
 
   // clean up after tests
   def isolatedDbTest[T](testCode: => T): T =
@@ -140,6 +148,30 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
               c.nodepools.headOption
                 .getOrElse(throw new Exception("test clusters to be saved must have at least 1 nodepool"))
             )
+          )
+        )
+      }
+
+    def saveWithOutDefaultNodepool(): KubernetesCluster =
+      dbFutureValue {
+        kubernetesClusterQuery.save(
+          KubernetesClusterRecord(
+            KubernetesClusterLeoId(0),
+            c.googleProject,
+            c.clusterName,
+            c.location,
+            c.region,
+            c.status,
+            c.auditInfo.creator,
+            c.auditInfo.createdDate,
+            c.auditInfo.destroyedDate.getOrElse(dummyDate),
+            c.auditInfo.dateAccessed,
+            c.ingressChart,
+            None,
+            None,
+            None,
+            None,
+            None
           )
         )
       }

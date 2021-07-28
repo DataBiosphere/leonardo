@@ -26,6 +26,6 @@ class PatchComponentSpec extends AnyFlatSpecLike with TestComponent {
       r3 shouldBe (1)
       r4 shouldBe (Some(MachineTypeName("machineType2")))
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 }

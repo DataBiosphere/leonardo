@@ -1,26 +1,25 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
-import java.time.Instant
-import java.util.UUID
 import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.server.Directive1
-import akka.http.scaladsl.server.Directives.provide
-import akka.http.scaladsl.server.Directives.optionalHeaderValueByName
-import cats.effect.IO
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import akka.http.scaladsl.server.Directives.{optionalHeaderValueByName, provide}
 import akka.http.scaladsl.server.PathMatchers.Segment
+import cats.effect.IO
 import cats.mtl.Ask
 import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
-import org.broadinstitute.dsde.workbench.leonardo.{traceIdHeaderString, AppContext, AppName, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
+import org.broadinstitute.dsde.workbench.leonardo.{traceIdHeaderString, AppContext, AppName, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import java.time.Instant
+import java.util.UUID
 import scala.concurrent.Future
 
 package object api {
   implicit def ioMarshaller[A, B](implicit m: Marshaller[Future[A], B]): Marshaller[IO[A], B] =
-    Marshaller(implicit ec => (x => m(x.unsafeToFuture())))
+    Marshaller(implicit ec => (x => m(x.unsafeToFuture()(cats.effect.unsafe.implicits.global))))
 
   val googleProjectSegment = Segment.map(GoogleProject)
   val runtimeNameSegment = Segment.map(RuntimeName)
@@ -38,7 +37,7 @@ package object api {
   }
 
   def extractAppContext(span: Option[Span], requestUri: String = ""): Directive1[Ask[IO, AppContext]] =
-    optionalHeaderValueByName(traceIdHeaderString).map {
+    optionalHeaderValueByName(traceIdHeaderString.toString).map {
       case uuidOpt =>
         val traceId = uuidOpt.getOrElse(UUID.randomUUID().toString)
         val now = Instant.now()
@@ -49,5 +48,5 @@ package object api {
 
 object ImplicitConversions {
   implicit def ioToFuture[A](ioa: IO[A]): Future[A] =
-    ioa.unsafeToFuture()
+    ioa.unsafeToFuture()(cats.effect.unsafe.implicits.global)
 }

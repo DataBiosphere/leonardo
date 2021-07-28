@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
+import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
@@ -38,7 +39,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
   protected val authProvider: LeoAuthProvider[F],
   protected val serviceAccountProvider: ServiceAccountProvider[F],
   protected val leoKubernetesConfig: LeoKubernetesConfig,
-  protected val publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage]
+  protected val publisherQueue: Queue[F, LeoPubsubMessage]
 )(
   implicit F: Async[F],
   log: StructuredLogger[F],
@@ -226,7 +227,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         app.appResources.namespace.name,
         Some(ctx.traceId)
       )
-      _ <- publisherQueue.enqueue1(createAppMessage)
+      _ <- publisherQueue.offer(createAppMessage)
     } yield ()
 
   override def getApp(
@@ -342,7 +343,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
             diskOpt,
             Some(ctx.traceId)
           )
-          _ <- publisherQueue.enqueue1(deleteMessage)
+          _ <- publisherQueue.offer(deleteMessage)
         } yield ()
       }
     } yield ()
@@ -380,7 +381,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         appResult.cluster.googleProject,
         Some(ctx.traceId)
       )
-      _ <- publisherQueue.enqueue1(message)
+      _ <- publisherQueue.offer(message)
     } yield ()
 
   def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
@@ -416,7 +417,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         appResult.cluster.googleProject,
         Some(ctx.traceId)
       )
-      _ <- publisherQueue.enqueue1(message)
+      _ <- publisherQueue.offer(message)
     } yield ()
 
   private[service] def getSavableCluster(

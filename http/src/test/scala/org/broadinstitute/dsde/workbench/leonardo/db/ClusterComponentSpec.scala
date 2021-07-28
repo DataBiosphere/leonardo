@@ -284,7 +284,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     patchQuery
       .save(RuntimePatchDetails(savedCluster4.id, savedCluster4.status), Some(MachineTypeName("machineType")))
       .transaction
-      .unsafeRunSync()
+      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
 
     val expectedRuntimeToMonitor = List(
       RuntimeToMonitor(savedCluster1.id, CloudService.Dataproc, RuntimeStatus.Starting, false),
@@ -354,7 +354,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       error.isLeft shouldBe true
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "save and get deletedFrom" in isolatedDbTest {
@@ -368,6 +368,6 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       deletedFrom shouldBe Some("zombieMonitor")
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 }

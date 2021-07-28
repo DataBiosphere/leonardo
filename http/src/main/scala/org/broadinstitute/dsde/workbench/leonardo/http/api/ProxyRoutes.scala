@@ -10,24 +10,23 @@ import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.stream.Materializer
-import cats.effect.{ContextShift, IO}
-import cats.syntax.all._
+import cats.effect.IO
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
+import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeContainerServiceType, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
+import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeContainerServiceType, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
-  cs: ContextShift[IO],
   metrics: OpenTelemetryMetrics[IO]
 ) extends LazyLogging {
   val route: Route =
@@ -144,8 +143,10 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    */
   private def extractUserInfoOpt: Directive1[Option[UserInfo]] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
-      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()).map(_.some)
-      case None        => provide(None)
+      case Some(token) =>
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))
+          .map(_.some)
+      case None => provide(None)
     }
 
   /**
@@ -153,8 +154,9 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    */
   private def extractUserInfo: Directive1[UserInfo] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
-      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture())
-      case None        => failWith(AuthenticationError())
+      case Some(token) =>
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))
+      case None => failWith(AuthenticationError())
     }
 
   /**
@@ -163,8 +165,10 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    */
   private def extractUserInfoFromHeader: Directive1[Option[UserInfo]] =
     extractTokenFromHeader flatMap {
-      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()).map(_.some)
-      case None        => provide(None)
+      case Some(token) =>
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))
+          .map(_.some)
+      case None => provide(None)
     }
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests

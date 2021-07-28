@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import cats.effect.{ConcurrentEffect, Timer}
+import cats.effect.Async
+import cats.effect.std.Queue
 import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
@@ -16,9 +17,8 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 
-class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage],
-                                 errorReporting: ErrorReporting[F])(
-  implicit F: ConcurrentEffect[F],
+class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], errorReporting: ErrorReporting[F])(
+  implicit F: Async[F],
   dbRef: DbReference[F],
   logger: Logger[F],
   ec: ExecutionContext,
@@ -57,7 +57,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
     val res = for {
       traceId <- ev.ask[TraceId]
       msg <- runtimeStatusToMessage(runtimeToMonitor, traceId)
-      _ <- publisherQueue.enqueue1(msg)
+      _ <- publisherQueue.offer(msg)
     } yield ()
     res.handleErrorWith { e =>
       logger.error(e)(s"MonitorAtBoot: Error monitoring runtime ${runtimeToMonitor.id}") >>
@@ -104,7 +104,7 @@ class MonitorAtBoot[F[_]: Timer](publisherQueue: fs2.concurrent.Queue[F, LeoPubs
     val res = for {
       traceId <- ev.ask
       msg <- appStatusToMessage(app, nodepool, cluster, traceId)
-      _ <- publisherQueue.enqueue1(msg)
+      _ <- publisherQueue.offer(msg)
     } yield ()
     res.handleErrorWith { e =>
       logger.error(e)(s"MonitorAtBoot: Error monitoring app ${app.id}") >>

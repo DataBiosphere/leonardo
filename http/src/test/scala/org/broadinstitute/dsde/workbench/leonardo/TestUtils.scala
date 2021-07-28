@@ -207,5 +207,6 @@ object TestUtils extends Matchers {
                  userJupyterExtensionConfig = None)
   }
 
-  def sslContext(implicit as: ActorSystem): SSLContext = SslContextReader.getSSLContext[IO]().unsafeRunSync()
+  def sslContext(implicit as: ActorSystem): SSLContext =
+    SslContextReader.getSSLContext[IO]().unsafeRunSync()(cats.effect.unsafe.implicits.global)
 }

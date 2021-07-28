@@ -96,7 +96,7 @@ object KubernetesTestData {
     )
   }
 
-  def makeKubeCluster(index: Int): KubernetesCluster = {
+  def makeKubeCluster(index: Int, withDefaultNodepool: Boolean = true): KubernetesCluster = {
     val name = KubernetesClusterName("kubecluster" + index)
     val uniqueProject = GoogleProject(project.value + index)
     KubernetesCluster(
@@ -110,7 +110,7 @@ object KubernetesTestData {
       auditInfo,
       None,
       List(),
-      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", true))
+      List(makeNodepool(index, KubernetesClusterLeoId(-1), "cluster", withDefaultNodepool))
     )
   }
 

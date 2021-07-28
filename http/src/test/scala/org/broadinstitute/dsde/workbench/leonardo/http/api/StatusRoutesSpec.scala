@@ -58,7 +58,7 @@ class StatusRoutesSpec
         IO.pure(StatusCheckResponse(false, Map(OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!"))))))
     }
     val statusService =
-      new StatusService(badSam, testDbRef, applicationConfig, pollInterval = 1.second)
+      new StatusService(badSam, testDbRef, pollInterval = 1.second)
     val statusRoute = new StatusRoutes(statusService) with MockUserInfoDirectives {
       override val userInfo: UserInfo = defaultUserInfo
     }

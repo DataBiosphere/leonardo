@@ -2,8 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package db
 
-import java.time.Instant
+import cats.effect.IO
 
+import java.time.Instant
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.DiskType.SSD
@@ -32,7 +33,7 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d3 shouldEqual None
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "get by name" in isolatedDbTest {
@@ -49,13 +50,13 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d2 shouldEqual None
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "update status" in isolatedDbTest {
     val res = for {
       savedDisk <- makePersistentDisk().save()
-      now <- nowInstant
+      now <- IO.realTimeInstant
       d1 <- persistentDiskQuery.updateStatus(savedDisk.id, DiskStatus.Restoring, now).transaction
       d2 <- persistentDiskQuery.getById(savedDisk.id).transaction
     } yield {
@@ -64,13 +65,13 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d2.get.auditInfo.dateAccessed should not equal savedDisk.auditInfo.dateAccessed
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "delete records" in isolatedDbTest {
     val res = for {
       savedDisk <- makePersistentDisk(None).save()
-      now <- nowInstant
+      now <- IO.realTimeInstant
       d1 <- persistentDiskQuery.delete(savedDisk.id, now).transaction
       d2 <- persistentDiskQuery.getById(savedDisk.id).transaction
     } yield {
@@ -80,7 +81,7 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d2.get.auditInfo.destroyedDate should not equal savedDisk.auditInfo.destroyedDate
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
 }

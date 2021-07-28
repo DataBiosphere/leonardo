@@ -4,7 +4,7 @@ package monitor
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
-import fs2.concurrent.InspectableQueue
+import cats.effect.std.Queue
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher}
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, InstanceName, ZoneName}
@@ -125,7 +125,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       clusterOpt.get.status shouldBe KubernetesClusterStatus.Deleting
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "handle DeleteNodepoolMessage" in isolatedDbTest {
@@ -142,7 +142,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       attempt shouldBe Right(())
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   def makeSubscribler(
@@ -150,7 +150,8 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     samDao: SamDAO[IO] = new MockSamDAO,
     computeService: GoogleComputeService[IO] = FakeGoogleComputeService,
     publisher: GooglePublisher[IO] = new FakeGooglePublisher,
-    asyncTaskQueue: InspectableQueue[IO, Task[IO]] = InspectableQueue.bounded[IO, Task[IO]](10).unsafeRunSync
+    asyncTaskQueue: Queue[IO, Task[IO]] =
+      Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
   ): NonLeoMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[NonLeoMessage]
     new NonLeoMessageSubscriber(gkeInterp, computeService, samDao, googleSubscriber, publisher, asyncTaskQueue)

@@ -2,33 +2,31 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.pattern.ask
 import akka.util.Timeout
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import cats.syntax.all._
-import org.typelevel.log4cats.Logger
-import org.broadinstitute.dsde.workbench.leonardo.config.ApplicationConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
+import org.broadinstitute.dsde.workbench.leonardo.db.{DataAccess, DbReference}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.util.health.HealthMonitor.GetCurrentStatus
 import org.broadinstitute.dsde.workbench.util.health.Subsystems._
 import org.broadinstitute.dsde.workbench.util.health.{HealthMonitor, StatusCheckResponse, SubsystemStatus}
+import org.typelevel.log4cats.Logger
 
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 
 class StatusService(
   samDAO: SamDAO[IO],
   dbRef: DbReference[IO],
-  applicationConfig: ApplicationConfig,
   initialDelay: FiniteDuration = Duration.Zero,
   pollInterval: FiniteDuration = 1 minute
-)(implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO], cs: ContextShift[IO]) {
+)(implicit system: ActorSystem, executionContext: ExecutionContext, logger: Logger[IO]) {
   implicit val askTimeout = Timeout(5.seconds)
   import dbRef._
 
@@ -41,7 +39,7 @@ class StatusService(
 
   private def checkStatus(): Map[Subsystem, Future[SubsystemStatus]] =
     Map(
-      Sam -> checkSam.unsafeToFuture(),
+      Sam -> checkSam.unsafeToFuture()(cats.effect.unsafe.implicits.global),
       Database -> checkDatabase
     ).map(logFailures.tupled)
 
@@ -61,10 +59,9 @@ class StatusService(
             .failed(e)
       }
 
-  private def checkDatabase: Future[SubsystemStatus] = {
-    logger.debug("Checking database connection").unsafeToFuture()
-    inTransaction(dataAccess.sqlDBStatus()).map(_ => HealthMonitor.OkStatus).unsafeToFuture()
-  }
+  private def checkDatabase: Future[SubsystemStatus] =
+    (logger.debug("Checking database connection") >>
+      inTransaction(DataAccess.sqlDBStatus()).map(_ => HealthMonitor.OkStatus)).unsafeToFuture()
 
   private def checkSam: IO[SubsystemStatus] = {
     implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))

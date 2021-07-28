@@ -1,13 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.util.UUID
-import java.util.concurrent.TimeoutException
-import cats.effect.{IO, Resource, Timer}
-import cats.syntax.all._
-import org.typelevel.log4cats.StructuredLogger
+import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  streamUntilDoneOrTimeout,
+  DiskName,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -16,13 +18,16 @@ import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.http4s._
+import org.http4s.blaze.client.BlazeClientBuilder
 import org.http4s.circe.CirceEntityEncoder._
+import org.http4s.client.Client
 import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
-import org.http4s.client.{blaze, Client}
 import org.http4s.headers._
+import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import scala.concurrent.ExecutionContext.global
+import java.util.UUID
+import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
@@ -32,7 +37,6 @@ object LeonardoApiClient {
 
   implicit def http4sBody[A](body: A)(implicit encoder: EntityEncoder[IO, A]): EntityBody[IO] =
     encoder.toEntity(body).body
-  implicit val cs = IO.contextShift(global)
   // Once a runtime is deleted, leonardo returns 404 for getRuntime API call
   implicit def eitherDoneCheckable[A]: DoneCheckable[Either[Throwable, A]] = (op: Either[Throwable, A]) => op.isLeft
 
@@ -42,11 +46,11 @@ object LeonardoApiClient {
   implicit def getRuntimeDoneCheckable[A]: DoneCheckable[GetRuntimeResponseCopy] =
     (op: GetRuntimeResponseCopy) => op.status == ClusterStatus.Running || op.status == ClusterStatus.Error
 
-  def client(implicit timer: Timer[IO]): Resource[IO, Client[IO]] =
+  val client: Resource[IO, Client[IO]] =
     for {
       blockingEc <- ExecutionContexts.cachedThreadPool[IO]
       retryPolicy = RetryPolicy[IO](RetryPolicy.exponentialBackoff(30 seconds, 5))
-      client <- blaze.BlazeClientBuilder[IO](blockingEc).resource.map(c => Retry(retryPolicy)(c))
+      client <- BlazeClientBuilder[IO](blockingEc).resource.map(c => Retry(retryPolicy)(c))
     } yield Logger[IO](logHeaders = true, logBody = true)(client)
 
   val rootUri = Uri.unsafeFromString(LeonardoConfig.Leonardo.apiUrl)
@@ -55,14 +59,14 @@ object LeonardoApiClient {
     None,
     None,
     None,
-    None
+    Some(ZoneName("us-east1-b"))
   )
 
   val defaultCreateRuntime2Request = CreateRuntime2Request(
     Map("foo" -> UUID.randomUUID().toString),
     None,
     None,
-    None,
+    Some(RuntimeConfigRequest.GceConfig(None, None, Some(ZoneName("us-east1-b")), None)),
     None,
     None,
     None,
@@ -122,8 +126,10 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.POST,
-            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
+            headers = Headers(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri.withPath(
+              Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+            ),
             body = createRuntime2Request
           )
         )
@@ -136,13 +142,11 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def createRuntimeWithWait(googleProject: GoogleProject,
-                            runtimeName: RuntimeName,
-                            createRuntime2Request: CreateRuntime2Request)(
-    implicit timer: Timer[IO],
-    client: Client[IO],
-    authHeader: Authorization
-  ): IO[GetRuntimeResponseCopy] =
+  def createRuntimeWithWait(
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName,
+    createRuntime2Request: CreateRuntime2Request
+  )(implicit client: Client[IO], authHeader: Authorization): IO[GetRuntimeResponseCopy] =
     for {
       _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
       res <- waitUntilRunning(googleProject, runtimeName)
@@ -158,8 +162,10 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.POST,
-            headers = Headers.of(authHeader, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}/start")
+            headers = Headers(authHeader, traceIdHeader),
+            uri = rootUri.withPath(
+              Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}/start")
+            )
           )
         )
         .use { resp =>
@@ -174,7 +180,7 @@ object LeonardoApiClient {
   def startRuntimeWithWait(
     googleProject: GoogleProject,
     runtimeName: RuntimeName
-  )(implicit client: Client[IO], authHeader: Authorization, timer: Timer[IO]): IO[GetRuntimeResponseCopy] =
+  )(implicit client: Client[IO], authHeader: Authorization): IO[GetRuntimeResponseCopy] =
     for {
       _ <- startRuntime(googleProject, runtimeName)
       res <- waitUntilRunning(googleProject, runtimeName)
@@ -191,8 +197,10 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.PATCH,
-            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}"),
+            headers = Headers(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri.withPath(
+              Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+            ),
             body = req
           )
         )
@@ -210,13 +218,12 @@ object LeonardoApiClient {
   import org.http4s.circe.CirceEntityDecoder._
 
   def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
-    implicit timer: Timer[IO],
-    client: Client[IO],
+    implicit client: Client[IO],
     authHeader: Authorization
   ): IO[GetRuntimeResponseCopy] = {
     val ioa = getRuntime(googleProject, runtimeName)
     for {
-      res <- timer.sleep(80 seconds) >> streamFUntilDone(ioa, 120, 10 seconds).compile.lastOrError
+      res <- IO.sleep(80 seconds) >> streamFUntilDone(ioa, 120, 10 seconds).compile.lastOrError
       _ <- res.status match {
         case ClusterStatus.Error =>
           if (shouldError)
@@ -236,8 +243,7 @@ object LeonardoApiClient {
   }
 
   def waitUntilAppRunning(googleProject: GoogleProject, appName: AppName, shouldError: Boolean = true)(
-    implicit timer: Timer[IO],
-    client: Client[IO],
+    implicit client: Client[IO],
     authHeader: Authorization,
     logger: StructuredLogger[IO]
   ): IO[GetAppResponse] = {
@@ -245,7 +251,7 @@ object LeonardoApiClient {
     implicit val doneCheckeable: DoneCheckable[GetAppResponse] = x =>
       x.status == AppStatus.Running || x.status == AppStatus.Error
     for {
-      res <- timer.sleep(80 seconds) >> streamUntilDoneOrTimeout(
+      res <- IO.sleep(80 seconds) >> streamUntilDoneOrTimeout(
         ioa,
         120,
         10 seconds,
@@ -272,8 +278,10 @@ object LeonardoApiClient {
       r <- client.expectOr[GetRuntimeResponseCopy](
         Request[IO](
           method = Method.GET,
-          headers = Headers.of(authHeader, traceIdHeader),
-          uri = rootUri.withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+          headers = Headers(authHeader, traceIdHeader),
+          uri = rootUri.withPath(
+            Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+          )
         )
       )(onError(s"Failed to get runtime ${googleProject.value}/${runtimeName.asString}"))
     } yield r
@@ -287,9 +295,11 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.DELETE,
-            headers = Headers.of(authHeader, traceIdHeader),
+            headers = Headers(authHeader, traceIdHeader),
             uri = rootUri
-              .withPath(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+              .withPath(
+                Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+              )
               .withQueryParam("deleteDisk", deleteDisk)
           )
         )
@@ -303,14 +313,14 @@ object LeonardoApiClient {
     } yield r
 
   def deleteRuntimeWithWait(googleProject: GoogleProject, runtimeName: RuntimeName, deleteDisk: Boolean = true)(
-    implicit timer: Timer[IO],
+    implicit
     client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
     for {
       _ <- deleteRuntime(googleProject, runtimeName, deleteDisk)
       ioa = getRuntime(googleProject, runtimeName).attempt
-      res <- timer.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
+      res <- IO.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
       _ <- if (res.isDone) IO.unit
       else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
     } yield ()
@@ -326,8 +336,9 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.POST,
-            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"),
+            headers = Headers(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
             body = createDiskRequest
           )
         )
@@ -341,8 +352,7 @@ object LeonardoApiClient {
     } yield r
 
   def createDiskWithWait(googleProject: GoogleProject, diskName: DiskName, createDiskRequest: CreateDiskRequest)(
-    implicit timer: Timer[IO],
-    client: Client[IO],
+    implicit client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
     for {
@@ -361,9 +371,9 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.GET,
-            headers = Headers.of(authHeader, traceIdHeader),
+            headers = Headers(authHeader, traceIdHeader),
             uri = rootUri
-              .withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"))
           )
         )
         .use { resp =>
@@ -383,7 +393,7 @@ object LeonardoApiClient {
     includeDeleted: Boolean = false
   )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListPersistentDiskResponse]] = {
     val uriWithoutQueryParam = rootUri
-      .withPath(s"/api/google/v1/disks/${googleProject.value}")
+      .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}"))
 
     val uri =
       if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
@@ -394,7 +404,7 @@ object LeonardoApiClient {
       r <- client.expectOr[List[ListPersistentDiskResponse]](
         Request[IO](
           method = Method.GET,
-          headers = Headers.of(authHeader, traceIdHeader),
+          headers = Headers(authHeader, traceIdHeader),
           uri = uri
         )
       )(onError(s"Failed to list disks in project ${googleProject.value}"))
@@ -409,8 +419,9 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.DELETE,
-            headers = Headers.of(authHeader, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")
+            headers = Headers(authHeader, traceIdHeader),
+            uri = rootUri
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}"))
           )
         )
         .use { resp =>
@@ -423,14 +434,13 @@ object LeonardoApiClient {
     } yield r
 
   def deleteDiskWithWait(googleProject: GoogleProject, diskName: DiskName)(
-    implicit timer: Timer[IO],
-    client: Client[IO],
+    implicit client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
     for {
       _ <- deleteDisk(googleProject, diskName)
       ioa = getDisk(googleProject, diskName).attempt
-      res <- timer.sleep(3 seconds) >> streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
+      res <- IO.sleep(3 seconds) >> streamFUntilDone(ioa, 5, 5 seconds).compile.lastOrError
       _ <- if (res.isDone) IO.unit
       else IO.raiseError(new TimeoutException(s"delete disk ${googleProject.value}/${diskName.value}"))
     } yield ()
@@ -451,8 +461,9 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.POST,
-            headers = Headers.of(authHeader, defaultMediaType, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"),
+            headers = Headers(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")),
             body = createAppRequest
           )
         )
@@ -468,7 +479,7 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     appName: AppName,
     createAppRequest: CreateAppRequest = defaultCreateAppRequest
-  )(implicit client: Client[IO], authHeader: Authorization, logger: StructuredLogger[IO], timer: Timer[IO]): IO[Unit] =
+  )(implicit client: Client[IO], authHeader: Authorization, logger: StructuredLogger[IO]): IO[Unit] =
     for {
       _ <- createApp(googleProject, appName, createAppRequest)
       _ <- waitUntilAppRunning(googleProject, appName, true)
@@ -483,9 +494,9 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.DELETE,
-            headers = Headers.of(authHeader, traceIdHeader),
+            headers = Headers(authHeader, traceIdHeader),
             uri = rootUri
-              .withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"))
               .withQueryParam("deleteDisk", deleteDisk)
           )
         )
@@ -499,14 +510,13 @@ object LeonardoApiClient {
     } yield r
 
   def deleteAppWithWait(googleProject: GoogleProject, appName: AppName, deleteDisk: Boolean = true)(
-    implicit timer: Timer[IO],
-    client: Client[IO],
+    implicit client: Client[IO],
     authHeader: Authorization
   ): IO[Unit] =
     for {
       _ <- deleteApp(googleProject, appName, deleteDisk)
       ioa = getApp(googleProject, appName).attempt
-      res <- timer.sleep(120 seconds) >> streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError
+      res <- IO.sleep(120 seconds) >> streamFUntilDone(ioa, 30, 30 seconds).compile.lastOrError
       _ <- if (res.isDone) IO.unit
       else IO.raiseError(new TimeoutException(s"delete app ${googleProject.value}/${appName.value}"))
     } yield ()
@@ -518,9 +528,9 @@ object LeonardoApiClient {
       r <- client.expectOr[GetAppResponse](
         Request[IO](
           method = Method.GET,
-          headers = Headers.of(authHeader, traceIdHeader),
+          headers = Headers(authHeader, traceIdHeader),
           uri = rootUri
-            .withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")
+            .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}"))
         )
       )(onError(s"Failed to get app ${googleProject.value}/${appName.value}"))
     } yield r
@@ -530,7 +540,7 @@ object LeonardoApiClient {
     includeDeleted: Boolean = false
   )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListAppResponse]] = {
     val uriWithoutQueryParam = rootUri
-      .withPath(s"/api/google/v1/apps/${googleProject.value}")
+      .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}"))
 
     val uri =
       if (includeDeleted) uriWithoutQueryParam.withQueryParam("includeDeleted", "true")
@@ -541,7 +551,7 @@ object LeonardoApiClient {
       r <- client.expectOr[List[ListAppResponse]](
         Request[IO](
           method = Method.GET,
-          headers = Headers.of(authHeader, traceIdHeader),
+          headers = Headers(authHeader, traceIdHeader),
           uri = uri
         )
       )(onError(s"Failed to list apps in project ${googleProject.value}"))
@@ -556,8 +566,9 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.POST,
-            headers = Headers.of(authHeader, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}/stop")
+            headers = Headers(authHeader, traceIdHeader),
+            uri = rootUri
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}/stop"))
           )
         )
         .use { resp =>
@@ -577,8 +588,9 @@ object LeonardoApiClient {
         .run(
           Request[IO](
             method = Method.POST,
-            headers = Headers.of(authHeader, traceIdHeader),
-            uri = rootUri.withPath(s"/api/google/v1/apps/${googleProject.value}/${appName.value}/start")
+            headers = Headers(authHeader, traceIdHeader),
+            uri = rootUri
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}/start"))
           )
         )
         .use { resp =>
@@ -590,18 +602,21 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def testSparkWebUi(googleProject: GoogleProject,
-                     runtimeName: RuntimeName,
-                     path: String)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  def testSparkWebUi(
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName,
+    path: String
+  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
-      refererHeader <- genRefererHeader()
+      refererHeader <- ProxyRedirectClient.genRefererHeader()
       _ <- client
         .run(
           Request[IO](
             method = Method.GET,
-            headers = Headers.of(authHeader, traceIdHeader, refererHeader),
-            uri = rootUri.withPath(s"/proxy/${googleProject.value}/${runtimeName.asString}/${path}")
+            headers = Headers(authHeader, traceIdHeader, refererHeader),
+            uri = rootUri
+              .withPath(Uri.Path.unsafeFromString(s"/proxy/${googleProject.value}/${runtimeName.asString}/${path}"))
           )
         )
         .use { resp =>
@@ -613,11 +628,8 @@ object LeonardoApiClient {
         }
     } yield ()
 
-  private def genTraceIdHeader(): IO[Header] =
-    IO(UUID.randomUUID().toString).map(uuid => Header(traceIdHeaderString, uuid))
-
-  private def genRefererHeader(): IO[Header] =
-    ProxyRedirectClient.baseUri.map(Referer.apply)
+  private def genTraceIdHeader(): IO[Header.Raw] =
+    IO(UUID.randomUUID().toString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
 }
 
 final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {

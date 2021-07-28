@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.page
 
-import cats.effect.{IO, Timer}
-import cats.implicits._
+import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{LeonardoApiClient, ProxyRedirectClient}
@@ -13,7 +12,6 @@ import scala.concurrent.duration._
 
 trait ProxyRedirectPage[P <: Page] extends Page with PageUtil[P] with WebBrowserUtil with LazyLogging { self: P =>
   implicit val authToken: AuthToken
-  implicit val timer: Timer[IO]
 
   override def open(implicit webDriver: WebDriver): P = {
     val res = for {
@@ -64,7 +62,7 @@ trait ProxyRedirectPage[P <: Page] extends Page with PageUtil[P] with WebBrowser
 
     } yield res
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
 }

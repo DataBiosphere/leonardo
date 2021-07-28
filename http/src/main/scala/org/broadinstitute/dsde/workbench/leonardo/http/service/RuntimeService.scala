@@ -4,6 +4,7 @@ package service
 
 import cats.Parallel
 import cats.effect.Async
+import cats.effect.std.Queue
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{ComputePollOperation, GoogleComputeService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
@@ -60,7 +61,7 @@ object RuntimeService {
                             googleStorageService: GoogleStorageService[F],
                             googleComputeService: GoogleComputeService[F],
                             computePollOperation: ComputePollOperation[F],
-                            publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
+                            publisherQueue: Queue[F, LeoPubsubMessage])(
     implicit F: Async[F],
     log: StructuredLogger[F],
     dbReference: DbReference[F],

@@ -2,23 +2,23 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import cats.effect.Concurrent
-import cats.syntax.all._
 import cats.mtl.Ask
-import org.typelevel.log4cats.Logger
+import cats.syntax.all._
 import io.circe.{Decoder, DecodingFailure}
+import org.broadinstitute.dsde.workbench.leonardo.ContainerRegistry._
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{Jupyter, RStudio}
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import org.broadinstitute.dsde.workbench.leonardo.model.{InvalidImage, LeoException}
 import org.broadinstitute.dsde.workbench.model.TraceId
+import org.http4s.Status.Successful
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.client.middleware.FollowRedirect
-import org.http4s.headers.Authorization
-import ContainerRegistry._
-import org.broadinstitute.dsde.workbench.leonardo.model.InvalidImage
+import org.http4s.headers.{Accept, Authorization, MediaRangeAndQValue}
+import org.typelevel.log4cats.Logger
 
 import java.nio.file.Paths
 import java.time.Instant
@@ -42,6 +42,47 @@ import java.time.Instant
 class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logger[F], F: Concurrent[F])
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
+
+  // See https://github.com/http4s/http4s/issues/4987#issuecomment-888541035
+  implicit class ClientTempSyntax(val client: Client[F]) {
+    def expectOptionOrHack[A](req: Request[F])(onError: Response[F] => F[Throwable])(
+      implicit
+      d: EntityDecoder[F, A]
+    ): F[Option[A]] = {
+      val r = if (d.consumes.nonEmpty) {
+        val m = d.consumes.toList
+        req.transformHeaders(_.add(Accept(MediaRangeAndQValue(m.head), m.tail.map(MediaRangeAndQValue(_)): _*)))
+      } else req
+
+      client.run(r).use {
+        case Successful(resp) =>
+          d.decode(resp, strict = false).leftWiden[Throwable].rethrowT.map(_.some)
+        case failedResponse =>
+          failedResponse.status match {
+            case Status.NotFound => Option.empty[A].pure[F]
+            case Status.Gone     => Option.empty[A].pure[F]
+            case _               => onError(failedResponse).flatMap(F.raiseError)
+          }
+      }
+    }
+
+    def expectOrHack[A](req: Request[F])(onError: Response[F] => F[Throwable])(
+      implicit
+      d: EntityDecoder[F, A]
+    ): F[A] = {
+      val r = if (d.consumes.nonEmpty) {
+        val m = d.consumes.toList
+        req.transformHeaders(_.add(Accept(MediaRangeAndQValue(m.head), m.tail.map(MediaRangeAndQValue(_)): _*)))
+      } else req
+
+      client.run(r).use {
+        case Successful(resp) =>
+          d.decode(resp, strict = false).leftWiden[Throwable].rethrowT
+        case failedResponse =>
+          onError(failedResponse).flatMap(F.raiseError)
+      }
+    }
+  }
 
   override def detectTool(image: ContainerImage, petTokenOpt: Option[String], now: Instant)(
     implicit ev: Ask[F, TraceId]
@@ -85,7 +126,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
     implicit ev: Ask[F, TraceId]
   ): F[ContainerConfigResponse] =
-    FollowRedirect(3)(httpClient).expectOr[ContainerConfigResponse](
+    FollowRedirect(3)(httpClient).expectOrHack[ContainerConfigResponse](
       Request[F](
         method = Method.GET,
         uri = parsedImage.blobUri(digest),
@@ -97,7 +138,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
   private[dao] def getManifestConfig(parsedImage: ParsedImage, tokenOpt: Option[Token])(
     implicit ev: Ask[F, TraceId]
   ): F[ManifestConfig] =
-    httpClient.expectOr[ManifestConfig](
+    httpClient.expectOrHack[ManifestConfig](
       Request[F](
         method = Method.GET,
         uri = parsedImage.manifestUri,
@@ -113,15 +154,15 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       case ContainerRegistry.GCR => F.pure(petTokenOpt.map(Token))
       // If it's a Dockerhub repo, need to request a token from Dockerhub
       case ContainerRegistry.DockerHub =>
-        httpClient.expectOptionOr[Token](
+        httpClient.expectOptionOrHack[Token](
           Request[F](
             method = Method.GET,
             uri = dockerHubAuthUri
-              .withPath("/token")
+              .withPath(Uri.Path.unsafeFromString("/token"))
               .withQueryParam("scope", s"repository:${parsedImage.imageName}:pull")
               .withQueryParam("service", "registry.docker.io"),
             // must be Accept: application/json not Accept: application/vnd.docker.distribution.manifest.v2+json
-            headers = Headers.of(Header("Accept", "application/json"))
+            headers = Headers(Accept.parse("application/json").toOption.get)
           )
         )(onError)
       // If it's GHCR, request a noop token from GitHub
@@ -130,10 +171,10 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
           Request[F](
             method = Method.GET,
             uri = ghcrAuthUri
-              .withPath("/token")
+              .withPath(Uri.Path.unsafeFromString("/token"))
               .withQueryParam("scope", s"repository:${parsedImage.imageName}:pull"),
             // must be Accept: application/json not Accept: application/vnd.docker.distribution.manifest.v2+json
-            headers = Headers.of(Header("Accept", "application/json"))
+            headers = Headers(Accept.parse("application/json").toOption.get)
           )
         )(onError)
     }
@@ -146,8 +187,10 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     } yield DockerImageException(traceId, body)
 
   private def headers(tokenOpt: Option[Token]): Headers =
-    Headers.of(Header("Accept", "application/vnd.docker.distribution.manifest.v2+json")) ++
-      tokenOpt.fold(Headers.empty)(t => Headers.of(Authorization(Credentials.Token(AuthScheme.Bearer, t.token))))
+    Headers(
+      Accept.parse("application/vnd.docker.distribution.manifest.v2+json").toOption.get
+    ) ++
+      tokenOpt.fold(Headers.empty)(t => Headers(Authorization(Credentials.Token(AuthScheme.Bearer, t.token))))
 
   private[dao] def parseImage(image: ContainerImage)(implicit ev: Ask[F, TraceId]): F[ParsedImage] =
     image.imageUrl match {
@@ -241,9 +284,9 @@ final case class ParsedImage(registry: ContainerRegistry,
                              imageName: String,
                              imageVersion: ImageVersion) {
   def manifestUri: Uri =
-    registryUri.withPath(s"/v2/${imageName}/manifests/${imageVersion.toString}")
+    registryUri.withPath(Uri.Path.unsafeFromString(s"/v2/${imageName}/manifests/${imageVersion.toString}"))
   def blobUri(digest: String): Uri =
-    registryUri.withPath(s"/v2/${imageName}/blobs/${digest}")
+    registryUri.withPath(Uri.Path.unsafeFromString(s"/v2/${imageName}/blobs/${digest}"))
 }
 
 // API response models

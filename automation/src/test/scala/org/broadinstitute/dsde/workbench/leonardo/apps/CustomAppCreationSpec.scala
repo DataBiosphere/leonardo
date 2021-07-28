@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package apps
 
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateAppRequest
@@ -59,19 +60,19 @@ class CustomAppCreationSpec
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
           // Verify the app eventually becomes Running
-          _ <- testTimer.sleep(60 seconds)
+          _ <- IO.sleep(60 seconds)
           monitorCreateResult <- streamUntilDoneOrTimeout(
             getApp,
             120,
             10 seconds,
             s"CustomAppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
-          )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
+          )(implicitly, appInStateOrError(AppStatus.Running))
           _ <- loggerIO.info(
             s"CustomAppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
           )
           _ = monitorCreateResult.status shouldBe AppStatus.Running
 
-          _ <- testTimer.sleep(1 minute)
+          _ <- IO.sleep(1 minute)
 
           // Delete the app
           _ <- LeonardoApiClient.deleteApp(googleProject, appName)
