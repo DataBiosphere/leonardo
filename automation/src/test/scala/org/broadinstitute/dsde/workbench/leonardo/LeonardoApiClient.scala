@@ -86,7 +86,9 @@ object LeonardoApiClient {
         None,
         None,
         None,
-        Map.empty
+        Map.empty,
+        None,
+        true
       )
     ),
     None,
@@ -588,8 +590,34 @@ object LeonardoApiClient {
         }
     } yield r
 
+  def testSparkWebUi(googleProject: GoogleProject,
+                     runtimeName: RuntimeName,
+                     path: String)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      refererHeader <- genRefererHeader()
+      _ <- client
+        .run(
+          Request[IO](
+            method = Method.GET,
+            headers = Headers.of(authHeader, traceIdHeader, refererHeader),
+            uri = rootUri.withPath(s"/proxy/${googleProject.value}/${runtimeName.asString}/${path}")
+          )
+        )
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to load Spark Web UI: $path")(resp)
+              .flatMap(IO.raiseError)
+          } else
+            IO.unit
+        }
+    } yield ()
+
   private def genTraceIdHeader(): IO[Header] =
     IO(UUID.randomUUID().toString).map(uuid => Header(traceIdHeaderString, uuid))
+
+  private def genRefererHeader(): IO[Header] =
+    ProxyRedirectClient.baseUri.map(Referer.apply)
 }
 
 final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {

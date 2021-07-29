@@ -26,6 +26,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
   def region = column[Option[RegionName]]("region", O.Length(254))
   def gpuType = column[Option[GpuType]]("gpuType", O.Length(254))
   def numOfGpus = column[Option[Int]]("numOfGpus")
+  def componentGatewayEnabled = column[Boolean]("componentGatewayEnabled")
 
   def * =
     (
@@ -44,7 +45,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
         persistentDiskId,
         zone,
         region,
-        (gpuType, numOfGpus)
+        (gpuType, numOfGpus),
+        componentGatewayEnabled
       ),
       dateAccessed
     ).shaped <> ({
@@ -62,7 +64,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              persistentDiskId,
              zone,
              region,
-             gpuConfig),
+             gpuConfig,
+             componentGatewayEnabled),
             dateAccessed) =>
         val r = cloudService match {
           case CloudService.GCE =>
@@ -104,7 +107,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
               numberOfWorkerLocalSSDs,
               numberOfPreemptibleWorkers,
               dataprocProperties.getOrElse(Map.empty),
-              region.getOrElse(throw new SQLDataException("region should not be null for Dataproc"))
+              region.getOrElse(throw new SQLDataException("region should not be null for Dataproc")),
+              componentGatewayEnabled
             )
         }
         RuntimeConfigRecord(id, r, dateAccessed)
@@ -126,7 +130,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              Some(r.zone),
              None,
-             (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus))),
+             (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus)),
+             false),
             x.dateAccessed
           )
         case r: RuntimeConfig.DataprocConfig =>
@@ -145,7 +150,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              None,
              Some(r.region),
-             (None, None)),
+             (None, None),
+             r.componentGatewayEnabled),
             x.dateAccessed
           )
         case r: RuntimeConfig.GceWithPdConfig =>
@@ -164,7 +170,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              r.persistentDiskId,
              Some(r.zone),
              None,
-             (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus))),
+             (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus)),
+             false),
             x.dateAccessed
           )
       }

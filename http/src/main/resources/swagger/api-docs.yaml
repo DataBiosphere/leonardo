@@ -4,7 +4,7 @@ info:
   description: |
     Workbench notebooks service.
   # Follow semantic versioning https://semver.org/
-  version: "1.2.0"
+  version: "1.3.0"
   license:
     name: BSD
     url: http://opensource.org/licenses/BSD-3-Clause
@@ -1320,14 +1320,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-        "420":
-          description: Runtime not ready
+        "422":
+          description: Runtime is stopped
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-        "422":
-          description: Runtime is stopped
+        "423":
+          description: Runtime not ready
           content:
             application/json:
               schema:
@@ -1377,14 +1377,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-        "420":
-          description: Runtime not ready
+        "422":
+          description: Runtime is stopped
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-        "422":
-          description: Runtime is stopped
+        "423":
+          description: Runtime not ready
           content:
             application/json:
               schema:
@@ -1434,14 +1434,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-        "420":
-          description: Runtime not ready
+        "422":
+          description: Runtime is stopped
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-        "422":
-          description: Runtime is stopped
+        "423":
+          description: Runtime not ready
           content:
             application/json:
               schema:
@@ -1497,14 +1497,14 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-        "420":
-          description: App not ready
+        "422":
+          description: App is stopped
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-        "422":
-          description: App is stopped
+        "423":
+          description: App not ready
           content:
             application/json:
               schema:
@@ -1603,6 +1603,281 @@ paths:
                 $ref: "#/components/schemas/ErrorReport"
         "404":
           description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{runtimeName}/yarn":
+    get:
+      summary: YARN Resource Manager
+      description: >
+        Only available for Dataproc runtimes with Component Gateway enabled.
+        See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
+      operationId: yarn
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: runtimeName
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxy connection successful
+        "403":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
+          description: Runtime is stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "423":
+          description: Runtime not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{runtimeName}/jobhistory":
+    get:
+      summary: MapReduce Job History
+      description: >
+        Only available for Dataproc runtimes with Component Gateway enabled.
+        See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
+      operationId: jobhistory
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: runtimeName
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxy connection successful
+        "403":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
+          description: Runtime is stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "423":
+          description: Runtime not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{runtimeName}/apphistory":
+    get:
+      summary: YARN Application Timeline
+      description: >
+        Only available for Dataproc runtimes with Component Gateway enabled.
+        See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
+      operationId: apphistory
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: runtimeName
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxy connection successful
+        "403":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
+          description: Runtime is stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "423":
+          description: Runtime not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{runtimeName}/sparkhistory":
+    get:
+      summary: Spark History Server
+      description: >
+        Only available for Dataproc runtimes with Component Gateway enabled.
+        See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
+      operationId: sparkhistory
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: runtimeName
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxy connection successful
+        "403":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
+          description: Runtime is stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "423":
+          description: Runtime not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/proxy/{googleProject}/{runtimeName}/hdfs":
+    get:
+      summary: HDFS NameNode
+      description: >
+        Only available for Dataproc runtimes with Component Gateway enabled.
+        See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
+      operationId: hdfs
+      tags:
+        - proxy
+      parameters:
+        - in: path
+          name: googleProject
+          description: googleProject
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: runtimeName
+          description: runtimeName
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Proxy connection successful
+        "403":
+          description: Proxy connection unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "404":
+          description: Runtime not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "422":
+          description: Runtime is stopped
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "423":
+          description: Runtime not ready
           content:
             application/json:
               schema:
@@ -2456,6 +2731,13 @@ components:
               description: >
                 Optional, the deployment region of the cluster. For example, us-east1 or europe-west2.
                 Defaults to us-central1.
+            componentGatewayEnabled:
+              type: boolean
+              description: >
+                Optional, specifies whether to enable Dataproc Component Gateway on the cluster.
+                This can be used for accessing Spark web UIs. See
+                https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways for more details.
+                Defaults to false.
     UserJupyterExtensionConfig:
       description: Specification of Jupyter Extensions to be installed on the cluster
       properties:

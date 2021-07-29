@@ -164,7 +164,9 @@ object RuntimeFixtureSpec {
           workerDiskSize = None,
           numberOfWorkerLocalSSDs = None,
           numberOfPreemptibleWorkers = None,
-          properties = Map.empty
+          properties = Map.empty,
+          region = None,
+          componentGatewayEnabled = true
         )
 
     }

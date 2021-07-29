@@ -16,7 +16,7 @@ object Dependencies {
   val opencensusV = "0.28.3"
 
 
-  private val workbenchLibsHash = "89d0d9e"
+  private val workbenchLibsHash = "bf66e61"
   val serviceTestV = s"0.19-$workbenchLibsHash"
   val workbenchModelV = s"0.14-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
@@ -52,8 +52,13 @@ object Dependencies {
   val excludeFirestore = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-firestore")
   val excludeBouncyCastle = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-jdk15on")
   val excludeBouncyCastleExt = ExclusionRule(organization = "org.bouncycastle", name = s"bcprov-ext-jdk15on")
+  val excludeBouncyCastleUtil = ExclusionRule(organization = "org.bouncycastle", name = s"bcutil-jdk15on")
+  val excludeBouncyCastlePkix = ExclusionRule(organization = "org.bouncycastle", name = s"bcpkix-jdk15on")
   val excludeSundrCodegen = ExclusionRule(organization = "io.sundr", name = s"sundr-codegen")
   val excludeStatsD = ExclusionRule(organization = "com.readytalk", name = s"metrics3-statsd")
+  val excludeKms = ExclusionRule(organization = "com.google.cloud", name = s"google-cloud-kms")
+  val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
+  val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.5"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
@@ -78,7 +83,15 @@ object Dependencies {
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
   val workbenchModel: ModuleID =        "org.broadinstitute.dsde.workbench" %% "workbench-model"    % workbenchModelV excludeAll (excludeGoogleError, excludeGuava)
-  val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (excludeIoGrpc, excludeFindbugsJsr, excludeGoogleApiClient, excludeGoogleError, excludeHttpComponent, excludeGuava, excludeStatsD)
+  val workbenchGoogle: ModuleID =       "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV excludeAll (
+    excludeIoGrpc,
+    excludeFindbugsJsr,
+    excludeGoogleApiClient,
+    excludeGoogleError,
+    excludeHttpComponent,
+    excludeGuava,
+    excludeStatsD,
+    excludeKms)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (
     excludeWorkbenchModel,
     excludeWorkbenchMetrics,
@@ -87,10 +100,16 @@ object Dependencies {
     excludeGoogleError,
     excludeHttpComponent,
     excludeFirestore,
+    excludeKms,
+    excludeBigQuery,
+    excludeCloudBilling,
     excludeBouncyCastle,
     excludeBouncyCastleExt,
+    excludeBouncyCastleUtil,
+    excludeBouncyCastlePkix,
     excludeSundrCodegen,
     excludeGuava)
+
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)

@@ -78,7 +78,8 @@ object Config {
         config.getAs[Int]("numberOfWorkerLocalSSDs"),
         config.getAs[Int]("numberOfPreemptibleWorkers"),
         Map.empty,
-        config.as[RegionName]("region")
+        config.as[RegionName]("region"),
+        false // Not used; default defined in RuntimeConfigRequest.DataprocConfig decoder
       )
   }
 

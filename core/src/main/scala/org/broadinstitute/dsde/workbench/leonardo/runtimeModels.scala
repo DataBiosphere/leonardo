@@ -257,7 +257,8 @@ object RuntimeConfig {
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
-                                  region: RegionName)
+                                  region: RegionName,
+                                  componentGatewayEnabled: Boolean)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType

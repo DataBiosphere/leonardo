@@ -22,7 +22,8 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       numberOfPreemptibleWorkers = Some(0),
       numberOfWorkerLocalSSDs = None,
       properties = Map("spark:spark.executor.memory" -> "10g"),
-      region = RegionName("us-central1")
+      region = RegionName("us-central1"),
+      componentGatewayEnabled = true
     )
     val res = for {
       now <- testTimer.clock.realTime(TimeUnit.MILLISECONDS)

@@ -59,7 +59,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(2),
         Some(1),
         Map.empty,
-        RegionName("test-region")
+        RegionName("test-region"),
+        true
       )
     )
     savedCluster3.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster3
@@ -233,7 +234,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           Some(2),
           Some(1),
           Map.empty,
-          RegionName("test-region")
+          RegionName("test-region"),
+          true
         )
       )
 
@@ -255,7 +257,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(2),
         Some(1),
         Map.empty,
-        RegionName("test-region")
+        RegionName("test-region"),
+        true
       )
     )
 
@@ -312,7 +315,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       Some(2),
       Some(1),
       Map.empty,
-      RegionName("test-region")
+      RegionName("test-region"),
+      true
     )
 
     val savedCluster = makeCluster(1)

@@ -17,8 +17,8 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, 
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import org.scalatest.tagobjects.Retryable
+import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
@@ -217,7 +217,9 @@ class RuntimePatchSpec
             None,
             None,
             None,
-            Map.empty
+            Map.empty,
+            None,
+            true
           )
         )
       )

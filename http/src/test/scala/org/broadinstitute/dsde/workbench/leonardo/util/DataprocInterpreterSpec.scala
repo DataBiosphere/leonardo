@@ -23,8 +23,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -157,7 +157,8 @@ class DataprocInterpreterSpec
                                                      None,
                                                      None,
                                                      Map.empty[String, String],
-                                                     RegionName("us-central1"))
+                                                     RegionName("us-central1"),
+                                                     true)
     val resourceConstraints = dataprocInterp
       .getClusterResourceContraints(testClusterClusterProjectAndName,
                                     runtimeConfig.machineType,

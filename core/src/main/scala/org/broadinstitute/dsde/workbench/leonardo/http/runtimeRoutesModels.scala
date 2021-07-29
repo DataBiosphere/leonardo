@@ -59,7 +59,8 @@ object RuntimeConfigRequest {
                                   numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
-                                  region: Option[RegionName] = None)
+                                  region: Option[RegionName],
+                                  componentGatewayEnabled: Boolean)
       extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }

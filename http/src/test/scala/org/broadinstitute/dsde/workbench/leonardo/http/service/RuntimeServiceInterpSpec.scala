@@ -280,7 +280,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           None,
           None,
           None,
-          Map.empty
+          Map.empty,
+          None,
+          false
         )
       )
     )
@@ -346,7 +348,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           None,
           None,
           None,
-          Map.empty
+          Map.empty,
+          None,
+          false
         )
       )
     )
