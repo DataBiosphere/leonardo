@@ -233,6 +233,28 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     fullClusterQuery(baseQuery)
   }
 
+  def getRuntimeQueryByUniqueKey(googleProject: GoogleProject,
+                                 clusterName: RuntimeName,
+                                 destroyedDateOpt: Option[Instant]) = {
+    val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
+    val baseQuery = clusterQuery
+      .filter(_.googleProject === googleProject)
+      .filter(_.clusterName === clusterName)
+      .filter(_.destroyedDate === destroyedDate)
+
+    for {
+      ((((((cluster, error), label), extension), image), scopes), patch) <- baseQuery joinLeft
+        clusterErrorQuery on (_.id === _.clusterId) joinLeft
+        labelQuery on {
+        case (c, lbl) => lbl.resourceId === c._1.id && lbl.resourceType === LabelResourceType.runtime
+      } joinLeft
+        extensionQuery on (_._1._1.id === _.clusterId) joinLeft
+        clusterImageQuery on (_._1._1._1.id === _.clusterId) joinLeft
+        scopeQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
+        patchQuery on (_._1._1._1._1._1.id === _.clusterId)
+    } yield (cluster, error, label, extension, image, scopes, patch)
+  }
+
   def clusterRecordQueryByUniqueKey(googleProject: GoogleProject,
                                     clusterName: RuntimeName,
                                     destroyedDateOpt: Option[Instant]) = {
