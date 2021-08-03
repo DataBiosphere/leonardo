@@ -2,8 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
 import cats.syntax.all._
-import org.broadinstitute.dsde.rawls.model.Workspace
-import org.broadinstitute.dsde.workbench.fixture.{BillingFixtures, WorkspaceFixtures}
+//import org.broadinstitute.dsde.rawls.model.Workspace
+import org.broadinstitute.dsde.workbench.fixture.{BillingFixtures}
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, CustomAppCreationSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
@@ -17,6 +17,8 @@ import org.http4s.Credentials.Token
 import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
+import spray.json._
+import spray.json.DefaultJsonProtocol.StringJsonFormat
 
 import java.util.UUID
 
@@ -117,9 +119,10 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
         Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
 
-      workspaceDetails = Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
-      googleProjectId <- IO(workspaceDetails.parseJson.asJsObject.getFields("googleProjectId"))
-      // _ <- loggerIO.info(s"Workspace details: ${googleProjectId}")
+      workspaceDetails <- IO(Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken))
+      googleProjectId <- IO(workspaceDetails.parseJson.asJsObject.getFields("workspace").flatMap { workspace =>
+        workspace.asJsObject.getFields("googleProjectId")}.head.convertTo[String])
+      _ <- loggerIO.info(s"Workspace details: ${workspaceDetails}")
       _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
     } yield GoogleProject(googleProjectId)
 
