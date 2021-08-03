@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration}
+import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, Rawls}
 import org.http4s.AuthScheme
 import org.http4s.Credentials.Token
 import org.http4s.headers.Authorization
@@ -112,13 +112,16 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
                                                       ronEmail,
                                                       BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       )
+      workspaceName = UUID.randomUUID().toString
       _ <- IO(
-        Orchestration.workspaces.create(claimedBillingProject.projectName, UUID.randomUUID().toString)(ronAuthToken)
+        Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
 
-      workspaceDetails <- IO(Orchestration.workspaces.)
+      workspaceDetails = Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
+      googleProjectId <- IO(workspaceDetails.parseJson.asJsObject.getFields("googleProjectId"))
+      // _ <- loggerIO.info(s"Workspace details: ${googleProjectId}")
       _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-    } yield GoogleProject(workspaceDetails.googleProject)
+    } yield GoogleProject(googleProjectId)
 
   /**
    * Unclaiming billing project claim by Hermione

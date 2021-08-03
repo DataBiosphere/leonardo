@@ -15,7 +15,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
-@DoNotDiscover
+// @DoNotDiscover
 class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
 
   implicit val ronToken: AuthToken = ronAuthToken
