@@ -90,7 +90,8 @@ object DiskType extends Enum[DiskType] {
   }
   final case object SSD extends DiskType {
     override def asString: String = "pd-ssd"
-    def googleString(googleProject: GoogleProject, zoneName: ZoneName): String = asString
+    def googleString(googleProject: GoogleProject, zoneName: ZoneName): String =
+      s"projects/${googleProject.value}/zones/${zoneName.value}/diskTypes/pd-ssd"
   }
 }
 

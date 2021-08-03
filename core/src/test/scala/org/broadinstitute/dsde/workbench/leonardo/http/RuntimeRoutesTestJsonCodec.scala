@@ -179,7 +179,6 @@ object RuntimeRoutesTestJsonCodec {
       jupyterUserScriptUri,
       jupyterStartUserScriptUri,
       errors,
-      Set.empty, // Dataproc instances
       userJupyterExtensionConfig,
       autopauseThreshold,
       defaultClientId,

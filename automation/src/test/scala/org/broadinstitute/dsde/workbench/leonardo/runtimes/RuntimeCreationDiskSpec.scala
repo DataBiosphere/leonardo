@@ -2,11 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
 import java.util.concurrent.TimeoutException
-
 import cats.syntax.all._
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GoogleDiskService, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GoogleDiskService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
@@ -79,6 +78,37 @@ class RuntimeCreationDiskSpec
         )
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
       } yield ()
+    }
+    res.unsafeRunSync()
+  }
+
+  "create runtime with SSD disk" in { googleProject =>
+    val runtimeName = randomClusterName
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.GceWithPdConfig(
+          None,
+          PersistentDiskRequest(
+            DiskName("ssd-disk"),
+            None,
+            Some(DiskType.SSD),
+            Map.empty
+          ),
+          None,
+          None
+        )
+      )
+    )
+
+    // validate disk still exists after runtime is deleted
+    val res = dependencies.use { dep =>
+      implicit val client = dep.httpClient
+      for {
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
+      } yield {
+        getRuntimeResponse.diskConfig.map(_.diskType) shouldBe Some(DiskType.SSD)
+      }
     }
     res.unsafeRunSync()
   }
