@@ -107,7 +107,7 @@ class RuntimeCreationDiskSpec
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
       } yield {
-        getRuntimeResponse.diskConfig.map(_.diskType) shouldBe (DiskType.SSD)
+        getRuntimeResponse.diskConfig.map(_.diskType) shouldBe Some(DiskType.SSD)
       }
     }
     res.unsafeRunSync()
