@@ -119,11 +119,14 @@ abstract class RuntimeFixtureSpec
     super.beforeAll()
     logger.info("beforeAll")
 
-    sys.props.get(googleProjectKey) match {
+    sys.props.get(workspaceNamespaceKey) match {
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
         clusterCreationFailureMsg = msg
-      case Some(billingProject) =>
-        Either.catchNonFatal(createRonRuntime(GoogleProject(billingProject))).handleError { e =>
+    }
+
+    sys.props.get(googleProjectKey) match {
+      case Some(googleProjectId) =>
+        Either.catchNonFatal(createRonRuntime(GoogleProject(googleProjectId))).handleError { e =>
           clusterCreationFailureMsg = e.getMessage
           ronCluster = null
         }
