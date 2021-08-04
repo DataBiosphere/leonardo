@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
 import cats.syntax.all._
+import org.broadinstitute.dsde.rawls.model.WorkspaceName
 //import org.broadinstitute.dsde.rawls.model.Workspace
 import org.broadinstitute.dsde.workbench.fixture.{BillingFixtures}
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
@@ -33,8 +34,8 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
       outcome
     }
 
-    sys.props.get(gpallocProjectKey) match {
-      case None                                            => throw new RuntimeException("leonardo.billingProject system property is not set")
+    sys.props.get(googleProjectKey) match {
+      case None                                            => throw new RuntimeException("leonardo.googleProject system property is not set")
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
       case Some(billingProject) =>
         if (isRetryable(test))
@@ -45,11 +46,18 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
   }
 }
 object GPAllocFixtureSpec {
-  val gpallocProjectKey = "leonardo.billingProject"
+  val googleProjectKey = "leonardo.googleProject"
+  val workspaceNamespaceKey = "leonardo.workspaceNamespace"
+  val workspaceNameKey = "leonardo.workspaceName"
   val shouldUnclaimProjectsKey = "leonardo.shouldUnclaimProjects"
   val gpallocErrorPrefix = "Failed To Claim Project: "
   val initalRuntimeName = RuntimeName("initial-runtime")
 }
+
+case class GoogleProjectAndWorkspaceName(
+  googleProject: GoogleProject,
+  workspaceName: WorkspaceName
+)
 
 trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   this: TestSuite =>
@@ -57,7 +65,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   /**
    * Claim new billing project by Hermione
    */
-  protected def claimProject(): IO[GoogleProject] =
+  protected def claimGPAllocProjectAndCreateWorkspace(): IO[GoogleProjectAndWorkspaceName] =
     for {
       claimedBillingProject <- IO(claimGPAllocProject(hermioneCreds))
       _ <- IO(
@@ -65,6 +73,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
                                                       ronEmail,
                                                       BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       )
+      _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
       workspaceName = UUID.randomUUID().toString
       _ <- IO(
         Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
@@ -74,35 +83,38 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       googleProjectId <- IO(workspaceDetails.parseJson.asJsObject.getFields("workspace").flatMap { workspace =>
         workspace.asJsObject.getFields("googleProjectId")}.head.convertTo[String])
       _ <- loggerIO.info(s"Workspace details: ${workspaceDetails}")
-      _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-    } yield GoogleProject(googleProjectId)
+    } yield GoogleProjectAndWorkspaceName(GoogleProject(googleProjectId), WorkspaceName(claimedBillingProject.projectName, workspaceName))
 
   /**
    * Unclaiming billing project claim by Hermione
    */
-  protected def unclaimProject(project: GoogleProject): IO[Unit] =
+  protected def unclaimProject(workspaceName: WorkspaceName): IO[Unit] = {
     for {
       _ <- IO(
+        Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronAuthToken)
+      )
+      _ <- IO(
         Orchestration.billing
-          .removeUserFromBillingProject(project.value, ronEmail, BillingProject.BillingProjectRole.User)(
+          .removeUserFromBillingProject(workspaceName.namespace, ronEmail, BillingProject.BillingProjectRole.User)(
             hermioneAuthToken
           )
       )
-      releaseProject <- IO(releaseGPAllocProject(project.value, hermioneCreds)).attempt
+      releaseProject <- IO(releaseGPAllocProject(workspaceName.namespace, hermioneCreds)).attempt
       _ <- releaseProject match {
-        case Left(e) => loggerIO.warn(e)(s"Failed to release billing project: ${project.value}")
-        case _       => loggerIO.info(s"Billing project released: ${project.value}")
+        case Left(e) => loggerIO.warn(e)(s"Failed to release billing project: ${workspaceName.namespace}")
+        case _ => loggerIO.info(s"Billing project released: ${workspaceName.namespace}")
       }
     } yield ()
+  }
 
   def withNewProject[T](testCode: GoogleProject => IO[T]): T = {
     val test = for {
       _ <- loggerIO.info("Allocating a new single-test project")
-      project <- claimProject()
-      _ <- loggerIO.info(s"Single test project $project claimed")
-      t <- testCode(project)
-      _ <- loggerIO.info(s"Releasing single-test project: ${project.value}")
-      _ <- unclaimProject(project)
+      googleProjectAndWorkspaceName <- claimGPAllocProjectAndCreateWorkspace()
+      _ <- loggerIO.info(s"Single test project $googleProjectAndWorkspaceName claimed")
+      t <- testCode(googleProjectAndWorkspaceName.googleProject)
+      _ <- loggerIO.info(s"Releasing single-test project: ${googleProjectAndWorkspaceName.googleProject.value}")
+      _ <- unclaimProject(googleProjectAndWorkspaceName)
     } yield t
 
     test.unsafeRunSync()
@@ -116,11 +128,11 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
     val res = for {
       _ <- IO(super.beforeAll())
       _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll beforeAll")
-      claimAttempt <- claimProject().attempt
+      claimAttempt <- claimGPAllocProjectAndCreateWorkspace().attempt
       _ <- claimAttempt match {
-        case Left(e) => IO(sys.props.put(gpallocProjectKey, gpallocErrorPrefix + e.getMessage))
-        case Right(billingProject) =>
-          IO(sys.props.put(gpallocProjectKey, billingProject.value)) >> createInitialRuntime(billingProject)
+        case Left(e) => IO(sys.props.put(googleProjectKey, gpallocErrorPrefix + e.getMessage))
+        case Right(googleProjectAndWorkspaceName) =>
+          IO(sys.props.put(googleProjectKey, googleProjectAndWorkspaceName.googleProject.value)) >> IO(sys.props.put(workspaceNamespaceKey,googleProjectAndWorkspaceName.workspaceName.namespace)) >> IO(sys.props.put(workspaceNameKey, googleProjectAndWorkspaceName.workspaceName.name)) >> createInitialRuntime(googleProjectAndWorkspaceName.googleProject)
       }
       proxyRedirectServer <- ProxyRedirectClient.baseUri
       _ <- loggerIO.info(s"Serving proxy redirect page at ${proxyRedirectServer.renderString}")
@@ -133,12 +145,15 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
     val res = for {
       shouldUnclaimProp <- IO(sys.props.get(shouldUnclaimProjectsKey))
       _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaimProp")
-      projectProp <- IO(sys.props.get(gpallocProjectKey))
+      projectProp <- IO(sys.props.get(googleProjectKey))
+      workspaceNamespaceProp <- IO(sys.props.get(workspaceNamespaceKey))
+      workspaceNameProp <- IO(sys.props.get(workspaceNameKey))
       project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
-      _ <- if (shouldUnclaimProp != Some("false")) {
-        project.traverse(p => deleteInitialRuntime(p) >> unclaimProject(p))
+      _ <- if (!shouldUnclaimProp.contains("false")) {
+        project.traverse(p => deleteInitialRuntime(p) >>
+          workspaceNamespaceProp.traverse(workspaceNamespace => workspaceNameProp.traverse(workspaceName => unclaimProject(WorkspaceName(workspaceNamespace, workspaceName)))))
       } else loggerIO.info(s"Not going to release project: ${projectProp} due to error happened")
-      _ <- IO(sys.props.remove(gpallocProjectKey))
+      _ <- IO(sys.props.remove(googleProjectKey))
       _ <- ProxyRedirectClient.stopServer()
       _ <- loggerIO.info(s"Stopped proxy redirect server")
       _ <- IO(super.afterAll())

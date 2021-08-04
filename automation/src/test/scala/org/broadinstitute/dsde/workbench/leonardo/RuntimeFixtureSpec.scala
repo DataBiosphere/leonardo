@@ -119,7 +119,7 @@ abstract class RuntimeFixtureSpec
     super.beforeAll()
     logger.info("beforeAll")
 
-    sys.props.get(gpallocProjectKey) match {
+    sys.props.get(googleProjectKey) match {
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
         clusterCreationFailureMsg = msg
       case Some(billingProject) =>
@@ -128,7 +128,7 @@ abstract class RuntimeFixtureSpec
           ronCluster = null
         }
       case None =>
-        clusterCreationFailureMsg = "leonardo.billingProject system property is not set"
+        clusterCreationFailureMsg = "leonardo.googleProject system property is not set"
     }
 
   }
@@ -136,9 +136,9 @@ abstract class RuntimeFixtureSpec
   override def afterAll(): Unit = {
     logger.info("afterAll")
 
-    sys.props.get(gpallocProjectKey) match {
+    sys.props.get(googleProjectKey) match {
       case Some(billingProject) => deleteRonRuntime(GoogleProject(billingProject))
-      case None                 => throw new RuntimeException("leonardo.billingProject system property is not set")
+      case None                 => throw new RuntimeException("leonardo.googleProject system property is not set")
     }
 
     super.afterAll()
