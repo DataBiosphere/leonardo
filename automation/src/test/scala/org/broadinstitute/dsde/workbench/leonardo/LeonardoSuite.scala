@@ -51,55 +51,6 @@ object GPAllocFixtureSpec {
   val initalRuntimeName = RuntimeName("initial-runtime")
 }
 
-//trait WorkspaceUtils extends BillingFixtures with WorkspaceFixtures with LeonardoTestUtils {
-//  this: TestSuite =>
-//
-//  /**
-//   * Claim new billing project by Hermione
-//   */
-//  protected def createWorkspace(): IO[Workspace] =
-//    for {
-//      claimedBillingProject <- IO(claimGPAllocProject(hermioneCreds))
-//      _ <- IO(
-//        Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
-//          ronEmail,
-//          BillingProject.BillingProjectRole.User)(hermioneAuthToken)
-//      )
-//      _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-//    } yield GoogleProject(claimedBillingProject.projectName)
-//
-//  /**
-//   * Unclaiming billing project claim by Hermione
-//   */
-//  protected def deleteWorkspace(workspace: Workspace): IO[Unit] =
-//    for {
-//      _ <- IO(
-//        Orchestration.billing
-//          .removeUserFromBillingProject(project.value, ronEmail, BillingProject.BillingProjectRole.User)(
-//            hermioneAuthToken
-//          )
-//      )
-//      releaseProject <- IO(releaseGPAllocProject(project.value, hermioneCreds)).attempt
-//      _ <- releaseProject match {
-//        case Left(e) => loggerIO.warn(e)(s"Failed to release billing project: ${project.value}")
-//        case _       => loggerIO.info(s"Billing project released: ${project.value}")
-//      }
-//    } yield ()
-//
-//  def withNewWorkspace[T](testCode: GoogleProject => IO[T]): T = {
-//    val test = for {
-//      _ <- loggerIO.info("Creating a new single-test workspace")
-//      workspace <- createWorkspace()
-//      _ <- loggerIO.info(s"Single workspace ${workspace.name} created")
-//      t <- testCode(workspace.googleProjectId)
-//      _ <- loggerIO.info(s"Deleting single-test workspace: ${workspace.name}")
-//      _ <- deleteWorkspace(workspace)
-//    } yield t
-//
-//    test.unsafeRunSync()
-//  }
-//}
-
 trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   this: TestSuite =>
 
@@ -118,7 +69,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       _ <- IO(
         Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
-
+      // Testing with: sbt "testOnly *RuntimeAutopauseSpec"
       workspaceDetails <- IO(Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken))
       googleProjectId <- IO(workspaceDetails.parseJson.asJsObject.getFields("workspace").flatMap { workspace =>
         workspace.asJsObject.getFields("googleProjectId")}.head.convertTo[String])
