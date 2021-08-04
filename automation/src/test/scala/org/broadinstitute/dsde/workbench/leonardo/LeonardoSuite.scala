@@ -34,14 +34,18 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
       outcome
     }
 
+    sys.props.get(workspaceNamespaceKey) match {
+      case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
+    }
+
     sys.props.get(googleProjectKey) match {
       case None                                            => throw new RuntimeException("leonardo.googleProject system property is not set")
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
-      case Some(billingProject) =>
+      case Some(googleProjectId) =>
         if (isRetryable(test))
-          withRetry(runTestAndCheckOutcome(GoogleProject(billingProject)))
+          withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
         else
-          runTestAndCheckOutcome(GoogleProject(billingProject))
+          runTestAndCheckOutcome(GoogleProject(googleProjectId))
     }
   }
 }
@@ -111,10 +115,10 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
     val test = for {
       _ <- loggerIO.info("Allocating a new single-test project")
       googleProjectAndWorkspaceName <- claimGPAllocProjectAndCreateWorkspace()
-      _ <- loggerIO.info(s"Single test project $googleProjectAndWorkspaceName claimed")
+      _ <- loggerIO.info(s"Single test project ${googleProjectAndWorkspaceName.workspaceName.namespace} claimed")
       t <- testCode(googleProjectAndWorkspaceName.googleProject)
-      _ <- loggerIO.info(s"Releasing single-test project: ${googleProjectAndWorkspaceName.googleProject.value}")
-      _ <- unclaimProject(googleProjectAndWorkspaceName)
+      _ <- loggerIO.info(s"Releasing single-test project: ${googleProjectAndWorkspaceName.workspaceName.namespace}")
+      _ <- unclaimProject(googleProjectAndWorkspaceName.workspaceName)
     } yield t
 
     test.unsafeRunSync()
@@ -130,7 +134,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll beforeAll")
       claimAttempt <- claimGPAllocProjectAndCreateWorkspace().attempt
       _ <- claimAttempt match {
-        case Left(e) => IO(sys.props.put(googleProjectKey, gpallocErrorPrefix + e.getMessage))
+        case Left(e) => IO(sys.props.put(workspaceNamespaceKey, gpallocErrorPrefix + e.getMessage))
         case Right(googleProjectAndWorkspaceName) =>
           IO(sys.props.put(googleProjectKey, googleProjectAndWorkspaceName.googleProject.value)) >> IO(sys.props.put(workspaceNamespaceKey,googleProjectAndWorkspaceName.workspaceName.namespace)) >> IO(sys.props.put(workspaceNameKey, googleProjectAndWorkspaceName.workspaceName.name)) >> createInitialRuntime(googleProjectAndWorkspaceName.googleProject)
       }
@@ -150,10 +154,17 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       workspaceNameProp <- IO(sys.props.get(workspaceNameKey))
       project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
       _ <- if (!shouldUnclaimProp.contains("false")) {
-        project.traverse(p => deleteInitialRuntime(p) >>
-          workspaceNamespaceProp.traverse(workspaceNamespace => workspaceNameProp.traverse(workspaceName => unclaimProject(WorkspaceName(workspaceNamespace, workspaceName)))))
-      } else loggerIO.info(s"Not going to release project: ${projectProp} due to error happened")
+        project.traverse(p => deleteInitialRuntime(p)).flatMap { _ =>
+          workspaceNamespaceProp.traverse(workspaceNamespace =>
+            workspaceNameProp.traverse(workspaceName =>
+              unclaimProject(WorkspaceName(workspaceNamespace, workspaceName))
+            )
+          )
+        }
+      } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
       _ <- IO(sys.props.remove(googleProjectKey))
+      _ <- IO(sys.props.remove(workspaceNamespaceKey))
+      _ <- IO(sys.props.remove(workspaceNameKey))
       _ <- ProxyRedirectClient.stopServer()
       _ <- loggerIO.info(s"Stopped proxy redirect server")
       _ <- IO(super.afterAll())
