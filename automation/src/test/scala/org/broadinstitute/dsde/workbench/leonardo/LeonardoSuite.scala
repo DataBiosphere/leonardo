@@ -36,11 +36,12 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
 
     sys.props.get(workspaceNamespaceKey) match {
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
+      case x => loggerIO.info(s"Workspace namespace is: ${x}").unsafeRunSync()
     }
 
     sys.props.get(googleProjectKey) match {
       case None                                            => throw new RuntimeException("leonardo.googleProject system property is not set")
-      case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
+      // case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
         if (isRetryable(test))
           withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
