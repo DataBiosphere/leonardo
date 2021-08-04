@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
 import cats.syntax.all._
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
 //import org.broadinstitute.dsde.rawls.model.Workspace
 import org.broadinstitute.dsde.workbench.fixture.{BillingFixtures}
@@ -23,7 +24,7 @@ import spray.json.DefaultJsonProtocol.StringJsonFormat
 
 import java.util.UUID
 
-trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
+trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging{
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -36,7 +37,7 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
 
     sys.props.get(workspaceNamespaceKey) match {
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
-      case x => loggerIO.info(s"Workspace namespace is: ${x}").unsafeRunSync()
+      case x => logger.info(s"Workspace namespace is: ${x}")
     }
 
     sys.props.get(googleProjectKey) match {
