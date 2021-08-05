@@ -5,12 +5,12 @@ import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, GPAllocBeforeA
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
 import org.scalatest.time.{Minutes, Seconds, Span}
-import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+import org.scalatest.{ParallelTestExecution}
 
 import scala.concurrent.duration._
 
- @DoNotDiscover
-class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
+// @DoNotDiscover
+class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils with GPAllocBeforeAndAfterAll {
 
   implicit val ronToken: AuthToken = ronAuthToken
   implicit val auth: Authorization = Authorization(

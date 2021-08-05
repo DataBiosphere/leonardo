@@ -109,10 +109,10 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
             hermioneAuthToken
           )
       )
-      releaseProject <- IO(releaseGPAllocProject(workspaceName.namespace, hermioneCreds)).attempt
-      _ <- releaseProject match {
-        case Left(e) => loggerIO.warn(e)(s"Failed to release billing project: ${workspaceName.namespace}")
-        case _ => loggerIO.info(s"Billing project released: ${workspaceName.namespace}")
+      deleteResults <- IO(Rawls.billingV2.deleteBillingProject(workspaceName.namespace)(hermioneAuthToken))
+      _ <- deleteResults match {
+        case "OK" => loggerIO.info(s"Billing Project deleted: ${workspaceName.namespace}")
+        case _ => loggerIO.warn(s"Failed to delete Billing Project: ${deleteResults}")
       }
     } yield ()
   }
