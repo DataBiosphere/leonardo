@@ -71,8 +71,11 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   /**
    * Claim new billing project by Hermione
    */
-  protected def claimGPAllocProjectAndCreateWorkspace(): IO[GoogleProjectAndWorkspaceName] =
+  protected def claimGPAllocProjectAndCreateWorkspace(): IO[GoogleProjectAndWorkspaceName] = {
+    val billingProjectName = ("leo-v2-bp-" + UUID.randomUUID().toString).substring(0,30)
+
     for {
+//      claimedBillingProject <- IO(Rawls.billingV2.createBillingProject()) //todo: start here!
       claimedBillingProject <- IO(claimGPAllocProject(hermioneCreds))
       _ <- IO(
         Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
@@ -90,6 +93,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
         workspace.asJsObject.getFields("googleProjectId")}.head.convertTo[String])
       _ <- loggerIO.info(s"Workspace details: ${workspaceDetails}")
     } yield GoogleProjectAndWorkspaceName(GoogleProject(googleProjectId), WorkspaceName(claimedBillingProject.projectName, workspaceName))
+  }
 
   /**
    * Unclaiming billing project claim by Hermione
