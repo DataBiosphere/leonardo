@@ -30,6 +30,7 @@ object LeonardoConfig extends CommonConfig {
   // for qaEmail and pathToQAPem and pathToQAJson
   object GCS extends CommonGCS {
     val pathToQAJson = gcs.getString("qaJsonFile")
+    val billingAccountId = gcs.getString("billingAccountId")
   }
 
   // for NotebooksWhitelisted

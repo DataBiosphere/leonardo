@@ -73,26 +73,26 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
    */
   protected def claimGPAllocProjectAndCreateWorkspace(): IO[GoogleProjectAndWorkspaceName] = {
     val billingProjectName = ("leo-v2-bp-" + UUID.randomUUID().toString).substring(0,30)
+    val billingAccountId = LeonardoConfig.GCS.billingAccountId
 
     for {
-//      claimedBillingProject <- IO(Rawls.billingV2.createBillingProject()) //todo: start here!
-      claimedBillingProject <- IO(claimGPAllocProject(hermioneCreds))
+      _ <- IO(Rawls.billingV2.createBillingProject(billingProjectName, billingAccountId)(hermioneAuthToken))
       _ <- IO(
-        Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
+        Orchestration.billing.addUserToBillingProject(billingProjectName,
                                                       ronEmail,
                                                       BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       )
-      _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
+      _ <- loggerIO.info(s"Billing project claimed: ${billingProjectName}")
       workspaceName = UUID.randomUUID().toString
       _ <- IO(
-        Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
+        Orchestration.workspaces.create(billingProjectName, workspaceName)(ronAuthToken)
       )
       // Testing with: sbt "testOnly *RuntimeAutopauseSpec"
-      workspaceDetails <- IO(Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken))
+      workspaceDetails <- IO(Rawls.workspaces.getWorkspaceDetails(billingProjectName, workspaceName)(ronAuthToken))
       googleProjectId <- IO(workspaceDetails.parseJson.asJsObject.getFields("workspace").flatMap { workspace =>
         workspace.asJsObject.getFields("googleProjectId")}.head.convertTo[String])
       _ <- loggerIO.info(s"Workspace details: ${workspaceDetails}")
-    } yield GoogleProjectAndWorkspaceName(GoogleProject(googleProjectId), WorkspaceName(claimedBillingProject.projectName, workspaceName))
+    } yield GoogleProjectAndWorkspaceName(GoogleProject(googleProjectId), WorkspaceName(billingProjectName, workspaceName))
   }
 
   /**
