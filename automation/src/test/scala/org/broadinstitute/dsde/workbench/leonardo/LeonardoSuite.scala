@@ -76,9 +76,9 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
     val billingAccountId = LeonardoConfig.GCS.billingAccountId
 
     for {
-      _ <- IO(Rawls.billingV2.createBillingProject(billingProjectName, billingAccountId)(hermioneAuthToken))
+      _ <- IO(Orchestration.billingV2.createBillingProject(billingProjectName, billingAccountId)(hermioneAuthToken))
       _ <- IO(
-        Orchestration.billing.addUserToBillingProject(billingProjectName,
+        Orchestration.billingV2.addUserToBillingProject(billingProjectName,
                                                       ronEmail,
                                                       BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       )
