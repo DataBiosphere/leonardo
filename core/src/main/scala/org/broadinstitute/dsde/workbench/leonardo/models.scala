@@ -9,24 +9,30 @@ import cats.mtl.Ask
 import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.model.TraceId
 
-final case class AppContext(traceId: TraceId, now: Instant, span: Option[Span] = None) {
+/**
+ * @param traceId Unique identifier to connect logs for the same request or transaction together
+ * @param now
+ * @param requestUri API request if this is context for an API request
+ * @param span span for a request if this is context for an API request
+ */
+final case class AppContext(traceId: TraceId, now: Instant, requestUri: String = "", span: Option[Span] = None) {
   override def toString: String = s"${traceId.asString}"
 
   val loggingCtx = Map("traceId" -> traceId.asString)
 }
 
 object AppContext {
-  def generate[F[_]: Sync](span: Option[Span] = None)(implicit timer: Timer[F]): F[AppContext] =
+  def generate[F[_]: Sync](span: Option[Span] = None, requestUri: String)(implicit timer: Timer[F]): F[AppContext] =
     for {
       traceId <- span.fold(Sync[F].delay(UUID.randomUUID().toString))(s =>
         Sync[F].pure(s.getContext.getTraceId.toLowerBase16())
       )
       now <- nowInstant[F]
-    } yield AppContext(TraceId(traceId), now, span)
+    } yield AppContext(TraceId(traceId), now, requestUri, span)
 
-  def lift[F[_]: Sync: Timer](span: Option[Span] = None): F[Ask[F, AppContext]] =
+  def lift[F[_]: Sync: Timer](span: Option[Span] = None, requestUri: String): F[Ask[F, AppContext]] =
     for {
-      context <- AppContext.generate[F](span)
+      context <- AppContext.generate[F](span, requestUri)
     } yield Ask.const[F, AppContext](
       context
     )
