@@ -183,7 +183,7 @@ object Boot extends IOApp {
       val httpServer = for {
         start <- Timer[IO].clock.realTime(TimeUnit.MILLISECONDS)
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
-          AppContext(TraceId(s"Boot_${start}"), Instant.ofEpochMilli(start))
+          AppContext(TraceId(s"Boot_${start}"), Instant.ofEpochMilli(start), "")
         )
 
         _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
