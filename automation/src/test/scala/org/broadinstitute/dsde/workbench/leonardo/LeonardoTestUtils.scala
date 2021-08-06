@@ -68,7 +68,7 @@ trait LeonardoTestUtils
   lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
 
   lazy val ronAuthToken = UserAuthToken(ronCreds, AuthTokenScopes.userLoginScopes)
-  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds, AuthTokenScopes.userLoginScopes)
+  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds, AuthTokenScopes.billingScopes)
   lazy val voldyAuthToken = UserAuthToken(voldyCreds, AuthTokenScopes.userLoginScopes)
   lazy val ronEmail = ronCreds.email
 
