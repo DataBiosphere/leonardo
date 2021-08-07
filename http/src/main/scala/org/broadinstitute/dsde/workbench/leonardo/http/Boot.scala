@@ -52,7 +52,6 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util2.ExecutionContexts
 import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
-import org.http4s.client.blaze
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
@@ -64,6 +63,7 @@ import javax.net.ssl.SSLContext
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
+import org.http4s.blaze.client
 
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
@@ -353,7 +353,7 @@ object Boot extends IOApp {
       // Set up SSL context and http clients
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
-      httpClient <- blaze
+      httpClient <- client
         .BlazeClientBuilder[F](blockingEc, Some(sslContext))
         // Note a custom resolver is needed for making requests through the Leo proxy
         // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
