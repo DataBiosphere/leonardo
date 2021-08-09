@@ -1,19 +1,20 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package apps
 
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
+import org.broadinstitute.dsde.workbench.google2.{Generators, streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.service.util.Tags
+import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.tagobjects.Retryable
-import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+import org.scalatest.ParallelTestExecution
 
 import scala.concurrent.duration._
 
-@DoNotDiscover
 class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
@@ -91,13 +92,14 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             loggerIO.warn(
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
             )
+            IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
           } else {
             // Verify creating another app with the same disk doesn't error out
             for {
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
               )
-              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)
+              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(client, auth, loggerIO, testTimer)
             } yield ()
           }
         } yield ()
