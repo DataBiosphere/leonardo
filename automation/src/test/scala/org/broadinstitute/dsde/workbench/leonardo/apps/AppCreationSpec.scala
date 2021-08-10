@@ -3,7 +3,7 @@ package apps
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{Generators, streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -15,7 +15,12 @@ import org.scalatest.ParallelTestExecution
 
 import scala.concurrent.duration._
 
-class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with  GPAllocUtils with ParallelTestExecution with GPAllocBeforeAndAfterAll {
+class AppCreationSpec
+    extends GPAllocFixtureSpec
+    with LeonardoTestUtils
+    with GPAllocUtils
+    with ParallelTestExecution
+    with GPAllocBeforeAndAfterAll {
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
@@ -99,7 +104,10 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with  GP
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
               )
-              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(client, auth, loggerIO, testTimer)
+              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(client,
+                                                                                                        auth,
+                                                                                                        loggerIO,
+                                                                                                        testTimer)
               _ <- IO(Sam.user.deleteResource("kubernetes-app", restoreAppName.value)(ronCreds.makeAuthToken()))
             } yield ()
           }
