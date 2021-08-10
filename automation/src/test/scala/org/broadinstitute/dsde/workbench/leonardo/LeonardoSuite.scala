@@ -24,7 +24,7 @@ import spray.json.DefaultJsonProtocol.StringJsonFormat
 
 import java.util.UUID
 
-trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging{
+trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -37,11 +37,11 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLo
 
     sys.props.get(workspaceNamespaceKey) match {
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
-      case x => logger.info(s"Workspace namespace is: ${x}")
+      case x                                               => logger.info(s"Workspace namespace is: ${x}")
     }
 
     sys.props.get(googleProjectKey) match {
-      case None                                            => throw new RuntimeException("leonardo.googleProject system property is not set")
+      case None => throw new RuntimeException("leonardo.googleProject system property is not set")
       // case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
         if (isRetryable(test))
@@ -85,16 +85,24 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
         Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
       // Testing with: sbt "testOnly *RuntimeAutopauseSpec"
-      workspaceDetails <- IO(Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken))
-      googleProjectId <- IO(workspaceDetails.parseJson.asJsObject.getFields("workspace").flatMap { workspace =>
-        workspace.asJsObject.getFields("googleProjectId")}.head.convertTo[String])
+      workspaceDetails <- IO(
+        Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
+      )
+      googleProjectId <- IO(
+        workspaceDetails.parseJson.asJsObject
+          .getFields("workspace")
+          .flatMap(workspace => workspace.asJsObject.getFields("googleProjectId"))
+          .head
+          .convertTo[String]
+      )
       _ <- loggerIO.info(s"Workspace details: ${workspaceDetails}")
-    } yield GoogleProjectAndWorkspaceName(GoogleProject(googleProjectId), WorkspaceName(claimedBillingProject.projectName, workspaceName))
+    } yield GoogleProjectAndWorkspaceName(GoogleProject(googleProjectId),
+                                          WorkspaceName(claimedBillingProject.projectName, workspaceName))
 
   /**
    * Unclaiming billing project claim by Hermione
    */
-  protected def unclaimProject(workspaceName: WorkspaceName): IO[Unit] = {
+  protected def unclaimProject(workspaceName: WorkspaceName): IO[Unit] =
     for {
       _ <- IO(
         Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronAuthToken)
@@ -108,10 +116,9 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       releaseProject <- IO(releaseGPAllocProject(workspaceName.namespace, hermioneCreds)).attempt
       _ <- releaseProject match {
         case Left(e) => loggerIO.warn(e)(s"Failed to release billing project: ${workspaceName.namespace}")
-        case _ => loggerIO.info(s"Billing project released: ${workspaceName.namespace}")
+        case _       => loggerIO.info(s"Billing project released: ${workspaceName.namespace}")
       }
     } yield ()
-  }
 
   def withNewProject[T](testCode: GoogleProject => IO[T]): T = {
     val test = for {
@@ -138,7 +145,11 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- claimAttempt match {
         case Left(e) => IO(sys.props.put(workspaceNamespaceKey, gpallocErrorPrefix + e.getMessage))
         case Right(googleProjectAndWorkspaceName) =>
-          IO(sys.props.put(googleProjectKey, googleProjectAndWorkspaceName.googleProject.value)) >> IO(sys.props.put(workspaceNamespaceKey,googleProjectAndWorkspaceName.workspaceName.namespace)) >> IO(sys.props.put(workspaceNameKey, googleProjectAndWorkspaceName.workspaceName.name)) >> createInitialRuntime(googleProjectAndWorkspaceName.googleProject)
+          IO(sys.props.put(googleProjectKey, googleProjectAndWorkspaceName.googleProject.value)) >> IO(
+            sys.props.put(workspaceNamespaceKey, googleProjectAndWorkspaceName.workspaceName.namespace)
+          ) >> IO(sys.props.put(workspaceNameKey, googleProjectAndWorkspaceName.workspaceName.name)) >> createInitialRuntime(
+            googleProjectAndWorkspaceName.googleProject
+          )
       }
       proxyRedirectServer <- ProxyRedirectClient.baseUri
       _ <- loggerIO.info(s"Serving proxy redirect page at ${proxyRedirectServer.renderString}")
@@ -158,9 +169,8 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- if (!shouldUnclaimProp.contains("false")) {
         project.traverse(p => deleteInitialRuntime(p)).flatMap { _ =>
           workspaceNamespaceProp.traverse(workspaceNamespace =>
-            workspaceNameProp.traverse(workspaceName =>
-              unclaimProject(WorkspaceName(workspaceNamespace, workspaceName))
-            )
+            workspaceNameProp
+              .traverse(workspaceName => unclaimProject(WorkspaceName(workspaceNamespace, workspaceName)))
           )
         }
       } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
