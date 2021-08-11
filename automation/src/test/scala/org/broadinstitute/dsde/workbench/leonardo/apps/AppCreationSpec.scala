@@ -3,7 +3,7 @@ package apps
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{Generators, streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.service.util.Tags
@@ -16,11 +16,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class AppCreationSpec
-    extends GPAllocFixtureSpec
-    with LeonardoTestUtils
-    with GPAllocUtils
-    with ParallelTestExecution {
+class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
   implicit val auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
