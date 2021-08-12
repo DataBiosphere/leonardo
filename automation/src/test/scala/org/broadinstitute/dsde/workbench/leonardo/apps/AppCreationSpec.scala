@@ -105,7 +105,6 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
                                                                                                         loggerIO,
                                                                                                         testTimer)
               _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName)
-              //_ <- IO(Sam.user.deleteResource("kubernetes-app", restoreAppName.value)(ronCreds.makeAuthToken()))
             } yield ()
           }
         } yield ()
