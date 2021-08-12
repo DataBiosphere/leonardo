@@ -4,7 +4,6 @@ import cats.effect.IO
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
-//import org.broadinstitute.dsde.rawls.model.Workspace
 import org.broadinstitute.dsde.workbench.fixture.{BillingFixtures}
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, CustomAppCreationSpec}
@@ -42,7 +41,6 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLo
 
     sys.props.get(googleProjectKey) match {
       case None => throw new RuntimeException("leonardo.googleProject system property is not set")
-      // case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
         if (isRetryable(test))
           withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
@@ -84,7 +82,6 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       _ <- IO(
         Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
-      // Testing with: sbt "testOnly *RuntimeAutopauseSpec"
       workspaceDetails <- IO(
         Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
