@@ -122,8 +122,6 @@ abstract class RuntimeFixtureSpec
     sys.props.get(workspaceNamespaceKey) match {
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
         clusterCreationFailureMsg = msg
-      case x => logger.info(s"Workspace namespace is: ${x}")
-
     }
 
     sys.props.get(googleProjectKey) match {
