@@ -193,15 +193,11 @@ class ProxyService(
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
-          IO(
-            logger.error(
-              s"${ctx.traceId} | Unable to look up sam resource for ${key.toString}"
-            )
-          ) >> IO.raiseError(
+          IO.raiseError(
             RuntimeNotFoundException(
               key.googleProject,
               key.name,
-              s"${ctx.traceId} | Unable to look up sam resource for runtime ${key.googleProject.value} / ${key.name.asString}"
+              s"${ctx.traceId} | Unable to look up sam resource for runtime ${key.googleProject.value} / ${key.name.asString}. Request: ${ctx.requestUri}"
             )
           )
       }

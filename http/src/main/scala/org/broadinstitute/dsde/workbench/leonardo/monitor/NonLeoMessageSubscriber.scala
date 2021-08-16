@@ -62,7 +62,7 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
     val traceId = event.traceId.getOrElse(TraceId("None"))
     for {
       now <- nowInstant[F]
-      implicit0(ev: Ask[F, AppContext]) <- F.pure(Ask.const[F, AppContext](AppContext(traceId, now, None)))
+      implicit0(ev: Ask[F, AppContext]) <- F.pure(Ask.const[F, AppContext](AppContext(traceId, now, "", None)))
       _ <- metrics.incrementCounter(s"NonLeoPubSub/${event.msg.messageType}")
       res <- messageResponder(event.msg).attempt
       _ <- res match {

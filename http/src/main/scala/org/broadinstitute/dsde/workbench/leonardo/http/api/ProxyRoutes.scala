@@ -32,29 +32,78 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
 ) extends LazyLogging {
   val route: Route =
     traceRequestForService(serviceData) { span =>
-      extractAppContext(Some(span)) { implicit ctx =>
-        // Note that the "notebooks" path prefix is deprecated
-        pathPrefix("proxy" | "notebooks") {
+      extractRequest { request =>
+        extractAppContext(Some(span), request.uri.toString()) { implicit ctx =>
+          // Note that the "notebooks" path prefix is deprecated
+          pathPrefix("proxy" | "notebooks") {
 
-          corsSupport.corsHandler {
+            corsSupport.corsHandler {
 
-            refererHandler {
-              // "apps" proxy routes
-              pathPrefix("google" / "v1" / "apps") {
-                pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
-                  (googleProject, appName, serviceName) =>
-                    (extractRequest & extractUserInfo) { (request, userInfo) =>
-                      logRequestResultForMetrics(userInfo) {
-                        complete {
-                          proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
+              refererHandler {
+                // "apps" proxy routes
+                pathPrefix("google" / "v1" / "apps") {
+                  pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
+                    (googleProject, appName, serviceName) =>
+                      extractUserInfo { userInfo =>
+                        logRequestResultForMetrics(userInfo) {
+                          complete {
+                            proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
+                          }
+                        }
+                      }
+                  }
+                } ~
+                  // "runtimes" proxy routes
+                  pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
+                    // Note the setCookie route exists at the top-level /proxy/setCookie as well
+                    path("setCookie") {
+                      extractUserInfoFromHeader { userInfoOpt =>
+                        get {
+                          val cookieDirective = userInfoOpt match {
+                            case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
+                            case None           => CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName)
+                          }
+                          cookieDirective {
+                            complete {
+                              setCookieHandler(userInfoOpt)
+                            }
+                          }
+                        }
+                      }
+                    } ~
+                      pathPrefix("jupyter" / "terminals") {
+                        pathSuffix(terminalNameSegment) { terminalName =>
+                          (extractUserInfo) { userInfo =>
+                            logRequestResultForMetrics(userInfo) {
+                              complete {
+                                openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
+                              }
+                            }
+                          }
+                        }
+                      } ~
+                      (extractUserInfo) { userInfo =>
+                        logRequestResultForMetrics(userInfo) {
+                          // Proxy logic handled by the ProxyService class
+                          // Note ProxyService calls the LeoAuthProvider internally
+                          complete {
+                            proxyRuntimeHandler(userInfo, googleProject, runtimeName, request)
+                          }
+                        }
+                      }
+                  } ~
+                  // Top-level routes
+                  path("invalidateToken") {
+                    get {
+                      extractUserInfoOpt { userInfoOpt =>
+                        CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
+                          complete {
+                            invalidateTokenHandler(userInfoOpt)
+                          }
                         }
                       }
                     }
-                }
-              } ~
-                // "runtimes" proxy routes
-                pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
-                  // Note the setCookie route exists at the top-level /proxy/setCookie as well
+                  } ~
                   path("setCookie") {
                     extractUserInfoFromHeader { userInfoOpt =>
                       get {
@@ -69,55 +118,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                         }
                       }
                     }
-                  } ~
-                    pathPrefix("jupyter" / "terminals") {
-                      pathSuffix(terminalNameSegment) { terminalName =>
-                        (extractRequest & extractUserInfo) { (request, userInfo) =>
-                          logRequestResultForMetrics(userInfo) {
-                            complete {
-                              openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
-                            }
-                          }
-                        }
-                      }
-                    } ~
-                    (extractRequest & extractUserInfo) { (request, userInfo) =>
-                      logRequestResultForMetrics(userInfo) {
-                        // Proxy logic handled by the ProxyService class
-                        // Note ProxyService calls the LeoAuthProvider internally
-                        complete {
-                          proxyRuntimeHandler(userInfo, googleProject, runtimeName, request)
-                        }
-                      }
-                    }
-                } ~
-                // Top-level routes
-                path("invalidateToken") {
-                  get {
-                    extractUserInfoOpt { userInfoOpt =>
-                      CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
-                        complete {
-                          invalidateTokenHandler(userInfoOpt)
-                        }
-                      }
-                    }
                   }
-                } ~
-                path("setCookie") {
-                  extractUserInfoFromHeader { userInfoOpt =>
-                    get {
-                      val cookieDirective = userInfoOpt match {
-                        case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
-                        case None           => CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName)
-                      }
-                      cookieDirective {
-                        complete {
-                          setCookieHandler(userInfoOpt)
-                        }
-                      }
-                    }
-                  }
-                }
+              }
             }
           }
         }
