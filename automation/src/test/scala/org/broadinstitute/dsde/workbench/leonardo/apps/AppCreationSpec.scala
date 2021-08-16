@@ -93,7 +93,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             loggerIO.warn(
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
             )
-            IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
+            //IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
           } else {
             // Verify creating another app with the same disk doesn't error out
             for {
@@ -214,7 +214,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             loggerIO.warn(
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes. Result: $monitorDeleteResult"
             )
-            IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
+            //IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
           } else {
             // verify disk is also deleted
             for {
