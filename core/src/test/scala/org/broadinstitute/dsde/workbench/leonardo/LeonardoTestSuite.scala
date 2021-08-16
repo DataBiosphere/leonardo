@@ -21,7 +21,7 @@ trait LeonardoTestSuite extends Matchers {
   implicit val testTimer: Timer[IO] = IO.timer(global)
   implicit val cs: ContextShift[IO] = IO.contextShift(global)
   implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
-  implicit val appContext = AppContext.lift[IO](None).unsafeRunSync()
+  implicit val appContext = AppContext.lift[IO](None, "").unsafeRunSync()
 
   val blocker = Blocker.liftExecutionContext(global)
   val semaphore = Semaphore[IO](10).unsafeRunSync()
