@@ -6,7 +6,7 @@ import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
 import fs2.concurrent.InspectableQueue
 import fs2.{Pipe, Stream}
-import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.StructuredLogger
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
@@ -22,17 +22,27 @@ import scala.concurrent.duration._
  * dequeue from publisherQueue and transform it into a native google pubsub message;
  * After pubsub message is published, we update database when necessary
  */
-final class LeoPublisher[F[_]: Logger: Timer](
+final class LeoPublisher[F[_]: Timer](
   publisherQueue: InspectableQueue[F, LeoPubsubMessage],
   googlePublisher: GooglePublisher[F]
-)(implicit F: Concurrent[F], dbReference: DbReference[F], metrics: OpenTelemetryMetrics[F], ec: ExecutionContext) {
+)(implicit F: Concurrent[F],
+  dbReference: DbReference[F],
+  metrics: OpenTelemetryMetrics[F],
+  logger: StructuredLogger[F],
+  ec: ExecutionContext) {
   val process: Stream[F, Unit] = {
-    val publishingStream = Stream.eval(Logger[F].info(s"Initializing publisher")) ++ publisherQueue.dequeue.flatMap {
+    val publishingStream = Stream.eval(logger.info("Initializing publisher")) ++ publisherQueue.dequeue.flatMap {
       event =>
-        val publishing = Stream
-          .eval(F.pure(event))
-          .covary[F] through convertToPubsubMessagePipe through googlePublisher.publishNative
-        publishing.evalMap(_ => updateDatabase(event))
+        Stream
+          .emit(event)
+          .covary[F]
+          .through(convertToPubsubMessagePipe)
+          .through(googlePublisher.publishNative)
+          .evalMap(_ => updateDatabase(event))
+          .handleErrorWith { t =>
+            val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
+            Stream.eval(logger.error(loggingCtx, t)(s"Failed to publish message of type ${event.messageType.asString}"))
+          }
     }
     Stream(publishingStream, recordMetrics).covary[F].parJoin(2)
   }
