@@ -97,7 +97,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
     for {
       _ <- IO(
         Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronAuthToken)
-      )
+      ).attempt
       _ <- IO(
         Orchestration.billing
           .removeUserFromBillingProject(workspaceName.namespace, ronEmail, BillingProject.BillingProjectRole.User)(
