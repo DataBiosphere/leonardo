@@ -87,7 +87,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
         Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
       json <- IO.fromEither(parse(workspaceDetails))
-      googleProjectOpt = json.hcursor.downField("workspace").get[String]("googleProject").toOption
+      googleProjectOpt = json.hcursor.downField("workspace").get[String]("googleProjectId").toOption
       googleProjectId <- IO.fromOption(googleProjectOpt)(
         new Exception(s"Could not get googleProject from workspace $workspaceName")
       )
