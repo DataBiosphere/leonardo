@@ -35,13 +35,9 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLo
       outcome
     }
 
-    sys.props.get(workspaceNamespaceKey) match {
-      case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
-      case x => logger.info(s"Workspace namespace is : ${x}")
-    }
-
     sys.props.get(googleProjectKey) match {
       case None => throw new RuntimeException("leonardo.googleProject system property is not set")
+      case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
         if (isRetryable(test))
           withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
@@ -138,7 +134,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll beforeAll")
       claimAttempt <- claimGPAllocProjectAndCreateWorkspace().attempt
       _ <- claimAttempt match {
-        case Left(e) => IO(sys.props.put(workspaceNamespaceKey, gpallocErrorPrefix + e.getMessage))
+        case Left(e) => IO(sys.props.put(googleProjectKey, gpallocErrorPrefix + e.getMessage))
         case Right(googleProjectAndWorkspaceName) =>
           IO(
             sys.props.addAll(

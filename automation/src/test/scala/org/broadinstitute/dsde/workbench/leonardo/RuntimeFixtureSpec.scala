@@ -119,18 +119,14 @@ abstract class RuntimeFixtureSpec
     super.beforeAll()
     logger.info("beforeAll")
 
-    sys.props.get(workspaceNamespaceKey) match {
-      case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
-        clusterCreationFailureMsg = msg
-      case x => logger.info(s"Worksapce name space is ${x}")
-    }
-
     sys.props.get(googleProjectKey) match {
       case Some(googleProjectId) =>
         Either.catchNonFatal(createRonRuntime(GoogleProject(googleProjectId))).handleError { e =>
           clusterCreationFailureMsg = e.getMessage
           ronCluster = null
         }
+      case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
+        clusterCreationFailureMsg = msg
       case None =>
         clusterCreationFailureMsg = "leonardo.googleProject system property is not set"
     }
