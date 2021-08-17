@@ -1,7 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
+import io.circe.parser._
 import cats.syntax.all._
+import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
 import org.broadinstitute.dsde.workbench.fixture.{BillingFixtures}
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
@@ -22,7 +24,7 @@ import spray.json.DefaultJsonProtocol.StringJsonFormat
 
 import java.util.UUID
 
-trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
+trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging{
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -35,6 +37,7 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries {
 
     sys.props.get(workspaceNamespaceKey) match {
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
+      case x => logger.info(s"Workspace namespace is : ${x}")
     }
 
     sys.props.get(googleProjectKey) match {
@@ -76,19 +79,17 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
                                                       BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       )
       _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-      workspaceName = UUID.randomUUID().toString
+      workspaceName <- IO(UUID.randomUUID().toString)
       _ <- IO(
         Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
       workspaceDetails <- IO(
         Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
-      googleProjectId <- IO(
-        workspaceDetails.parseJson.asJsObject
-          .getFields("workspace")
-          .flatMap(workspace => workspace.asJsObject.getFields("googleProjectId"))
-          .head
-          .convertTo[String]
+      json <- IO.fromEither(parse(workspaceDetails))
+      googleProjectOpt = json.hcursor.downField("workspace").get[String]("googleProject").toOption
+      googleProjectId <- IO.fromOption(googleProjectOpt)(
+        new Exception(s"Could not get googleProject from workspace $workspaceName")
       )
     } yield GoogleProjectAndWorkspaceName(GoogleProject(googleProjectId),
                                           WorkspaceName(claimedBillingProject.projectName, workspaceName))
@@ -139,9 +140,15 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- claimAttempt match {
         case Left(e) => IO(sys.props.put(workspaceNamespaceKey, gpallocErrorPrefix + e.getMessage))
         case Right(googleProjectAndWorkspaceName) =>
-          IO(sys.props.put(googleProjectKey, googleProjectAndWorkspaceName.googleProject.value)) >> IO(
-            sys.props.put(workspaceNamespaceKey, googleProjectAndWorkspaceName.workspaceName.namespace)
-          ) >> IO(sys.props.put(workspaceNameKey, googleProjectAndWorkspaceName.workspaceName.name)) >> createInitialRuntime(
+          IO(
+            sys.props.addAll(
+              Map(
+                googleProjectKey -> googleProjectAndWorkspaceName.googleProject.value,
+                workspaceNamespaceKey -> googleProjectAndWorkspaceName.workspaceName.namespace,
+                workspaceNameKey -> googleProjectAndWorkspaceName.workspaceName.name
+              )
+            )
+          ) >> createInitialRuntime(
             googleProjectAndWorkspaceName.googleProject
           )
       }
@@ -168,9 +175,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
           )
         }
       } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
-      _ <- IO(sys.props.remove(googleProjectKey))
-      _ <- IO(sys.props.remove(workspaceNamespaceKey))
-      _ <- IO(sys.props.remove(workspaceNameKey))
+      _ <- IO(sys.props.subtractAll(List(googleProjectKey, workspaceNamespaceKey, workspaceNameKey)))
       _ <- ProxyRedirectClient.stopServer()
       _ <- loggerIO.info(s"Stopped proxy redirect server")
       _ <- IO(super.afterAll())
