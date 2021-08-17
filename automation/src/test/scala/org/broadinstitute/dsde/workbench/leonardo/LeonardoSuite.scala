@@ -24,7 +24,7 @@ import spray.json.DefaultJsonProtocol.StringJsonFormat
 
 import java.util.UUID
 
-trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging{
+trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -36,7 +36,7 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLo
     }
 
     sys.props.get(googleProjectKey) match {
-      case None => throw new RuntimeException("leonardo.googleProject system property is not set")
+      case None                                            => throw new RuntimeException("leonardo.googleProject system property is not set")
       case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
         if (isRetryable(test))
@@ -83,7 +83,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
         Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
       json <- IO.fromEither(parse(workspaceDetails))
-      googleProjectOpt = json.hcursor.downField("workspace").get[String]("googleProjectId").toOption
+      googleProjectOpt = json.hcursor.downField("workspace").get[String]("googleProject").toOption
       googleProjectId <- IO.fromOption(googleProjectOpt)(
         new Exception(s"Could not get googleProject from workspace $workspaceName")
       )
