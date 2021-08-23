@@ -164,11 +164,8 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       workspaceNameProp <- IO(sys.props.get(workspaceNameKey))
       project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
       _ <- if (!shouldUnclaimProp.contains("false")) {
-        project.traverse(p => deleteInitialRuntime(p)).flatMap { _ =>
-          workspaceNamespaceProp.traverse(workspaceNamespace =>
-            workspaceNameProp
-              .traverse(workspaceName => unclaimProject(WorkspaceName(workspaceNamespace, workspaceName)))
-          )
+        (project, workspaceNamespaceProp, workspaceNameProp).traverseN {
+          case (p, n, w) => deleteInitialRuntime(p) >> unclaimProject(WorkspaceName(n, w))
         }
       } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
       _ <- IO(sys.props.subtractAll(List(googleProjectKey, workspaceNamespaceKey, workspaceNameKey)))
