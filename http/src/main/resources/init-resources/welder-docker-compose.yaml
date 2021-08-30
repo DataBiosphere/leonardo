@@ -17,6 +17,7 @@ services:
       CLUSTER_NAME: "${RUNTIME_NAME}"
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
+      IS_RSTUDIO_RUNTIME: "${IS_RSTUDIO_RUNTIME}"
     volumes:
       # shared with jupyter
       - ${WORK_DIRECTORY}:/work
