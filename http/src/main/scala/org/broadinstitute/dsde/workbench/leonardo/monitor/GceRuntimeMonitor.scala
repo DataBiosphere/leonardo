@@ -207,7 +207,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
               monitorContext,
               runtimeAndRuntimeConfig,
               RuntimeErrorDetails(
-                "Creation may have failed due to temporary resource unavailability of GPUs in Google Cloud Platform (`ZONE_RESOURCE_POOL_EXHAUSTED` error). Please try again later or refer to http://broad.io/different-zone for creating a cloud environment in a different zone.",
+                "Creation may have failed due to temporary resource unavailability in Google Cloud Platform (`ZONE_RESOURCE_POOL_EXHAUSTED` error). Please try again later or refer to http://broad.io/different-zone for creating a cloud environment in a different zone.",
                 shortMessage = Some("fail_to_create")
               ),
               Set.empty
