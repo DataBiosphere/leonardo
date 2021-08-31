@@ -28,7 +28,7 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
         withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
           val expectedEVs = Map(
             "GOOGLE_PROJECT" -> runtimeFixture.runtime.googleProject.value,
-            "WORKSPACE_NAMESPACE" -> runtimeFixture.runtime.googleProject.value,
+            "WORKSPACE_NAMESPACE" -> "the-workspace-namespace",
             "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
             "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
             "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,

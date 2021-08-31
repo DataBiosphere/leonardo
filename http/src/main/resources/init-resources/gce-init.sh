@@ -497,7 +497,6 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 
   # Add the EVs specified in rstudio-docker-compose.yaml to Renviron.site
   retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
-WORKSPACE_NAMESPACE=$WORKSPACE_NAMESPACE
 CLUSTER_NAME=$CLUSTER_NAME
 RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'

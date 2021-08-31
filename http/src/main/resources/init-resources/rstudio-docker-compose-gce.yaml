@@ -18,7 +18,6 @@ services:
       # needed to disable auth
       USER: "rstudio"
       GOOGLE_PROJECT: "${GOOGLE_PROJECT}"
-      WORKSPACE_NAMESPACE: "${GOOGLE_PROJECT}"
       CLUSTER_NAME: "${RUNTIME_NAME}"
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
