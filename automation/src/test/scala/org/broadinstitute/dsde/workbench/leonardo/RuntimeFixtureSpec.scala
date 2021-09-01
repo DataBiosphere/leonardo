@@ -85,7 +85,8 @@ abstract class RuntimeFixtureSpec
           billingProject,
           runtimeName,
           getRuntimeRequest(cloudService.getOrElse(CloudService.GCE),
-                            toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR)))
+                            toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR)),
+                            welderRegistry)
         )
       } yield {
         ronCluster = ClusterCopy(
