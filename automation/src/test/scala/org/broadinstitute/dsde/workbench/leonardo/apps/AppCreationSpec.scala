@@ -1,13 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package apps
 
-import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.tagobjects.Retryable
