@@ -26,6 +26,7 @@ abstract class RuntimeFixtureSpec
   implicit val ronToken: AuthToken = ronAuthToken
 
   def toolDockerImage: Option[String] = None
+  def welderRegistry: Option[ContainerRegistry] = None
   def cloudService: Option[CloudService] = Some(CloudService.GCE)
   var ronCluster: ClusterCopy = _
   var clusterCreationFailureMsg: String = ""
@@ -146,7 +147,9 @@ abstract class RuntimeFixtureSpec
 }
 
 object RuntimeFixtureSpec {
-  def getRuntimeRequest(cloudService: CloudService, toolDockerImage: Option[ContainerImage]): CreateRuntime2Request = {
+  def getRuntimeRequest(cloudService: CloudService,
+                        toolDockerImage: Option[ContainerImage],
+                        welderRegistry: Option[ContainerRegistry]): CreateRuntime2Request = {
     val machineConfig = cloudService match {
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(
@@ -181,7 +184,7 @@ object RuntimeFixtureSpec {
       userJupyterExtensionConfig = None,
       autopauseThreshold = None,
       defaultClientId = None,
-      welderRegistry = None,
+      welderRegistry = welderRegistry,
       scopes = Set.empty,
       customEnvironmentVariables = Map("TEST_EV1" -> "test1", "TEST_EV2" -> "test2")
     )
