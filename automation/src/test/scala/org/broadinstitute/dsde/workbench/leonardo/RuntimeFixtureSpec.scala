@@ -157,7 +157,9 @@ object RuntimeFixtureSpec {
       "GOOGLE_PROJECT" -> sys.props.getOrElse(googleProjectKey, "google-project")
     )
 
-  def getRuntimeRequest(cloudService: CloudService, toolDockerImage: Option[ContainerImage], welderRegistry: Option[ContainerRegistry]): CreateRuntime2Request = {
+  def getRuntimeRequest(cloudService: CloudService,
+                        toolDockerImage: Option[ContainerImage],
+                        welderRegistry: Option[ContainerRegistry]): CreateRuntime2Request = {
     val machineConfig = cloudService match {
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(
