@@ -148,9 +148,16 @@ abstract class RuntimeFixtureSpec
 }
 
 object RuntimeFixtureSpec {
-  def getRuntimeRequest(cloudService: CloudService,
-                        toolDockerImage: Option[ContainerImage],
-                        welderRegistry: Option[ContainerRegistry]): CreateRuntime2Request = {
+  // Simulate custom environment variables set by Terra UI
+  def getCustomEnvironmentVariables: Map[String, String] =
+    Map(
+      "WORKSPACE_NAME" -> sys.props.getOrElse(workspaceNameKey, "workspace"),
+      "WORKSPACE_NAMESPACE" -> sys.props.getOrElse(workspaceNamespaceKey, "workspace-namespace"),
+      "WORKSPACE_BUCKET" -> "workspace-bucket",
+      "GOOGLE_PROJECT" -> sys.props.getOrElse(googleProjectKey, "google-project")
+    )
+
+  def getRuntimeRequest(cloudService: CloudService, toolDockerImage: Option[ContainerImage], welderRegistry: Option[ContainerRegistry]): CreateRuntime2Request = {
     val machineConfig = cloudService match {
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(
@@ -187,7 +194,7 @@ object RuntimeFixtureSpec {
       defaultClientId = None,
       welderRegistry = welderRegistry,
       scopes = Set.empty,
-      customEnvironmentVariables = Map("TEST_EV1" -> "test1", "TEST_EV2" -> "test2")
+      customEnvironmentVariables = getCustomEnvironmentVariables
     )
   }
 }
