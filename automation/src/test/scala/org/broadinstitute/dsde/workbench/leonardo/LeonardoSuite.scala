@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
-import io.circe.parser._
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
+import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
-import org.broadinstitute.dsde.workbench.fixture.{BillingFixtures}
+import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, CustomAppCreationSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
@@ -19,8 +19,6 @@ import org.http4s.Credentials.Token
 import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
-import spray.json._
-import spray.json.DefaultJsonProtocol.StringJsonFormat
 
 import java.util.UUID
 
