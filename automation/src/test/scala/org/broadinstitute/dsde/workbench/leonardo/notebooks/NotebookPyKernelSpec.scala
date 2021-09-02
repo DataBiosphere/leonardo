@@ -189,6 +189,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
               // TODO: remove when PPW is rolled out to all workspaces
               // and Leo removes the kernel_bootstrap logic.
+              // See https://broadworkbench.atlassian.net/browse/IA-2936
               "WORKSPACE_NAME" -> "Untitled Folder"
             )
         withNewNotebookInSubfolder(runtimeFixture.runtime, Python3) { notebookPage =>
