@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package apps
 
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._

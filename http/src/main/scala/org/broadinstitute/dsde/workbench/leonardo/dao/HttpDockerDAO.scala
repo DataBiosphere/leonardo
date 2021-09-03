@@ -11,13 +11,12 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpDockerDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ImageVersion.{Sha, Tag}
 import org.broadinstitute.dsde.workbench.leonardo.model.{InvalidImage, LeoException}
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.http4s.Status.Successful
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.client.middleware.FollowRedirect
-import org.http4s.headers.{Accept, Authorization, MediaRangeAndQValue}
+import org.http4s.headers.{Accept, Authorization}
 import org.typelevel.log4cats.Logger
 
 import java.nio.file.Paths
@@ -42,47 +41,6 @@ import java.time.Instant
 class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logger[F], F: Concurrent[F])
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
-
-  // See https://github.com/http4s/http4s/issues/4987#issuecomment-888541035
-  implicit class ClientTempSyntax(val client: Client[F]) {
-    def expectOptionOrHack[A](req: Request[F])(onError: Response[F] => F[Throwable])(
-      implicit
-      d: EntityDecoder[F, A]
-    ): F[Option[A]] = {
-      val r = if (d.consumes.nonEmpty) {
-        val m = d.consumes.toList
-        req.transformHeaders(_.add(Accept(MediaRangeAndQValue(m.head), m.tail.map(MediaRangeAndQValue(_)): _*)))
-      } else req
-
-      client.run(r).use {
-        case Successful(resp) =>
-          d.decode(resp, strict = false).leftWiden[Throwable].rethrowT.map(_.some)
-        case failedResponse =>
-          failedResponse.status match {
-            case Status.NotFound => Option.empty[A].pure[F]
-            case Status.Gone     => Option.empty[A].pure[F]
-            case _               => onError(failedResponse).flatMap(F.raiseError)
-          }
-      }
-    }
-
-    def expectOrHack[A](req: Request[F])(onError: Response[F] => F[Throwable])(
-      implicit
-      d: EntityDecoder[F, A]
-    ): F[A] = {
-      val r = if (d.consumes.nonEmpty) {
-        val m = d.consumes.toList
-        req.transformHeaders(_.add(Accept(MediaRangeAndQValue(m.head), m.tail.map(MediaRangeAndQValue(_)): _*)))
-      } else req
-
-      client.run(r).use {
-        case Successful(resp) =>
-          d.decode(resp, strict = false).leftWiden[Throwable].rethrowT
-        case failedResponse =>
-          onError(failedResponse).flatMap(F.raiseError)
-      }
-    }
-  }
 
   override def detectTool(image: ContainerImage, petTokenOpt: Option[String], now: Instant)(
     implicit ev: Ask[F, TraceId]
@@ -126,7 +84,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
   private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
     implicit ev: Ask[F, TraceId]
   ): F[ContainerConfigResponse] =
-    FollowRedirect(3)(httpClient).expectOrHack[ContainerConfigResponse](
+    FollowRedirect(3)(httpClient).expectOr[ContainerConfigResponse](
       Request[F](
         method = Method.GET,
         uri = parsedImage.blobUri(digest),
@@ -138,7 +96,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
   private[dao] def getManifestConfig(parsedImage: ParsedImage, tokenOpt: Option[Token])(
     implicit ev: Ask[F, TraceId]
   ): F[ManifestConfig] =
-    httpClient.expectOrHack[ManifestConfig](
+    httpClient.expectOr[ManifestConfig](
       Request[F](
         method = Method.GET,
         uri = parsedImage.manifestUri,
@@ -154,7 +112,7 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       case ContainerRegistry.GCR => F.pure(petTokenOpt.map(Token))
       // If it's a Dockerhub repo, need to request a token from Dockerhub
       case ContainerRegistry.DockerHub =>
-        httpClient.expectOptionOrHack[Token](
+        httpClient.expectOptionOr[Token](
           Request[F](
             method = Method.GET,
             uri = dockerHubAuthUri
