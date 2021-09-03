@@ -90,7 +90,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime) { notebookPage =>
           val query =
-            """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+            """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM [bigquery-public-data.samples.shakespeare] WHERE word='scullion'" """
           val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
 
           val result = notebookPage.executeCell(query, timeout = 5.minutes).get
