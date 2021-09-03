@@ -179,7 +179,7 @@ class RuntimeCreationDiskSpec
               None,
               Map.empty
             ),
-            None,
+            defaultCreateDiskRequest.zone,
             None
           )
         )
