@@ -18,7 +18,7 @@ class GoogleOAuth2Interpreter[F[_]: Async: StructuredLogger](client: Oauth2, blo
   override def getUserInfoFromToken(accessToken: String)(implicit ev: Ask[F, TraceId]): F[UserInfo] =
     for {
       tokenInfo <- blockAndLogF(
-        Async[F].delay(client.tokeninfo().setAccessToken(accessToken).execute()).adaptError {
+        Async[F].blocking(client.tokeninfo().setAccessToken(accessToken).execute()).adaptError {
           case _ =>
             // Rethrow AuthenticationError if unable to look up the token
             // Do this before logging the error because tokeninfo errors are verbose

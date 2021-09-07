@@ -125,7 +125,7 @@ class ProxyService(
             userOpt <- samDAO.getUserSubjectIdFromToken(key)
             _ <- IO.fromOption(userOpt)(AuthenticationError(Some(userInfo.userEmail)))
           } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
-          res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+          res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
         }
       }
     )
