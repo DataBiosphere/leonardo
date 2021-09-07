@@ -45,6 +45,8 @@ class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](samDao: SamDAO[F],
       new CacheLoader[AuthCacheKey, java.lang.Boolean] {
         override def load(key: AuthCacheKey): java.lang.Boolean = {
           implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
+//          dispatcher.unsafeRunSync(checkPermission(key.samResourceType, key.samResource, key.action, key.authorization))
+          println("1111111: missing cache; calling SAM for permission")
           dispatcher.unsafeRunSync(checkPermission(key.samResourceType, key.samResource, key.action, key.authorization))
         }
       }
@@ -59,7 +61,7 @@ class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](samDao: SamDAO[F],
   ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     if (config.authCacheEnabled && sr.cacheableActions.contains(action)) {
-      F.blocking(
+      F.delay(
         authCache
           .get(
             AuthCacheKey(sr.resourceType, sr.resourceIdAsString(samResource), authHeader, sr.actionAsString(action))

@@ -353,7 +353,7 @@ object Boot extends IOApp {
         .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
         .map(Retry(retryPolicy))
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false)(httpClient)
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = true)(httpClient)
 
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
