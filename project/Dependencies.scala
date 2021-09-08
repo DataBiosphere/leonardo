@@ -127,6 +127,7 @@ object Dependencies {
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.2" % Test // brought in for FakeStorageInterpreter
 
+  val scalaCache = "com.github.cb372" %% "scalacache-caffeine" % "1.0.0-M4"
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
@@ -186,7 +187,8 @@ object Dependencies {
     "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
     http4sBlazeServer % Test,
     scalaTestSelenium,
-    scalaTestMockito
+    scalaTestMockito,
+    scalaCache
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)

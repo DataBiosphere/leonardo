@@ -2,18 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package auth
 
 import cats.data.NonEmptyList
-import cats.effect.std.Dispatcher
 import cats.effect.{Async, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.common.cache.{CacheBuilder, CacheLoader}
-import fs2.Stream
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -21,53 +17,28 @@ import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.typelevel.log4cats.Logger
+import scalacache.Cache
+import scalacache.memoization._
 
-import java.util.UUID
-import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
-class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](samDao: SamDAO[F],
-                                                          config: SamAuthProviderConfig,
-                                                          saProvider: ServiceAccountProvider[F],
-                                                          dispatcher: Dispatcher[F])(implicit F: Async[F])
+class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](
+  samDao: SamDAO[F],
+  config: SamAuthProviderConfig,
+  saProvider: ServiceAccountProvider[F]
+)(implicit F: Async[F], authCache: Cache[F, Boolean])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
-
-  // We cache some auth results from Sam which are requested very often by the proxy, such as
-  // "connect to runtime" and "connect to app".
-  private[auth] val authCache = CacheBuilder
-    .newBuilder()
-    .expireAfterWrite(config.authCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
-    .maximumSize(config.authCacheMaxSize)
-    .recordStats()
-    .build(
-      new CacheLoader[AuthCacheKey, java.lang.Boolean] {
-        override def load(key: AuthCacheKey): java.lang.Boolean = {
-          implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
-//          dispatcher.unsafeRunSync(checkPermission(key.samResourceType, key.samResource, key.action, key.authorization))
-          println("1111111: missing cache; calling SAM for permission")
-          dispatcher.unsafeRunSync(checkPermission(key.samResourceType, key.samResource, key.action, key.authorization))
-        }
-      }
-    )
-
-  val recordCacheMetricsProcess: Stream[F, Unit] =
-    CacheMetrics("authCache").process(() => F.delay(authCache.size), () => F.delay(authCache.stats))
-
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
     implicit sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     if (config.authCacheEnabled && sr.cacheableActions.contains(action)) {
-      F.delay(
-        authCache
-          .get(
-            AuthCacheKey(sr.resourceType, sr.resourceIdAsString(samResource), authHeader, sr.actionAsString(action))
-          )
-          .booleanValue()
-      )
+      memoizeF[F, Boolean](Some(config.authCacheExpiryTime)) {
+        checkPermission(sr.resourceType, sr.resourceIdAsString(samResource), sr.actionAsString(action), authHeader)
+      }
     } else {
       checkPermission(sr.resourceType, sr.resourceIdAsString(samResource), sr.actionAsString(action), authHeader)
     }

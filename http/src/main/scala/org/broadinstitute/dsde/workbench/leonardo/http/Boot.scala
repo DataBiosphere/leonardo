@@ -9,6 +9,7 @@ import cats.effect._
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
@@ -54,12 +55,14 @@ import org.http4s.blaze.client
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+import scalacache.Cache
 
 import java.nio.file.Paths
 import javax.net.ssl.SSLContext
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
+import scalacache.caffeine._
 
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
@@ -286,7 +289,7 @@ object Boot extends IOApp {
 
         val frontLeoOnlyProcesses = List(
           dateAccessedUpdater.process, // We only need to update dateAccessed in front leo
-          appDependencies.authProvider.recordCacheMetricsProcess,
+//          appDependencies.authProvider.recordCacheMetricsProcess,
           appDependencies.samDAO.recordCacheMetricsProcess,
           proxyService.recordGoogleTokenCacheMetricsProcess,
           proxyService.recordSamResourceCacheMetricsProcess,
@@ -367,7 +370,12 @@ object Boot extends IOApp {
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
-      authProvider <- Dispatcher[F].map(d => new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, d))
+      underlyingAuthCache = Caffeine
+        .newBuilder()
+        .maximumSize(samAuthConfig.authCacheMaxSize)
+        .build[String, scalacache.Entry[Boolean]]()
+      implicit0(authPermissionCache: Cache[F, Boolean]) = CaffeineCache[F, Boolean](underlyingAuthCache)
+      authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider)
 
       // Set up GCP credentials
       credential <- credentialResource(pathToCredentialJson)
