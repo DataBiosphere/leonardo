@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.http
+package org.broadinstitute.dsde.workbench.leonardo
+package http
 package api
 
 import akka.event.{Logging, LoggingAdapter}
@@ -21,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeContainerServiceType, RuntimeName}
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
@@ -43,7 +44,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                 pathPrefix("google" / "v1" / "apps") {
                   pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
                     (googleProject, appName, serviceName) =>
-                      extractUserInfo { userInfo =>
+                      extractUserInfo(implicitly) { userInfo =>
                         logRequestResultForMetrics(userInfo) {
                           complete {
                             proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
@@ -56,7 +57,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                   pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
                     // Note the setCookie route exists at the top-level /proxy/setCookie as well
                     path("setCookie") {
-                      extractUserInfoFromHeader { userInfoOpt =>
+                      extractUserInfoFromHeader(implicitly) { userInfoOpt =>
                         get {
                           val cookieDirective = userInfoOpt match {
                             case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
@@ -72,7 +73,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     } ~
                       pathPrefix("jupyter" / "terminals") {
                         pathSuffix(terminalNameSegment) { terminalName =>
-                          (extractUserInfo) { userInfo =>
+                          extractUserInfo(implicitly) { userInfo =>
                             logRequestResultForMetrics(userInfo) {
                               complete {
                                 openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
@@ -81,7 +82,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                           }
                         }
                       } ~
-                      (extractUserInfo) { userInfo =>
+                      (extractUserInfo)(implicitly) { userInfo =>
                         logRequestResultForMetrics(userInfo) {
                           // Proxy logic handled by the ProxyService class
                           // Note ProxyService calls the LeoAuthProvider internally
@@ -94,7 +95,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                   // Top-level routes
                   path("invalidateToken") {
                     get {
-                      extractUserInfoOpt { userInfoOpt =>
+                      extractUserInfoOpt(implicitly) { userInfoOpt =>
                         CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
                           complete {
                             invalidateTokenHandler(userInfoOpt)
@@ -104,7 +105,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     }
                   } ~
                   path("setCookie") {
-                    extractUserInfoFromHeader { userInfoOpt =>
+                    extractUserInfoFromHeader(implicitly) { userInfoOpt =>
                       get {
                         val cookieDirective = userInfoOpt match {
                           case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
@@ -141,7 +142,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    * Extracts user info from an Authorization header or LeoToken cookie.
    * Returns None if a token cannot be retrieved.
    */
-  private def extractUserInfoOpt: Directive1[Option[UserInfo]] =
+  private def extractUserInfoOpt(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
       case Some(token) =>
         onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))
@@ -152,7 +153,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
   /**
    * Like extractUserInfoOpt, but fails with AuthenticationError if a token cannot be retrieved.
    */
-  private def extractUserInfo: Directive1[UserInfo] =
+  private def extractUserInfo(implicit ev: Ask[IO, TraceId]): Directive1[UserInfo] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
       case Some(token) =>
         onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))
@@ -163,7 +164,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    * Extracts user info from an Authorization header _only_.
    * Returns None if a token cannot be retrieved.
    */
-  private def extractUserInfoFromHeader: Directive1[Option[UserInfo]] =
+  private def extractUserInfoFromHeader(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
     extractTokenFromHeader flatMap {
       case Some(token) =>
         onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))

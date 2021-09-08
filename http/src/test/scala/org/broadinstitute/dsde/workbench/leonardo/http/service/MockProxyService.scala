@@ -15,10 +15,12 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
+import scalacache.Cache
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 class MockProxyService(
@@ -27,13 +29,14 @@ class MockProxyService(
   authProvider: LeoAuthProvider[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
+  googleTokenCache: Cache[IO, (UserInfo, Instant)],
+  samResourceCache: Cache[IO, Option[String]],
   googleOauth2Service: GoogleOAuth2Service[IO],
   samDAO: Option[SamDAO[IO]] = None,
   queue: Option[Queue[IO, UpdateDateAccessMessage]] = None
 )(implicit system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
-  metrics: OpenTelemetryMetrics[IO],
   logger: StructuredLogger[IO])
     extends ProxyService(TestUtils.sslContext(system),
                          proxyConfig,
@@ -44,7 +47,9 @@ class MockProxyService(
                          queue.getOrElse(Queue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
                          googleOauth2Service,
                          LocalProxyResolver,
-                         samDAO.getOrElse(new MockSamDAO())) {
+                         samDAO.getOrElse(new MockSamDAO()),
+                         googleTokenCache,
+                         samResourceCache) {
 
   override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost")))

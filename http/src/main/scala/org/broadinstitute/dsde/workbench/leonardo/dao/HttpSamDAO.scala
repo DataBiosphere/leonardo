@@ -1,31 +1,23 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import java.io.ByteArrayInputStream
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets.UTF_8
-import java.util.UUID
-import java.util.concurrent.TimeUnit
 import _root_.fs2._
-import _root_.org.typelevel.log4cats.Logger
 import _root_.io.circe._
 import _root_.io.circe.syntax._
+import _root_.org.typelevel.log4cats.Logger
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import cats.effect.std.Dispatcher
 import cats.effect.{Async, Resource}
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.api.services.plus.PlusScopes
 import com.google.api.services.storage.StorageScopes
 import com.google.auth.oauth2.ServiceAccountCredentials
-import com.google.common.cache.{CacheBuilder, CacheLoader, LoadingCache}
 import org.broadinstitute.dsde.workbench.google2.credentialResource
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.ProjectSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.leonardo.model._
-import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -36,36 +28,22 @@ import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
+import scalacache.Cache
 
-import scala.jdk.CollectionConverters._
+import java.io.ByteArrayInputStream
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets.UTF_8
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 import scala.util.control.NoStackTrace
 
-class HttpSamDAO[F[_]](httpClient: Client[F], config: HttpSamDaoConfig, dispatcher: Dispatcher[F])(
+class HttpSamDAO[F[_]](httpClient: Client[F], config: HttpSamDaoConfig, petTokenCache: Cache[F, Option[String]])(
   implicit logger: Logger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends SamDAO[F]
     with Http4sClientDsl[F] {
   private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_READ_ONLY)
-
-  private[leonardo] val petTokenCache: LoadingCache[UserEmailAndProject, Option[String]] = CacheBuilder
-    .newBuilder()
-    .expireAfterWrite(config.petCacheExpiryTime.toMinutes, TimeUnit.MINUTES)
-    .maximumSize(config.petCacheMaxSize)
-    .recordStats()
-    .build(
-      new CacheLoader[UserEmailAndProject, Option[String]] {
-        def load(userEmailAndProject: UserEmailAndProject): Option[String] = {
-          implicit val traceId = Ask.const[F, TraceId](TraceId(UUID.randomUUID()))
-          dispatcher.unsafeRunSync(getPetAccessToken(userEmailAndProject.userEmail, userEmailAndProject.googleProject))
-        }
-      }
-    )
-
-  val recordCacheMetricsProcess: Stream[F, Unit] =
-    CacheMetrics("petTokenCache")
-      .process(() => F.delay(petTokenCache.size), () => F.delay(petTokenCache.stats))
 
   def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse] =
     metrics.incrementCounter("sam/status") >>
@@ -288,7 +266,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F], config: HttpSamDaoConfig, dispatch
     implicit ev: Ask[F, TraceId]
   ): F[Option[String]] =
     if (config.petCacheEnabled) {
-      F.delay(petTokenCache.get(UserEmailAndProject(userEmail, googleProject)))
+      petTokenCache.cachingF(UserEmailAndProject(userEmail, googleProject))(None)(
+        getPetAccessToken(userEmail, googleProject)
+      )
     } else {
       getPetAccessToken(userEmail, googleProject)
     }
@@ -373,9 +353,9 @@ object HttpSamDAO {
   def apply[F[_]: Async](
     httpClient: Client[F],
     config: HttpSamDaoConfig,
-    dispatcher: Dispatcher[F]
+    petTokenCache: Cache[F, Option[String]]
   )(implicit logger: Logger[F], metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
-    new HttpSamDAO[F](httpClient, config, dispatcher)
+    new HttpSamDAO[F](httpClient, config, petTokenCache)
 
   implicit val samRoleEncoder: Encoder[SamRole] = Encoder.encodeString.contramap(_.asString)
   implicit val projectActionEncoder: Encoder[ProjectAction] = Encoder.encodeString.contramap(_.asString)

@@ -1,12 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import java.nio.file.Paths
 import cats.effect.IO
 import cats.effect.std.Dispatcher
 import cats.effect.unsafe.implicits.global
-import org.typelevel.log4cats.slf4j.Slf4jLogger
+import com.github.benmanes.caffeine.cache.Caffeine
 import io.circe.parser._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.httpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
@@ -17,7 +17,10 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+import scalacache.caffeine.CaffeineCache
 
+import java.nio.file.Paths
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
@@ -28,6 +31,11 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
                                 10,
                                 ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test")))
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  val underlyingPetTokenCache = Caffeine
+    .newBuilder()
+    .maximumSize(httpSamDaoConfig.petCacheMaxSize)
+    .build[String, scalacache.Entry[Option[String]]]()
+  val petTokenCache = CaffeineCache[IO, Option[String]](underlyingPetTokenCache)
 
   "HttpSamDAO" should "get Sam ok status" in {
     val okResponse =
@@ -56,7 +64,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     )
 
     val res = Dispatcher[IO].use { d =>
-      val samDao = new HttpSamDAO(okSam, config, d)
+      val samDao = new HttpSamDAO(okSam, config, petTokenCache)
       val expectedResponse = StatusCheckResponse(
         true,
         Map(
@@ -73,27 +81,22 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
   }
 
   it should "get Sam ok status with no systems" in {
-    val res = Dispatcher[IO].use { d =>
-      val okResponse =
-        """
-          |{
-          |  "ok": true,
-          |  "systems": {
-          |  }
-          |}
-          |""".stripMargin
-      val okSam = Client.fromHttpApp[IO](
-        HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
-      )
+    val okResponse =
+      """
+        |{
+        |  "ok": true,
+        |  "systems": {
+        |  }
+        |}
+        |""".stripMargin
+    val okSam = Client.fromHttpApp[IO](
+      HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
+    )
 
-      val samDao = new HttpSamDAO(okSam, config, d)
-      val expectedResponse = StatusCheckResponse(true, Map.empty)
+    val samDao = new HttpSamDAO(okSam, config, petTokenCache)
+    val expectedResponse = StatusCheckResponse(true, Map.empty)
 
-      samDao.getStatus.map(s => s shouldBe expectedResponse)
-    }
-
-    res.unsafeRunSync
-
+    samDao.getStatus.map(s => s shouldBe expectedResponse)
   }
 
   it should "get Sam unhealthy status with no systems" in {
@@ -117,7 +120,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     )
 
     val res = Dispatcher[IO].use { d =>
-      val samDao = new HttpSamDAO(okSam, config, d)
+      val samDao = new HttpSamDAO(okSam, config, petTokenCache)
       val expectedResponse =
         StatusCheckResponse(false,
                             Map(GoogleIam -> SubsystemStatus(true, None),
@@ -141,7 +144,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
     val clientWithRetry = Retry(retryPolicy)(errorSam)
 
     val res = Dispatcher[IO].use { d =>
-      val samDao = new HttpSamDAO(clientWithRetry, config, d)
+      val samDao = new HttpSamDAO(clientWithRetry, config, petTokenCache)
 
       for {
         result <- samDao.getStatus.attempt

@@ -18,15 +18,15 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.typelevel.log4cats.Logger
 import scalacache.Cache
-import scalacache.memoization._
 
 import scala.concurrent.duration._
 
 class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](
   samDao: SamDAO[F],
   config: SamAuthProviderConfig,
-  saProvider: ServiceAccountProvider[F]
-)(implicit F: Async[F], authCache: Cache[F, Boolean])
+  saProvider: ServiceAccountProvider[F],
+  authCache: Cache[F, Boolean]
+)(implicit F: Async[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
@@ -36,7 +36,9 @@ class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](
   ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     if (config.authCacheEnabled && sr.cacheableActions.contains(action)) {
-      memoizeF[F, Boolean](Some(config.authCacheExpiryTime)) {
+      authCache.cachingF(
+        AuthCacheKey(sr.resourceType, sr.resourceIdAsString(samResource), authHeader, sr.actionAsString(action))
+      )(None) {
         checkPermission(sr.resourceType, sr.resourceIdAsString(samResource), sr.actionAsString(action), authHeader)
       }
     } else {

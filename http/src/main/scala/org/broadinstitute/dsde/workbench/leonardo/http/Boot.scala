@@ -48,14 +48,13 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubs
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
 import org.http4s.blaze.client
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
-import scalacache.Cache
 
 import java.nio.file.Paths
 import javax.net.ssl.SSLContext
@@ -63,6 +62,8 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 import scalacache.caffeine._
+
+import java.time.Instant
 
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
@@ -130,7 +131,9 @@ object Boot extends IOApp {
         appDependencies.dateAccessedUpdaterQueue,
         googleDependencies.googleOauth2DAO,
         appDependencies.proxyResolver,
-        appDependencies.samDAO
+        appDependencies.samDAO,
+        appDependencies.googleTokenCache,
+        appDependencies.samResourceCache
       )
       val statusService = new StatusService(appDependencies.samDAO, appDependencies.dbReference)
       val runtimeServiceConfig = RuntimeServiceConfig(
@@ -288,14 +291,8 @@ object Boot extends IOApp {
         }
 
         val frontLeoOnlyProcesses = List(
-          dateAccessedUpdater.process, // We only need to update dateAccessed in front leo
-//          appDependencies.authProvider.recordCacheMetricsProcess,
-          appDependencies.samDAO.recordCacheMetricsProcess,
-          proxyService.recordGoogleTokenCacheMetricsProcess,
-          proxyService.recordSamResourceCacheMetricsProcess,
-          appDependencies.runtimeDnsCache.recordCacheMetricsProcess,
-          googleDependencies.kubernetesDnsCache.recordCacheMetricsProcess
-        )
+          dateAccessedUpdater.process // We only need to update dateAccessed in front leo
+        ) ++ appDependencies.recordCacheMetrics
 
         val extraProcesses = leoExecutionModeConfig match {
           case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
@@ -337,12 +334,31 @@ object Boot extends IOApp {
       // Set up DNS caches
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
       proxyResolver <- Dispatcher[F].map(d => ProxyResolver(hostToIpMapping, d))
-      runtimeDnsCache <- Dispatcher[F].map(d =>
-        new RuntimeDnsCache(proxyConfig, dbRef, runtimeDnsCacheConfig, hostToIpMapping, d)
+
+      underlyingRuntimeDnsCache = Caffeine
+        .newBuilder()
+        .maximumSize(runtimeDnsCacheConfig.cacheMaxSize)
+        .build[String, scalacache.Entry[HostStatus]]()
+      runtimeDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingRuntimeDnsCache)))(s =>
+        F.delay(s.close)
       )
-      kubernetesDnsCache <- Dispatcher[F].map(d =>
-        new KubernetesDnsCache(proxyConfig, dbRef, kubernetesDnsCacheConfig, hostToIpMapping, d)
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig,
+                                            dbRef,
+                                            runtimeDnsCacheConfig,
+                                            hostToIpMapping,
+                                            runtimeDnsCaffineCache)
+      underlyingkubernetesDnsCache = Caffeine
+        .newBuilder()
+        .maximumSize(kubernetesDnsCacheConfig.cacheMaxSize)
+        .build[String, scalacache.Entry[HostStatus]]()
+      kubernetesDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingkubernetesDnsCache)))(
+        s => F.delay(s.close)
       )
+      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig,
+                                                  dbRef,
+                                                  kubernetesDnsCacheConfig,
+                                                  hostToIpMapping,
+                                                  kubernetesDnsCaffineCache)
 
       // Set up SSL context and http clients
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
@@ -356,11 +372,19 @@ object Boot extends IOApp {
         .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
         .map(Retry(retryPolicy))
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = true)(httpClient)
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false)(httpClient)
 
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
-      samDao <- Dispatcher[F].map(d => HttpSamDAO[F](httpClient, httpSamDaoConfig, d))
+      underlyingPetTokenCache = Caffeine
+        .newBuilder()
+        .maximumSize(httpSamDaoConfig.petCacheMaxSize)
+        .build[String, scalacache.Entry[Option[String]]]()
+      petTokenCache <- Resource.make(F.delay(CaffeineCache[F, Option[String]](underlyingPetTokenCache)))(s =>
+        F.delay(s.close)
+      )
+
+      samDao = HttpSamDAO[F](httpClient, httpSamDaoConfig, petTokenCache)
       jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging)
       welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientWithLogging)
       rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientWithLogging)
@@ -374,8 +398,8 @@ object Boot extends IOApp {
         .newBuilder()
         .maximumSize(samAuthConfig.authCacheMaxSize)
         .build[String, scalacache.Entry[Boolean]]()
-      implicit0(authPermissionCache: Cache[F, Boolean]) = CaffeineCache[F, Boolean](underlyingAuthCache)
-      authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider)
+      authCache <- Resource.make(F.delay(CaffeineCache[F, Boolean](underlyingAuthCache)))(s => F.delay(s.close))
+      authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, authCache)
 
       // Set up GCP credentials
       credential <- credentialResource(pathToCredentialJson)
@@ -458,6 +482,34 @@ object Boot extends IOApp {
       helmConcurrency <- Resource.eval(Semaphore[F](20L))
       helmClient = new HelmInterpreter[F](helmConcurrency)
 
+      underlyingGoogleTokenCache = Caffeine
+        .newBuilder()
+        .maximumSize(kubernetesDnsCacheConfig.cacheMaxSize)
+        .build[String, scalacache.Entry[(UserInfo, Instant)]]()
+      googleTokenCache <- Resource.make(F.delay(CaffeineCache[F, (UserInfo, Instant)](underlyingGoogleTokenCache)))(s =>
+        F.delay(s.close)
+      )
+
+      underlyingSamResourceCache = Caffeine
+        .newBuilder()
+        .maximumSize(proxyConfig.internalIdCacheMaxSize)
+        .build[String, scalacache.Entry[Option[String]]]()
+      samResourceCache <- Resource.make(F.delay(CaffeineCache[F, Option[String]](underlyingSamResourceCache)))(s =>
+        F.delay(s.close)
+      )
+      recordMetricsProcesses = List(
+        CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
+        CacheMetrics("petTokenCache")
+          .processWithUnderlyingCache(underlyingPetTokenCache),
+        CacheMetrics("googleTokenCache")
+          .processWithUnderlyingCache(underlyingGoogleTokenCache),
+        CacheMetrics("samResourceCache")
+          .processWithUnderlyingCache(underlyingSamResourceCache),
+        CacheMetrics("runtimeDnsCache")
+          .processWithUnderlyingCache(underlyingRuntimeDnsCache),
+        CacheMetrics("kubernetesDnsCache")
+          .processWithUnderlyingCache(underlyingkubernetesDnsCache)
+      )
       googleDependencies = GoogleDependencies(
         googleStorage,
         googleComputeService,
@@ -499,7 +551,10 @@ object Boot extends IOApp {
       appDAO,
       nodepoolLock,
       appDescriptorDAO,
-      proxyResolver
+      proxyResolver,
+      recordMetricsProcesses,
+      googleTokenCache,
+      samResourceCache
     )
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
@@ -547,5 +602,8 @@ final case class AppDependencies[F[_]](
   appDAO: AppDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
   appDescriptorDAO: AppDescriptorDAO[F],
-  proxyResolver: ProxyResolver[F]
+  proxyResolver: ProxyResolver[F],
+  recordCacheMetrics: List[Stream[F, Unit]],
+  googleTokenCache: scalacache.Cache[F, (UserInfo, Instant)],
+  samResourceCache: scalacache.Cache[F, Option[String]]
 )

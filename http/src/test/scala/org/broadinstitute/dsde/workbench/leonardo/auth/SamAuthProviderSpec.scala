@@ -47,8 +47,10 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
   before {
     setUpMockSam()
-    samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider)
-    samAuthProviderWithCache = new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider)
+    authCache.removeAll
+    samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
+    samAuthProviderWithCache =
+      new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider, authCache)
   }
 
   "SamAuthProvider" should "check resource permissions" in {
@@ -215,7 +217,6 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   }
 
   it should "cache hasPermission results" in {
-//     cache should be empty
     underlyingCaffeineCache.asMap().size shouldBe 0
 
     // these actions should be cached
@@ -228,6 +229,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       samAuthProviderWithCache
         .hasPermission(runtimeSamResource, a, userInfo)
         .unsafeRunSync() shouldBe true
+//    This is duplicated to make sure cache works as expected
       samAuthProviderWithCache
         .hasPermission(runtimeSamResource, a, userInfo)
         .unsafeRunSync() shouldBe true
@@ -274,7 +276,32 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
 
     // check cache
     val cacheMap = underlyingCaffeineCache.asMap()
-    cacheMap.size shouldBe 9
+    cacheMap.size shouldBe 7
+    cacheMap.asScala.keySet.toSet should contain theSameElementsAs
+      Set(
+        AuthCacheKey(SamResourceType.Project,
+                     project.value,
+                     projectOwnerAuthHeader,
+                     ProjectAction.GetRuntimeStatus.asString),
+        AuthCacheKey(SamResourceType.Project,
+                     project.value,
+                     projectOwnerAuthHeader,
+                     ProjectAction.ReadPersistentDisk.asString),
+        AuthCacheKey(SamResourceType.Runtime,
+                     runtimeSamResource.resourceId,
+                     authHeader,
+                     RuntimeAction.ConnectToRuntime.asString),
+        AuthCacheKey(SamResourceType.Runtime,
+                     runtimeSamResource.resourceId,
+                     authHeader,
+                     RuntimeAction.GetRuntimeStatus.asString),
+        AuthCacheKey(SamResourceType.PersistentDisk,
+                     diskSamResource.resourceId,
+                     authHeader,
+                     PersistentDiskAction.ReadPersistentDisk.asString),
+        AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.GetAppStatus.asString),
+        AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.ConnectToApp.asString)
+      ).map(_.toString)
     cacheMap.asScala.values.map(_.value).toSet shouldBe Set(true)
   }
 
