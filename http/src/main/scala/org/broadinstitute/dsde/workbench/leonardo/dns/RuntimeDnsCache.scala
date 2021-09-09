@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dns
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Async, Ref}
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
@@ -28,11 +28,9 @@ final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: R
 class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
-  cacheConfig: CacheConfig,
   hostToIpMapping: Ref[F, Map[Host, IP]],
   runtimeDnsCache: Cache[F, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
-  //  TODO: Set ttl to cacheConfig.tokenCacheExpiryTime properly once https://github.com/cb372/scalacache/issues/522 in scalacache is fixed
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
     runtimeDnsCache.cachingF(key)(None)(getHostStatusHelper(key))
 

@@ -59,7 +59,7 @@ object DbReference extends LazyLogging {
         Async[F].delay(initWithLiquibase(dbConnection, config)) >> Logger[F].info("Applied liquidbase changelog")
       else Async[F].unit
       _ <- Resource.eval(initLiquibase)
-    } yield new DbRef[F](dbConfig, db, concurrentDbAccessPermits)
+    } yield new DbRef[F](db, concurrentDbAccessPermits)
   }
 }
 
@@ -70,10 +70,9 @@ trait DbReference[F[_]] {
   ): F[T]
 }
 
-private[db] class DbRef[F[_]](dbConfig: DatabaseConfig[JdbcProfile],
-                              database: JdbcBackend#DatabaseDef,
-                              concurrentDbAccessPermits: Semaphore[F])(implicit F: Async[F])
-    extends DbReference[F] {
+private[db] class DbRef[F[_]](database: JdbcBackend#DatabaseDef, concurrentDbAccessPermits: Semaphore[F])(
+  implicit F: Async[F]
+) extends DbReference[F] {
   import LeoProfile.api._
 
   val dataAccess = DataAccess

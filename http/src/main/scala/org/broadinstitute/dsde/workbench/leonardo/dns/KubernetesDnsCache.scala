@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Async, Ref}
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.AppName
-import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotFound, HostNotReady, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.{DbReference, KubernetesServiceDbQueries}
@@ -28,11 +28,9 @@ final case class KubernetesDnsCacheKey(googleProject: GoogleProject, appName: Ap
 final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
-  cacheConfig: CacheConfig,
   hostToIpMapping: Ref[F, Map[Host, IP]],
   hostStatusCache: Cache[F, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
-  //  TODO: Set ttl to cacheConfig.cacheExpiryTime properly once https://github.com/cb372/scalacache/issues/522 in scalacache is fixed
   def getHostStatus(key: KubernetesDnsCacheKey): F[HostStatus] =
     hostStatusCache.cachingF(key)(None)(getHostStatusHelper(key))
 

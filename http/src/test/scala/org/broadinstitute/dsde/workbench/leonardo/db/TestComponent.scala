@@ -66,7 +66,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
           sys.props.put(initWithLiquibaseProp, "done")
         )
       else IO.unit
-    } yield new DbRef[IO](dbConfig, db, concurrentPermits)
+    } yield new DbRef[IO](db, concurrentPermits)
 
   def dbFutureValue[T](f: DBIO[T]): T =
     testDbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()(cats.effect.unsafe.implicits.global)

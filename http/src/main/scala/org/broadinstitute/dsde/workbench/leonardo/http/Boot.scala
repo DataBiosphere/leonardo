@@ -341,11 +341,7 @@ object Boot extends IOApp {
       runtimeDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingRuntimeDnsCache)))(s =>
         F.delay(s.close)
       )
-      runtimeDnsCache = new RuntimeDnsCache(proxyConfig,
-                                            dbRef,
-                                            runtimeDnsCacheConfig,
-                                            hostToIpMapping,
-                                            runtimeDnsCaffineCache)
+      runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffineCache)
       underlyingkubernetesDnsCache = buildCache[scalacache.Entry[HostStatus]](
         kubernetesDnsCacheConfig.cacheMaxSize,
         kubernetesDnsCacheConfig.cacheExpiryTime
@@ -354,11 +350,7 @@ object Boot extends IOApp {
       kubernetesDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingkubernetesDnsCache)))(
         s => F.delay(s.close)
       )
-      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig,
-                                                  dbRef,
-                                                  kubernetesDnsCacheConfig,
-                                                  hostToIpMapping,
-                                                  kubernetesDnsCaffineCache)
+      kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, hostToIpMapping, kubernetesDnsCaffineCache)
 
       // Set up SSL context and http clients
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))

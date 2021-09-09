@@ -100,21 +100,13 @@ trait TestLeoRoutes {
     Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[HostStatus]]()
   val runtimeDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingRuntimeDnsCache)
   val runtimeDnsCache =
-    new RuntimeDnsCache[IO](proxyConfig,
-                            testDbRef,
-                            Config.runtimeDnsCacheConfig,
-                            hostToIpMapping,
-                            runtimeDnsCaffeineCache)
+    new RuntimeDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, runtimeDnsCaffeineCache)
 
   val underlyingKubernetesDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[HostStatus]]()
   val kubernetesDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingKubernetesDnsCache)
   val kubernetesDnsCache =
-    new KubernetesDnsCache[IO](proxyConfig,
-                               testDbRef,
-                               Config.kubernetesDnsCacheConfig,
-                               hostToIpMapping,
-                               kubernetesDnsCaffeineCache)
+    new KubernetesDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, kubernetesDnsCaffeineCache)
 
   val underlyingGoogleTokenCache =
     Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[(UserInfo, Instant)]]()

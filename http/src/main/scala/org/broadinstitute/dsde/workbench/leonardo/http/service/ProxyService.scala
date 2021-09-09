@@ -112,7 +112,6 @@ class ProxyService(
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[UserInfo] =
     for {
-//    TODO: Set ttl to proxyConfig.tokenCacheExpiryTime properly once https://github.com/cb372/scalacache/issues/522 in scalacache is fixed
       cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token)).adaptError {
         case e: AuthenticationError => e
         case _                      =>
@@ -145,7 +144,6 @@ class ProxyService(
   ): IO[RuntimeSamResourceId] =
     for {
       ctx <- ev.ask[AppContext]
-      //    TODO: Set ttl to proxyConfig.tokenCacheExpiryTime properly once https://github.com/cb372/scalacache/issues/522 in scalacache is fixed
       cacheResult <- samResourceCache.cachingF(key)(None)(
         getSamResourceFromDb(key)
       )
@@ -168,7 +166,6 @@ class ProxyService(
   ): IO[AppSamResourceId] =
     for {
       ctx <- ev.ask[AppContext]
-//    TODO: Set ttl to proxyConfig.tokenCacheExpiryTime properly once https://github.com/cb372/scalacache/issues/522 in scalacache is fixed
       cacheResult <- samResourceCache.cachingF(key)(None)(
         getSamResourceFromDb(key)
       )

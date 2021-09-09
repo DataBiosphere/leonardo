@@ -54,11 +54,7 @@ class RuntimeDnsCacheSpec
     Caffeine.newBuilder().maximumSize(10000L).recordStats().build[String, scalacache.Entry[HostStatus]]()
   val runtimeDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingRuntimeDnsCache)
   val runtimeDnsCache =
-    new RuntimeDnsCache[IO](proxyConfig,
-                            testDbRef,
-                            Config.runtimeDnsCacheConfig,
-                            hostToIpMapping,
-                            runtimeDnsCaffeineCache)
+    new RuntimeDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, runtimeDnsCaffeineCache)
 
   it should "update maps and return clusters" in isolatedDbTest {
     // save the clusters to the db
