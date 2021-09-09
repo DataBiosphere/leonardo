@@ -10,13 +10,13 @@ object Dependencies {
   val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.10"
   val slickV = "3.3.3"
-  val http4sVersion = "1.0.0-M24"
+  val http4sVersion = "1.0.0-M25"
   val guavaV = "31.1.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
 
-  private val workbenchLibsHash = "6140478"
+  private val workbenchLibsHash = "2f39598c-SNAP"
   val serviceTestV = s"0.19-$workbenchLibsHash"
   val workbenchModelV = s"0.14-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
