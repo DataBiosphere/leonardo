@@ -64,6 +64,7 @@ import scala.jdk.CollectionConverters._
 import scalacache.caffeine._
 
 import java.time.Instant
+import java.util.concurrent.TimeUnit
 
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
@@ -335,10 +336,8 @@ object Boot extends IOApp {
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
       proxyResolver <- Dispatcher[F].map(d => ProxyResolver(hostToIpMapping, d))
 
-      underlyingRuntimeDnsCache = Caffeine
-        .newBuilder()
-        .maximumSize(runtimeDnsCacheConfig.cacheMaxSize)
-        .build[String, scalacache.Entry[HostStatus]]()
+      underlyingRuntimeDnsCache = buildCache[scalacache.Entry[HostStatus]](runtimeDnsCacheConfig.cacheMaxSize,
+                                                                           runtimeDnsCacheConfig.cacheExpiryTime)
       runtimeDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingRuntimeDnsCache)))(s =>
         F.delay(s.close)
       )
@@ -347,10 +346,11 @@ object Boot extends IOApp {
                                             runtimeDnsCacheConfig,
                                             hostToIpMapping,
                                             runtimeDnsCaffineCache)
-      underlyingkubernetesDnsCache = Caffeine
-        .newBuilder()
-        .maximumSize(kubernetesDnsCacheConfig.cacheMaxSize)
-        .build[String, scalacache.Entry[HostStatus]]()
+      underlyingkubernetesDnsCache = buildCache[scalacache.Entry[HostStatus]](
+        kubernetesDnsCacheConfig.cacheMaxSize,
+        kubernetesDnsCacheConfig.cacheExpiryTime
+      )
+
       kubernetesDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingkubernetesDnsCache)))(
         s => F.delay(s.close)
       )
@@ -376,10 +376,8 @@ object Boot extends IOApp {
 
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
-      underlyingPetTokenCache = Caffeine
-        .newBuilder()
-        .maximumSize(httpSamDaoConfig.petCacheMaxSize)
-        .build[String, scalacache.Entry[Option[String]]]()
+      underlyingPetTokenCache = buildCache[scalacache.Entry[Option[String]]](httpSamDaoConfig.petCacheMaxSize,
+                                                                             httpSamDaoConfig.petCacheExpiryTime)
       petTokenCache <- Resource.make(F.delay(CaffeineCache[F, Option[String]](underlyingPetTokenCache)))(s =>
         F.delay(s.close)
       )
@@ -394,10 +392,8 @@ object Boot extends IOApp {
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
-      underlyingAuthCache = Caffeine
-        .newBuilder()
-        .maximumSize(samAuthConfig.authCacheMaxSize)
-        .build[String, scalacache.Entry[Boolean]]()
+      underlyingAuthCache = buildCache[scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
+                                                                  samAuthConfig.authCacheExpiryTime)
       authCache <- Resource.make(F.delay(CaffeineCache[F, Boolean](underlyingAuthCache)))(s => F.delay(s.close))
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, authCache)
 
@@ -490,10 +486,8 @@ object Boot extends IOApp {
         F.delay(s.close)
       )
 
-      underlyingSamResourceCache = Caffeine
-        .newBuilder()
-        .maximumSize(proxyConfig.internalIdCacheMaxSize)
-        .build[String, scalacache.Entry[Option[String]]]()
+      underlyingSamResourceCache = buildCache[scalacache.Entry[Option[String]]](proxyConfig.internalIdCacheMaxSize,
+                                                                                proxyConfig.internalIdCacheExpiryTime)
       samResourceCache <- Resource.make(F.delay(CaffeineCache[F, Option[String]](underlyingSamResourceCache)))(s =>
         F.delay(s.close)
       )
@@ -556,6 +550,15 @@ object Boot extends IOApp {
       googleTokenCache,
       samResourceCache
     )
+
+  private def buildCache[V](maxSize: Int,
+                            expiresIn: FiniteDuration): com.github.benmanes.caffeine.cache.Cache[String, V] =
+    Caffeine
+      .newBuilder()
+      .maximumSize(maxSize)
+      .expireAfterWrite(expiresIn.toSeconds, TimeUnit.SECONDS)
+      .recordStats()
+      .build[String, V]()
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }

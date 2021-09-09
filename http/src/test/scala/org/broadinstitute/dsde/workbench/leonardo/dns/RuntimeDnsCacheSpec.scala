@@ -51,7 +51,7 @@ class RuntimeDnsCacheSpec
     s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
   )
   val underlyingRuntimeDnsCache =
-    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[HostStatus]]()
+    Caffeine.newBuilder().maximumSize(10000L).recordStats().build[String, scalacache.Entry[HostStatus]]()
   val runtimeDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingRuntimeDnsCache)
   val runtimeDnsCache =
     new RuntimeDnsCache[IO](proxyConfig,
@@ -86,9 +86,9 @@ class RuntimeDnsCacheSpec
     )
     val cacheMap = underlyingRuntimeDnsCache.asMap()
     cacheMap.size() shouldBe 3
-//    underlyingRuntimeDnsCache.stats.missCount shouldBe 3
+    underlyingRuntimeDnsCache.stats.missCount shouldBe 3
 //    underlyingRuntimeDnsCache.stats.loadCount shouldBe 3
-//    underlyingRuntimeDnsCache.stats.evictionCount shouldBe 0
+    underlyingRuntimeDnsCache.stats.evictionCount shouldBe 0
 
     hostToIpMapping.get
       .unsafeRunSync()(cats.effect.unsafe.implicits.global)
@@ -107,7 +107,6 @@ class RuntimeDnsCacheSpec
     }
     val secondCacheMap = underlyingRuntimeDnsCache.asMap()
     secondCacheMap.size() shouldBe 3
-//    underlyingRuntimeDnsCache.estimatedSize() shouldBe 3
 //    underlyingRuntimeDnsCache.stats.missCount shouldBe 6
 //    underlyingRuntimeDnsCache.stats.loadCount shouldBe 6
   }
