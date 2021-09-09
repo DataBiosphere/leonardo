@@ -4,8 +4,6 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.{HttpHeader, Uri}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.proxyRedirectServerPortKey
-import org.broadinstitute.dsde.workbench.leonardo.ProxyRedirectClient.host
 import org.broadinstitute.dsde.workbench.leonardo.{
   ContentItem,
   LeonardoConfig,

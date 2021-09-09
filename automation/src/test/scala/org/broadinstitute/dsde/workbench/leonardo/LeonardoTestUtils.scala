@@ -1,8 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.actor.ActorSystem
+import cats.effect.IO
 import cats.effect.std.Semaphore
-import cats.effect.{IO, Ref}
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
@@ -28,8 +28,7 @@ import org.broadinstitute.dsde.workbench.util._
 import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
-import org.http4s.server.Server
-import org.scalatest.{Suite, TestSuite}
+import org.scalatest.TestSuite
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers

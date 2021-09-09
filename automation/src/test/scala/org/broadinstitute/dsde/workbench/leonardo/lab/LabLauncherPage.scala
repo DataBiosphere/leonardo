@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.ProxyRedirectClient
 import org.openqa.selenium.WebDriver
 
 import scala.concurrent.duration._
