@@ -251,7 +251,8 @@ pipeline {
             when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "false" } }
                 steps {
                     script {
-                        def shouldUpdate = hasHashChanges(images, configPaths)
+                        //def shouldUpdate = hasHashChanges(images, configPaths)
+                        def shouldUpdate = true
                         // Set variable to control if future steps get run
                         shouldAbortBuild = !shouldUpdate
                         versionMap = getVersionMap(images, configPaths)
