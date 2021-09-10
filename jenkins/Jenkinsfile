@@ -253,6 +253,7 @@ pipeline {
                     script {
                         //def shouldUpdate = hasHashChanges(images, configPaths)
                         def shouldUpdate = true
+                        
                         // Set variable to control if future steps get run
                         shouldAbortBuild = !shouldUpdate
                         versionMap = getVersionMap(images, configPaths)
