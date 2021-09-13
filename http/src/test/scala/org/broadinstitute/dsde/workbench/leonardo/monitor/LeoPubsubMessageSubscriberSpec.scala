@@ -5,7 +5,7 @@ import java.time.Instant
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.Kleisli
-import cats.effect.{IO, Resource}
+import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.{Disk, Operation}
@@ -148,7 +148,8 @@ class LeoPubsubMessageSubscriberSpec
   )
 
   it should "handle CreateRuntimeMessage and create cluster" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+    val res =
       for {
         runtime <- IO(
           makeCluster(1)
@@ -170,7 +171,6 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.asyncRuntimeFields.get.googleId.value shouldBe "258165385"
         updatedRuntime.get.runtimeImages.map(_.imageType) should contain(BootSource)
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -189,7 +189,8 @@ class LeoPubsubMessageSubscriberSpec
 
     val asyncFields = makeAsyncRuntimeFields(1)
 
-    val res = makeLeoSubscriber(gceRuntimeAlgebra = runtimeAlgebra).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(gceRuntimeAlgebra = runtimeAlgebra)
+    val res =
       for {
         runtime <- IO(
           makeCluster(1)
@@ -209,7 +210,6 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.asyncRuntimeFields shouldBe Some(asyncFields)
         updatedRuntime.get.runtimeImages shouldBe runtime.runtimeImages
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -226,7 +226,8 @@ class LeoPubsubMessageSubscriberSpec
       )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
         clusterQuery.completeDeletion(runtime.id, Instant.now()).transaction
     }
-    val res = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -240,7 +241,6 @@ class LeoPubsubMessageSubscriberSpec
             .map(status => status shouldBe (Some(RuntimeStatus.Deleted)))
         )
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -248,8 +248,8 @@ class LeoPubsubMessageSubscriberSpec
   it should "delete disk when handling DeleteRuntimeMessage when autoDeleteDisks is set" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-
-    val res = makeLeoSubscriber(asyncTaskQueue = queue).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val res =
       for {
         disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
         runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
@@ -271,7 +271,6 @@ class LeoPubsubMessageSubscriberSpec
             .map(status => status shouldBe (Some(DiskStatus.Deleted)))
         )
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -286,8 +285,8 @@ class LeoPubsubMessageSubscriberSpec
       )
     }
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-
-    val res = makeLeoSubscriber(asyncTaskQueue = queue, computePollOperation = pollOperation).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, computePollOperation = pollOperation)
+    val res =
       for {
         disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
         runtimeConfig = RuntimeConfig.GceWithPdConfig(MachineTypeName("n1-standard-4"),
@@ -311,12 +310,13 @@ class LeoPubsubMessageSubscriberSpec
           }
         )
       } yield ()
-    }
+
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "not handle DeleteRuntimeMessage when cluster is not in Deleting status" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+    val res =
       for {
         runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
         tr <- traceId.ask[TraceId]
@@ -325,13 +325,14 @@ class LeoPubsubMessageSubscriberSpec
       } yield {
         attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "handle StopRuntimeMessage and stop cluster" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res =
       for {
         runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopping).saveWithRuntimeConfig(gceRuntimeConfig))
         tr <- traceId.ask[TraceId]
@@ -342,13 +343,14 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime shouldBe defined
         updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "not handle StopRuntimeMessage when cluster is not in Stopping status" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res =
       for {
         runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
         tr <- traceId.ask[TraceId]
@@ -357,13 +359,14 @@ class LeoPubsubMessageSubscriberSpec
       } yield {
         attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "handle StartRuntimeMessage and start cluster" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res =
       for {
         now <- IO(Instant.now)
         runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Starting).saveWithRuntimeConfig(gceRuntimeConfig))
@@ -375,13 +378,14 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime shouldBe defined
         updatedRuntime.get.status shouldBe RuntimeStatus.Starting
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "not handle StartRuntimeMessage when cluster is not in Starting status" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res =
       for {
         runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
         tr <- traceId.ask[TraceId]
@@ -390,7 +394,6 @@ class LeoPubsubMessageSubscriberSpec
       } yield {
         attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -411,8 +414,9 @@ class LeoPubsubMessageSubscriberSpec
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+    val leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
 
-    val res = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue).use { leoSubscriber =>
+    val res =
       for {
         runtime <- IO(
           makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(defaultDataprocRuntimeConfig)
@@ -432,7 +436,6 @@ class LeoPubsubMessageSubscriberSpec
       } yield {
         updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe 100
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -446,27 +449,26 @@ class LeoPubsubMessageSubscriberSpec
         action: RuntimeStatus
       )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.never
     }
+    val leoSubscriber = makeLeoSubscriber(monitor)
 
-    val res = makeLeoSubscriber(monitor).use { leoSubscriber =>
-      for {
-        runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
-        tr <- traceId.ask[TraceId]
+    val res = for {
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask[TraceId]
 
-        _ <- leoSubscriber.messageResponder(
-          UpdateRuntimeMessage(runtime.id, Some(MachineTypeName("n1-highmem-64")), true, None, None, None, Some(tr))
-        )
-        updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-        updatedRuntimeConfig <- updatedRuntime.traverse(r =>
-          RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
-        )
-      } yield {
-        // runtime should be Stopping
-        updatedRuntime shouldBe defined
-        updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
-        // machine type should not be updated yet
-        updatedRuntimeConfig shouldBe defined
-        updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-standard-4")
-      }
+      _ <- leoSubscriber.messageResponder(
+        UpdateRuntimeMessage(runtime.id, Some(MachineTypeName("n1-highmem-64")), true, None, None, None, Some(tr))
+      )
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      updatedRuntimeConfig <- updatedRuntime.traverse(r =>
+        RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
+      )
+    } yield {
+      // runtime should be Stopping
+      updatedRuntime shouldBe defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
+      // machine type should not be updated yet
+      updatedRuntimeConfig shouldBe defined
+      updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-standard-4")
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
@@ -475,8 +477,9 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle UpdateRuntimeMessage and go through a stop-start transition for machine type" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
 
-    val res = makeLeoSubscriber(asyncTaskQueue = queue).use { leoSubscriber =>
+    val res =
       for {
         runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
         tr <- traceId.ask[TraceId]
@@ -503,15 +506,14 @@ class LeoPubsubMessageSubscriberSpec
           }
         )
       } yield ()
-    }
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "handle UpdateRuntimeMessage and restart runtime for persistent disk size update" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-
-    val res = makeLeoSubscriber(asyncTaskQueue = queue).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val res =
       for {
         disk <- makePersistentDisk(None).copy(size = DiskSize(100)).save()
         runtime <- IO(
@@ -548,45 +550,45 @@ class LeoPubsubMessageSubscriberSpec
           assert
         )
       } yield ()
-    }
+
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "update diskSize should trigger a stop-start transition" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
-      for {
-        runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopped).saveWithRuntimeConfig(gceRuntimeConfig))
-        tr <- traceId.ask[TraceId]
+    val leoSubscriber = makeLeoSubscriber()
+    val res = for {
+      runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Stopped).saveWithRuntimeConfig(gceRuntimeConfig))
+      tr <- traceId.ask[TraceId]
 
-        _ <- leoSubscriber.messageResponder(
-          UpdateRuntimeMessage(runtime.id,
-                               Some(MachineTypeName("n1-highmem-64")),
-                               false,
-                               Some(DiskUpdate.NoPdSizeUpdate(DiskSize(1024))),
-                               None,
-                               None,
-                               Some(tr))
-        )
-        updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-        updatedRuntimeConfig <- updatedRuntime.traverse(r =>
-          RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
-        )
-      } yield {
-        // runtime should still be Stopped
-        updatedRuntime shouldBe defined
-        updatedRuntime.get.status shouldBe RuntimeStatus.Stopped
-        // machine type and disk size should be updated
-        updatedRuntimeConfig shouldBe defined
-        updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
-        updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.GceConfig].diskSize shouldBe DiskSize(1024)
-      }
+      _ <- leoSubscriber.messageResponder(
+        UpdateRuntimeMessage(runtime.id,
+                             Some(MachineTypeName("n1-highmem-64")),
+                             false,
+                             Some(DiskUpdate.NoPdSizeUpdate(DiskSize(1024))),
+                             None,
+                             None,
+                             Some(tr))
+      )
+      updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
+      updatedRuntimeConfig <- updatedRuntime.traverse(r =>
+        RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
+      )
+    } yield {
+      // runtime should still be Stopped
+      updatedRuntime shouldBe defined
+      updatedRuntime.get.status shouldBe RuntimeStatus.Stopped
+      // machine type and disk size should be updated
+      updatedRuntimeConfig shouldBe defined
+      updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
+      updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.GceConfig].diskSize shouldBe DiskSize(1024)
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "handle CreateDiskMessage and create disk" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+    val res =
       for {
         disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
         tr <- traceId.ask[TraceId]
@@ -597,13 +599,13 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk shouldBe defined
         updatedDisk.get.googleId.get.value shouldBe "258165385"
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "handle DeleteDiskMessage and delete disk" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+    val res =
       for {
         disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
         tr <- traceId.ask[TraceId]
@@ -614,13 +616,14 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk shouldBe defined
         updatedDisk.get.status shouldBe DiskStatus.Deleting
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "handle DeleteDiskMessage when disk is not in Deleting status" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+
+    val res =
       for {
         disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
         tr <- traceId.ask[TraceId]
@@ -629,13 +632,13 @@ class LeoPubsubMessageSubscriberSpec
       } yield {
         attempt shouldBe Right(())
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "handle UpdateDiskMessage and update disk size" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+    val res =
       for {
         disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
         tr <- traceId.ask[TraceId]
@@ -647,7 +650,6 @@ class LeoPubsubMessageSubscriberSpec
         //TODO: fix tests
 //      updatedDisk.get.size shouldBe DiskSize(550)
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -705,13 +707,10 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val subscriber = for {
-      lock <- nodepoolLock
-      leoSubscriber <- makeLeoSubscriber(asyncTaskQueue = queue,
-                                         gkeAlgebra = makeGKEInterp(lock, List(savedApp1.release)))
-    } yield leoSubscriber
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
-    val res = subscriber.use { leoSubscriber =>
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
@@ -731,7 +730,6 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.handleCreateAppMessage(msg)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -798,13 +796,11 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val subscriber = for {
-      lock <- nodepoolLock
-      leoSubscriber <- makeLeoSubscriber(asyncTaskQueue = queue,
-                                         gkeAlgebra = makeGKEInterp(lock, List(savedApp1.release, savedApp2.release)))
-    } yield leoSubscriber
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
+                                          gkeAlgebra =
+                                            makeGKEInterp(nodepoolLock, List(savedApp1.release, savedApp2.release)))
 
-    val res = subscriber.use { leoSubscriber =>
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
@@ -835,7 +831,6 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.handleCreateAppMessage(msg2)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -857,7 +852,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val res = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp()).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         msg = CreateAppMessage(
@@ -875,7 +871,6 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
     verify(mockAckConsumer, times(1)).ack()
@@ -911,15 +906,14 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val res = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp()).use { leoSubscriber =>
-      for {
-        tr <- traceId.ask[TraceId]
-        msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
-        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- leoSubscriber.handleDeleteAppMessage(msg)
-        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-      } yield ()
-    }
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
+    val res = for {
+      tr <- traceId.ask[TraceId]
+      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -956,15 +950,15 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val res = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp()).use { leoSubscriber =>
-      for {
-        tr <- traceId.ask[TraceId]
-        msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(disk.id), Some(tr))
-        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-        _ <- leoSubscriber.handleDeleteAppMessage(msg)
-        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
-      } yield ()
-    }
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
+
+    val res = for {
+      tr <- traceId.ask[TraceId]
+      msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(disk.id), Some(tr))
+      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+      _ <- leoSubscriber.handleDeleteAppMessage(msg)
+      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+    } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -986,29 +980,26 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val subscriber = for {
-      lock <- nodepoolLock
-      mockKubernetesService = new MockKubernetesService(PodStatus.Failed, appRelease = List(savedApp1.release)) {
-        override def deleteNamespace(
-          clusterId: GKEModels.KubernetesClusterId,
-          namespace: KubernetesModels.KubernetesNamespace
-        )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
-      }
-      gkeInter = new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                        vpcInterp,
-                                        MockGKEService,
-                                        mockKubernetesService,
-                                        MockHelm,
-                                        MockAppDAO,
-                                        credentials,
-                                        iamDAOKubernetes,
-                                        makeDetachingDiskInterp(),
-                                        MockAppDescriptorDAO,
-                                        lock)
-      leoSubscriber <- makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeInter)
-    } yield leoSubscriber
+    val mockKubernetesService = new MockKubernetesService(PodStatus.Failed, appRelease = List(savedApp1.release)) {
+      override def deleteNamespace(
+        clusterId: GKEModels.KubernetesClusterId,
+        namespace: KubernetesModels.KubernetesNamespace
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.raiseError(new Exception("test error"))
+    }
+    val gkeInter = new GKEInterpreter[IO](Config.gkeInterpConfig,
+                                          vpcInterp,
+                                          MockGKEService,
+                                          mockKubernetesService,
+                                          MockHelm,
+                                          MockAppDAO,
+                                          credentials,
+                                          iamDAOKubernetes,
+                                          makeDetachingDiskInterp(),
+                                          MockAppDescriptorDAO,
+                                          nodepoolLock)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeInter)
 
-    val res = subscriber.use { leoSubscriber =>
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
@@ -1016,7 +1007,6 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
     verify(mockAckConsumer, times(1)).ack()
@@ -1061,13 +1051,10 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val subscriber = for {
-      lock <- nodepoolLock
-      leoSubscriber <- makeLeoSubscriber(asyncTaskQueue = queue,
-                                         gkeAlgebra = makeGKEInterp(lock, List(savedApp1.release)))
-    } yield leoSubscriber
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
-    val res = subscriber.use { leoSubscriber =>
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         msg = CreateAppMessage(
@@ -1085,7 +1072,6 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.handleCreateAppMessage(msg)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
     assertions.unsafeRunSync()(cats.effect.unsafe.implicits.global)
@@ -1144,34 +1130,30 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val subscriber = for {
-      lock <- nodepoolLock
-      mockKubernetesService = new MockKubernetesService(PodStatus.Succeeded, List(savedApp1.release)) {
-        override def deleteNamespace(
-          clusterId: GKEModels.KubernetesClusterId,
-          namespace: KubernetesModels.KubernetesNamespace
-        )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
-          IO {
-            deleteCalled = true
-          }
-      }
-      gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                         vpcInterp,
-                                         MockGKEService,
-                                         mockKubernetesService,
-                                         helmClient,
-                                         MockAppDAO,
-                                         credentials,
-                                         iamDAOKubernetes,
-                                         makeDetachingDiskInterp(),
-                                         MockAppDescriptorDAO,
-                                         lock)
-      leoSubscriber <- makeLeoSubscriber(asyncTaskQueue = queue,
-                                         diskInterp = makeDetachingDiskInterp(),
-                                         gkeAlgebra = gkeInterp)
-    } yield leoSubscriber
+    val mockKubernetesService = new MockKubernetesService(PodStatus.Succeeded, List(savedApp1.release)) {
+      override def deleteNamespace(
+        clusterId: GKEModels.KubernetesClusterId,
+        namespace: KubernetesModels.KubernetesNamespace
+      )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+        IO {
+          deleteCalled = true
+        }
+    }
+    val gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
+                                           vpcInterp,
+                                           MockGKEService,
+                                           mockKubernetesService,
+                                           helmClient,
+                                           MockAppDAO,
+                                           credentials,
+                                           iamDAOKubernetes,
+                                           makeDetachingDiskInterp(),
+                                           MockAppDescriptorDAO,
+                                           nodepoolLock)
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
-    val res = subscriber.use { leoSubscriber =>
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
@@ -1190,7 +1172,6 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.handleCreateAppMessage(msg)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -1232,30 +1213,29 @@ class LeoPubsubMessageSubscriberSpec
       override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
         IO.raiseError(new RuntimeException("app creation failed"))
     }
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeAlg)
     val res =
-      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeAlg).use {
-        leoSubscriber =>
-          for {
-            tr <- traceId.ask[TraceId]
-            dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
-            msg = CreateAppMessage(
-              savedCluster1.googleProject,
-              Some(
-                ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)
-              ),
-              savedApp1.id,
-              savedApp1.appName,
-              None,
-              Map.empty,
-              AppType.Galaxy,
-              savedApp1.appResources.namespace.name,
-              Some(tr)
-            )
-            asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-            _ <- leoSubscriber.handleCreateAppMessage(msg)
-            _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
-          } yield ()
-      }
+      for {
+        tr <- traceId.ask[TraceId]
+        dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
+        msg = CreateAppMessage(
+          savedCluster1.googleProject,
+          Some(
+            ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)
+          ),
+          savedApp1.id,
+          savedApp1.appName,
+          None,
+          Map.empty,
+          AppType.Galaxy,
+          savedApp1.appResources.namespace.name,
+          Some(tr)
+        )
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.handleCreateAppMessage(msg)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
+      } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -1297,25 +1277,21 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val subscriber = for {
-      lock <- nodepoolLock
-      gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                         vpcInterp,
-                                         mockGKEService,
-                                         new MockKubernetesService(PodStatus.Succeeded),
-                                         MockHelm,
-                                         MockAppDAO,
-                                         credentials,
-                                         iamDAO,
-                                         makeDetachingDiskInterp(),
-                                         MockAppDescriptorDAO,
-                                         lock)
-      leoSubscriber <- makeLeoSubscriber(asyncTaskQueue = queue,
-                                         diskInterp = makeDetachingDiskInterp(),
-                                         gkeAlgebra = gkeInterp)
-    } yield leoSubscriber
+    val gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
+                                           vpcInterp,
+                                           mockGKEService,
+                                           new MockKubernetesService(PodStatus.Succeeded),
+                                           MockHelm,
+                                           MockAppDAO,
+                                           credentials,
+                                           iamDAO,
+                                           makeDetachingDiskInterp(),
+                                           MockAppDescriptorDAO,
+                                           nodepoolLock)
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
-    val res = subscriber.use { leoSubscriber =>
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
@@ -1332,7 +1308,6 @@ class LeoPubsubMessageSubscriberSpec
         )
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
     assertions.unsafeRunSync()(cats.effect.unsafe.implicits.global)
@@ -1344,13 +1319,13 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Stopping).save()
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val res = makeLeoSubscriber(asyncTaskQueue = queue).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         msg = StopAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
         _ <- leoSubscriber.handleStopAppMessage(msg)
       } yield ()
-    }
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
@@ -1360,13 +1335,13 @@ class LeoPubsubMessageSubscriberSpec
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Starting).save()
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val res = makeLeoSubscriber(asyncTaskQueue = queue).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         msg = StartAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
         _ <- leoSubscriber.handleStartAppMessage(msg)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -1390,25 +1365,22 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.numNodes shouldBe NumNodes(2)
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val subscriber = for {
-      lock <- nodepoolLock
-      gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
-                                         vpcInterp,
-                                         MockGKEService,
-                                         new MockKubernetesService(),
-                                         MockHelm,
-                                         new MockAppDAO(false),
-                                         credentials,
-                                         iamDAOKubernetes,
-                                         makeDetachingDiskInterp(),
-                                         MockAppDescriptorDAO,
-                                         lock)
-      leoSubscriber <- makeLeoSubscriber(asyncTaskQueue = queue,
-                                         diskInterp = makeDetachingDiskInterp(),
-                                         gkeAlgebra = gkeInterp)
-    } yield leoSubscriber
+    val gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
+                                           vpcInterp,
+                                           MockGKEService,
+                                           new MockKubernetesService(),
+                                           MockHelm,
+                                           new MockAppDAO(false),
+                                           credentials,
+                                           iamDAOKubernetes,
+                                           makeDetachingDiskInterp(),
+                                           MockAppDescriptorDAO,
+                                           nodepoolLock)
 
-    val res = subscriber.use { leoSubscriber =>
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
+
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         msg = StartAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
@@ -1417,7 +1389,6 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.handleStartAppMessage(msg)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -1470,13 +1441,10 @@ class LeoPubsubMessageSubscriberSpec
     }
 
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val subscriber = for {
-      lock <- nodepoolLock
-      leoSubscriber <- makeLeoSubscriber(asyncTaskQueue = queue,
-                                         gkeAlgebra = makeGKEInterp(lock, List(savedApp1.release)))
-    } yield leoSubscriber
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
-    val res = subscriber.use { leoSubscriber =>
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
@@ -1497,7 +1465,6 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.handleCreateAppMessage(msg)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -1516,7 +1483,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.status shouldBe savedNodepool1.status
     }
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val res = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp()).use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
+    val res =
       for {
         tr <- traceId.ask[TraceId]
         msg = DeleteAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, None, Some(tr))
@@ -1526,13 +1494,13 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.handleDeleteAppMessage(msg)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "be idempotent for create disk" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+    val res =
       for {
         disk <- makePersistentDisk(None).copy(status = DiskStatus.Creating).save()
         tr <- traceId.ask[TraceId]
@@ -1546,12 +1514,12 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk shouldBe defined
         updatedDisk.get.googleId.get.value shouldBe "258165385"
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
   it should "be idempotent for delete disk" in isolatedDbTest {
-    val res = makeLeoSubscriber().use { leoSubscriber =>
+    val leoSubscriber = makeLeoSubscriber()
+    val res =
       for {
         disk <- makePersistentDisk(None).copy(status = DiskStatus.Deleting).save()
         tr <- traceId.ask[TraceId]
@@ -1565,7 +1533,6 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk shouldBe defined
         updatedDisk.get.status shouldBe DiskStatus.Deleting
       }
-    }
 
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
@@ -1593,7 +1560,7 @@ class LeoPubsubMessageSubscriberSpec
     diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp
-  ): Resource[IO, LeoPubsubMessageSubscriber[IO]] = nodepoolLock.map { lock =>
+  ): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
     implicit val runtimeInstances = new RuntimeInstances[IO](dataprocRuntimeAlgebra, gceRuntimeAlgebra)

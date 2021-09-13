@@ -5,7 +5,6 @@ import cats.effect.IO
 import com.github.benmanes.caffeine.cache.Caffeine
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent

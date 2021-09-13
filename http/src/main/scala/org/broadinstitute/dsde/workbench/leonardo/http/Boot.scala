@@ -442,11 +442,14 @@ object Boot extends IOApp {
                                                       applicationConfig.applicationName,
                                                       ProjectName.of(applicationConfig.leoGoogleProject.value))
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
-      nodepoolLock <- Dispatcher[F].evalMap(d =>
-        KeyLock[F, KubernetesClusterId](gkeClusterConfig.nodepoolLockCacheExpiryTime,
-                                        gkeClusterConfig.nodepoolLockCacheMaxSize,
-                                        d)
+      underlyingNodepoolLockCache = buildCache[scalacache.Entry[Semaphore[F]]](
+        gkeClusterConfig.nodepoolLockCacheMaxSize,
+        gkeClusterConfig.nodepoolLockCacheExpiryTime
       )
+      nodepoolLockCache <- Resource.make(F.delay(CaffeineCache[F, Semaphore[F]](underlyingNodepoolLockCache)))(s =>
+        F.delay(s.close)
+      )
+      nodepoolLock = KeyLock[F, KubernetesClusterId](nodepoolLockCache)
 
       // Set up PubSub queues
       publisherQueue <- Resource.eval(Queue.bounded[F, LeoPubsubMessage](pubsubConfig.queueSize))
@@ -470,10 +473,10 @@ object Boot extends IOApp {
       helmConcurrency <- Resource.eval(Semaphore[F](20L))
       helmClient = new HelmInterpreter[F](helmConcurrency)
 
-      underlyingGoogleTokenCache = Caffeine
-        .newBuilder()
-        .maximumSize(kubernetesDnsCacheConfig.cacheMaxSize)
-        .build[String, scalacache.Entry[(UserInfo, Instant)]]()
+      underlyingGoogleTokenCache = buildCache[scalacache.Entry[(UserInfo, Instant)]](
+        proxyConfig.tokenCacheMaxSize,
+        proxyConfig.tokenCacheExpiryTime
+      )
       googleTokenCache <- Resource.make(F.delay(CaffeineCache[F, (UserInfo, Instant)](underlyingGoogleTokenCache)))(s =>
         F.delay(s.close)
       )

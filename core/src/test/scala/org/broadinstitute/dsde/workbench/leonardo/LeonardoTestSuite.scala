@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import cats.effect.std.{Dispatcher, Semaphore}
+import cats.effect.std.Semaphore
 import cats.effect.{Deferred, IO}
+import com.github.benmanes.caffeine.cache.Caffeine
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.openTelemetry.FakeOpenTelemetryMetricsInterpreter
@@ -11,7 +12,9 @@ import org.scalatest.{Assertion, Assertions}
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+import scalacache.caffeine.CaffeineCache
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 trait LeonardoTestSuite extends Matchers {
@@ -20,7 +23,16 @@ trait LeonardoTestSuite extends Matchers {
   implicit val appContext = AppContext.lift[IO](None, "").unsafeRunSync()(cats.effect.unsafe.implicits.global)
 
   val semaphore = Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
-  val nodepoolLock = Dispatcher[IO].evalMap(d => KeyLock[IO, KubernetesClusterId](1 minute, 10, d))
+  val underlyingCache =
+    Caffeine
+      .newBuilder()
+      .maximumSize(10)
+      .expireAfterWrite(60, TimeUnit.SECONDS)
+      .recordStats()
+      .build[String, scalacache.Entry[Semaphore[IO]]]()
+  val cache: CaffeineCache[IO, Semaphore[IO]] =
+    CaffeineCache[IO, Semaphore[IO]](underlyingCache)
+  val nodepoolLock = KeyLock[IO, KubernetesClusterId](cache)
 
   def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 30): IO[Assertion] = {
     val process = Stream.eval(Deferred[IO, Assertion]).flatMap { signalToStop =>

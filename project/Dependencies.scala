@@ -154,7 +154,8 @@ object Dependencies {
     enumeratum,
     circeYaml,
     http4sDsl,
-    scalaTestScalaCheck
+    scalaTestScalaCheck,
+    scalaCache
   )
 
   val httpDependencies = Seq(
@@ -187,8 +188,7 @@ object Dependencies {
     "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
     http4sBlazeServer % Test,
     scalaTestSelenium,
-    scalaTestMockito,
-    scalaCache
+    scalaTestMockito
   )
 
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)

@@ -20,5 +20,3 @@ lazy val automation = project.in(file("automation"))
   .dependsOn(core % "test->test;compile->compile")
 
 ThisBuild / scalafixDependencies += "org.scalatest" %% "autofix" % "3.1.0.1"
-
-ThisBuild / scalacOptions += "-P:semanticdb:synthetics:on"

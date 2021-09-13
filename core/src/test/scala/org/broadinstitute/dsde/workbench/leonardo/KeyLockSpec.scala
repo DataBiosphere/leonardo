@@ -1,18 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
-import cats.effect.std.Dispatcher
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
 import scala.concurrent.duration._
 
 class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
-
   "KeyLock" should "perform operations using withKeyLock" in {
-    val res = Dispatcher[IO].use { d =>
+    val test = KeyLock[IO, String](cache)
+
+    val res =
       for {
-        test <- KeyLock[IO, String](1 minute, 10, d)
+        _ <- cache.removeAll
+
         key1 = "key1"
         key2 = "key2"
         r1 <- test.withKeyLock(key1)(IO(10))
@@ -23,15 +24,16 @@ class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
         r2 shouldBe 20
         r3 shouldBe 30
       }
-    }
 
     res.timeout(5 seconds).unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   it should "block on withKeyLock for the same key" in {
-    val res = Dispatcher[IO].use { d =>
+    val test = KeyLock[IO, String](cache)
+
+    val res =
       for {
-        test <- KeyLock[IO, String](1 minute, 10, d)
+        _ <- cache.removeAll
         key = "key"
         timeoutErr <- test
           .withKeyLock(key)(
@@ -42,7 +44,6 @@ class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
       } yield {
         timeoutErr.isLeft shouldBe true
       }
-    }
 
     res.timeout(5 seconds).unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
