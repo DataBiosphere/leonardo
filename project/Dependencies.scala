@@ -125,7 +125,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.5.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.2" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.10" % Test // brought in for FakeStorageInterpreter
 
   val scalaCache = "com.github.cb372" %% "scalacache-caffeine" % "1.0.0-M4"
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
