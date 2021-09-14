@@ -99,7 +99,9 @@ log 'Installing prerequisites...'
 retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 retry 5 apt-key update
 
-retry 5 apt-get update
+#this appears to fail which causes the start up script to error out
+#This could be a timeout with the above retry since there's no explicit error
+retry 5 apt-get --allow-releaseinfo-change update
 
 # install Docker
 # https://docs.docker.com/install/linux/docker-ce/debian/
