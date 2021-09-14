@@ -427,10 +427,25 @@ class GceInterpreter[F[_]](
   override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     UpdateDiskSizeParams.gcePrism
       .getOption(params)
-      .traverse_(p =>
-        googleDiskService
-          .resizeDisk(p.googleProject, p.zone, p.diskName, p.diskSize.gb)
-      )
+      .traverse_ { p =>
+        for {
+          ctx <- ev.ask
+          _ <- googleDiskService
+            .resizeDisk(p.googleProject, p.zone, p.diskName, p.diskSize.gb)
+            .void
+            .recoverWith {
+              case e: com.google.api.gax.rpc.InvalidArgumentException =>
+                if (e.getMessage.contains("must be larger than existing size")) {
+                  // Sometimes pubsub messages get resent. So we don't want to fail resize if we get the second resize request.
+                  // This assumes we never send reducing size request to back leo
+                  logger.warn(ctx.loggingCtx, e)(
+                    "Disk resize failed due to invalid request. Ignore this error since target size and existing size are the same"
+                  )
+                } else F.raiseError[Unit](e)
+              case e => F.raiseError[Unit](e)
+            }
+        } yield ()
+      }
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     F.unit

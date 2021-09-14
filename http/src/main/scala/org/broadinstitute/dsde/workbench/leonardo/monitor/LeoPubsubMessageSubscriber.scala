@@ -123,15 +123,16 @@ class LeoPubsubMessageSubscriber[F[_]](
               logger
                 .error(e)("Fail to process retryable pubsub message due to Google API call failure") >> F
                 .delay(event.consumer.nack())
-            //persist and log
             case _ =>
-              logger.error(e)("Fail to process non-retryable pubsub message") >> ack(event)
+              logger.error(e)("Fail to process pubsub message due to unexpected error") >> ack(event)
           }
         case Right(_) => ack(event)
       }
     } yield ()
 
-    res.handleErrorWith(e => logger.error(e)("Fail to process pubsub message") >> F.delay(event.consumer.ack()))
+    res.handleErrorWith(e =>
+      logger.error(e)("Fail to process pubsub message for some reason") >> F.delay(event.consumer.ack())
+    )
   }
 
   val process: Stream[F, Unit] = subscriber.messages

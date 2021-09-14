@@ -639,12 +639,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           for {
             targetDiskSize <- traverseIfChanged(diskSizeInRequest, existngDiskSize) { d =>
               if (d.gb < existngDiskSize.gb)
-                Async[F]
-                  .raiseError[DiskUpdate.NoPdSizeUpdate](
-                    RuntimeDiskSizeCannotBeDecreasedException(runtime.projectNameString)
-                  )
+                F.raiseError[DiskUpdate](
+                  RuntimeDiskSizeCannotBeDecreasedException(runtime.projectNameString)
+                )
               else
-                Async[F].pure(DiskUpdate.NoPdSizeUpdate(d))
+                F.pure(DiskUpdate.NoPdSizeUpdate(d): DiskUpdate)
             }
             r <- processUpdateGceConfigRequest(newMachineType,
                                                allowStop,

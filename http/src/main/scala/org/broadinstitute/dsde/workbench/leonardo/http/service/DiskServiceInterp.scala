@@ -191,27 +191,30 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         F.pure
       )
       // throw 400 if UpdateDiskRequest new size is smaller than disk's current size
-      _ <- if (req.size.gb > disk.size.gb) F.unit
-      else F.raiseError[Unit](DiskNotResizableException(googleProject, diskName, disk.size, req.size, ctx.traceId))
-      // throw 404 if no ReadPersistentDisk permission
-      // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
-      // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(disk.samResource, googleProject, userInfo)
-      hasReadPermission = listOfPermissions._1.toSet
-        .contains(PersistentDiskAction.ReadPersistentDisk) || listOfPermissions._2.toSet
-        .contains(ProjectAction.ReadPersistentDisk)
-      _ <- if (hasReadPermission) F.unit
-      else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
-      // throw 403 if no ModifyPersistentDisk permission
-      hasModifyPermission = listOfPermissions._1.contains(PersistentDiskAction.ModifyPersistentDisk)
-      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-      // throw 409 if the disk is not updatable
-      _ <- if (disk.status.isUpdatable) F.unit
+      _ <- if (req.size.gb > disk.size.gb) for {
+        // throw 404 if no ReadPersistentDisk permission
+        // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
+        // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
+        listOfPermissions <- authProvider.getActionsWithProjectFallback(disk.samResource, googleProject, userInfo)
+        hasReadPermission = listOfPermissions._1.toSet
+          .contains(PersistentDiskAction.ReadPersistentDisk) || listOfPermissions._2.toSet
+          .contains(ProjectAction.ReadPersistentDisk)
+        _ <- if (hasReadPermission) F.unit
+        else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
+        // throw 403 if no ModifyPersistentDisk permission
+        hasModifyPermission = listOfPermissions._1.contains(PersistentDiskAction.ModifyPersistentDisk)
+        _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+        // throw 409 if the disk is not updatable
+        _ <- if (disk.status.isUpdatable) F.unit
+        else
+          F.raiseError[Unit](DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = ctx.traceId))
+        _ <- publisherQueue.offer(
+          UpdateDiskMessage(disk.id, req.size, Some(ctx.traceId))
+        )
+      } yield ()
+      else if (req.size.gb == disk.size.gb) F.unit
       else
-        F.raiseError[Unit](DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = ctx.traceId))
-      _ <- publisherQueue.offer(
-        UpdateDiskMessage(disk.id, req.size, Some(ctx.traceId))
-      )
+        F.raiseError[Unit](DiskNotResizableException(googleProject, diskName, disk.size, req.size, ctx.traceId))
     } yield ()
 }
 
