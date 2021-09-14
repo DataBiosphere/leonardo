@@ -221,10 +221,8 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
             case Right(_) =>
               loggerIO.info(s"Deleted initial runtime ${project.value} / ${initalRuntimeName.asString}")
             case Left(err) =>
-              IO(
-                loggerIO.warn(err)(
-                  s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
-                )
+              loggerIO.warn(err)(
+                s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
               )
           }
         } yield ()
