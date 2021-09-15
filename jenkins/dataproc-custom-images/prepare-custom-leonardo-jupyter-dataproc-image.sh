@@ -99,7 +99,7 @@ log 'Installing prerequisites...'
 retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 retry 5 apt-key update
 
-#testing parameter change
+#testing parameter change22
 retry 5 apt-get --allow-releaseinfo-change update
 
 # install Docker
