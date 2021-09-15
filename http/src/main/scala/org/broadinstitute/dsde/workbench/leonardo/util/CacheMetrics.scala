@@ -18,7 +18,7 @@ class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implic
   def processWithUnderlyingCache[K, V](
     underlyingCache: com.github.benmanes.caffeine.cache.Cache[K, V]
   ): Stream[F, Unit] =
-    process(() => F.delay(underlyingCache.estimatedSize()), () => F.delay(underlyingCache.stats()))
+    process(() => F.blocking(underlyingCache.estimatedSize()), () => F.blocking(underlyingCache.stats()))
 
   private def recordMetrics(sizeF: () => F[Long], statsF: () => F[CacheStats]): F[Unit] =
     for {
