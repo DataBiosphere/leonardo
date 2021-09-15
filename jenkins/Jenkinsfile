@@ -268,7 +268,7 @@ pipeline {
                                         println("Using version $version for '$image' in this build of custom Dataproc images")
                                         // The below sed command does not update *_old variables, which must be manually updated
                                         sh """
-                                            sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\1$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                            sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\\1$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                         """
                                     }
 
@@ -276,7 +276,7 @@ pipeline {
                                         println("Using version $version for $image in this build of custom GCE images")
                                         // The below sed command does not update *_old variables, which must be manually updated
                                         sh """
-                                            sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\1$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_image.sh
+                                            sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\\1$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_image.sh
                                         """
                                     }
                                 }
@@ -323,7 +323,7 @@ pipeline {
                                 println("Using version $version for '$image' in this build of custom Dataproc images")
                                 // The below sed command does not update *_old variables, which must be manually updated
                                 sh """
-                                    sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\1$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                    sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\\1$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
                                 """
                             }
 
@@ -331,7 +331,7 @@ pipeline {
                                 println("Using version $version for $image in this build of custom GCE images")
                                 // The below sed command does not update *_old variables, which must be manually updated
                                 sh """
-                                    sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\1$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_image.sh
+                                    sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\\1$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_image.sh
                                 """
                             }
 
