@@ -476,7 +476,7 @@ pipeline {
                     sshagent(['jenkins-ssh-github']) {
                         sh """
                             git checkout -b $branchName$imageID
-                            git commit -m "automated custom image hash updates for image ID $imageID"
+                            git commit -am "automated custom image hash updates for image ID $imageID"
                             git push origin $branchName$imageID
                         """
                     }

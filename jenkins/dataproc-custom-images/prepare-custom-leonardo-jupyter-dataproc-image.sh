@@ -102,7 +102,7 @@ log 'Installing prerequisites...'
 retry 5 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
 retry 5 apt-key update
 
-retry 5 apt-get update
+retry 5 apt-get --allow-releaseinfo-change update
 
 # install Docker
 # https://docs.docker.com/install/linux/docker-ce/debian/
