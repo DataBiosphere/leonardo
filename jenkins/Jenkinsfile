@@ -154,7 +154,6 @@ pipeline {
             description: "A custom image will be build for each of these dataproc versions")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check only if you want to manually specify all of the custom image versions below.")
-        //TODO CHANGE BELOW BRANCH BACK BEFORE MERGING
         string(name: "branch", defaultValue: "wx-ia-2855")
         string(name: "terra_jupyter_base")
         string(name: "terra_jupyter_hail")
