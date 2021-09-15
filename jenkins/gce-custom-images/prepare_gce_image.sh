@@ -17,18 +17,21 @@ set -e -x
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
-terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.0"
+terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.1"
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.0"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.0.0"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.0.0"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.0.1"
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.5"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.1"
-
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:f411762"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:3.13.0"
 
+# The _old variables are NOT replaced by the Jenkins job; they must be manually updated
+terra_jupyter_base_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.0"
+terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.5"
+
+# Not replaced by Jenkins
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.3"
 google_cloud_toolbox="gcr.io/google-containers/toolbox:20200603-00"
 docker_composer="docker/compose:1.29.1"
@@ -39,7 +42,7 @@ cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.
 
 # This array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
+docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_base_old terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector cos_gpu_installer google_cloud_toolbox docker_composer docker_composer_with_auth"
 
 #
 # Functions
