@@ -28,7 +28,7 @@
                     "Name": "boot-disk",
                     "SourceImage": "${base_image}",
                     "Type": "pd-ssd",
-                    "SizeGb": "60"
+                    "SizeGb": "80"
                 }
             ]
         },
