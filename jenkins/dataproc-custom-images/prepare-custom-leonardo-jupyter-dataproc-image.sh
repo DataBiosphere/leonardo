@@ -101,7 +101,7 @@ retry 5 apt-key update
 
 #this appears to fail which causes the start up script to error out
 #This could be a timeout with the above retry since there's no explicit error
-retry 5 apt-get --allow-releaseinfo-change update
+retry 5 apt-get update
 
 # install Docker
 # https://docs.docker.com/install/linux/docker-ce/debian/
