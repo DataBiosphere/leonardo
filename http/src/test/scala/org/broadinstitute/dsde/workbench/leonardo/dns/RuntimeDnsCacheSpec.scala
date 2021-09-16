@@ -67,17 +67,17 @@ class RuntimeDnsCacheSpec
     eventually {
       runtimeDnsCache
         .getHostStatus(cacheKeyForClusterBeingCreated)
-        .unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldEqual HostNotReady
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostNotReady
     }
     eventually {
       runtimeDnsCache
         .getHostStatus(cacheKeyForRunningCluster)
-        .unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldEqual HostReady(runningClusterHost)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostReady(runningClusterHost)
     }
     eventually(
       runtimeDnsCache
         .getHostStatus(cacheKeyForStoppedCluster)
-        .unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldEqual HostPaused
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostPaused
     )
     val cacheMap = underlyingRuntimeDnsCache.asMap()
     cacheMap.size() shouldBe 3
@@ -86,18 +86,18 @@ class RuntimeDnsCacheSpec
     underlyingRuntimeDnsCache.stats.evictionCount shouldBe 0
 
     hostToIpMapping.get
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .get(runningClusterHost) shouldBe runningCluster.asyncRuntimeFields.flatMap(_.hostIp)
     hostToIpMapping.get
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .get(clusterBeingCreatedHost) shouldBe None
-    hostToIpMapping.get.unsafeRunSync()(cats.effect.unsafe.implicits.global).get(stoppedClusterHost) shouldBe None
+    hostToIpMapping.get.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).get(stoppedClusterHost) shouldBe None
 
     val cacheKeys = Set(cacheKeyForClusterBeingCreated, cacheKeyForRunningCluster, cacheKeyForStoppedCluster)
 
     // Check that the cache entries are eventually evicted and get re-loaded upon re-reading
     eventually {
-      cacheKeys.foreach(x => runtimeDnsCache.getHostStatus(x).unsafeRunSync()(cats.effect.unsafe.implicits.global))
+      cacheKeys.foreach(x => runtimeDnsCache.getHostStatus(x).unsafeRunSync()(cats.effect.unsafe.IORuntime.global))
 //      underlyingRuntimeDnsCache.stats.evictionCount shouldBe 3
     }
     val secondCacheMap = underlyingRuntimeDnsCache.asMap()

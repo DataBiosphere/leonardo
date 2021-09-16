@@ -98,7 +98,7 @@ class GceRuntimeMonitorSpec
       res6.left.value.getMessage shouldBe (s"${ctx} | staging bucket field hasn't been updated properly before monitoring started")
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "validateUserStartupScript" should "validate user startup script properly" in {
@@ -139,20 +139,20 @@ class GceRuntimeMonitorSpec
       res6 shouldBe (UserScriptsValidationResult.CheckAgain(s"${ctx} | Instance is not ready yet"))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "check whether user script has failed correctly" in {
     val monitor = gceRuntimeMonitor()
     monitor
       .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("failure"), GcsObjectName("")))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldBe (Some(false))
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe (Some(false))
     monitor
       .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("success"), GcsObjectName("")))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldBe (Some(true))
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe (Some(true))
     monitor
       .checkUserScriptsOutputFile(model.google.GcsPath(GcsBucketName("nonExistent"), GcsObjectName("")))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldBe (None)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe (None)
   }
 
   it should "retrieve user script from instance metadata properly" in {
@@ -189,7 +189,7 @@ class GceRuntimeMonitorSpec
       error.head.errorMessage shouldBe s"User script failed. See output in gs://failure/userscript_output.txt"
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process, Creating
@@ -242,7 +242,7 @@ class GceRuntimeMonitorSpec
       error.head.errorMessage shouldBe s"User startup script failed. See output in gs://staging_bucket/failed_userstartupscript_output.txt"
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process, Creating
@@ -281,7 +281,7 @@ class GceRuntimeMonitorSpec
       status shouldBe Some(RuntimeStatus.Running)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process, Starting
@@ -319,7 +319,7 @@ class GceRuntimeMonitorSpec
       status shouldBe Some(RuntimeStatus.Running)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "transition gce runtime to Stopping if Starting times out" in isolatedDbTest {
@@ -349,7 +349,7 @@ class GceRuntimeMonitorSpec
       } yield status.get shouldBe RuntimeStatus.Stopped
       _ <- withInfiniteStream(monitor.process(runtime.id, RuntimeStatus.Starting), assersions)
     } yield ()
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "terminate if instance is terminated after 5 seconds when trying to Starting one" in isolatedDbTest {
@@ -389,7 +389,7 @@ class GceRuntimeMonitorSpec
       status shouldBe Some(RuntimeStatus.Stopped)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail Starting if user startup script failed" in isolatedDbTest {
@@ -441,7 +441,7 @@ class GceRuntimeMonitorSpec
       error.head.errorMessage shouldBe s"User startup script failed. See output in gs://staging_bucket/failed_userstartupscript_output.txt"
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process
@@ -464,7 +464,7 @@ class GceRuntimeMonitorSpec
       status shouldBe (Some(RuntimeStatus.Stopped))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process, Stopping
@@ -487,7 +487,7 @@ class GceRuntimeMonitorSpec
       status shouldBe (Some(RuntimeStatus.Stopping))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process, Stopping
@@ -518,7 +518,7 @@ class GceRuntimeMonitorSpec
       status shouldBe (Some(RuntimeStatus.Stopped))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process, Stopping
@@ -544,7 +544,7 @@ class GceRuntimeMonitorSpec
       status shouldBe Some(RuntimeStatus.Stopped)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process, Deleting
@@ -567,7 +567,7 @@ class GceRuntimeMonitorSpec
       status shouldBe (Some(RuntimeStatus.Deleted))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // process, Deleting
@@ -606,7 +606,7 @@ class GceRuntimeMonitorSpec
       status shouldBe Some(RuntimeStatus.Deleted)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   //pollCheck, Deleting
@@ -633,7 +633,7 @@ class GceRuntimeMonitorSpec
       r.left.value.getMessage shouldBe "Monitoring Deleted with pollOperation is not supported"
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "set runtime to PreDeleting if Stopping is interrupted by Deleting" in isolatedDbTest {
@@ -668,7 +668,7 @@ class GceRuntimeMonitorSpec
       status shouldBe (Some(RuntimeStatus.PreDeleting))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "monitor Deleting successfully" in {
@@ -713,7 +713,7 @@ class GceRuntimeMonitorSpec
       status shouldBe Some(RuntimeStatus.Deleted)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   //pollCheck Deleting
@@ -751,7 +751,7 @@ class GceRuntimeMonitorSpec
       error.head.errorMessage shouldBe s"Deleting dsp-leo-test/clustername2 fail to complete in a timely manner"
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   implicit val toolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = _ => MockToolDAO(true)

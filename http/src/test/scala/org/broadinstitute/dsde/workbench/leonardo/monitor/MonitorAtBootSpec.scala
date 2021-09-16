@@ -58,7 +58,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     } yield {
       (msg eqv Some(LeoPubsubMessage.StopRuntimeMessage(runtime.id, None))) shouldBe (true)
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "recover RuntimeStatus.Deleting properly" in isolatedDbTest {
@@ -71,7 +71,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     } yield {
       (msg eqv Some(LeoPubsubMessage.DeleteRuntimeMessage(runtime.id, None, None))) shouldBe (true)
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "recover RuntimeStatus.Starting properly" in isolatedDbTest {
@@ -84,7 +84,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     } yield {
       (msg eqv Some(LeoPubsubMessage.StartRuntimeMessage(runtime.id, None))) shouldBe (true)
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "recover RuntimeStatus.Creating properly" in isolatedDbTest {
@@ -104,7 +104,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         )
       )) shouldBe (true)
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "recover AppStatus.Provisioning properly with cluster and nodepool creation" in isolatedDbTest {
@@ -134,7 +134,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(expected)) shouldBe true
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "recover AppStatus.Provisioning properly with nodepool creation" in isolatedDbTest {
@@ -163,7 +163,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(expected)) shouldBe true
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "recover AppStatus.Provisioning properly" in isolatedDbTest {
@@ -192,7 +192,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(expected)) shouldBe true
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "recover AppStatus.Deleting properly" in isolatedDbTest {
@@ -217,7 +217,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(expected)) shouldBe true
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "ignore non-monitored apps" in isolatedDbTest {
@@ -235,12 +235,12 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     } yield {
       msg shouldBe None
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   def createMonitorAtBoot(
     queue: Queue[IO, LeoPubsubMessage] =
-      Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): MonitorAtBoot[IO] =
     new MonitorAtBoot[IO](queue, org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting)
 }

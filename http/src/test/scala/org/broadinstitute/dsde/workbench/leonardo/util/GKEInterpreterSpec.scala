@@ -85,7 +85,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val authContext =
       gkeInterp
         .getHelmAuthContext(googleCluster, makeKubeCluster(1), NamespaceName("ns"))
-        .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     authContext.namespace.asString shouldBe "ns"
     authContext.kubeApiServer.asString shouldBe "https://1.2.3.4"
@@ -161,7 +161,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       clusterOpt.get.status shouldBe KubernetesClusterStatus.Deleted
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "deleteAndPollNodepool properly" in isolatedDbTest {
@@ -175,7 +175,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "mark a nodepool as Deleted in DB when it doesn't exist in Google" in isolatedDbTest {
@@ -210,7 +210,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "stopAndPollApp properly" in isolatedDbTest {
@@ -230,7 +230,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       getApp.nodepool.numNodes shouldBe NumNodes(2)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "startAndPollApp properly" in isolatedDbTest {
@@ -250,7 +250,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       getApp.nodepool.numNodes shouldBe NumNodes(2)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "error during createCluster if cluster doesn't exist in database" in isolatedDbTest {
@@ -270,7 +270,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
       ))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "error on pollCluster if default nodepool doesn't exist" in isolatedDbTest {
@@ -290,7 +290,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         DefaultNodepoolNotFoundException(savedCluster1.id)
       ))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "error on createCluster if user nodepool doesn't exist" in isolatedDbTest {
@@ -311,7 +311,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
       ))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "error on createAndPollApp if app doesn't exist" in isolatedDbTest {
@@ -333,6 +333,6 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         )
       ))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

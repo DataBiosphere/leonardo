@@ -77,7 +77,7 @@ class RuntimeGceSpec
       } yield ()
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // Not enable this in automation test because we can get `ZONE_RESOURCE_POOL_EXHAUSTED` easily
@@ -126,7 +126,7 @@ class RuntimeGceSpec
       } yield ()
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "should run a user script and startup script for Jupyter" in { project =>

@@ -145,7 +145,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
   private def extractUserInfoOpt(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
       case Some(token) =>
-        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
           .map(_.some)
       case None => provide(None)
     }
@@ -156,7 +156,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
   private def extractUserInfo(implicit ev: Ask[IO, TraceId]): Directive1[UserInfo] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
       case Some(token) =>
-        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
       case None => failWith(AuthenticationError())
     }
 
@@ -167,7 +167,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
   private def extractUserInfoFromHeader(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
     extractTokenFromHeader flatMap {
       case Some(token) =>
-        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.implicits.global))
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
           .map(_.some)
       case None => provide(None)
     }

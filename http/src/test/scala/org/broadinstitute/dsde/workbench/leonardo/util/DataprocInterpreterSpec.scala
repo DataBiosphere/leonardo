@@ -98,7 +98,7 @@ class DataprocInterpreterSpec
                                                None)
             )
         )
-        .unsafeToFuture()(cats.effect.unsafe.implicits.global)
+        .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
         .futureValue
 
     // verify the returned cluster
@@ -139,7 +139,7 @@ class DataprocInterpreterSpec
                                                None)
             )
         )
-        .unsafeToFuture()(cats.effect.unsafe.implicits.global)
+        .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
         .failed
         .futureValue
     exception shouldBe a[GoogleJsonResponseException]
@@ -162,7 +162,7 @@ class DataprocInterpreterSpec
       .getClusterResourceContraints(testClusterClusterProjectAndName,
                                     runtimeConfig.machineType,
                                     RegionName("us-central1"))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m
     resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(768)

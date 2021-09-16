@@ -5,7 +5,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GoogleDiskService, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
@@ -76,7 +76,7 @@ class RuntimeCreationDiskSpec
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
       } yield ()
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "create runtime with SSD disk" in { googleProject =>
@@ -156,7 +156,7 @@ class RuntimeCreationDiskSpec
         ) //assume we won't have multiple disks with same name in the same project in tests
       }
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "create runtime and attach an existing persistent disk" taggedAs Retryable in { googleProject =>
@@ -248,7 +248,7 @@ class RuntimeCreationDiskSpec
       }
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }
 

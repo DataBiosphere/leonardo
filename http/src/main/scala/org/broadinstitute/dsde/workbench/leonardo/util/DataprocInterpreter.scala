@@ -665,15 +665,15 @@ class DataprocInterpreter[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[Unit] = {
     val checkIsMember = retry(
-      F.fromFuture(F.delay(googleDirectoryDAO.isGroupMember(groupEmail, memberEmail))),
+      F.fromFuture(F.blocking(googleDirectoryDAO.isGroupMember(groupEmail, memberEmail))),
       when409
     )
     val addMemberToGroup = retry(
-      F.fromFuture(F.delay(googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail))),
+      F.fromFuture(F.blocking(googleDirectoryDAO.addMemberToGroup(groupEmail, memberEmail))),
       when409
     )
     val removeMemberFromGroup = retry(
-      F.fromFuture(F.delay(googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail))),
+      F.fromFuture(F.blocking(googleDirectoryDAO.removeMemberFromGroup(groupEmail, memberEmail))),
       when409
     )
     for {

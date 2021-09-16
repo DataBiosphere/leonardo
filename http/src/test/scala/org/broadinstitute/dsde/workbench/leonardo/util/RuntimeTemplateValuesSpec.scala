@@ -90,7 +90,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.welderServerName shouldBe "welder-server"
     }
 
-    test.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
 }

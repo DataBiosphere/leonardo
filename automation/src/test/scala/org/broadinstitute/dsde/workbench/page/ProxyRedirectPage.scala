@@ -62,7 +62,7 @@ trait ProxyRedirectPage[P <: Page] extends Page with PageUtil[P] with WebBrowser
 
     } yield res
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
 }

@@ -19,7 +19,7 @@ import scala.concurrent.Future
 
 package object api {
   implicit def ioMarshaller[A, B](implicit m: Marshaller[Future[A], B]): Marshaller[IO[A], B] =
-    Marshaller(implicit ec => (x => m(x.unsafeToFuture()(cats.effect.unsafe.implicits.global))))
+    Marshaller(implicit ec => (x => m(x.unsafeToFuture()(cats.effect.unsafe.IORuntime.global))))
 
   val googleProjectSegment = Segment.map(GoogleProject)
   val runtimeNameSegment = Segment.map(RuntimeName)
@@ -48,5 +48,5 @@ package object api {
 
 object ImplicitConversions {
   implicit def ioToFuture[A](ioa: IO[A]): Future[A] =
-    ioa.unsafeToFuture()(cats.effect.unsafe.implicits.global)
+    ioa.unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
 }

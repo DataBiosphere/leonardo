@@ -118,7 +118,7 @@ class ClusterToolMonitorSpec
                                                          ArgumentMatchers.anyLong(),
                                                          ArgumentMatchers.any[Map[String, String]])
         )
-        res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 

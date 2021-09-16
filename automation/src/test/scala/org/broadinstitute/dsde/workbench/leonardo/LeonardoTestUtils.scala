@@ -93,12 +93,12 @@ trait LeonardoTestUtils
   val googleDiskService =
     GoogleDiskService.resource[IO](LeonardoConfig.GCS.pathToQAJson, Semaphore[IO](10).unsafeRunSync())
   val concurrentClusterCreationPermits: Semaphore[IO] = Semaphore[IO](5).unsafeRunSync()(
-    cats.effect.unsafe.implicits.global
+    cats.effect.unsafe.IORuntime.global
   ) //Since we're using the same google project, we can reach bucket creation quota limit
 
   val googleComputeService =
     GoogleComputeService.resource(LeonardoConfig.GCS.pathToQAJson,
-                                  Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.implicits.global))
+                                  Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global))
   val googleDataprocService = for {
     compute <- googleComputeService
     dp <- GoogleDataprocService
@@ -318,7 +318,7 @@ trait LeonardoTestUtils
       } yield resp
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   def monitorCreateRuntime(
@@ -451,7 +451,7 @@ trait LeonardoTestUtils
       LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
     }
 
-    waitForRunning.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    waitForRunning.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
     val getResult = Try(Notebook.getApi(googleProject, runtimeName))
@@ -549,7 +549,7 @@ trait LeonardoTestUtils
       } else IO(logger.info(s"not going to delete runtime ${googleProject}/${cluster.clusterName}"))
     } yield t
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   def withNewErroredRuntime[T](

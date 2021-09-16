@@ -38,7 +38,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       // run s1 and s2 concurrently. s1 will run indefinitely if s2 doesn't happen. So by validating the combined Stream terminate, we verify s1 is terminated due to unexpected status change for the runtime
       _ <- Stream(s1, s2).parJoin(2).compile.drain.timeout(10 seconds)
     } yield succeed
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "transition cluster to Stopping if Starting times out" in isolatedDbTest {
@@ -54,7 +54,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       } yield status.get shouldBe RuntimeStatus.Stopping
       _ <- withInfiniteStream(runtimeMonitor.process(runtime.id, RuntimeStatus.Starting), assersions)
     } yield ()
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "handleCheckTools" should "move to Running status if all tools are ready" in isolatedDbTest {
@@ -79,7 +79,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       res shouldBe (((), None))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "move to failed status if tools are not ready" in isolatedDbTest {
@@ -102,7 +102,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       res shouldBe (((), None))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not move to failed status if tools are not ready and runtime is Deleted" in isolatedDbTest {
@@ -134,7 +134,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       status shouldBe Some(RuntimeStatus.Deleted)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   class MockRuntimeMonitor(isWelderReady: Boolean, timeouts: Map[RuntimeStatus, FiniteDuration])(

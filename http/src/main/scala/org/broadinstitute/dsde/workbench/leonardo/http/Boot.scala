@@ -197,7 +197,7 @@ object Boot extends IOApp {
                 case t: Throwable =>
                   logger
                     .error(t)("FATAL - failure starting http server")
-                    .unsafeToFuture()(cats.effect.unsafe.implicits.global)
+                    .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
               }
           }
         }

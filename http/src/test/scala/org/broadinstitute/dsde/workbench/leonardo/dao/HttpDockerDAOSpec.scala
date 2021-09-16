@@ -89,7 +89,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     } yield {
       response shouldBe Left(ImageParseException(ctx.traceId, image))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should s"detect invalid GCR image if image doesn't have proper environment variables set" in withDockerDAO {
@@ -101,7 +101,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       } yield {
         response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       }
-      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should s"detect invalid dockerhub image if image doesn't have proper environment variables set" in withDockerDAO {
@@ -113,7 +113,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       } yield {
         response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       }
-      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "detect invalid ghcr image if image doesn't have proper environment variables set" in withDockerDAO {
@@ -125,7 +125,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       } yield {
         response.isLeft shouldBe true
       }
-      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "correctly decode 'container_config' field from Docker API response if it exists" in {

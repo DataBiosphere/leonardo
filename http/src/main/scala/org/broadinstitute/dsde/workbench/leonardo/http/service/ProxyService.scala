@@ -93,7 +93,6 @@ class ProxyService(
   dbRef: DbReference[IO],
   loggerIO: StructuredLogger[IO])
     extends LazyLogging {
-  implicit val gtc = googleTokenCache
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
   val clientConnectionSettings =
     ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))

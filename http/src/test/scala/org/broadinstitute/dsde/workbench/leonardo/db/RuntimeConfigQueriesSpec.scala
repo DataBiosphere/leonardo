@@ -30,7 +30,7 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
     } yield {
       rc shouldBe runtimeConfig
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "save gceConfig properly" in isolatedDbTest {
@@ -59,7 +59,7 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       rc shouldBe runtimeConfig1
       rc2 shouldBe runtimeConfig2
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "save gceWithPdConfig properly" in isolatedDbTest {
@@ -78,6 +78,6 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
     } yield {
       rc shouldBe runtimeConfig
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

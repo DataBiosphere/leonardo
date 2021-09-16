@@ -33,7 +33,7 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d3 shouldEqual None
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "get by name" in isolatedDbTest {
@@ -50,7 +50,7 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d2 shouldEqual None
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update status" in isolatedDbTest {
@@ -65,7 +65,7 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d2.get.auditInfo.dateAccessed should not equal savedDisk.auditInfo.dateAccessed
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete records" in isolatedDbTest {
@@ -81,7 +81,7 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
       d2.get.auditInfo.destroyedDate should not equal savedDisk.auditInfo.destroyedDate
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
 }

@@ -120,7 +120,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       _ <- unclaimProject(googleProjectAndWorkspaceName.workspaceName)
     } yield t
 
-    test.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }
 
@@ -152,7 +152,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- loggerIO.info(s"Serving proxy redirect page at ${ProxyRedirectClient.baseUri.renderString}")
     } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   override def afterAll(): Unit = {
@@ -174,7 +174,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
       _ <- IO(super.afterAll())
     } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // NOTE: createInitialRuntime / deleteInitialRuntime exists so we can ensure that project-level

@@ -99,7 +99,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       r shouldBe (Left(ForbiddenError(userInfo.userEmail)))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "calculate autopause threshold properly" in {
@@ -112,11 +112,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
     runtimeService
       .createRuntime(userInfo, project, name0, emptyCreateRuntimeReq)
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val exc = runtimeService
       .createRuntime(userInfo, project, name0, emptyCreateRuntimeReq)
       .attempt
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
       .toOption
       .get
@@ -136,7 +136,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeService
         .createRuntime(userInfo, project, name0, clusterRequest)
         .attempt
-        .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
         .swap
         .toOption
         .get
@@ -157,7 +157,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           )
         )
         .attempt
-        .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
         .swap
         .toOption
         .get
@@ -213,7 +213,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         )
       message shouldBe expectedMessage
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "successfully accept https as user script and user startup script" in isolatedDbTest {
@@ -246,7 +246,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       r shouldBe Right(())
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "successfully create a cluster with an rstudio image" in isolatedDbTest {
@@ -273,7 +273,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r shouldBe Right(())
       runtime.get.runtimeImages.map(_.imageType) contains (RuntimeImageType.RStudio)
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "successfully create a dataproc runtime when explicitly told so when numberOfWorkers is 0" in isolatedDbTest {
@@ -345,7 +345,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         )
       message shouldBe expectedMessage
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "successfully create a dataproc runtime when explicitly told so when numberOfWorkers is more than 0" in isolatedDbTest {
@@ -408,7 +408,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         )
       message shouldBe expectedMessage
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "create a runtime with the latest welder from welderRegistry" in isolatedDbTest {
@@ -476,7 +476,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       welder3 shouldBe defined
       welder3.get.imageUrl shouldBe Config.imageConfig.welderGcrImage.imageUrl
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "create a runtime with the crypto-detector image" in isolatedDbTest {
@@ -525,7 +525,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtime2.runtimeName shouldBe runtimeName2
       runtime2.runtimeImages.map(_.imageType) shouldBe Set(Jupyter, Welder, RuntimeImageType.Proxy, CryptoDetector)
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "create a runtime with a disk config" in isolatedDbTest {
@@ -608,7 +608,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       message shouldBe expectedMessage
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to delete a runtime while it's still creating" in isolatedDbTest {
@@ -627,7 +627,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r.swap.toOption.get.isInstanceOf[RuntimeCannotBeDeletedException] shouldBe true
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "create a runtime with a gpu config" in isolatedDbTest {
@@ -673,7 +673,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .gpuConfig shouldBe gpuConfig
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "get a runtime" in isolatedDbTest {
@@ -686,14 +686,14 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       getResponse.samResource shouldBe testRuntime.samResource
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
     val exc = runtimeService
       .getRuntime(userInfo, GoogleProject("nonexistent"), RuntimeName("cluster"))
       .attempt
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
       .toOption
       .get
@@ -713,7 +713,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes with a project" in isolatedDbTest {
@@ -729,7 +729,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes with parameters" in isolatedDbTest {
@@ -746,7 +746,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // See https://broadworkbench.atlassian.net/browse/PROD-440
@@ -773,7 +773,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes with labels" in isolatedDbTest {
@@ -789,10 +789,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
     runtimeService
       .createRuntime(userInfo, project, clusterName1, req)
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime1 = runtimeService
       .getRuntime(userInfo, project, clusterName1)
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse1 = ListRuntimeResponse2(
       runtime1.id,
       runtime1.samResource,
@@ -809,10 +809,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val clusterName2 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     runtimeService
       .createRuntime(userInfo, project, clusterName2, req.copy(labels = Map("a" -> "b", "foo" -> "bar")))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime2 = runtimeService
       .getRuntime(userInfo, project, clusterName2)
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse2 = ListRuntimeResponse2(
       runtime2.id,
       runtime2.samResource,
@@ -828,42 +828,42 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar"))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1,
       listRuntimeResponse2
     )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes"))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1
     )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
-      .unsafeToFuture()(cats.effect.unsafe.implicits.global)
+      .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
       .futureValue
       .toSet shouldBe Set(listRuntimeResponse1)
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "a=b"))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     )
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "baz=biz"))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set.empty
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "A=B"))
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     ) // labels are not case sensitive because MySQL
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo%3Dbar"))
       .attempt
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
       .toOption
       .get
@@ -871,7 +871,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar;bam=yes"))
       .attempt
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
       .toOption
       .get
@@ -879,7 +879,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam"))
       .attempt
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
       .toOption
       .get
@@ -888,7 +888,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "bogus"))
       .attempt
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
       .toOption
       .get
@@ -897,7 +897,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     runtimeService
       .listRuntimes(userInfo, None, Map("_labels" -> "a,b"))
       .attempt
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
       .toOption
       .get
@@ -929,7 +929,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       }
     } yield res
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete a runtime with disk properly" in isolatedDbTest {
@@ -968,7 +968,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       }
     } yield res
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "stop a runtime" in isolatedDbTest {
@@ -994,7 +994,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       }
     } yield res
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not stop a stopping runtime and also not error" in isolatedDbTest {
@@ -1020,7 +1020,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       }
     } yield res
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "start a runtime" in isolatedDbTest {
@@ -1046,7 +1046,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       }
     } yield res
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update autopause" in isolatedDbTest {
@@ -1071,7 +1071,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       messageOpt shouldBe None
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   val reqMaps: List[LabelMap] = List(
@@ -1109,7 +1109,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       } yield {
         finalUpsertMaps.contains(dbLabelMap) shouldBe true
       }
-      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 
@@ -1144,7 +1144,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       } yield {
         finalDeleteMaps.contains(dbLabelMap) shouldBe true
       }
-      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 
@@ -1162,7 +1162,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         } yield {
           fail shouldBe Left(RuntimeCannotBeUpdatedException(testRuntime.projectNameString, testRuntime.status))
         }
-        res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       }
   }
 
@@ -1176,7 +1176,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         WrongCloudServiceException(CloudService.GCE, CloudService.Dataproc, ctx.traceId)
       )
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "RuntimeServiceInterp.processUpdateGceConfigRequest" should "not update a GCE runtime when there are no changes" in {
@@ -1187,7 +1187,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       messageOpt shouldBe None
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update patchInProgress flag if stopToUpdateMachineType is true" in isolatedDbTest {
@@ -1218,7 +1218,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update a GCE machine type in Stopped state" in {
@@ -1239,7 +1239,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update a GCE machine type in Running state" in {
@@ -1260,7 +1260,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to update a GCE machine type in Running state with allowStop set to false" in {
@@ -1271,7 +1271,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                             testClusterRecord.copy(status = RuntimeStatus.Running),
                                                             gceRuntimeConfig)
     } yield ()
-    res.attempt.unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldBe Left(
+    res.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe Left(
       RuntimeMachineTypeCannotBeChangedException(testClusterRecord.projectNameString, RuntimeStatus.Running)
     )
   }
@@ -1291,11 +1291,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "increase the persistent disk is attached to a GCE runtime" in isolatedDbTest {
-    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
       ctx <- appContext.ask[AppContext]
@@ -1315,11 +1315,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to increase the disk on a GCE runtime if allowStop is false" in {
-    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val req = UpdateRuntimeConfigRequest.GceConfig(None, Some(DiskSize(1024)))
     val res = for {
       _ <- runtimeService.processUpdateRuntimeConfigRequest(
@@ -1329,7 +1329,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         gceWithPdRuntimeConfig.copy(persistentDiskId = Some(disk.id))
       )
     } yield ()
-    res.attempt.unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldBe Left(
+    res.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe Left(
       RuntimeDiskSizeCannotBeChangedException(testCluster.projectNameString)
     )
   }
@@ -1339,7 +1339,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       _ <- runtimeService.processUpdateRuntimeConfigRequest(req, false, testClusterRecord, gceRuntimeConfig)
     } yield ()
-    res.attempt.unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldBe Left(
+    res.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe Left(
       RuntimeDiskSizeCannotBeDecreasedException(testClusterRecord.projectNameString)
     )
   }
@@ -1379,7 +1379,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       messageOpt shouldBe None
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "disallow updating dataproc cluster number of workers if runtime is not Running" in {
@@ -1402,7 +1402,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .getOrElse(throw new Exception("this test failed"))
         .asInstanceOf[LeoException] shouldEqual expectedException
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update Dataproc workers and preemptibles" in isolatedDbTest {
@@ -1440,7 +1440,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             Some(1000),
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update a Dataproc master machine type in Stopped state" in isolatedDbTest {
@@ -1479,7 +1479,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update a Dataproc machine type in Running state" in isolatedDbTest {
@@ -1518,7 +1518,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
   it should "fail to update a Dataproc machine type in Running state with allowStop set to false" in {
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
@@ -1528,7 +1528,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                              testClusterRecord.copy(status = RuntimeStatus.Running),
                                                              defaultDataprocRuntimeConfig)
     } yield ()
-    res.attempt.unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldBe Left(
+    res.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe Left(
       RuntimeMachineTypeCannotBeChangedException(testClusterRecord.projectNameString, RuntimeStatus.Running)
     )
   }
@@ -1541,7 +1541,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                                              testClusterRecord.copy(status = RuntimeStatus.Running),
                                                              defaultDataprocRuntimeConfig)
     } yield ()
-    res.attempt.unsafeRunSync()(cats.effect.unsafe.implicits.global).isLeft shouldBe true
+    res.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).isLeft shouldBe true
   }
 
   it should "increase the disk on a Dataproc runtime" in isolatedDbTest {
@@ -1578,7 +1578,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
                                             None,
                                             Some(ctx.traceId))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to decrease the disk on a Dataproc runtime" in isolatedDbTest {
@@ -1605,7 +1605,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req, true, clusterRecord.get, defaultDataprocRuntimeConfig)
     } yield ()
-    res.attempt.unsafeRunSync()(cats.effect.unsafe.implicits.global) shouldBe Left(
+    res.attempt.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe Left(
       RuntimeDiskSizeCannotBeDecreasedException(testClusterRecord.projectNameString)
     )
   }
@@ -1650,7 +1650,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       persistedDisk.get shouldEqual disk
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "reject a request if requested PD's zone is different from target zone" in isolatedDbTest {
@@ -1681,7 +1681,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       ))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "persist non-default zone disk properly" in isolatedDbTest {
@@ -1707,7 +1707,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       persistedDisk.get.zone shouldBe (targetZone)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "return existing disk if a disk with the same name already exists" in isolatedDbTest {
@@ -1731,7 +1731,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       returnedDisk shouldBe Right(PersistentDiskRequestResult(disk, false))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to create a disk when caller has no permission" in isolatedDbTest {
@@ -1750,7 +1750,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           whitelistAuthProvider,
           ConfigReader.appConfig.persistentDisk
         )(implicitly, implicitly, implicitly, scala.concurrent.ExecutionContext.global, implicitly)
-        .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
     thrown shouldBe ForbiddenError(userInfo.userEmail)
@@ -1786,7 +1786,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       err shouldBe Left(DiskAlreadyAttachedException(project, savedDisk.name, t.traceId))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to process a disk reference when the disk is already formatted by another app" in isolatedDbTest {
@@ -1829,7 +1829,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to attach a disk when caller has no attach permission" in isolatedDbTest {
@@ -1850,7 +1850,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield ()
 
     val thrown = the[ForbiddenError] thrownBy {
-      res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
     thrown shouldBe ForbiddenError(userInfo.userEmail)

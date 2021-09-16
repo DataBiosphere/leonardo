@@ -42,7 +42,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     LiquibaseConfig("org/broadinstitute/dsde/workbench/leonardo/liquibase/changelog.xml", true)
 
   // Not using beforeAll because the dbRef is needed before beforeAll is called
-  implicit protected lazy val testDbRef: DbRef[IO] = initDbRef.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+  implicit protected lazy val testDbRef: DbRef[IO] = initDbRef.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   override def afterAll(): Unit = {
     testDbRef.close()
@@ -69,13 +69,13 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     } yield new DbRef[IO](db, concurrentPermits)
 
   def dbFutureValue[T](f: DBIO[T]): T =
-    testDbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    testDbRef.inTransaction(f).timeout(30 seconds).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   def dbFailure[T](f: DBIO[T]): Throwable =
     testDbRef
       .inTransaction(f)
       .attempt
       .timeout(30 seconds)
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
       .toOption
       .get

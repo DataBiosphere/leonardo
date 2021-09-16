@@ -43,7 +43,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not auto freeze the cluster if jupyter kernel is still running" in isolatedDbTest {
@@ -70,7 +70,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       event shouldBe (None)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "auto freeze the cluster if we fail to get jupyter kernel status" in isolatedDbTest {
@@ -97,7 +97,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "auto freeze the cluster if the max kernel busy time is exceeded" in isolatedDbTest {
@@ -128,7 +128,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       event.get shouldBe a[LeoPubsubMessage.StopRuntimeMessage]
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def monitor(

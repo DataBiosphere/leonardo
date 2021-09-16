@@ -57,7 +57,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     } yield {
       d shouldBe (Left(ForbiddenError(userInfo.userEmail)))
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "successfully create a persistent disk" in isolatedDbTest {
@@ -86,7 +86,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
       message shouldBe expectedMessage
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "get a disk" in isolatedDbTest {
@@ -103,7 +103,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       getResponse.samResource shouldBe disk.samResource
       getResponse.labels shouldBe labelResp
     }
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks" in isolatedDbTest {
@@ -117,7 +117,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks with a project" in isolatedDbTest {
@@ -132,7 +132,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks with parameters" in isolatedDbTest {
@@ -147,7 +147,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       listResponse.map(_.id).toSet shouldBe Set(disk1.id)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks belonging to other users" in isolatedDbTest {
@@ -168,7 +168,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete a disk" in isolatedDbTest {
@@ -191,7 +191,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       message shouldBe expectedMessage
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
@@ -215,7 +215,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t.traceId))
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   List(DiskStatus.Creating, DiskStatus.Restoring, DiskStatus.Failed, DiskStatus.Deleting, DiskStatus.Deleted).foreach {
@@ -233,7 +233,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         } yield {
           fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = t.traceId))
         }
-        res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       }
   }
 
@@ -252,6 +252,6 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       message shouldBe expectedMessage
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

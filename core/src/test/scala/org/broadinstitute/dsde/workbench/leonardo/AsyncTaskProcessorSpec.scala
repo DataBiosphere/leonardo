@@ -23,7 +23,7 @@ class AsyncTaskProcessorSpec extends AnyFlatSpec with Matchers with LeonardoTest
   ignore should "execute tasks concurrently" in {
     val start = Instant.now()
     val res = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
-      val traceId = appContext.ask.unsafeRunSync()(cats.effect.unsafe.implicits.global).traceId
+      val traceId = appContext.ask.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).traceId
 
       def io(x: Int): IO[Unit] =
         for {
@@ -45,7 +45,7 @@ class AsyncTaskProcessorSpec extends AnyFlatSpec with Matchers with LeonardoTest
       stream.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ())))
     }
 
-    res.compile.drain.timeout(1 minutes).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.compile.drain.timeout(1 minutes).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val end = Instant.now()
     // If tasks are executed sequentially, then each sleep takes 2 seconds, which will result int at least 20 seconds latency
     // stream terminates where queue becomes empty, but queue becomes empty before all items are processed,

@@ -172,7 +172,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.runtimeImages.map(_.imageType) should contain(BootSource)
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   /**
@@ -211,11 +211,11 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.runtimeImages shouldBe runtime.runtimeImages
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle DeleteRuntimeMessage and delete cluster" in isolatedDbTest {
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime = makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(gceRuntimeConfig)
     val monitor = new MockRuntimeMonitor {
       override def pollCheck(a: CloudService)(
@@ -242,11 +242,11 @@ class LeoPubsubMessageSubscriberSpec
         )
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete disk when handling DeleteRuntimeMessage when autoDeleteDisks is set" in isolatedDbTest {
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val res =
@@ -272,11 +272,11 @@ class LeoPubsubMessageSubscriberSpec
         )
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "persist delete disk error when if fail to delete disk" in isolatedDbTest {
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val pollOperation = new MockComputePollOperation {
       override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(
         implicit ev: Ask[IO, TraceId]
@@ -311,7 +311,7 @@ class LeoPubsubMessageSubscriberSpec
         )
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not handle DeleteRuntimeMessage when cluster is not in Deleting status" in isolatedDbTest {
@@ -326,7 +326,7 @@ class LeoPubsubMessageSubscriberSpec
         attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle StopRuntimeMessage and stop cluster" in isolatedDbTest {
@@ -344,7 +344,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.status shouldBe RuntimeStatus.Stopping
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not handle StopRuntimeMessage when cluster is not in Stopping status" in isolatedDbTest {
@@ -360,7 +360,7 @@ class LeoPubsubMessageSubscriberSpec
         attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle StartRuntimeMessage and start cluster" in isolatedDbTest {
@@ -379,7 +379,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.status shouldBe RuntimeStatus.Starting
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not handle StartRuntimeMessage when cluster is not in Starting status" in isolatedDbTest {
@@ -395,7 +395,7 @@ class LeoPubsubMessageSubscriberSpec
         attempt shouldBe Left(ClusterInvalidState(runtime.id, runtime.projectNameString, runtime, message))
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle UpdateRuntimeMessage, resize dataproc cluster and setting DB status properly" in isolatedDbTest {
@@ -412,7 +412,7 @@ class LeoPubsubMessageSubscriberSpec
       )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
         Stream.eval(clusterQuery.setToRunning(runtimeId, IP("0.0.0.0"), Instant.now).transaction.void)
     }
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
     val leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
 
@@ -437,7 +437,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.DataprocConfig].numberOfWorkers shouldBe 100
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle UpdateRuntimeMessage and stop the cluster when there's a machine type change" in isolatedDbTest {
@@ -471,11 +471,11 @@ class LeoPubsubMessageSubscriberSpec
       updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-standard-4")
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle UpdateRuntimeMessage and go through a stop-start transition for machine type" in isolatedDbTest {
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
 
@@ -506,11 +506,11 @@ class LeoPubsubMessageSubscriberSpec
           }
         )
       } yield ()
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle UpdateRuntimeMessage and restart runtime for persistent disk size update" in isolatedDbTest {
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val res =
@@ -551,7 +551,7 @@ class LeoPubsubMessageSubscriberSpec
         )
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "update diskSize should trigger a stop-start transition" in isolatedDbTest {
@@ -583,7 +583,7 @@ class LeoPubsubMessageSubscriberSpec
       updatedRuntimeConfig.get.asInstanceOf[RuntimeConfig.GceConfig].diskSize shouldBe DiskSize(1024)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle CreateDiskMessage and create disk" in isolatedDbTest {
@@ -600,7 +600,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk.get.googleId.get.value shouldBe "258165385"
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle DeleteDiskMessage and delete disk" in isolatedDbTest {
@@ -617,7 +617,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk.get.status shouldBe DiskStatus.Deleting
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle DeleteDiskMessage when disk is not in Deleting status" in isolatedDbTest {
@@ -633,7 +633,7 @@ class LeoPubsubMessageSubscriberSpec
         attempt shouldBe Right(())
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle UpdateDiskMessage and update disk size" in isolatedDbTest {
@@ -651,7 +651,7 @@ class LeoPubsubMessageSubscriberSpec
 //      updatedDisk.get.size shouldBe DiskSize(550)
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle create app message with a create cluster" in isolatedDbTest {
@@ -659,7 +659,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val disk = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Galaxy))
       .save()
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -706,7 +706,7 @@ class LeoPubsubMessageSubscriberSpec
       )
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
@@ -731,15 +731,15 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "be able to create multiple apps in a cluster" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
     val savedNodepool2 = makeNodepool(2, savedCluster1.id).save()
-    val disk1 = makePersistentDisk(Some(DiskName("disk1"))).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    val disk2 = makePersistentDisk(Some(DiskName("disk2"))).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk1 = makePersistentDisk(Some(DiskName("disk1"))).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val disk2 = makePersistentDisk(Some(DiskName("disk2"))).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
@@ -795,7 +795,7 @@ class LeoPubsubMessageSubscriberSpec
       )
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue,
                                           gkeAlgebra =
                                             makeGKEInterp(nodepoolLock, List(savedApp1.release, savedApp2.release)))
@@ -832,7 +832,7 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle error in createApp if createDisk is specified with no disk" in isolatedDbTest {
@@ -851,7 +851,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.map(_.action) should contain(ErrorAction.CreateApp)
       getApp.app.errors.map(_.source) should contain(ErrorSource.Disk)
     }
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
     val res =
       for {
@@ -872,7 +872,7 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     verify(mockAckConsumer, times(1)).ack()
   }
 
@@ -881,7 +881,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "delete app and not delete disk when specified" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
-    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -905,7 +905,7 @@ class LeoPubsubMessageSubscriberSpec
       getDisk.status shouldBe DiskStatus.Ready
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
     val res = for {
       tr <- traceId.ask[TraceId]
@@ -915,7 +915,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
     } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete app and delete disk when specified" in isolatedDbTest {
@@ -925,7 +925,7 @@ class LeoPubsubMessageSubscriberSpec
     val disk = makePersistentDisk(None)
       .copy(status = DiskStatus.Deleting)
       .save()
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -949,7 +949,7 @@ class LeoPubsubMessageSubscriberSpec
       getDisk.status shouldBe DiskStatus.Deleted
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
 
     val res = for {
@@ -960,7 +960,7 @@ class LeoPubsubMessageSubscriberSpec
       _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
     } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle an error in delete app" in isolatedDbTest {
@@ -979,7 +979,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.map(_.source) should contain(ErrorSource.App)
       getApp.nodepool.status shouldBe NodepoolStatus.Unspecified
     }
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val mockKubernetesService = new MockKubernetesService(PodStatus.Failed, appRelease = List(savedApp1.release)) {
       override def deleteNamespace(
         clusterId: GKEModels.KubernetesClusterId,
@@ -1008,12 +1008,12 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     verify(mockAckConsumer, times(1)).ack()
   }
 
   it should "be able to create app with a pre-created nodepool" in isolatedDbTest {
-    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val savedCluster1 = makeKubeCluster(1).copy(status = KubernetesClusterStatus.Running).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
     val makeApp1 = makeApp(1, savedNodepool1.id)
@@ -1050,7 +1050,7 @@ class LeoPubsubMessageSubscriberSpec
       getDisk.status shouldBe DiskStatus.Ready
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
@@ -1073,15 +1073,15 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    assertions.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    assertions.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "clean-up google resources on error" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
-    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -1129,7 +1129,7 @@ class LeoPubsubMessageSubscriberSpec
       deleteCalled shouldBe true
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val mockKubernetesService = new MockKubernetesService(PodStatus.Succeeded, List(savedApp1.release)) {
       override def deleteNamespace(
         clusterId: GKEModels.KubernetesClusterId,
@@ -1173,14 +1173,14 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not delete a disk that already existing when app errors out" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
-    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -1208,7 +1208,7 @@ class LeoPubsubMessageSubscriberSpec
       getDisk.status shouldBe disk.status
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeAlg = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService {
       override def createAndPollApp(params: CreateAppParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
         IO.raiseError(new RuntimeException("app creation failed"))
@@ -1237,14 +1237,14 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions, maxRetry = 50)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete a cluster and put that app in error status on cluster error" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
-    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -1276,7 +1276,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.errors.size shouldBe 1
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
                                            vpcInterp,
                                            mockGKEService,
@@ -1309,8 +1309,8 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
-    assertions.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    assertions.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle StopAppMessage" in isolatedDbTest {
@@ -1318,7 +1318,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Stopping).save()
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val res =
       for {
@@ -1326,7 +1326,7 @@ class LeoPubsubMessageSubscriberSpec
         msg = StopAppMessage(savedApp1.id, savedApp1.appName, savedCluster1.googleProject, Some(tr))
         _ <- leoSubscriber.handleStopAppMessage(msg)
       } yield ()
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle StartAppMessage" in isolatedDbTest {
@@ -1334,7 +1334,7 @@ class LeoPubsubMessageSubscriberSpec
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
     val savedApp1 = makeApp(1, savedNodepool1.id).copy(status = AppStatus.Starting).save()
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
     val res =
       for {
@@ -1343,7 +1343,7 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.handleStartAppMessage(msg)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle start app timeouts" in isolatedDbTest {
@@ -1364,7 +1364,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.nodepool.autoscalingEnabled shouldBe true
       getApp.nodepool.numNodes shouldBe NumNodes(2)
     }
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val gkeInterp = new GKEInterpreter[IO](Config.gkeInterpConfig,
                                            vpcInterp,
                                            MockGKEService,
@@ -1390,14 +1390,14 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "be idempotent for create app" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
-    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val makeApp1 = makeApp(1, savedNodepool1.id)
     val savedApp1 = makeApp1
       .copy(appResources =
@@ -1440,7 +1440,7 @@ class LeoPubsubMessageSubscriberSpec
       getDisk.status shouldBe DiskStatus.Ready
     }
 
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
 
@@ -1466,7 +1466,7 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "be idempotent for delete app" in isolatedDbTest {
@@ -1482,7 +1482,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp.app.status shouldBe AppStatus.Deleted
       getApp.nodepool.status shouldBe savedNodepool1.status
     }
-    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp())
     val res =
       for {
@@ -1495,7 +1495,7 @@ class LeoPubsubMessageSubscriberSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "be idempotent for create disk" in isolatedDbTest {
@@ -1515,7 +1515,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk.get.googleId.get.value shouldBe "258165385"
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
   it should "be idempotent for delete disk" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
@@ -1534,7 +1534,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk.get.status shouldBe DiskStatus.Deleting
       }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
@@ -1554,7 +1554,7 @@ class LeoPubsubMessageSubscriberSpec
   def makeLeoSubscriber(
     runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
     asyncTaskQueue: Queue[IO, Task[IO]] =
-      Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global),
+      Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global),
     computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     gkeAlgebra: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService,
     diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,

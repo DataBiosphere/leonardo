@@ -92,7 +92,7 @@ class RuntimeDataprocSpec
       } yield ()
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "should create a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
@@ -141,7 +141,7 @@ class RuntimeDataprocSpec
       } yield ()
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "should stop/start a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
@@ -280,7 +280,7 @@ class RuntimeDataprocSpec
       } yield ()
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def verifyDataproc(project: GoogleProject,

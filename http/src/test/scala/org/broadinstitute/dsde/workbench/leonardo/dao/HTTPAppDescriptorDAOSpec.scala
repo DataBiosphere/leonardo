@@ -45,7 +45,7 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
 
     withStubbedAppDescriptorDAO(
       rstudioRespYaml, { dao =>
-        val descriptor = dao.getDescriptor(dummyRequestURI).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+        val descriptor = dao.getDescriptor(dummyRequestURI).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
         descriptor.author shouldBe "workbench-interactive-analysis@broadinstitute.org"
         descriptor.description should include("RStudio")
         descriptor.name shouldBe "rstudio"
@@ -80,7 +80,7 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
 
     val appDAOResource = new HttpAppDescriptorDAO[IO](clientWithLogging)
 
-    IO(testCode(appDAOResource)).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    IO(testCode(appDAOResource)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   //allows http retrieval
@@ -90,6 +90,6 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
       clientWithLogging = Logger[IO](logHeaders = true, logBody = false)(client)
     } yield new HttpAppDescriptorDAO[IO](clientWithLogging)
 
-    daoResource.use(dao => IO(testCode(dao))).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    daoResource.use(dao => IO(testCode(dao))).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

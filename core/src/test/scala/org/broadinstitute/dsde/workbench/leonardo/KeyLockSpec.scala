@@ -25,7 +25,7 @@ class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
         r3 shouldBe 30
       }
 
-    res.timeout(5 seconds).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.timeout(5 seconds).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "block on withKeyLock for the same key" in {
@@ -45,6 +45,6 @@ class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
         timeoutErr.isLeft shouldBe true
       }
 
-    res.timeout(5 seconds).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.timeout(5 seconds).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

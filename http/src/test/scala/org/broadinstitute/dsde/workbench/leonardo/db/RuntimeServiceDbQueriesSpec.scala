@@ -40,7 +40,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       statusAfterDeletion shouldBe Some(RuntimeStatus.Deleting)
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes" in isolatedDbTest {
@@ -79,7 +79,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed should be < maxElapsed
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes by labels" in isolatedDbTest {
@@ -128,7 +128,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed should be < maxElapsed
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes by project" in isolatedDbTest {
@@ -165,7 +165,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed should be < maxElapsed
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes including deleted" in isolatedDbTest {
@@ -222,7 +222,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed should be < maxElapsed
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "get a runtime" in isolatedDbTest {
@@ -241,7 +241,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       get2.isLeft shouldBe true
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def toListRuntimeResponse(

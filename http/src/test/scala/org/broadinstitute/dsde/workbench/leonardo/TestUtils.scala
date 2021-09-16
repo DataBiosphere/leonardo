@@ -208,5 +208,5 @@ object TestUtils extends Matchers {
   }
 
   def sslContext(implicit as: ActorSystem): SSLContext =
-    SslContextReader.getSSLContext[IO]().unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    SslContextReader.getSSLContext[IO]().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 }

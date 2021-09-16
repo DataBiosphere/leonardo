@@ -18,21 +18,21 @@ class LeoPubsubSpec extends AnyFlatSpec with LeonardoTestUtils {
 
     publisher
       .use(_ => IO.unit)
-      .unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "publish" in {
     val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
-    val queue = Queue.bounded[IO, String](100).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    val queue = Queue.bounded[IO, String](100).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     publisher
       .use(publisher => (fs2.Stream.fromQueueUnterminated(queue) through publisher.publish).compile.drain)
       .unsafeRunAsync(_ => ())
 
-    queue.offer("automation-test-message").unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    queue.offer("automation-test-message").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     eventually(timeout(Span(2, Minutes))) {
-      val size = queue.size.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      val size = queue.size.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       size shouldBe 0
     }
   }

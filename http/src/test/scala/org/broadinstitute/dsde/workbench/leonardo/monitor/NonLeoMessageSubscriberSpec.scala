@@ -125,7 +125,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       clusterOpt.get.status shouldBe KubernetesClusterStatus.Deleting
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "handle DeleteNodepoolMessage" in isolatedDbTest {
@@ -142,7 +142,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       attempt shouldBe Right(())
     }
 
-    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   def makeSubscribler(
@@ -151,7 +151,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     computeService: GoogleComputeService[IO] = FakeGoogleComputeService,
     publisher: GooglePublisher[IO] = new FakeGooglePublisher,
     asyncTaskQueue: Queue[IO, Task[IO]] =
-      Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.implicits.global)
+      Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): NonLeoMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[NonLeoMessage]
     new NonLeoMessageSubscriber(gkeInterp, computeService, samDao, googleSubscriber, publisher, asyncTaskQueue)

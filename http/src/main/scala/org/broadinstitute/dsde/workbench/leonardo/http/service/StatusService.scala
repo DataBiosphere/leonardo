@@ -39,7 +39,7 @@ class StatusService(
 
   private def checkStatus(): Map[Subsystem, Future[SubsystemStatus]] =
     Map(
-      Sam -> checkSam.unsafeToFuture()(cats.effect.unsafe.implicits.global),
+      Sam -> checkSam.unsafeToFuture()(cats.effect.unsafe.IORuntime.global),
       Database -> checkDatabase
     ).map(logFailures.tupled)
 
