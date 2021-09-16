@@ -165,7 +165,6 @@ pipeline {
         string(name: "anvil_rstudio_bioconductor")
         string(name: "welder_server")
         string(name: "openidc_proxy")
-
     }
     stages {
         stage('Scan Terra docker images') {
