@@ -152,7 +152,8 @@ pipeline {
             description: "The path for the bucket where the custom GCE image generation logs will be stored")
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.4.51-debian10",
             description: "A custom image will be build for each of these dataproc versions")
-        string(name: "branch", defaultValue: "develop")
+        string(name: "branch", defaultValue: "develop",
+            description: "The branch that will be used to run the job")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check only if you want to manually specify all of the custom image versions below.")
         string(name: "terra_jupyter_base")
