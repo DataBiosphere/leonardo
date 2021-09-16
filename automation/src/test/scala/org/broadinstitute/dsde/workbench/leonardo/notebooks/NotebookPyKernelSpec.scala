@@ -90,7 +90,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       withWebDriver { implicit driver =>
         withNewNotebook(runtimeFixture.runtime) { notebookPage =>
           val query =
-            """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """
+            """! bq query --format=json "SELECT COUNT(*) AS scullion_count FROM [bigquery-public-data.samples.shakespeare] WHERE word='scullion'" """
           val expectedResult = """[{"scullion_count":"2"}]""".stripMargin
 
           val result = notebookPage.executeCell(query, timeout = 5.minutes).get
@@ -180,18 +180,26 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
 
     s"should have the workspace-related environment variables set in ${Python3.toString} kernel" in { runtimeFixture =>
       withWebDriver { implicit driver =>
+        val expectedEVs =
+          RuntimeFixtureSpec.getCustomEnvironmentVariables ++
+            // variables implicitly set by Leo
+            Map(
+              "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
+              "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
+              "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
+              // TODO: remove when PPW is rolled out to all workspaces
+              // and Leo removes the kernel_bootstrap logic.
+              // See https://broadworkbench.atlassian.net/browse/IA-2936
+              "WORKSPACE_NAME" -> "Untitled Folder"
+            )
         withNewNotebookInSubfolder(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import os")
-          notebookPage
-            .executeCell("os.getenv('GOOGLE_PROJECT')")
-            .get shouldBe s"'${runtimeFixture.runtime.googleProject.value}'"
-          notebookPage
-            .executeCell("os.getenv('WORKSPACE_NAMESPACE')")
-            .get shouldBe s"'${runtimeFixture.runtime.googleProject.value}'"
-          notebookPage.executeCell("os.getenv('WORKSPACE_NAME')").get shouldBe "'Untitled Folder'"
-          notebookPage.executeCell("os.getenv('OWNER_EMAIL')").get shouldBe s"'${ronEmail}'"
-          // workspace bucket is not wired up in tests
-          notebookPage.executeCell("os.getenv('WORKSPACE_BUCKET')") shouldBe None
+          expectedEVs.foreach {
+            case (k, v) =>
+              val res = notebookPage.executeCell(s"os.getenv('$k')")
+              res shouldBe defined
+              res.get shouldBe s"'$v'"
+          }
         }
       }
     }

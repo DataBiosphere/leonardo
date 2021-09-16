@@ -26,15 +26,14 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
     "environment variables should be available in RStudio" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
-          val expectedEVs = Map(
-            "GOOGLE_PROJECT" -> runtimeFixture.runtime.googleProject.value,
-            "WORKSPACE_NAMESPACE" -> runtimeFixture.runtime.googleProject.value,
-            "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
-            "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
-            "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value,
-            "TEST_EV1" -> "test1",
-            "TEST_EV2" -> "test2"
-          )
+          val expectedEVs =
+            RuntimeFixtureSpec.getCustomEnvironmentVariables ++
+              // variables implicitly set by Leo
+              Map(
+                "CLUSTER_NAME" -> runtimeFixture.runtime.clusterName.asString,
+                "RUNTIME_NAME" -> runtimeFixture.runtime.clusterName.asString,
+                "OWNER_EMAIL" -> runtimeFixture.runtime.creator.value
+              )
 
           expectedEVs.foreach {
             case (k, v) =>
