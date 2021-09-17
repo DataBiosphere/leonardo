@@ -51,7 +51,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               |hl.utils.get_movie_lens('data/')
               |users = hl.read_table('data/users.ht')
               |users.aggregate(hl.agg.count())""".stripMargin
-          val tutorialCellResult = notebookPage.executeCell(tutorialToRun, cellNumberOpt = Some(2)).get
+          val tutorialCellResult =
+            notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).map(_.output.tail.last).get
           tutorialCellResult.toInt shouldBe (943)
 
           // Verify spark job is run in non local mode
