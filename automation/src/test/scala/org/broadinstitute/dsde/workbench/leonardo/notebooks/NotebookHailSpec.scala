@@ -68,7 +68,10 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             """import random
               |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
           val sparkJobToSucceedcellResult =
-            notebookPage.executeCell(sparkJobToSucceed, cellNumberOpt = Some(4)).get
+            notebookPage
+              .executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4))
+              .map(_.output.tail.last)
+              .get
           sparkJobToSucceedcellResult.toInt shouldBe (1000)
         }
       }

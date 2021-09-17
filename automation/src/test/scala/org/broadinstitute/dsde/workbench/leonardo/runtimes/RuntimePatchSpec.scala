@@ -269,7 +269,7 @@ class RuntimePatchSpec
                     "! df -H |grep sda1"
                   )
                   .get
-                res should include("94G") //disk output is always a few more gb than what's specified
+                res should include("95G") //disk output is always a few more gb than what's specified
               }
             }
           )
