@@ -152,6 +152,8 @@ pipeline {
             description: "The path for the bucket where the custom GCE image generation logs will be stored")
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.4.51-debian10",
             description: "A custom image will be build for each of these dataproc versions")
+        string(name: "branch", defaultValue: "develop",
+            description: "The branch that will be used to run the job")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check only if you want to manually specify all of the custom image versions below.")
         string(name: "terra_jupyter_base")
@@ -164,7 +166,6 @@ pipeline {
         string(name: "anvil_rstudio_bioconductor")
         string(name: "welder_server")
         string(name: "openidc_proxy")
-        string(name: "branch", defaultValue: "develop")
     }
     stages {
         stage('Scan Terra docker images') {
@@ -488,7 +489,7 @@ pipeline {
                     sshagent(['jenkins-ssh-github']) {
                         sh """
                             git checkout -b $branchName$imageID
-                            git commit -m "automated custom image hash updates for image ID $imageID"
+                            git commit -am "automated custom image hash updates for image ID $imageID"
                             git push origin $branchName$imageID
                         """
                     }
