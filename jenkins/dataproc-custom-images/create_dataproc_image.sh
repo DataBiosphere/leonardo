@@ -8,7 +8,7 @@ set -e -x
 #
 # gsutil must have been installed.
 #
-# application_default_credentials.json needs to be copied to jenkins/gce-custom-images/ which is mounted on Daisy container
+# application_default_credentials.json needs to be copied to jenkins/dataproc-custom-images/ which is mounted on Daisy container
 # Credentials can be refreshed via 'gcloud auth application-default login' with project set to 'broad-dsde-dev' using
 # Broad account. They are saved at '~/.config/gcloud/application_default_credentials.json' by default.
 #
