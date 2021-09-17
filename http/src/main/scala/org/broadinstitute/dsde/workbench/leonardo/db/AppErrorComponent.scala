@@ -37,7 +37,7 @@ object appErrorQuery extends TableQuery(new AppErrorTable(_)) {
     appErrorQuery += AppErrorRecord(
       KubernetesErrorId(0),
       appId,
-      Some(error.errorMessage).map(_.take(1024)).getOrElse("null"),
+      Option(error.errorMessage).map(_.take(1024)).getOrElse("null"),
       error.timestamp,
       error.action,
       error.source,
