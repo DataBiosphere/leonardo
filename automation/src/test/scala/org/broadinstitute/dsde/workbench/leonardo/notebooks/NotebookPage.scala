@@ -1,5 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import cats.data.NonEmptyList
 import cats.effect.{IO, Timer}
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
@@ -200,11 +201,7 @@ class NotebookPage(override val url: String)(implicit override val webDriver: We
 
   def cellOutput(cell: WebElement): Option[CellOutput] = {
     val outputs = cell.findElements(By.xpath("../../../..//div[contains(@class,'output_subarea')]"))
-    outputs.asScala.toList match {
-      case Nil => None
-      case renderResult :: tail =>
-        Some(CellOutput(renderResult.getText, tail.headOption.map(_.getText)))
-    }
+    NonEmptyList.fromList(outputs.asScala.map(_.getText).toList).map(CellOutput)
   }
 
   //TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
@@ -223,7 +220,7 @@ class NotebookPage(override val url: String)(implicit override val webDriver: We
     executeScript(s"""arguments[0].CodeMirror.setValue("$jsEscapedCode");""", cell)
     clickRunCell(timeout)
     await.condition(cellIsRendered(cellNumber), timeout.toSeconds)
-    cellOutput(cell).map(_.renderResult)
+    cellOutput(cell).map(_.output.head)
   }
 
   def executeCellWithCellOutput(code: String,
@@ -428,4 +425,6 @@ class NotebookPage(override val url: String)(implicit override val webDriver: We
 
 }
 
-final case class CellOutput(renderResult: String, output: Option[String])
+// Notebook cells can have multiple output blocks. This class captures all cell outputs.
+// In the common case there will just be 1 output.
+final case class CellOutput(output: NonEmptyList[String])

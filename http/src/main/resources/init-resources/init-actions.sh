@@ -369,6 +369,7 @@ END
         log 'Copy Jupyter frontend notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
         JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
         docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
       fi
 
