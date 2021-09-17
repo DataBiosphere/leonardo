@@ -29,7 +29,7 @@ anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconducto
 
 # The _old variables are NOT replaced by the Jenkins job; they must be manually updated
 terra_jupyter_base_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.0"
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:1.1.5"
+terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.1"
 
 # Not replaced by Jenkins
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.3"
