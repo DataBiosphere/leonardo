@@ -172,7 +172,7 @@ object Dependencies {
     akkaTestKit,
     akkaHttpTestKit,
     akkaStream,
-    "de.heikoseeberger" %% "akka-http-circe" % "1.37.0" excludeAll(excludeAkkaHttp, excludeAkkaStream),
+    "de.heikoseeberger" %% "akka-http-circe" % "1.38.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleRpc,
 
     hikariCP,
