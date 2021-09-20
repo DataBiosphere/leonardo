@@ -105,6 +105,11 @@ export MEM_LIMIT=$(memLimit)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 export WELDER_ENABLED=$(welderEnabled)
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export IS_RSTUDIO_RUNTIME="true"
+else
+  export IS_RSTUDIO_RUNTIME="false"
+fi
 
 START_USER_SCRIPT_URI=$(startUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
@@ -315,6 +320,7 @@ HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PRO
 DOCKER_COMPOSE_FILES_DIRECTORY=${DOCKER_COMPOSE_FILES_DIRECTORY}
 RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
 RSTUDIO_DOCKER_IMAGE=${RSTUDIO_DOCKER_IMAGE}
+IS_RSTUDIO_RUNTIME=${IS_RSTUDIO_RUNTIME}
 END
 
 # Create a network that allows containers to talk to each other via exposed ports
@@ -500,7 +506,8 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
 CLUSTER_NAME=$CLUSTER_NAME
 RUNTIME_NAME=$RUNTIME_NAME
-OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
+OWNER_EMAIL=$OWNER_EMAIL
+IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME" >> /usr/local/lib/R/etc/Renviron.site'
 
   # Add custom_env_vars.env to Renviron.site
   CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
