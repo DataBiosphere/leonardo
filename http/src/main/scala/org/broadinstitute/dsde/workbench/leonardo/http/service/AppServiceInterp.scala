@@ -13,15 +13,12 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.AppType.{Custom, Galaxy}
+import org.broadinstitute.dsde.workbench.leonardo.AppType.{CromwellLocal, Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
-  isPatchVersionDifference,
-  LeoKubernetesConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{LeoKubernetesConfig, isPatchVersionDifference}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -30,9 +27,9 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartVersion, Release}
 import org.typelevel.log4cats.StructuredLogger
-
 import java.time.Instant
 import java.util.UUID
+
 import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](
@@ -592,6 +589,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           req.appType match {
             case Galaxy =>
               galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))
+            case CromwellLocal =>
+              List.empty // TODO: Verify nothing to save?
             case Custom =>
               // Back Leo will populate services when it parses the descriptor
               List.empty

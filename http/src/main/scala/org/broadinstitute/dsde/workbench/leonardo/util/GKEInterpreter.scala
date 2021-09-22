@@ -383,6 +383,14 @@ class GKEInterpreter[F[_]](
             nfsDisk,
             galaxyRestore
           )
+        case AppType.CromwellLocal =>
+          installCromwellLocal(
+            helmAuthContext,
+            app.appName,
+            app.release,
+            app.chart,
+            dbCluster
+          )
         case AppType.Custom =>
           installCustomApp(
             app.id,
@@ -965,6 +973,56 @@ class GKEInterpreter[F[_]](
 
     } yield ()
 
+  private[util] def installCromwellLocal(helmAuthContext: AuthContext,
+                                         appName: AppName,
+                                         release: Release,
+                                         chart: Chart,
+                                         cluster: KubernetesCluster)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+
+      _ <- logger.info(ctx.loggingCtx)(
+        s"Installing helm chart ${config.cromwellLocalAppConfig.chart} for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
+      )
+
+      chartValues = List.empty[String] // In the dummy hello-world chart, everything is hard-coded
+      _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
+
+      // Invoke helm
+      helmInstall = helmClient
+        .installChart(
+          release,
+          chart.name,
+          chart.version,
+          org.broadinstitute.dsp.Values(chartValues.mkString(",")),
+          false
+        )
+        .run(helmAuthContext)
+
+      // Currently we always retry.
+      // The main failure mode here is helm install, which does not have easily interpretable error codes
+      retryConfig = RetryPredicates.retryAllConfig
+      _ <- tracedRetryF(retryConfig)(
+        helmInstall,
+        s"helm install for app ${appName.value} in project ${cluster.googleProject.value}"
+      ).compile.lastOrError
+
+      // Poll the app until it starts up
+      isDone <- streamFUntilDone(
+        appDao.isProxyAvailable(cluster.googleProject, appName),
+        config.monitorConfig.createApp.maxAttempts,
+        config.monitorConfig.createApp.interval
+      ).interruptAfter(config.monitorConfig.createApp.interruptAfter).compile.lastOrError
+
+      _ <- if (!isDone) {
+        val msg =
+          s"CromwellLocal installation has failed or timed out for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
+        logger.error(ctx.loggingCtx)(msg) >>
+          F.raiseError[Unit](AppCreationException(msg))
+      } else F.unit
+
+    } yield ()
+
   private[util] def installCustomApp(appId: AppId,
                                      appName: AppName,
                                      release: Release,
@@ -1400,6 +1458,7 @@ final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
 final case class GKEInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig,
                                       ingressConfig: KubernetesIngressConfig,
                                       galaxyAppConfig: GalaxyAppConfig,
+                                      cromwellLocalAppConfig: CromwellLocalAppConfig,
                                       customAppConfig: CustomAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,
