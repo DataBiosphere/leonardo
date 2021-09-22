@@ -18,7 +18,10 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{LeoKubernetesConfig, isPatchVersionDifference}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
+  isPatchVersionDifference,
+  LeoKubernetesConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._

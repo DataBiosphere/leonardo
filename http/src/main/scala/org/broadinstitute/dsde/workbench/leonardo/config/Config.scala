@@ -592,14 +592,15 @@ object Config {
     )
   }
 
-  implicit private val cromwellLocalAppConfigReader: ValueReader[CromwellLocalAppConfig] = ValueReader.relative { config =>
-    CromwellLocalAppConfig(
-      chartName = config.as[ChartName]("chartName"),
-      chartVersion = config.as[ChartVersion]("chartVersion"),
-      namespaceNameSuffix = config.as[String]("namespaceNameSuffix"),
-      services = config.as[List[ServiceConfig]]("services"),
-      serviceAccountName = config.as[ServiceAccountName]("serviceAccountName")
-    )
+  implicit private val cromwellLocalAppConfigReader: ValueReader[CromwellLocalAppConfig] = ValueReader.relative {
+    config =>
+      CromwellLocalAppConfig(
+        chartName = config.as[ChartName]("chartName"),
+        chartVersion = config.as[ChartVersion]("chartVersion"),
+        namespaceNameSuffix = config.as[String]("namespaceNameSuffix"),
+        services = config.as[List[ServiceConfig]]("services"),
+        serviceAccountName = config.as[ServiceAccountName]("serviceAccountName")
+      )
   }
 
   implicit private val customAppConfigReader: ValueReader[CustomAppConfig] = ValueReader.relative { config =>
