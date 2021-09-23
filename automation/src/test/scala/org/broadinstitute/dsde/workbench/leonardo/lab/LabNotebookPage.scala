@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.lab
 import com.typesafe.scalalogging.LazyLogging
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.{KernelNotReadyException, ProxyRedirectClient}
+import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
 import org.openqa.selenium.{By, TimeoutException, WebDriver, WebElement}
 import org.scalatest.concurrent.Eventually
 import org.scalatest.concurrent.PatienceConfiguration.{Interval, Timeout}
