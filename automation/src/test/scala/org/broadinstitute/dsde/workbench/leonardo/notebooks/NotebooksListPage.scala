@@ -76,7 +76,7 @@ class NotebooksListPage(override val url: String)(implicit override val webDrive
   }
 
   def withNewNotebook[T](kernel: NotebookKernel = Python3,
-                         timeout: FiniteDuration = 2.minutes)(testCode: NotebookPage => T): T = {
+                         timeout: FiniteDuration = 3.minutes)(testCode: NotebookPage => T): T = {
     switchToNewTab {
       await visible (newButton, timeout.toSeconds)
       click on newButton

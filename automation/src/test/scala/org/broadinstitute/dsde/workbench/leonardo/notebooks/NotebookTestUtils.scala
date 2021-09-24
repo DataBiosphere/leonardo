@@ -51,7 +51,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       notebooksListPage.withOpenNotebook(file, timeout)(notebookPage => testCode(notebookPage))
     }
 
-  def withNewNotebook[T](cluster: ClusterCopy, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 2.minutes)(
+  def withNewNotebook[T](cluster: ClusterCopy, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 3.minutes)(
     testCode: NotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
@@ -62,7 +62,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
         whenKernelNotReady,
         failureLogMessage =
           s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.asString} for ${kernel}"
-      )(30 seconds, 2 minutes) { () =>
+      )(30 seconds, 3 minutes) { () =>
         Future(
           notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
             val res = testCode(notebookPage)
