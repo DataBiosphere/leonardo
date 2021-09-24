@@ -152,6 +152,8 @@ pipeline {
             description: "The path for the bucket where the custom GCE image generation logs will be stored")
         string(name: "DATAPROC_VERSIONS", defaultValue: "1.4.51-debian10",
             description: "A custom image will be build for each of these dataproc versions")
+        string(name: "branch", defaultValue: "develop",
+            description: "The branch that will be used to run the job")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check only if you want to manually specify all of the custom image versions below.")
         string(name: "terra_jupyter_base")
@@ -164,7 +166,6 @@ pipeline {
         string(name: "anvil_rstudio_bioconductor")
         string(name: "welder_server")
         string(name: "openidc_proxy")
-        string(name: "branch", defaultValue: "develop")
     }
     stages {
         stage('Scan Terra docker images') {
@@ -258,32 +259,26 @@ pipeline {
 
                         if (shouldUpdate) {
                             for (String image: images) {
+                                def varName = image.replace("-","_")
+
                                 // The version could be empty if the image from terra-docker is not in a leo conf yet.
                                 if (image in versionMap.keySet() && !versionMap[image].isEmpty()) {
                                     version = versionMap[image]
 
                                     if (GENERATE_DATAPROC_IMAGE == "true" && dataprocImages.contains(image)) {
-                                        if (image != 'terra-jupyter-aou') {
-                                            println("Using version $version for '$image' in this build of custom Dataproc images")
-                                            sh """
-                                              sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                                              """
-                                        } else {
-                                            println("Not updating version for image $image")
-                                        }
-
+                                        println("Using version $version for '$image' in this build of custom Dataproc images")
+                                        // The below sed command does not update *_old variables, which must be manually updated
+                                        sh """
+                                            sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\\1$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                        """
                                     }
 
                                     if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
-                                        if (image != 'terra-jupyter-aou'){
-                                            println("Using version $version for $image in this build of custom GCE images")
-                                            sh """
-                                               sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_image.sh
-                                            """
-                                        } else {
-                                            println("Not updating version for image $image")
-                                        }
-
+                                        println("Using version $version for $image in this build of custom GCE images")
+                                        // The below sed command does not update *_old variables, which must be manually updated
+                                        sh """
+                                            sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\\1$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_image.sh
+                                        """
                                     }
                                 }
                             }
@@ -326,25 +321,19 @@ pipeline {
                             println("Manually replacing line with $image with $image:$version...")
 
                             if (GENERATE_DATAPROC_IMAGE == "true" && dataprocImages.contains(image)) {
-                                if (image != 'terra-jupyter-aou') {
-                                    println("Using version $version for '$image' in this build of custom Dataproc images")
-                                    sh """
-                                      sed -i "s/$image.*/$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
-                                     """
-                                } else {
-                                    println("not updating version for image $image")
-                                }
+                                println("Using version $version for '$image' in this build of custom Dataproc images")
+                                // The below sed command does not update *_old variables, which must be manually updated
+                                sh """
+                                    sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\\1$image:$version\\"/" jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                                """
                             }
 
                             if (GENERATE_GCE_IMAGE == "true" && gceImages.contains(image)) {
-                                if (image != 'terra-jupyter-aou') {
-                                    println("Using version $version for $image in this build of custom GCE images")
-                                    sh """
-                                        sed -i "s/$image.*/$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_image.sh
-                                    """
-                                } else {
-                                    println("not updating version for image $image")
-                                }
+                                println("Using version $version for $image in this build of custom GCE images")
+                                // The below sed command does not update *_old variables, which must be manually updated
+                                sh """
+                                    sed -i "s/^$varName=\\(.*\\)$image.*\$/$varName=\\1$image:$version\\"/" jenkins/gce-custom-images/prepare_gce_image.sh
+                                """
                             }
 
                             versionMap[image] = version
@@ -410,7 +399,7 @@ pipeline {
                                                     --zone $ZONE \
                                                     --gcs-bucket $DATAPROC_IMAGE_BUCKET \
                                                     --project-id=$GOOGLE_PROJECT \
-                                                    --disk-size=65"
+                                                    --disk-size=80"
                                             """
                                         )
                                     }
@@ -427,7 +416,7 @@ pipeline {
                                         sh """
                                             # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
                                             gsutil ls $GCE_IMAGE_BUCKET || gsutil mb -p $GOOGLE_PROJECT -l $REGION $GCE_IMAGE_BUCKET
-    
+
                                             docker pull $daisyImage
                                             docker run -i --rm -v ${WORKSPACE}/jenkins/gce-custom-images:/gce-custom-images \
                                                 $daisyImage \
@@ -443,7 +432,7 @@ pipeline {
                                                 /gce-custom-images/gce_image.wf.json
                                             docker stop daisy || true
                                             docker rm -f daisy || true
-    
+
                                             # Daisy doesn't clean it up all so we remove the bucket manually
                                             gsutil rm -r $GCE_IMAGE_BUCKET
 
@@ -488,7 +477,7 @@ pipeline {
                     sshagent(['jenkins-ssh-github']) {
                         sh """
                             git checkout -b $branchName$imageID
-                            git commit -m "automated custom image hash updates for image ID $imageID"
+                            git commit -am "automated custom image hash updates for image ID $imageID"
                             git push origin $branchName$imageID
                         """
                     }

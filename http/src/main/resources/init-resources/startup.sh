@@ -68,6 +68,11 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 GPU_ENABLED=$(gpuEnabled)
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export IS_RSTUDIO_RUNTIME="true"
+else
+  export IS_RSTUDIO_RUNTIME="false"
+fi
 
 # Overwrite old cert on restart
 SERVER_CRT=$(proxyServerCrt)

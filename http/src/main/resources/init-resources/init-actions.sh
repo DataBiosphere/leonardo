@@ -180,6 +180,11 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
     PROXY_SITE_CONF=$(proxySiteConf)
     export HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_SITE_CONF}`
+    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+      export IS_RSTUDIO_RUNTIME="true"
+    else
+      export IS_RSTUDIO_RUNTIME="false"
+    fi
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)
@@ -369,6 +374,7 @@ END
         log 'Copy Jupyter frontend notebook config...'
         gsutil cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /etc
         JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+        retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
         docker cp /etc/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
       fi
 
@@ -512,7 +518,8 @@ END
       retry 3 docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'echo "GOOGLE_PROJECT=$GOOGLE_PROJECT
 CLUSTER_NAME=$CLUSTER_NAME
 RUNTIME_NAME=$RUNTIME_NAME
-OWNER_EMAIL=$OWNER_EMAIL" >> /usr/local/lib/R/etc/Renviron.site'
+OWNER_EMAIL=$OWNER_EMAIL
+IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME" >> /usr/local/lib/R/etc/Renviron.site'
 
       # Add custom_env_vars.env to Renviron.site
       CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env

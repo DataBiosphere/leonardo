@@ -8,7 +8,7 @@ object Dependencies {
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.4"
-  val scalaTestV = "3.2.9"
+  val scalaTestV = "3.2.10"
   val slickV = "3.3.3"
   val http4sVersion = "0.21.26"
   val guavaV = "30.1.1-jre"
@@ -60,10 +60,10 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.5"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.6"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.51.2"
-  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.0"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.1"
+  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
@@ -78,7 +78,7 @@ object Dependencies {
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
   val scalaTestMockito = "org.scalatestplus" %% "mockito-3-4" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-selenium
-  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % s"3.2.9.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % s"3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
@@ -197,7 +197,7 @@ object Dependencies {
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.5" % "test",
-    "ch.qos.logback" % "logback-classic" % "1.2.5" % "test",
+    "ch.qos.logback" % "logback-classic" % "1.2.6" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",

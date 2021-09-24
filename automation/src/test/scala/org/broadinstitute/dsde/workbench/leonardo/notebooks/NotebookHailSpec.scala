@@ -38,9 +38,11 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
                |   / __  / _ `/ / /
                |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
 
-          notebookPage.executeCell(importHail, timeout = 2.minutes, cellNumberOpt = Some(1)).get should include(
-            importHailOutput
-          )
+          // Note: hl.init() displays several cell outputs. The 'Welcome to Hail' string should be the last output.
+          notebookPage
+            .executeCellWithCellOutput(importHail, timeout = 2.minutes, cellNumberOpt = Some(1))
+            .map(_.output.tail.last)
+            .get should include(importHailOutput)
 
           // Run the Hail tutorial and verify
           // https://hail.is/docs/0.2/tutorials-landing.html
@@ -49,24 +51,28 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               |hl.utils.get_movie_lens('data/')
               |users = hl.read_table('data/users.ht')
               |users.aggregate(hl.agg.count())""".stripMargin
-          val tutorialCellResult = notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).get
-          tutorialCellResult.output.get.toInt shouldBe (943)
+          val tutorialCellResult =
+            notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).map(_.output.tail.last).get
+          tutorialCellResult.toInt shouldBe (943)
 
           // Verify spark job is run in non local mode
           val getSparkContext =
             """
               |hl.spark_context()""".stripMargin
           val getSparkContextCellResult =
-            notebookPage.executeCellWithCellOutput(getSparkContext, cellNumberOpt = Some(3)).get
-          getSparkContextCellResult.renderResult.contains("yarn") shouldBe true
+            notebookPage.executeCell(getSparkContext, cellNumberOpt = Some(3)).get
+          getSparkContextCellResult.contains("yarn") shouldBe true
 
           // Verify spark job works
           val sparkJobToSucceed =
             """import random
               |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
           val sparkJobToSucceedcellResult =
-            notebookPage.executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4)).get
-          sparkJobToSucceedcellResult.output.get.toInt shouldBe (1000)
+            notebookPage
+              .executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4))
+              .map(_.output.tail.last)
+              .get
+          sparkJobToSucceedcellResult.toInt shouldBe (1000)
         }
       }
     }

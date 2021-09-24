@@ -549,22 +549,17 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // - If present, we will use the client-supplied image.
       // - Otherwise we will pull the latest from the specified welderRegistry.
       // - If welderRegistry is undefined, we take the default GCR image from config.
-      // - If the tool is RStudio do not include a welder image
-      welderImage = toolImage.imageType match {
-        case RuntimeImageType.RStudio => None
-        case _ =>
-          Some(
-            RuntimeImage(
-              Welder,
-              welderRegistry match {
-                case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
-                case _                                 => config.imageConfig.welderGcrImage.imageUrl
-              },
-              None,
-              now
-            )
-          )
-      }
+      welderImage = Some(
+        RuntimeImage(
+          Welder,
+          welderRegistry match {
+            case Some(ContainerRegistry.DockerHub) => config.imageConfig.welderDockerHubImage.imageUrl
+            case _                                 => config.imageConfig.welderGcrImage.imageUrl
+          },
+          None,
+          now
+        )
+      )
 
       // Get the proxy image
       proxyImage = RuntimeImage(Proxy, config.imageConfig.proxyImage.imageUrl, None, now)
@@ -858,8 +853,6 @@ object RuntimeServiceInterp {
         else req.scopes //default to create gce runtime if runtimeConfig is not specified
     }
 
-    val welderEnabled = clusterImages.map(_.imageType).contains(Welder)
-
     Runtime(
       0,
       samResource = clusterInternalId,
@@ -881,7 +874,7 @@ object RuntimeServiceInterp {
       defaultClientId = req.defaultClientId,
       runtimeImages = clusterImages,
       scopes = clusterScopes,
-      welderEnabled = welderEnabled,
+      welderEnabled = true,
       customEnvironmentVariables = req.customEnvironmentVariables,
       allowStop = false, //TODO: double check this should be false when cluster is created
       runtimeConfigId = RuntimeConfigId(-1),
