@@ -41,7 +41,7 @@ docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_base_old 
 
 # The version of python to install
 # Note: this should match the version of python in the terra-jupyter-hail image.
-python_version="3.7.4"
+python_version="3.7.10"
 
 bucket_name="gs://leo-dataproc-image"
 
