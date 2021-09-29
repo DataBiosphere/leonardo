@@ -26,7 +26,7 @@ terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.0.3"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.2"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:97a2d72"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
-anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:3.13.2"
+anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:3.13.3"
 
 # The _old variables are NOT replaced by the Jenkins job; they must be manually updated
 terra_jupyter_base_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.0"
