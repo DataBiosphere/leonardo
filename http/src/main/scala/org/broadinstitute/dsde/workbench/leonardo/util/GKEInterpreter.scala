@@ -976,13 +976,14 @@ class GKEInterpreter[F[_]](
   private[util] def installCromwellLocal(helmAuthContext: AuthContext,
                                          appName: AppName,
                                          release: Release,
-                                         chart: Chart,
-                                         cluster: KubernetesCluster)(implicit ev: Ask[F, AppContext]): F[Unit] =
+                                         cluster: KubernetesCluster)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    val chart = config.cromwellLocalAppConfig.chart
+
     for {
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${config.cromwellLocalAppConfig.chart} for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
+        s"Installing helm chart ${chart} for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
       chartValues = List.empty[String] // In the dummy hello-world chart, everything is hard-coded
@@ -1022,6 +1023,7 @@ class GKEInterpreter[F[_]](
       } else F.unit
 
     } yield ()
+  }
 
   private[util] def installCustomApp(appId: AppId,
                                      appName: AppName,
