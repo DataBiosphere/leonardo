@@ -23,7 +23,7 @@ object Lab extends RestClient with LazyLogging {
   def getApi(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken): String = {
     val path = labPath(googleProject, clusterName)
     val referer = Referer(Uri(refererUrl))
-    logger.info(s"Get jupyter lab: GET /$path")
+    logger.info(s"Get jupyter lab: GET /$path.")
     parseResponse(getRequest(url + path, httpHeaders = List(referer)))
   }
 
