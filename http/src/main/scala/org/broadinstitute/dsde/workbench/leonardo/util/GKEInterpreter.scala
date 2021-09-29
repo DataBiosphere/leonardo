@@ -388,7 +388,6 @@ class GKEInterpreter[F[_]](
             helmAuthContext,
             app.appName,
             app.release,
-            app.chart,
             dbCluster
           )
         case AppType.Custom =>
