@@ -57,6 +57,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           _ <- s.newTransition.traverse(newStatus => monitorContextRef.modify(x => (x.copy(action = newStatus), ())))
           monitorContext <- monitorContextRef.get
           _ <- F.sleep(monitorConfig.pollStatus.interval)
+          _ <- logger.info("pollinggggggggggggggg") //TODO: remove this
           res <- handler(
             monitorContext,
             s
@@ -219,7 +220,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     ip: Option[IP] = None
   ): F[CheckResult] =
     for {
-      now <- nowInstant[F]
+      now <- F.realTimeInstant
       ctx = AppContext(monitorContext.traceId, now)
       implicit0(traceId: Ask[F, AppContext]) = Ask.const[F, AppContext](
         ctx
