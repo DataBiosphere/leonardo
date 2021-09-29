@@ -54,7 +54,7 @@
 <!--        <appender-ref ref="console"/>-->
 <!--    </logger>-->
 
-    <root level="info">
+    <root level="debug">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>

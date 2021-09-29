@@ -4,7 +4,7 @@ import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair, Referer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook //.{contentsPath, handleContentItemResponse}
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook
 import org.broadinstitute.dsde.workbench.leonardo.{ContentItem, LeonardoConfig, ProxyRedirectClient, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
