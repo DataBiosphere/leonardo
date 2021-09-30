@@ -3,7 +3,8 @@ package http
 package api
 
 import akka.http.scaladsl.model.{ContentTypes, StatusCodes}
-import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
+import akka.testkit.TestDuration
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
@@ -40,6 +41,7 @@ class HttpRoutesSpec
     with TestLeoRoutes {
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
+  implicit val timeout = RouteTestTimeout(20.seconds.dilated)
 
   val routes =
     new HttpRoutes(
