@@ -141,31 +141,27 @@ object MonitorState {
 
 sealed trait MonitorConfig {
   def initialDelay: FiniteDuration
-  def pollingInterval: FiniteDuration
-  def imageConfig: ImageConfig
-  def checkToolsInterval: FiniteDuration
-  def checkToolsMaxAttempts: Int
+  def pollStatus: PollMonitorConfig
   def monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration]
+  def checkTools: InterruptablePollMonitorConfig
+  def runtimeBucketConfig: RuntimeBucketConfig
+  def imageConfig: ImageConfig
 }
 
 object MonitorConfig {
   final case class GceMonitorConfig(initialDelay: FiniteDuration,
-                                    pollingInterval: FiniteDuration,
-                                    pollCheckMaxAttempts: Int,
-                                    checkToolsInterval: FiniteDuration,
-                                    checkToolsMaxAttempts: Int,
-                                    runtimeBucketConfig: RuntimeBucketConfig,
+                                    pollStatus: PollMonitorConfig,
                                     monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
+                                    checkTools: InterruptablePollMonitorConfig,
+                                    runtimeBucketConfig: RuntimeBucketConfig,
                                     imageConfig: ImageConfig)
       extends MonitorConfig
 
   final case class DataprocMonitorConfig(initialDelay: FiniteDuration,
-                                         pollingInterval: FiniteDuration,
-                                         pollCheckMaxAttempts: Int,
-                                         checkToolsInterval: FiniteDuration,
-                                         checkToolsMaxAttempts: Int,
-                                         runtimeBucketConfig: RuntimeBucketConfig,
+                                         pollStatus: PollMonitorConfig,
                                          monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
+                                         checkTools: InterruptablePollMonitorConfig,
+                                         runtimeBucketConfig: RuntimeBucketConfig,
                                          imageConfig: ImageConfig)
       extends MonitorConfig
 }

@@ -2,12 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import cats.Parallel
 import cats.effect.concurrent.Ref
-import cats.effect.{Async, Sync, Timer}
+import cats.effect.{ConcurrentEffect, Sync, Timer}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
-import org.typelevel.log4cats.StructuredLogger
+import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -20,17 +20,17 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.{
   recordStatusTransitionMetrics,
   CheckResult
 }
-import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteRuntimeParams, RuntimeAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
-  implicit def F: Async[F]
+  implicit def F: ConcurrentEffect[F]
   implicit def parallel: Parallel[F]
   implicit def timer: Timer[F]
   implicit def dbRef: DbReference[F]
@@ -58,7 +58,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         for {
           _ <- s.newTransition.traverse(newStatus => monitorContextRef.modify(x => (x.copy(action = newStatus), ())))
           monitorContext <- monitorContextRef.get
-          _ <- Timer[F].sleep(monitorConfig.pollingInterval)
+          _ <- Timer[F].sleep(monitorConfig.pollStatus.interval)
           res <- handler(
             monitorContext,
             s
@@ -263,7 +263,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           logger
             .info(monitorContext.loggingContext)(
               s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is still in ${runtimeAndRuntimeConfig.runtime.status}, not in ${runtimeAndRuntimeConfig.runtime.status.terminalStatus
-                .getOrElse("final")} state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
+                .getOrElse("final")} state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollStatus.interval}. ${message
                 .getOrElse("")}"
             )
             .as(((), Some(Check(runtimeAndRuntimeConfig, None))))
@@ -468,14 +468,17 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           )
       }
       // wait for 10 minutes for tools to start up before time out.
-      availableTools <- streamFUntilDone(checkTools,
-                                         monitorConfig.checkToolsMaxAttempts,
-                                         monitorConfig.checkToolsInterval).compile.lastOrError
+      availableTools <- streamFUntilDone(
+        checkTools,
+        monitorConfig.checkTools.maxAttempts,
+        monitorConfig.checkTools.interval
+      ).interruptAfter(monitorConfig.checkTools.interruptAfter).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
         case a =>
           val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
+          // TODO fix error message
           failedRuntime(
             monitorContext,
             runtimeAndRuntimeConfig,
