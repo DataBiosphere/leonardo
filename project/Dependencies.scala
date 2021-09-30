@@ -11,7 +11,7 @@ object Dependencies {
   val scalaTestV = "3.2.10"
   val slickV = "3.3.3"
   val http4sVersion = "0.21.26"
-  val guavaV = "30.1.1-jre"
+  val guavaV = "31.0.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
@@ -62,7 +62,7 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.6"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.1"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.3"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
@@ -123,7 +123,7 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.4.3"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.5.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.2" % Test // brought in for FakeStorageInterpreter
 
@@ -172,7 +172,7 @@ object Dependencies {
     akkaTestKit,
     akkaHttpTestKit,
     akkaStream,
-    "de.heikoseeberger" %% "akka-http-circe" % "1.37.0" excludeAll(excludeAkkaHttp, excludeAkkaStream),
+    "de.heikoseeberger" %% "akka-http-circe" % "1.38.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleRpc,
 
     hikariCP,
