@@ -54,6 +54,11 @@
 <!--        <appender-ref ref="console"/>-->
 <!--    </logger>-->
 
+    <logger name="slick.jdbc.JdbcBackend" level="INFO" additivity="false">
+        <appender-ref ref="file"/>
+        <appender-ref ref="console"/>
+    </logger>
+
     <root level="debug">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
