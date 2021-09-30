@@ -82,7 +82,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def withNewNotebookInSubfolder[T](
     cluster: ClusterCopy,
     kernel: NotebookKernel = Python3,
-    timeout: FiniteDuration = 2.minutes
+    timeout: FiniteDuration = 4.minutes
   )(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T =
     withNotebooksListPage(cluster) { notebooksListPage =>
       notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
@@ -92,7 +92,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           )
           val result: Future[T] =
             retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
-                                                                                                            2 minutes) {
+                                                                                                            4 minutes) {
               () =>
                 Future(
                   notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
