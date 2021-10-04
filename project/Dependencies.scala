@@ -16,8 +16,8 @@ object Dependencies {
   val opencensusV = "0.28.3"
 
 
-  private val workbenchLibsHash = "598cf7a8-SNAP"
-  val serviceTestV = s"0.19-$workbenchLibsHash"
+  private val workbenchLibsHash = "125c127e-SNAP"
+  val serviceTestV = s"0.20-$workbenchLibsHash"
   val workbenchModelV = s"0.14-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.22-$workbenchLibsHash"

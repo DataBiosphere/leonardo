@@ -41,7 +41,6 @@ class HttpRoutesSpec
     with TestLeoRoutes {
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
-  implicit val timeout = RouteTestTimeout(20.seconds.dilated)
 
   val routes =
     new HttpRoutes(
