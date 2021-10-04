@@ -62,6 +62,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             monitorContext,
             s
           )
+          _ <- logger.info(s"Continue polling for ${runtimeId}? ${res._2}") //TODO: remove this
         } yield res
       }
     } yield ()
