@@ -1,14 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
-
 import cats.Parallel
-import cats.effect.{Async, IO, Timer}
+import cats.effect.{ConcurrentEffect, IO, Timer}
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import fs2.Stream
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
@@ -21,7 +18,9 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import org.typelevel.log4cats.StructuredLogger
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
@@ -140,7 +139,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
   class MockRuntimeMonitor(isWelderReady: Boolean, timeouts: Map[RuntimeStatus, FiniteDuration])
       extends BaseCloudServiceRuntimeMonitor[IO] {
-    implicit override def F: Async[IO] = IO.ioConcurrentEffect(cs)
+    implicit override def F: ConcurrentEffect[IO] = IO.ioConcurrentEffect(cs)
 
     implicit override def parallel: Parallel[IO] = IO.ioParallel(cs)
 
@@ -168,12 +167,10 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     override def monitorConfig: MonitorConfig = MonitorConfig.GceMonitorConfig(
       2 seconds,
-      1 seconds,
-      5,
-      1 seconds,
-      10,
-      RuntimeBucketConfig(3 seconds),
+      PollMonitorConfig(5, 1 second),
       timeouts,
+      InterruptablePollMonitorConfig(5, 1 second, 5 seconds),
+      RuntimeBucketConfig(3 seconds),
       Config.imageConfig
     )
 

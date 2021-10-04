@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{galaxyChartName, galaxyChartVersion}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  InterruptablePollMonitorConfig,
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
   PollMonitorConfig
@@ -33,16 +34,14 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read gce.monitor properly" in {
     val expected = GceMonitorConfig(
       20 seconds,
-      15 seconds,
-      120,
-      8 seconds,
-      75,
-      Config.clusterBucketConfig,
+      PollMonitorConfig(80, 15 seconds),
       Map(
         RuntimeStatus.Creating -> 30.minutes,
         RuntimeStatus.Starting -> 20.minutes,
         RuntimeStatus.Deleting -> 30.minutes
       ),
+      InterruptablePollMonitorConfig(75, 8 seconds, 10 minutes),
+      Config.clusterBucketConfig,
       Config.imageConfig
     )
 

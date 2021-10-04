@@ -254,7 +254,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 monitorContext,
                 runtimeAndRuntimeConfig,
                 RuntimeErrorDetails(
-                  s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toSeconds} seconds"
+                  s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toMinutes} minutes"
                 ),
                 dataprocInstances
               )
@@ -478,11 +478,16 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
         case a =>
           val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
-          // TODO fix error message
           failedRuntime(
             monitorContext,
             runtimeAndRuntimeConfig,
-            RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly", None, Some("tool_start_up")),
+            RuntimeErrorDetails(
+              s"Tools [${toolsStillNotAvailable.map(_.entryName).mkString(", ")}] failed to start up " +
+                s"on runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} within the time limit: " +
+                s"${monitorConfig.checkTools.interruptAfter.toMinutes} minutes.",
+              None,
+              Some("tool_start_up")
+            ),
             dataprocInstances
           )
       }

@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
-
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{AccessConfig, Instance, NetworkInterface, Operation}
@@ -34,6 +32,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
