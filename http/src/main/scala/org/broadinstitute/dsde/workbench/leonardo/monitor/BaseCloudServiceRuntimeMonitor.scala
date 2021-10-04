@@ -482,9 +482,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             monitorContext,
             runtimeAndRuntimeConfig,
             RuntimeErrorDetails(
-              s"Tools [${toolsStillNotAvailable.map(_.entryName).mkString(", ")}] failed to start up " +
-                s"on runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} within the time limit: " +
-                s"${monitorConfig.checkTools.interruptAfter.toMinutes} minutes.",
+              s"${toolsStillNotAvailable.map(_.entryName).mkString(", ")} failed to start after ${monitorConfig.checkTools.interruptAfter.toMinutes} minutes.",
               None,
               Some("tool_start_up")
             ),
