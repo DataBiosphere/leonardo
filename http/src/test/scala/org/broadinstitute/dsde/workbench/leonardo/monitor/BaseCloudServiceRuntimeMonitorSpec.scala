@@ -96,8 +96,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
     } yield {
-      // handleCheckTools should have timed out after 10 seconds and moved the runtime to Error status
-      elapsed should be >= 10000L
+      // handleCheckTools should have been interrupted after 10 seconds and moved the runtime to Error status
+      elapsed shouldBe 10000L +- 2000L
       status shouldBe Some(RuntimeStatus.Error)
       res shouldBe (((), None))
     }
@@ -169,7 +169,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       2 seconds,
       PollMonitorConfig(5, 1 second),
       timeouts,
-      InterruptablePollMonitorConfig(5, 1 second, 5 seconds),
+      InterruptablePollMonitorConfig(60, 1 second, 10 seconds),
       RuntimeBucketConfig(3 seconds),
       Config.imageConfig
     )
