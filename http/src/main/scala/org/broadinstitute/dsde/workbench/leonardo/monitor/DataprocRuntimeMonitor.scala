@@ -2,12 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import cats.Parallel
-import cats.effect.{Async, Timer}
-import cats.syntax.all._
+import cats.effect.{ConcurrentEffect, Timer}
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
 import com.google.cloud.dataproc.v1.Cluster
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
@@ -29,11 +28,12 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class DataprocRuntimeMonitor[F[_]: Parallel](
+class DataprocRuntimeMonitor[F[_]](
   config: DataprocMonitorConfig,
   googleComputeService: GoogleComputeService[F],
   authProvider: LeoAuthProvider[F],
@@ -42,7 +42,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   googleDataprocService: GoogleDataprocService[F]
 )(implicit override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
-  override val F: Async[F],
+  override val F: ConcurrentEffect[F],
   override val parallel: Parallel[F],
   override val timer: Timer[F],
   override val logger: StructuredLogger[F],

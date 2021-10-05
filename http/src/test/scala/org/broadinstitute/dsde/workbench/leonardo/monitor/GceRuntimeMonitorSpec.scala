@@ -1,9 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
-import java.util.concurrent.TimeUnit
-
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
@@ -29,6 +26,8 @@ import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
@@ -757,7 +756,7 @@ class GceRuntimeMonitorSpec
     monitorStatusTimeouts: Option[Map[RuntimeStatus, FiniteDuration]] = None
   ): GceRuntimeMonitor[IO] = {
     val config =
-      Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollingInterval = 1 seconds, pollCheckMaxAttempts = 5)
+      Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollStatus = PollMonitorConfig(5, 1 second))
     val configWithCustomTimeouts =
       monitorStatusTimeouts.fold(config)(timeouts => config.copy(monitorStatusTimeouts = timeouts))
     new GceRuntimeMonitor[IO](
