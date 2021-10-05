@@ -985,7 +985,7 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart ${chart} for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
-      chartValues = List.empty[String] // In the dummy hello-world chart, everything is hard-coded
+      chartValues = buildCromwellLocalChartOverrideValuesString()
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
       // Invoke helm
@@ -1217,6 +1217,26 @@ class GKEInterpreter[F[_]](
           )
         case false => legacyGoogleNodepool
       }
+    )
+  }
+
+  private[util] def buildCromwellLocalChartOverrideValuesString(appName: AppName,
+                                                                cluster: KubernetesCluster): List[String] = {
+    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
+    val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
+    val leoProxyhost = config.proxyConfig.getProxyServerHostName
+
+    List(
+      // Ingress configs
+      raw"""ingress.enabled=true""",
+      raw"""ingress.port=8000""", // TODO: Move port to .Values.service.port in chart
+      raw"""ingress.path=${ingressPath}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
+      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
+      raw"""ingress.hosts[0].paths[0].path=${ingressPath}""",
+      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      raw"""ingress.tls[0].secretName=tls-secret""",
     )
   }
 
