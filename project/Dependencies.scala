@@ -150,7 +150,7 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
-    "com.github.pureconfig" %% "pureconfig" % "0.16.0" % Provided,
+    "com.github.pureconfig" %% "pureconfig" % "0.17.0" % Provided,
     sealerate,
     enumeratum,
     http4sCirce,
@@ -196,7 +196,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.5" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.0" % "test",
     "ch.qos.logback" % "logback-classic" % "1.2.6" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
