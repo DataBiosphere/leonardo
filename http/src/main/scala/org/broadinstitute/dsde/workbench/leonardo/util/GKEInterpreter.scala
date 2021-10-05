@@ -985,7 +985,7 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart ${chart} for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
-      chartValues = buildCromwellLocalChartOverrideValuesString()
+      chartValues = buildCromwellLocalChartOverrideValuesString(appName, cluster)
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
       // Invoke helm
