@@ -180,11 +180,12 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
     PROXY_SITE_CONF=$(proxySiteConf)
     export HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_SITE_CONF}`
-    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-      export IS_RSTUDIO_RUNTIME="true"
-    else
-      export IS_RSTUDIO_RUNTIME="false"
-    fi
+    export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
+#    if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+#      export IS_RSTUDIO_RUNTIME="true"
+#    else
+#      export IS_RSTUDIO_RUNTIME="false"
+#    fi
 
     SERVER_CRT=$(proxyServerCrt)
     SERVER_KEY=$(proxyServerKey)

@@ -105,11 +105,12 @@ export MEM_LIMIT=$(memLimit)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 export WELDER_ENABLED=$(welderEnabled)
-if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-  export IS_RSTUDIO_RUNTIME="true"
-else
-  export IS_RSTUDIO_RUNTIME="false"
-fi
+export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
+#if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+#  export IS_RSTUDIO_RUNTIME="true"
+#else
+#  export IS_RSTUDIO_RUNTIME="false"
+#fi
 
 START_USER_SCRIPT_URI=$(startUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
