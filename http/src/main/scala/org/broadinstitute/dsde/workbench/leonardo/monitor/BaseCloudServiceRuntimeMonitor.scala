@@ -57,12 +57,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           _ <- s.newTransition.traverse(newStatus => monitorContextRef.modify(x => (x.copy(action = newStatus), ())))
           monitorContext <- monitorContextRef.get
           _ <- F.sleep(monitorConfig.pollStatus.interval)
-          _ <- logger.info("pollinggggggggggggggg") //TODO: remove this
+          _ <- logger.info(s"pollinggggggggggggggg ${runtimeId}") //TODO: remove this
           res <- handler(
             monitorContext,
             s
           )
-          _ <- logger.info(s"Continue polling for ${runtimeId}? ${res._2}") //TODO: remove this
+          _ <- logger.info(monitorContext.loggingContext)(
+            s"Continue polling for ${runtimeId}? ${res._2}"
+          ) //TODO: remove this
         } yield res
       }
     } yield ()
@@ -460,7 +462,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           } yield images.toList
         }
       checkTools = imageTypes.traverseFilter { imageType =>
-        RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType
+        logger.info(ctx.loggingCtx)(s"Checking if ${imageType} is up") >> RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType
           .get(imageType)
           .traverse(
             _.isProxyAvailable(runtimeAndRuntimeConfig.runtime.googleProject,
