@@ -52,7 +52,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
 import org.http4s.blaze.client
-import org.http4s.client.middleware.{Logger => Http4sLogger}
+import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
@@ -353,7 +353,7 @@ object Boot extends IOApp {
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, hostToIpMapping, kubernetesDnsCaffineCache)
 
       // Set up SSL context and http clients
-//      retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
+      retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
       httpClient <- client
         .BlazeClientBuilder[F](blocker)
@@ -363,9 +363,8 @@ object Boot extends IOApp {
         // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
-//        .map(Retry(retryPolicy))
       httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false)(httpClient)
-
+      httpClientWithRetryAndLogging = Retry(retryPolicy)(httpClientWithLogging)
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
       underlyingPetTokenCache = buildCache[scalacache.Entry[Option[String]]](httpSamDaoConfig.petCacheMaxSize,
@@ -379,8 +378,8 @@ object Boot extends IOApp {
       welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientWithLogging)
       rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientWithLogging)
       appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientWithLogging)
-      dockerDao = HttpDockerDAO[F](httpClientWithLogging)
-      appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithLogging)
+      dockerDao = HttpDockerDAO[F](httpClientWithRetryAndLogging)
+      appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithRetryAndLogging)
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
