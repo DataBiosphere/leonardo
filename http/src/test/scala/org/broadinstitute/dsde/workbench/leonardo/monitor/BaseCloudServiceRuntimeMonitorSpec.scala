@@ -21,7 +21,6 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
