@@ -54,6 +54,11 @@
 <!--        <appender-ref ref="console"/>-->
 <!--    </logger>-->
 
+    <logger name="org.http4s.client" level="DEBUG" additivity="false">
+        <appender-ref ref="file"/>
+        <appender-ref ref="console"/>
+    </logger>
+
     <logger name="slick.jdbc.JdbcBackend" level="INFO" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
