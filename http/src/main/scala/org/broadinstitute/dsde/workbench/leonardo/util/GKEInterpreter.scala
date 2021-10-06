@@ -1221,10 +1221,34 @@ class GKEInterpreter[F[_]](
   }
 
   private[util] def buildCromwellLocalChartOverrideValuesString(appName: AppName,
-                                                                cluster: KubernetesCluster): List[String] = {
+                                                                cluster: KubernetesCluster,
+                                                                nodepoolName: NodepoolName,
+                                                                namespaceName: NamespaceName): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
+
+    val rewriteTarget = "$2"
+    // These nginx an ingress rules are condition.
+    // Some apps do not like behind behind a reverse proxy in this way, and require routing specified via this baseUrl
+    // The two methods are mutually exclusive
+    val ingress = List(
+        raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
+        raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
+        raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
+        raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}"""
+    )
+
+    (List(
+//      raw"""nameOverride=${serviceName}""",
+      // Ingress
+      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
+      raw"""ingress.tls[0].secretName=tls-secret""",
+      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      // Node selector
+      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+    ) ++ ingress).mkString(",")
 
     List(
       // Ingress configs
