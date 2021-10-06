@@ -342,12 +342,12 @@ object Boot extends IOApp {
         F.delay(s.close)
       )
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffineCache)
-      underlyingkubernetesDnsCache = buildCache[scalacache.Entry[HostStatus]](
+      underlyingKubernetesDnsCache = buildCache[scalacache.Entry[HostStatus]](
         kubernetesDnsCacheConfig.cacheMaxSize,
         kubernetesDnsCacheConfig.cacheExpiryTime
       )
 
-      kubernetesDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingkubernetesDnsCache)))(
+      kubernetesDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingKubernetesDnsCache)))(
         s => F.delay(s.close)
       )
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, hostToIpMapping, kubernetesDnsCaffineCache)
@@ -465,11 +465,11 @@ object Boot extends IOApp {
       asyncTasksQueue <- Resource.eval(Queue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
 
       // Set up k8s and helm clients
-      underlyingKubeCache = buildCache[scalacache.Entry[ApiClient]](
+      underlyingKubeClientCache = buildCache[scalacache.Entry[ApiClient]](
         200,
         2 hours
       )
-      kubeCache <- Resource.make(F.delay(CaffeineCache[F, ApiClient](underlyingKubeCache)))(s => F.delay(s.close))
+      kubeCache <- Resource.make(F.delay(CaffeineCache[F, ApiClient](underlyingKubeClientCache)))(s => F.delay(s.close))
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
       // Use a low concurrency for helm because it can generate very chatty network traffic
@@ -501,7 +501,9 @@ object Boot extends IOApp {
         CacheMetrics("runtimeDnsCache")
           .processWithUnderlyingCache(underlyingRuntimeDnsCache),
         CacheMetrics("kubernetesDnsCache")
-          .processWithUnderlyingCache(underlyingkubernetesDnsCache)
+          .processWithUnderlyingCache(underlyingKubernetesDnsCache),
+        CacheMetrics("kubernetesApiClient")
+          .processWithUnderlyingCache(underlyingKubeClientCache)
       )
       googleDependencies = GoogleDependencies(
         googleStorage,
