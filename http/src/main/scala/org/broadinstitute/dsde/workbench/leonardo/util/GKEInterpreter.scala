@@ -388,7 +388,9 @@ class GKEInterpreter[F[_]](
             helmAuthContext,
             app.appName,
             app.release,
-            dbCluster
+            dbCluster,
+            dbApp.nodepool.nodepoolName,
+            namespaceName
           )
         case AppType.Custom =>
           installCustomApp(
@@ -975,7 +977,9 @@ class GKEInterpreter[F[_]](
   private[util] def installCromwellLocal(helmAuthContext: AuthContext,
                                          appName: AppName,
                                          release: Release,
-                                         cluster: KubernetesCluster)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+                                         cluster: KubernetesCluster,
+                                         nodepoolName: NodepoolName,
+                                         namespaceName: NamespaceName)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     val chart = config.cromwellLocalAppConfig.chart
 
     for {
@@ -985,7 +989,7 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart ${chart} for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
-      chartValues = buildCromwellLocalChartOverrideValuesString(appName, cluster)
+      chartValues = buildCromwellLocalChartOverrideValuesString(appName, cluster, nodepoolName, namespaceName)
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
       // Invoke helm
