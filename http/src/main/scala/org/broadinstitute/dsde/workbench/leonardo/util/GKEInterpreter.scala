@@ -1243,29 +1243,19 @@ class GKEInterpreter[F[_]](
         raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}"""
     )
 
-    (List(
+    List(
 //      raw"""nameOverride=${serviceName}""",
       // Ingress
+      raw"""ingress.enabled=true""",
+      raw"""ingress.port=8000""", // TODO: Move port to .Values.service.port in chart
+      raw"""ingress.path=${ingressPath}""",
       raw"""ingress.hosts[0].host=${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
       // Node selector
       raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
-    ) ++ ingress).mkString(",")
-
-    List(
-      // Ingress configs
-      raw"""ingress.enabled=true""",
-      raw"""ingress.port=8000""", // TODO: Move port to .Values.service.port in chart
-      raw"""ingress.path=${ingressPath}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
-      raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.hosts[0].paths[0].path=${ingressPath}""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      raw"""ingress.tls[0].secretName=tls-secret""",
-    )
+    ) ++ ingress
   }
 
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
