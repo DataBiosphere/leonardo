@@ -210,7 +210,7 @@ object HttpDockerDAO {
     val res = for {
       splitted <- Either.catchNonFatal(s.split("="))
       first <- Either.catchNonFatal(splitted(0))
-      second <- Either.catchNonFatal(splitted(1))
+      second <- Either.catchNonFatal(if (splitted.length > 1) splitted(1) else "")
     } yield Env(first, second)
     res.leftMap(_.getMessage)
   }
