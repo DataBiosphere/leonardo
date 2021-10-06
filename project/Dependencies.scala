@@ -10,13 +10,13 @@ object Dependencies {
   val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.10"
   val slickV = "3.3.3"
-  val http4sVersion = "0.23.4"
+  val http4sVersion = "0.23.5"
   val guavaV = "31.0.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
 
-  private val workbenchLibsHash = "8803c71d-SNAP"
+  private val workbenchLibsHash = "6bb15228-SNAP"
   val serviceTestV = s"0.20-$workbenchLibsHash"
   val workbenchModelV = s"0.14-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
@@ -125,7 +125,6 @@ object Dependencies {
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.10" % Test // brought in for FakeStorageInterpreter
 
-  val scalaCache = "com.github.cb372" %% "scalacache-caffeine" % "1.0.0-M4"
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
@@ -152,8 +151,7 @@ object Dependencies {
     enumeratum,
     circeYaml,
     http4sDsl,
-    scalaTestScalaCheck,
-    scalaCache
+    scalaTestScalaCheck
   )
 
   val httpDependencies = Seq(
