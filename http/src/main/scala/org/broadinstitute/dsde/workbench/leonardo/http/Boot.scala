@@ -15,6 +15,7 @@ import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.devtools.clouderrorreporting.v1beta1.ProjectName
 import fs2.Stream
+import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
@@ -465,8 +466,13 @@ object Boot extends IOApp {
       asyncTasksQueue <- Resource.eval(Queue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
 
       // Set up k8s and helm clients
+      underlyingKubeCache = buildCache[scalacache.Entry[ApiClient]](
+        200,
+        2 hours
+      )
+      kubeCache <- Resource.make(F.delay(CaffeineCache[F, ApiClient](underlyingKubeCache)))(s => F.delay(s.close))
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
-        .resource(Paths.get(pathToCredentialJson), gkeService)
+        .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
       // Use a low concurrency for helm because it can generate very chatty network traffic
       // (especially for Galaxy) and cause issues at high concurrency.
       helmConcurrency <- Resource.eval(Semaphore[F](20L))
