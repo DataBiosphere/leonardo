@@ -322,7 +322,6 @@ object Boot extends IOApp {
   )(implicit ec: ExecutionContext, as: ActorSystem, F: Async[F]): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
-      blocker <- org.broadinstitute.dsde.workbench.util2.ExecutionContexts.cachedThreadPool
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
       // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
       // As best practice, we should have all related metrics under same prefix separated by `/`
@@ -357,7 +356,7 @@ object Boot extends IOApp {
       retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
       httpClient <- client
-        .BlazeClientBuilder[F](blocker)
+        .BlazeClientBuilder[F]
         .withSslContext(sslContext)
         // Note a custom resolver is needed for making requests through the Leo proxy
         // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
