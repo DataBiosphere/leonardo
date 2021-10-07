@@ -373,7 +373,7 @@ object Boot extends IOApp {
         F.delay(s.close)
       )
 
-      samDao = HttpSamDAO[F](httpClient, httpSamDaoConfig, petTokenCache)
+      samDao = HttpSamDAO[F](Retry(retryPolicy)(httpClient), httpSamDaoConfig, petTokenCache)
       jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging)
       welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientWithLogging)
       rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientWithLogging)
