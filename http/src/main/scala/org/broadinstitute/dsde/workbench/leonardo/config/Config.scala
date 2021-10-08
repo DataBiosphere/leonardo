@@ -667,7 +667,8 @@ object Config {
     gkeIngressConfig,
     gkeGalaxyAppConfig,
     gkeGalaxyDiskConfig,
-    ConfigReader.appConfig.persistentDisk
+    ConfigReader.appConfig.persistentDisk,
+    gkeCromwellLocalAppConfig
   )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")

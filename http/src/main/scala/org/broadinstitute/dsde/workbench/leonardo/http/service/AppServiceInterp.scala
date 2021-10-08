@@ -513,6 +513,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
     val now = ctx.now
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
     val galaxyConfig = leoKubernetesConfig.galaxyAppConfig
+    val cromwellConfig = leoKubernetesConfig.cromwellLocalAppConfig
 
     val allLabels =
       DefaultKubernetesLabels(googleProject,
@@ -563,6 +564,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](
             galaxyConfig.chart
           else lastUsed.chart
         }
+        // TODO fix this for the cromwell case.
+        // For now for cromwell apps, the chart is wrong in the Leo DB.
+        // Back Leo reads the chart from config instead of the DB.
         .getOrElse(galaxyConfig.chart)
       release <- lastUsedApp.fold(
         KubernetesName.withValidation(
@@ -593,7 +597,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
             case Galaxy =>
               galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))
             case CromwellLocal =>
-              List.empty // TODO: Verify nothing to save?
+              cromwellConfig.services.map(config => KubernetesService(ServiceId(-1), config))
             case Custom =>
               // Back Leo will populate services when it parses the descriptor
               List.empty
@@ -617,7 +621,8 @@ object LeoAppServiceInterp {
                                  ingressConfig: KubernetesIngressConfig,
                                  galaxyAppConfig: GalaxyAppConfig,
                                  galaxyDiskConfig: GalaxyDiskConfig,
-                                 diskConfig: PersistentDiskConfig)
+                                 diskConfig: PersistentDiskConfig,
+                                 cromwellLocalAppConfig: CromwellLocalAppConfig)
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {
     val aSplited = a.asString.split("\\.")
