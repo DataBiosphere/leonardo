@@ -72,7 +72,7 @@ object RuntimeRoutesTestJsonCodec {
     }
   }
 
-  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct11(
+  implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct12(
     "labels",
     "userScriptUri",
     "startUserScriptUri",
@@ -82,6 +82,7 @@ object RuntimeRoutesTestJsonCodec {
     "autopauseThreshold",
     "defaultClientId",
     "toolDockerImage",
+    "welderRegistry",
     "scopes",
     "customEnvironmentVariables"
   )(x =>
@@ -95,6 +96,7 @@ object RuntimeRoutesTestJsonCodec {
       x.autopauseThreshold.map(_.toMinutes),
       x.defaultClientId,
       x.toolDockerImage,
+      x.welderRegistry,
       x.scopes,
       x.customEnvironmentVariables
     )
