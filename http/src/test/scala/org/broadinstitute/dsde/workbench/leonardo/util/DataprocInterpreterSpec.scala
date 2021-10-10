@@ -170,10 +170,11 @@ class DataprocInterpreterSpec
 
   private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {
     var invocationCount = 0
-    override def addIamRoles(iamProject: GoogleProject,
-                             email: WorkbenchEmail,
+    override def addIamRoles(googleProject: GoogleProject,
+                             userEmail: WorkbenchEmail,
                              memberType: MemberType,
-                             rolesToAdd: Set[String]): Future[Boolean] = {
+                             rolesToAdd: Set[String],
+                             retryIfGroupDoesNotExist: Boolean): Future[Boolean] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException =
