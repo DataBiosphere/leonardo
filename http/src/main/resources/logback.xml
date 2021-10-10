@@ -36,7 +36,7 @@
         <appender-ref ref="SYSLOG"/>
     </logger>
 
-    <logger name="akka" level="debug" additivity="false">
+    <logger name="akka" level="info" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
         <appender-ref ref="SYSLOG"/>
@@ -53,16 +53,6 @@
 <!--        <appender-ref ref="file"/>-->
 <!--        <appender-ref ref="console"/>-->
 <!--    </logger>-->
-
-    <logger name="org.http4s.client" level="DEBUG" additivity="false">
-        <appender-ref ref="file"/>
-        <appender-ref ref="console"/>
-    </logger>
-
-    <logger name="slick.jdbc.JdbcBackend" level="INFO" additivity="false">
-        <appender-ref ref="file"/>
-        <appender-ref ref="console"/>
-    </logger>
 
     <root level="info">
         <appender-ref ref="file"/>
