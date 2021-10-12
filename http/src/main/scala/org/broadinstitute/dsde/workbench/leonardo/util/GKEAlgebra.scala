@@ -1,11 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.mtl.Ask
+import com.google.cloud.compute.v1.Disk
+import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{
   KubernetesNetwork,
   KubernetesOperationId,
   KubernetesSubNetwork
 }
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
+import org.broadinstitute.dsde.workbench.leonardo.config.GalaxyDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName, KubernetesClusterLeoId, NodepoolLeoId}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -40,6 +44,28 @@ trait GKEAlgebra[F[_]] {
 
   /** Starts an app and polls for completion */
   def startAndPollApp(params: StartAppParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+}
+
+object GKEAlgebra {
+  import scala.jdk.CollectionConverters._
+
+  private[leonardo] def getOldStyleGalaxyPostgresDiskName(namespaceName: NamespaceName, suffix: String): DiskName =
+    DiskName(s"${namespaceName.value}-${suffix}")
+
+  private[leonardo] def getGalaxyPostgresDiskName(dataDiskName: DiskName, suffix: String): DiskName =
+    DiskName(s"${dataDiskName.value}-${suffix}")
+
+  private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName,
+                                                dataDiskName: DiskName,
+                                                galaxyDiskConfig: GalaxyDiskConfig): Disk =
+    Disk
+      .newBuilder()
+      .setName(getGalaxyPostgresDiskName(dataDiskName, galaxyDiskConfig.postgresDiskNameSuffix).value)
+      .setZone(zone.value)
+      .setSizeGb(galaxyDiskConfig.postgresDiskSizeGB.gb)
+      .setPhysicalBlockSizeBytes(galaxyDiskConfig.postgresDiskBlockSize.bytes)
+      .putAllLabels(Map("leonardo" -> "true").asJava)
+      .build()
 }
 
 final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,

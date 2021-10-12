@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
-import fs2.concurrent.InspectableQueue
+import cats.effect.std.Queue
+import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.scalatest.time.{Minutes, Span}
 import org.scalatest.DoNotDiscover
@@ -17,21 +18,21 @@ class LeoPubsubSpec extends AnyFlatSpec with LeonardoTestUtils {
 
     publisher
       .use(_ => IO.unit)
-      .unsafeRunSync()
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "publish" in {
     val publisher = GooglePublisher.resource[IO](LeonardoConfig.Leonardo.publisherConfig)
-    val queue = InspectableQueue.bounded[IO, String](100).unsafeRunSync()
+    val queue = Queue.bounded[IO, String](100).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     publisher
-      .use(publisher => (queue.dequeue through publisher.publish).compile.drain)
+      .use(publisher => (fs2.Stream.fromQueueUnterminated(queue) through publisher.publish).compile.drain)
       .unsafeRunAsync(_ => ())
 
-    queue.enqueue1("automation-test-message").unsafeRunSync()
+    queue.offer("automation-test-message").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     eventually(timeout(Span(2, Minutes))) {
-      val size = queue.getSize.unsafeRunSync()
+      val size = queue.size.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       size shouldBe 0
     }
   }

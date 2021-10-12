@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import akka.http.scaladsl.model.Uri
 import akka.http.scaladsl.model.headers.{Cookie, HttpCookiePair, Referer}
 import akka.http.scaladsl.unmarshalling.Unmarshal
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.auth.AuthToken
@@ -11,8 +11,6 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.WelderJsonCodec._
 import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, _}
 import org.broadinstitute.dsde.workbench.service.RestClient
-
-import scala.concurrent.ExecutionContext.global
 
 /**
  * Welder API service client.
@@ -22,10 +20,9 @@ object Welder extends RestClient with LazyLogging {
   val localSafeModeBaseDirectory = "safe"
   val localBaseDirectory = "edit"
 
-  implicit val cs: ContextShift[IO] = IO.contextShift(global)
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  private val refererUrl = ProxyRedirectClient.baseUri.map(_.renderString).unsafeRunSync()
+  private val refererUrl = ProxyRedirectClient.baseUri.renderString
 
   case class Metadata(syncMode: String,
                       syncStatus: Option[String],

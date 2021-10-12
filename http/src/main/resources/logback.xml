@@ -28,11 +28,6 @@
         <syslogHost>127.0.0.1</syslogHost>
         <facility>AUDIT</facility>
         <suffixPattern>[%level] [%d{HH:mm:ss.SSS}] [%thread] %logger{36} - %msg%n</suffixPattern>
-<!--        <encoder class="net.logstash.logback.encoder.LogstashEncoder">-->
-<!--            <fieldNames>-->
-<!--                <level>severity</level>-->
-<!--            </fieldNames>-->
-<!--        </encoder>-->
     </appender>
 
     <logger name="org.broadinstitute.dsde" level="info" additivity="false">

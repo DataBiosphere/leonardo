@@ -6,6 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
+import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import org.typelevel.log4cats.StructuredLogger
@@ -25,9 +26,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+
 import java.time.Instant
 import java.util.UUID
-
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 
 import scala.concurrent.ExecutionContext
@@ -35,7 +36,7 @@ import scala.concurrent.ExecutionContext
 class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                         authProvider: LeoAuthProvider[F],
                                         serviceAccountProvider: ServiceAccountProvider[F],
-                                        publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage])(
+                                        publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
@@ -82,7 +83,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
               }
             //TODO: do we need to introduce pre status here?
             savedDisk <- persistentDiskQuery.save(disk).transaction
-            _ <- publisherQueue.enqueue1(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
+            _ <- publisherQueue.offer(CreateDiskMessage.fromDisk(savedDisk, Some(ctx.traceId)))
           } yield ()
       }
     } yield ()
@@ -170,7 +171,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, diskName, ctx.traceId))
       else F.unit
       // delete the disk
-      _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction.void >> publisherQueue.enqueue1(
+      _ <- persistentDiskQuery.markPendingDeletion(disk.id, ctx.now).transaction.void >> publisherQueue.offer(
         DeleteDiskMessage(disk.id, Some(ctx.traceId))
       )
 
@@ -190,27 +191,30 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         F.pure
       )
       // throw 400 if UpdateDiskRequest new size is smaller than disk's current size
-      _ <- if (req.size.gb > disk.size.gb) F.unit
-      else F.raiseError[Unit](DiskNotResizableException(googleProject, diskName, disk.size, req.size, ctx.traceId))
-      // throw 404 if no ReadPersistentDisk permission
-      // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
-      // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
-      listOfPermissions <- authProvider.getActionsWithProjectFallback(disk.samResource, googleProject, userInfo)
-      hasReadPermission = listOfPermissions._1.toSet
-        .contains(PersistentDiskAction.ReadPersistentDisk) || listOfPermissions._2.toSet
-        .contains(ProjectAction.ReadPersistentDisk)
-      _ <- if (hasReadPermission) F.unit
-      else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
-      // throw 403 if no ModifyPersistentDisk permission
-      hasModifyPermission = listOfPermissions._1.contains(PersistentDiskAction.ModifyPersistentDisk)
-      _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
-      // throw 409 if the disk is not updatable
-      _ <- if (disk.status.isUpdatable) F.unit
+      _ <- if (req.size.gb > disk.size.gb) for {
+        // throw 404 if no ReadPersistentDisk permission
+        // Note: the general pattern is to 404 (e.g. pretend the disk doesn't exist) if the caller doesn't have
+        // ReadPersistentDisk permission. We return 403 if the user can view the disk but can't perform some other action.
+        listOfPermissions <- authProvider.getActionsWithProjectFallback(disk.samResource, googleProject, userInfo)
+        hasReadPermission = listOfPermissions._1.toSet
+          .contains(PersistentDiskAction.ReadPersistentDisk) || listOfPermissions._2.toSet
+          .contains(ProjectAction.ReadPersistentDisk)
+        _ <- if (hasReadPermission) F.unit
+        else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
+        // throw 403 if no ModifyPersistentDisk permission
+        hasModifyPermission = listOfPermissions._1.contains(PersistentDiskAction.ModifyPersistentDisk)
+        _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+        // throw 409 if the disk is not updatable
+        _ <- if (disk.status.isUpdatable) F.unit
+        else
+          F.raiseError[Unit](DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = ctx.traceId))
+        _ <- publisherQueue.offer(
+          UpdateDiskMessage(disk.id, req.size, Some(ctx.traceId))
+        )
+      } yield ()
+      else if (req.size.gb == disk.size.gb) F.unit
       else
-        F.raiseError[Unit](DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = ctx.traceId))
-      _ <- publisherQueue.enqueue1(
-        UpdateDiskMessage(disk.id, req.size, Some(ctx.traceId))
-      )
+        F.raiseError[Unit](DiskNotResizableException(googleProject, diskName, disk.size, req.size, ctx.traceId))
     } yield ()
 }
 

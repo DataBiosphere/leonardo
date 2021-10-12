@@ -1,11 +1,13 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import java.time.Instant
 import cats.Parallel
-import cats.effect.{ConcurrentEffect, IO, Timer}
+import cats.effect.{Async, IO}
 import cats.mtl.Ask
 import com.google.cloud.compute.v1._
 import fs2.Stream
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
@@ -18,11 +20,8 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
-import org.typelevel.log4cats.StructuredLogger
 
-import java.time.Instant
 import scala.concurrent.ExecutionContext
-import scala.concurrent.ExecutionContext.global
 import scala.concurrent.duration._
 
 class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with TestComponent with LeonardoTestSuite {
@@ -32,13 +31,13 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     val res = for {
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       s1 = runtimeMonitor.process(runtime.id, RuntimeStatus.Creating)
-      s2 = Stream.sleep(2 seconds) ++ Stream.eval(
+      s2 = Stream.sleep[IO](2 seconds) ++ Stream.eval(
         clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleting, Instant.now()).transaction
       )
       // run s1 and s2 concurrently. s1 will run indefinitely if s2 doesn't happen. So by validating the combined Stream terminate, we verify s1 is terminated due to unexpected status change for the runtime
       _ <- Stream(s1, s2).parJoin(2).compile.drain.timeout(10 seconds)
     } yield succeed
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "transition cluster to Stopping if Starting times out" in isolatedDbTest {
@@ -54,20 +53,20 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       } yield status.get shouldBe RuntimeStatus.Stopping
       _ <- withInfiniteStream(runtimeMonitor.process(runtime.id, RuntimeStatus.Starting), assersions)
     } yield ()
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "handleCheckTools" should "move to Running status if all tools are ready" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(true)
 
     val res = for {
-      start <- nowInstant
+      start <- IO.realTimeInstant
       tid <- traceId.ask[TraceId]
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
       res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
-      end <- nowInstant
+      end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
     } yield {
@@ -79,20 +78,20 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       res shouldBe (((), None))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "move to failed status if tools are not ready" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(false)
 
     val res = for {
-      start <- nowInstant
+      start <- IO.realTimeInstant
       tid <- traceId.ask[TraceId]
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
       res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
-      end <- nowInstant
+      end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
     } yield {
@@ -102,16 +101,16 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       res shouldBe (((), None))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "not move to failed status if tools are not ready and runtime is Deleted" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(false)
 
     val res = for {
-      start <- nowInstant
+      start <- IO.realTimeInstant
       tid <- traceId.ask[TraceId]
-      implicit0(ec: ExecutionContext) = global
+      implicit0(ec: ExecutionContext) = scala.concurrent.ExecutionContext.Implicits.global
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
@@ -119,13 +118,13 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runCheckTools = Stream.eval(
         runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), Set.empty)
       )
-      deleteRuntime = Stream.sleep(2 seconds) ++ Stream.eval(
+      deleteRuntime = Stream.sleep[IO](2 seconds) ++ Stream.eval(
         clusterQuery.completeDeletion(runtime.id, start).transaction
       )
       // run above tasks concurrently and wait for both to terminate
       _ <- Stream(runCheckTools, deleteRuntime).parJoin(2).compile.drain.timeout(15 seconds)
 
-      end <- nowInstant
+      end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
     } yield {
@@ -134,20 +133,16 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       status shouldBe Some(RuntimeStatus.Deleted)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  class MockRuntimeMonitor(isWelderReady: Boolean, timeouts: Map[RuntimeStatus, FiniteDuration])
-      extends BaseCloudServiceRuntimeMonitor[IO] {
-    implicit override def F: ConcurrentEffect[IO] = IO.ioConcurrentEffect(cs)
-
-    implicit override def parallel: Parallel[IO] = IO.ioParallel(cs)
-
-    override def timer: Timer[IO] = testTimer
-
+  class MockRuntimeMonitor(isWelderReady: Boolean, timeouts: Map[RuntimeStatus, FiniteDuration])(
+    implicit override val F: Async[IO],
+    implicit override val parallel: Parallel[IO]
+  ) extends BaseCloudServiceRuntimeMonitor[IO] {
     implicit override def dbRef: DbReference[IO] = testDbRef
 
-    implicit override def ec: ExecutionContext = global
+    implicit override def ec: ExecutionContext = scala.concurrent.ExecutionContext.global
 
     implicit override def runtimeToolToToolDao
       : RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = x => {

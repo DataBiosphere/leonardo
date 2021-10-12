@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.effect.IO
-import cats.syntax.all._
+import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{Firewall, Network, Operation}
 import org.broadinstitute.dsde.workbench.google2.mock.{
@@ -15,9 +15,9 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.scalatest.flatspec.AnyFlatSpecLike
 
 import scala.jdk.CollectionConverters._
-import org.scalatest.flatspec.AnyFlatSpecLike
 
 class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 

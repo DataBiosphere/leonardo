@@ -39,7 +39,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
-    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val basicApp = makeApp(1, savedNodepool1.id)
     val complexApp = basicApp.copy(appResources =
       basicApp.appResources.copy(

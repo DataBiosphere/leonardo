@@ -1,12 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import java.sql.SQLDataException
 import cats.Parallel
-import cats.effect.{ConcurrentEffect, Timer}
+import cats.effect.std.Queue
+import cats.effect.{Async, Temporal}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   GoogleComputeService,
@@ -26,25 +29,22 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.typelevel.log4cats.StructuredLogger
 
-import java.sql.SQLDataException
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
-class GceRuntimeMonitor[F[_]](
+class GceRuntimeMonitor[F[_]: Parallel](
   config: GceMonitorConfig,
   googleComputeService: GoogleComputeService[F],
   computePollOperation: ComputePollOperation[F],
   authProvider: LeoAuthProvider[F],
   googleStorageService: GoogleStorageService[F],
-  publisherQueue: fs2.concurrent.Queue[F, LeoPubsubMessage],
+  publisherQueue: Queue[F, LeoPubsubMessage],
   override val runtimeAlg: RuntimeAlgebra[F]
 )(implicit override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
-  override val F: ConcurrentEffect[F],
+  override val F: Async[F],
   override val parallel: Parallel[F],
-  override val timer: Timer[F],
   override val logger: StructuredLogger[F],
   override val ec: ExecutionContext,
   override val openTelemetry: OpenTelemetryMetrics[F])
@@ -64,7 +64,7 @@ class GceRuntimeMonitor[F[_]](
       traceId <- ev.ask
       startMonitoring <- nowInstant
       monitorContext = MonitorContext(startMonitoring, runtimeAndRuntimeConfig.runtime.id, traceId, action)
-      _ <- Timer[F].sleep(config.initialDelay)
+      _ <- Temporal[F].sleep(config.initialDelay)
       haltWhenTrue = (Stream
         .eval(clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction.map { newStatus =>
           if (action == RuntimeStatus.Deleting) // Deleting is not interruptible
@@ -133,7 +133,7 @@ class GceRuntimeMonitor[F[_]](
           clusterQuery
             .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.PreDeleting, timeWhenInterrupted)
             .transaction >> publisherQueue
-            .enqueue1(
+            .offer(
               DeleteRuntimeMessage(runtimeAndRuntimeConfig.runtime.id, None, Some(monitorContext.traceId))
               //Known limitation, we set deleteDisk is falsehere; but in reality, it could be `true`
             )
@@ -218,7 +218,7 @@ class GceRuntimeMonitor[F[_]](
       for {
         context <- ev.ask
         gceStatus <- F.fromOption(GceInstanceStatus
-                                    .withNameInsensitiveOption(i.getStatus),
+                                    .withNameInsensitiveOption(i.getStatus.name()),
                                   new SQLDataException(s"Unknown GCE instance status ${i.getStatus}"))
         r <- gceStatus match {
           case GceInstanceStatus.Provisioning | GceInstanceStatus.Staging =>
@@ -254,7 +254,7 @@ class GceRuntimeMonitor[F[_]](
                   getInstanceIP(i) match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                      Timer[F]
+                      Temporal[F]
                         .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty)
                     case None =>
                       checkAgain(monitorContext,
@@ -292,7 +292,7 @@ class GceRuntimeMonitor[F[_]](
       for {
         gceStatus <- F.fromEither(
           GceInstanceStatus
-            .withNameInsensitiveOption(i.getStatus)
+            .withNameInsensitiveOption(i.getStatus.name())
             .toRight(new Exception(s"Unknown GCE instance status ${i.getStatus}"))
         )
         startableStatuses = Set(
@@ -342,7 +342,7 @@ class GceRuntimeMonitor[F[_]](
                   getInstanceIP(i) match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                      Timer[F]
+                      Temporal[F]
                         .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty)
                     case None =>
                       checkAgain(monitorContext,
@@ -368,7 +368,7 @@ class GceRuntimeMonitor[F[_]](
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = {
-    val gceStatus = instance.flatMap(i => GceInstanceStatus.withNameInsensitiveOption(i.getStatus))
+    val gceStatus = instance.flatMap(i => GceInstanceStatus.withNameInsensitiveOption(i.getStatus.name))
     gceStatus match {
       case None =>
         logger

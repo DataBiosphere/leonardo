@@ -1,8 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import cats.Parallel
-import cats.effect.concurrent.Ref
-import cats.effect.{ConcurrentEffect, Sync, Timer}
+import cats.effect.{Async, Ref, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.storage.BucketInfo
@@ -30,9 +29,8 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
-  implicit def F: ConcurrentEffect[F]
+  implicit def F: Async[F]
   implicit def parallel: Parallel[F]
-  implicit def timer: Timer[F]
   implicit def dbRef: DbReference[F]
   implicit def ec: ExecutionContext
   implicit def runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType]
@@ -50,7 +48,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     for {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- Stream.eval(ev.ask)
-      startMonitoring <- Stream.eval(nowInstant[F])
+      startMonitoring <- Stream.eval(F.realTimeInstant)
       monitorContextRef <- Stream.eval(
         Ref.of[F, MonitorContext](MonitorContext(startMonitoring, runtimeId, traceId, runtimeStatus))
       )
@@ -58,7 +56,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         for {
           _ <- s.newTransition.traverse(newStatus => monitorContextRef.modify(x => (x.copy(action = newStatus), ())))
           monitorContext <- monitorContextRef.get
-          _ <- Timer[F].sleep(monitorConfig.pollStatus.interval)
+          _ <- F.sleep(monitorConfig.pollStatus.interval)
           res <- handler(
             monitorContext,
             s
@@ -74,7 +72,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   private[monitor] def handler(monitorContext: MonitorContext, monitorState: MonitorState): F[CheckResult] =
     for {
-      now <- nowInstant
+      now <- F.realTimeInstant
       ctx = AppContext(monitorContext.traceId, now)
       implicit0(ct: Ask[F, AppContext]) = Ask.const[F, AppContext](
         ctx
@@ -221,7 +219,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     ip: Option[IP] = None
   ): F[CheckResult] =
     for {
-      now <- nowInstant[F]
+      now <- F.realTimeInstant
       ctx = AppContext(monitorContext.traceId, now)
       implicit0(traceId: Ask[F, AppContext]) = Ask.const[F, AppContext](
         ctx

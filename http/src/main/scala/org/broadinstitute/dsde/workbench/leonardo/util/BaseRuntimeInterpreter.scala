@@ -1,14 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import java.text.SimpleDateFormat
-import java.time.Instant
-
-import cats.effect.{Async, Blocker, ContextShift}
+import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Operation
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
@@ -17,11 +13,14 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 
+import java.text.SimpleDateFormat
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.util.Try
 
-abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
+abstract private[util] class BaseRuntimeInterpreter[F[_]](
   config: RuntimeInterpreterConfig,
   welderDao: WelderDAO[F]
 )(implicit F: Async[F],
@@ -171,7 +170,6 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
   protected def getStartupScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                  welderAction: Option[WelderAction],
                                  initBucket: GcsBucketName,
-                                 blocker: Blocker,
                                  runtimeResourceConstraints: RuntimeResourceConstraints,
                                  useGceStartupScript: Boolean)(
     implicit ev: Ask[F, AppContext]
@@ -197,8 +195,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
       ctx <- ev.ask
       replacements = RuntimeTemplateValues(templateConfig, Some(ctx.now))
       mp <- TemplateHelper
-        .templateResource[F](replacements.toMap, config.clusterResourcesConfig.startupScript, blocker)
-        .through(fs2.text.utf8Decode)
+        .templateResource[F](replacements.toMap, config.clusterResourcesConfig.startupScript)
+        .through(fs2.text.utf8.decode)
         .compile
         .string
         .map { s =>
@@ -211,8 +209,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
   }
 
   // Shutdown script to run after the runtime is paused
-  protected def getShutdownScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                                  blocker: Blocker): F[Map[String, String]] = {
+  protected def getShutdownScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Map[String, String]] = {
     val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
@@ -232,8 +229,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]: ContextShift](
     val replacements = RuntimeTemplateValues(templateConfig, None).toMap
 
     TemplateHelper
-      .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript, blocker)
-      .through(fs2.text.utf8Decode)
+      .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript)
+      .through(fs2.text.utf8.decode)
       .compile
       .string
       .map(s => Map(googleKey -> s))

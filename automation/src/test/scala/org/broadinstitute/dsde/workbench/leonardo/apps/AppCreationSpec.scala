@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package apps
 
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
@@ -55,19 +56,19 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
           // Verify the app eventually becomes Running
-          _ <- testTimer.sleep(120 seconds)
+          _ <- IO.sleep(120 seconds)
           monitorCreateResult <- streamUntilDoneOrTimeout(
             getApp,
             120,
             10 seconds,
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
-          )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
+          )(implicitly, appInStateOrError(AppStatus.Running))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
           )
           _ = monitorCreateResult.status shouldBe AppStatus.Running
 
-          _ <- testTimer.sleep(1 minute)
+          _ <- IO.sleep(1 minute)
 
           // Delete the app
           _ <- LeonardoApiClient.deleteApp(googleProject, appName, false)
@@ -100,8 +101,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
               )
               _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(client,
                                                                                                         auth,
-                                                                                                        loggerIO,
-                                                                                                        testTimer)
+                                                                                                        loggerIO)
               _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName)
             } yield ()
           }
@@ -139,13 +139,13 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
           // Verify the app eventually becomes Running
-          _ <- testTimer.sleep(90 seconds)
+          _ <- IO.sleep(90 seconds)
           monitorCreateResult <- streamUntilDoneOrTimeout(
             getApp,
             120,
             10 seconds,
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
-          )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
+          )(implicitly, appInStateOrError(AppStatus.Running))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
           )
@@ -159,13 +159,13 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ = getAppResponse.status should (be(AppStatus.Stopping) or be(AppStatus.PreStopping))
 
           // Verify the app eventually becomes Stopped
-          _ <- testTimer.sleep(60 seconds)
+          _ <- IO.sleep(60 seconds)
           monitorStopResult <- streamUntilDoneOrTimeout(
             getApp,
             180,
             10 seconds,
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish stopping after 30 minutes"
-          )(implicitly, implicitly, appInStateOrError(AppStatus.Stopped))
+          )(implicitly, appInStateOrError(AppStatus.Stopped))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} stop result: $monitorStopResult"
           )
@@ -179,23 +179,23 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           _ = getAppResponse.status should (be(AppStatus.Starting) or be(AppStatus.PreStarting))
 
           // Verify the app eventually becomes Running
-          _ <- testTimer.sleep(30 seconds)
+          _ <- IO.sleep(30 seconds)
           monitorStartResult <- streamUntilDoneOrTimeout(
             getApp,
             120,
             10 seconds,
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish starting after 20 minutes"
-          )(implicitly, implicitly, appInStateOrError(AppStatus.Running))
+          )(implicitly, appInStateOrError(AppStatus.Running))
           _ <- loggerIO.info(
             s"AppCreationSpec: app ${googleProject.value}/${appName.value} start result: $monitorStartResult"
           )
           _ = monitorStartResult.status shouldBe AppStatus.Running
 
-          _ <- testTimer.sleep(1 minute)
+          _ <- IO.sleep(1 minute)
 
           // Delete the app
           _ <- LeonardoApiClient.deleteApp(googleProject, appName, true)
-          _ <- testTimer.sleep(30 seconds)
+          _ <- IO.sleep(30 seconds)
 
           // Verify getApp again
           getAppResponse <- getApp

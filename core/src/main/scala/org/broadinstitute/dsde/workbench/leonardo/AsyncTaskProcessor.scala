@@ -1,25 +1,25 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
-import cats.effect.{Concurrent, Timer}
+import cats.effect.Async
+import cats.effect.std.Queue
 import cats.syntax.all._
 import fs2.Stream
-import fs2.concurrent.InspectableQueue
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 
+import java.time.Instant
 import scala.concurrent.duration._
 
-final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, asyncTasks: InspectableQueue[F, Task[F]])(
+final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTasks: Queue[F, Task[F]])(
   implicit logger: StructuredLogger[F],
-  F: Concurrent[F],
+  F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) {
   def process: Stream[F, Unit] = {
-    val asyncTaskStream = asyncTasks
-      .dequeueChunk(config.maxConcurrentTasks)
+    val asyncTaskStream = Stream
+      .fromQueueUnterminated(asyncTasks)
       .parEvalMapUnordered(config.maxConcurrentTasks)(task => handler(task))
 
     Stream(asyncTaskStream, recordCurrentNumOfTasks).covary[F].parJoin(2)
@@ -27,7 +27,7 @@ final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, a
 
   private def handler(task: Task[F]): F[Unit] =
     for {
-      now <- nowInstant[F]
+      now <- F.realTimeInstant
       latency = (now.toEpochMilli - task.enqueuedTime.toEpochMilli).millis
       _ <- recordLatency(latency)
       _ <- logger.info(Map("traceId" -> task.traceId.asString))(
@@ -35,8 +35,8 @@ final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, a
       )
       _ <- task.op.handleErrorWith {
         case err =>
-          task.errorHandler.traverse(cb => cb(err)) >> logger.error(err)(
-            s"${task.traceId.asString} | Error when executing async task"
+          task.errorHandler.traverse(cb => cb(err)) >> logger.error(Map("traceId" -> task.traceId.asString), err)(
+            s"Error when executing async task"
           )
       }
     } yield ()
@@ -44,10 +44,10 @@ final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, a
   private def recordCurrentNumOfTasks: Stream[F, Unit] = {
     val record = for {
       size <- asyncTasks.size
-      _ <- Stream.eval(metrics.gauge("asyncTasksCount", size))
+      _ <- metrics.gauge("asyncTasksCount", size)
     } yield ()
 
-    (record ++ Stream.sleep_(30 seconds)).repeat
+    (Stream.eval(record) ++ Stream.sleep_(30 seconds)).repeat
   }
 
   // record the latency between message being enqueued and task gets executed
@@ -66,10 +66,10 @@ final class AsyncTaskProcessor[F[_]: Timer](config: AsyncTaskProcessor.Config, a
 }
 
 object AsyncTaskProcessor {
-  def apply[F[_]: Timer](
+  def apply[F[_]: Async](
     config: Config,
-    asyncTasks: InspectableQueue[F, Task[F]]
-  )(implicit logger: StructuredLogger[F], F: Concurrent[F], metrics: OpenTelemetryMetrics[F]): AsyncTaskProcessor[F] =
+    asyncTasks: cats.effect.std.Queue[F, Task[F]]
+  )(implicit logger: StructuredLogger[F], metrics: OpenTelemetryMetrics[F]): AsyncTaskProcessor[F] =
     new AsyncTaskProcessor(config, asyncTasks)
 
   final case class Task[F[_]](traceId: TraceId,

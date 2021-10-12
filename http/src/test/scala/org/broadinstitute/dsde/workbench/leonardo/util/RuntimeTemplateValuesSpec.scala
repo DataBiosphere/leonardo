@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -23,7 +24,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
     )
 
     val test = for {
-      now <- nowInstant
+      now <- IO.realTimeInstant
       result = RuntimeTemplateValues(config, Some(now))
     } yield {
       // note: alphabetized
@@ -89,7 +90,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.welderServerName shouldBe "welder-server"
     }
 
-    test.unsafeRunSync()
+    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
 }

@@ -4,19 +4,19 @@ package api
 
 import akka.http.scaladsl.model.HttpHeader
 import akka.http.scaladsl.model.headers.{`Set-Cookie`, HttpCookiePair}
-import akka.http.scaladsl.testkit.ScalatestRouteTest
+import akka.http.scaladsl.testkit.{RouteTestTimeout, ScalatestRouteTest}
 import cats.effect.IO
+import com.github.benmanes.caffeine.cache.Caffeine
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock.{MockGoogleDirectoryDAO, MockGoogleIamDAO, MockGoogleStorageDAO}
-import org.broadinstitute.dsde.workbench.google2.MockGoogleDiskService
 import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockDockerDAO, MockJupyterDAO, MockWelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, MockDockerDAO, MockJupyterDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockDiskServiceInterp, _}
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.scalactic.source.Position
@@ -24,13 +24,17 @@ import org.scalatest.concurrent.PatienceConfiguration.Interval
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Seconds, Span}
+import scalacache.Cache
+import scalacache.caffeine.CaffeineCache
 
 import java.io.ByteArrayInputStream
+import java.time.Instant
 import scala.concurrent.duration._
 import scala.util.matching.Regex
-
 trait TestLeoRoutes {
   this: ScalatestRouteTest with Matchers with ScalaFutures with LeonardoTestSuite with TestComponent =>
+  implicit val timeout = RouteTestTimeout(20 seconds)
+
   // Set up the mock directoryDAO to have the Google group used to grant permission to users
   // to pull the custom dataproc image
   val mockGoogleDirectoryDAO = {
@@ -62,7 +66,7 @@ trait TestLeoRoutes {
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
-    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider, blocker)
+    new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider)
   val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
                                          FakeGoogleResourceService,
                                          FakeGoogleComputeService,
@@ -77,16 +81,14 @@ trait TestLeoRoutes {
                                 mockGoogleDirectoryDAO,
                                 mockGoogleIamDAO,
                                 FakeGoogleResourceService,
-                                MockWelderDAO,
-                                blocker)
+                                MockWelderDAO)
   val gceInterp =
     new GceInterpreter[IO](Config.gceInterpreterConfig,
                            bucketHelper,
                            vpcInterp,
                            FakeGoogleComputeService,
                            MockGoogleDiskService,
-                           MockWelderDAO,
-                           blocker)
+                           MockWelderDAO)
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
@@ -96,20 +98,37 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue()
   )
 
+  val underlyingRuntimeDnsCache =
+    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[HostStatus]]()
+  val runtimeDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingRuntimeDnsCache)
   val runtimeDnsCache =
-    new RuntimeDnsCache[IO](proxyConfig, testDbRef, Config.runtimeDnsCacheConfig, hostToIpMapping, blocker)
-  val kubernetesDnsCache =
-    new KubernetesDnsCache[IO](proxyConfig, testDbRef, Config.kubernetesDnsCacheConfig, hostToIpMapping, blocker)
+    new RuntimeDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, runtimeDnsCaffeineCache)
 
-  val proxyService =
-    new MockProxyService(proxyConfig,
-                         MockJupyterDAO,
-                         whitelistAuthProvider,
-                         runtimeDnsCache,
-                         kubernetesDnsCache,
-                         MockGoogleOAuth2Service)
+  val underlyingKubernetesDnsCache =
+    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[HostStatus]]()
+  val kubernetesDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingKubernetesDnsCache)
+  val kubernetesDnsCache =
+    new KubernetesDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, kubernetesDnsCaffeineCache)
+
+  val underlyingGoogleTokenCache =
+    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[(UserInfo, Instant)]]()
+  val googleTokenCache: Cache[IO, (UserInfo, Instant)] =
+    CaffeineCache[IO, (UserInfo, Instant)](underlyingGoogleTokenCache)
+  val underlyingSamResourceCache =
+    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[Option[String]]]()
+  val samResourceCache: Cache[IO, Option[String]] = CaffeineCache[IO, Option[String]](underlyingSamResourceCache)
+
+  val proxyService = new MockProxyService(proxyConfig,
+                                          MockJupyterDAO,
+                                          whitelistAuthProvider,
+                                          runtimeDnsCache,
+                                          kubernetesDnsCache,
+                                          googleTokenCache,
+                                          samResourceCache,
+                                          MockGoogleOAuth2Service)
+
   val statusService =
-    new StatusService(mockSamDAO, testDbRef, applicationConfig, pollInterval = 1.second)
+    new StatusService(mockSamDAO, testDbRef, pollInterval = 1.second)
   val timedUserInfo = defaultUserInfo.copy(tokenExpiresIn = tokenAge)
   val corsSupport = new CorsSupport(contentSecurityPolicy)
   val statusRoutes = new StatusRoutes(statusService)
@@ -136,26 +155,29 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue()
   )
 
-  val httpRoutes = new HttpRoutes(
-    swaggerConfig,
-    statusService,
-    proxyService,
-    runtimeService,
-    MockDiskServiceInterp,
-    leoKubernetesService,
-    userInfoDirectives,
-    contentSecurityPolicy,
-    refererConfig
-  )
-  val timedHttpRoutes = new HttpRoutes(swaggerConfig,
-                                       statusService,
-                                       proxyService,
-                                       runtimeService,
-                                       MockDiskServiceInterp,
-                                       leoKubernetesService,
-                                       timedUserInfoDirectives,
-                                       contentSecurityPolicy,
-                                       refererConfig)
+  val httpRoutes =
+    new HttpRoutes(
+      swaggerConfig,
+      statusService,
+      proxyService,
+      runtimeService,
+      MockDiskServiceInterp,
+      leoKubernetesService,
+      userInfoDirectives,
+      contentSecurityPolicy,
+      refererConfig
+    )
+
+  val timedHttpRoutes =
+    new HttpRoutes(swaggerConfig,
+                   statusService,
+                   proxyService,
+                   runtimeService,
+                   MockDiskServiceInterp,
+                   leoKubernetesService,
+                   timedUserInfoDirectives,
+                   contentSecurityPolicy,
+                   refererConfig)
 
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r

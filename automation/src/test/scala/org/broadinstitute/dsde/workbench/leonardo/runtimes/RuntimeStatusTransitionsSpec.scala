@@ -32,7 +32,6 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
 
       // create a runtime, but don't wait
       createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
-
       // runtime status should be Creating
       val creatingRuntime = Leonardo.cluster.getRuntime(billingProject, runtimeName)
       creatingRuntime.status shouldBe ClusterStatus.Creating
@@ -62,7 +61,7 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
       // Can't recreate while runtime is deleting
       val caught3 =
         the[RestError] thrownBy createNewRuntime(billingProject, runtimeName, runtimeRequest, monitor = false)
-      caught.statusCode shouldBe (org.http4s.Status.Conflict)
+      caught3.statusCode shouldBe (org.http4s.Status.Conflict)
 
       // Wait for the runtime to be deleted
       monitorDeleteRuntime(billingProject, runtimeName)

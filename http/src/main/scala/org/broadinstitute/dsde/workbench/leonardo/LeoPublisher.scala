@@ -1,12 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import cats.effect.{Concurrent, Timer}
+import cats.effect.Async
+import cats.effect.std.Queue
 import cats.syntax.all._
 import com.google.protobuf.ByteString
 import com.google.pubsub.v1.PubsubMessage
-import fs2.concurrent.InspectableQueue
 import fs2.{Pipe, Stream}
-import org.typelevel.log4cats.StructuredLogger
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
@@ -14,6 +13,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -22,33 +22,35 @@ import scala.concurrent.duration._
  * dequeue from publisherQueue and transform it into a native google pubsub message;
  * After pubsub message is published, we update database when necessary
  */
-final class LeoPublisher[F[_]: Timer](
-  publisherQueue: InspectableQueue[F, LeoPubsubMessage],
+final class LeoPublisher[F[_]](
+  publisherQueue: Queue[F, LeoPubsubMessage],
   googlePublisher: GooglePublisher[F]
-)(implicit F: Concurrent[F],
+)(implicit F: Async[F],
   dbReference: DbReference[F],
   metrics: OpenTelemetryMetrics[F],
-  logger: StructuredLogger[F],
-  ec: ExecutionContext) {
+  ec: ExecutionContext,
+  logger: StructuredLogger[F]) {
   val process: Stream[F, Unit] = {
-    val publishingStream = Stream.eval(logger.info("Initializing publisher")) ++ publisherQueue.dequeue.flatMap {
-      event =>
-        Stream
-          .emit(event)
-          .covary[F]
-          .through(convertToPubsubMessagePipe)
-          .through(googlePublisher.publishNative)
-          .evalMap(_ => updateDatabase(event))
-          .handleErrorWith { t =>
-            val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
-            Stream.eval(logger.error(loggingCtx, t)(s"Failed to publish message of type ${event.messageType.asString}"))
-          }
-    }
+    val publishingStream =
+      Stream.eval(logger.info(s"Initializing publisher")) ++ Stream.fromQueueUnterminated(publisherQueue).flatMap {
+        event =>
+          Stream
+            .eval(F.pure(event))
+            .covary[F]
+            .through(convertToPubsubMessagePipe)
+            .through(googlePublisher.publishNative)
+            .evalMap(_ => updateDatabase(event))
+            .handleErrorWith { t =>
+              val loggingCtx = event.traceId.map(t => Map("traceId" -> t.asString)).getOrElse(Map.empty)
+              Stream
+                .eval(logger.error(loggingCtx, t)(s"Failed to publish message of type ${event.messageType.asString}"))
+            }
+      }
     Stream(publishingStream, recordMetrics).covary[F].parJoin(2)
   }
 
   private def recordMetrics: Stream[F, Unit] = {
-    val record = Stream.eval(publisherQueue.getSize.flatMap(size => metrics.gauge("publisherQueueSize", size)))
+    val record = Stream.eval(publisherQueue.size.flatMap(size => metrics.gauge("publisherQueueSize", size)))
     (record ++ Stream.sleep_(30 seconds)).repeat
   }
 
@@ -67,7 +69,7 @@ final class LeoPublisher[F[_]: Timer](
 
   private def updateDatabase(msg: LeoPubsubMessage): F[Unit] =
     for {
-      now <- nowInstant[F]
+      now <- F.realTimeInstant
       _ <- msg match {
         case m: LeoPubsubMessage.CreateRuntimeMessage =>
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Creating, now).transaction

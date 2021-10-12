@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import cats.effect.{Concurrent, Timer}
+import cats.effect.Async
 import cats.syntax.all._
 import cats.mtl.Ask
 import fs2.Stream
-import fs2.concurrent.InspectableQueue
+import cats.effect.std.Queue
 import org.typelevel.log4cats.StructuredLogger
 import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{
@@ -43,14 +43,14 @@ import scala.concurrent.ExecutionContext.Implicits.global
  * This is subscriber for messages that are not published by Leonardo itself.
  * But rather from cron jobs, or cloud logging sink (triggered from crypto-mining activity)
  */
-class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
-                                           computeService: GoogleComputeService[F],
-                                           samDao: SamDAO[F],
-                                           subscriber: GoogleSubscriber[F, NonLeoMessage],
-                                           publisher: GooglePublisher[F],
-                                           asyncTasks: InspectableQueue[F, Task[F]])(
+class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
+                                    computeService: GoogleComputeService[F],
+                                    samDao: SamDAO[F],
+                                    subscriber: GoogleSubscriber[F, NonLeoMessage],
+                                    publisher: GooglePublisher[F],
+                                    asyncTasks: Queue[F, Task[F]])(
   implicit logger: StructuredLogger[F],
-  F: Concurrent[F],
+  F: Async[F],
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F]
 ) {
@@ -61,7 +61,7 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
   private[monitor] def messageHandler(event: Event[NonLeoMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
     for {
-      now <- nowInstant[F]
+      now <- F.realTimeInstant
       implicit0(ev: Ask[F, AppContext]) <- F.pure(Ask.const[F, AppContext](AppContext(traceId, now, "", None)))
       _ <- metrics.incrementCounter(s"NonLeoPubSub/${event.msg.messageType}")
       res <- messageResponder(event.msg).attempt
@@ -160,7 +160,7 @@ class NonLeoMessageSubscriber[F[_]: Timer](gkeAlg: GKEAlgebra[F],
     for {
       ctx <- ev.ask
       task = gkeAlg.deleteAndPollNodepool(DeleteNodepoolParams(msg.nodepoolId, msg.googleProject))
-      _ <- asyncTasks.enqueue1(
+      _ <- asyncTasks.offer(
         Task(ctx.traceId,
              task,
              Some(logError(s"${msg.nodepoolId}/${msg.googleProject}", DeleteNodepool.toString)),

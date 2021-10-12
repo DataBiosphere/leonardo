@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import cats.effect.unsafe.implicits.global
+
 import java.io.File
 import java.math.BigInteger
 import java.security.MessageDigest
@@ -7,7 +9,7 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.google2.GcsBlobName
 import org.broadinstitute.dsde.workbench.leonardo._
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
+import org.broadinstitute.dsde.workbench.leonardo.notebooks.NotebookMode
 import org.scalatest.DoNotDiscover
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.tagobjects.Retryable

@@ -3,13 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo.rstudio
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.openqa.selenium.WebDriver
-import org.scalatest.Suite
+import org.scalatest.TestSuite
 
 import scala.concurrent._
 import scala.concurrent.duration._
 
 trait RStudioTestUtils extends LeonardoTestUtils {
-  this: Suite =>
+  this: TestSuite =>
 
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
 

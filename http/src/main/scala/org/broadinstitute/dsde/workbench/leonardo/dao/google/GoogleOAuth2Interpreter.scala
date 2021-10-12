@@ -3,8 +3,8 @@ package dao
 package google
 
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
-import cats.effect.concurrent.Semaphore
-import cats.effect.{Async, Blocker, ContextShift, Timer}
+import cats.effect.std.Semaphore
+import cats.effect.{Async}
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.google.api.services.oauth2.Oauth2
@@ -13,14 +13,12 @@ import org.broadinstitute.dsde.workbench.google2.withLogging
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
-class GoogleOAuth2Interpreter[F[_]: Async: Timer: StructuredLogger: ContextShift](client: Oauth2,
-                                                                                  blocker: Blocker,
-                                                                                  blockerBound: Semaphore[F])
+class GoogleOAuth2Interpreter[F[_]: Async: StructuredLogger](client: Oauth2, blockerBound: Semaphore[F])
     extends GoogleOAuth2Service[F] {
   override def getUserInfoFromToken(accessToken: String)(implicit ev: Ask[F, TraceId]): F[UserInfo] =
     for {
       tokenInfo <- blockAndLogF(
-        Async[F].delay(client.tokeninfo().setAccessToken(accessToken).execute()).adaptError {
+        Async[F].blocking(client.tokeninfo().setAccessToken(accessToken).execute()).adaptError {
           case _ =>
             // Rethrow AuthenticationError if unable to look up the token
             // Do this before logging the error because tokeninfo errors are verbose
@@ -37,6 +35,6 @@ class GoogleOAuth2Interpreter[F[_]: Async: Timer: StructuredLogger: ContextShift
   private def blockAndLogF[A](fa: F[A], action: String)(implicit ev: Ask[F, TraceId]): F[A] =
     for {
       traceId <- ev.ask
-      res <- withLogging(blockerBound.withPermit(blocker.blockOn(fa)), Some(traceId), action)
+      res <- withLogging(blockerBound.permit.use(_ => fa), Some(traceId), action)
     } yield res
 }
