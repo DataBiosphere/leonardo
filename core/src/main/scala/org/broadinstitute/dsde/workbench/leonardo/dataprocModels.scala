@@ -103,4 +103,6 @@ object DataprocClusterStatus extends Enum[DataprocClusterStatus] {
   case object Unknown extends DataprocClusterStatus // The cluster state is unknown.
 
   case object Updating extends DataprocClusterStatus // The cluster is being updated. It continues to accept and process jobs.
+
+  case object Stopped extends DataprocClusterStatus // The cluster is being updated. It continues to accept and process jobs.
 }

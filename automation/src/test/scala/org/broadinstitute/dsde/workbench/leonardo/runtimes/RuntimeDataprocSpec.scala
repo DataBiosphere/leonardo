@@ -298,7 +298,7 @@ class RuntimeDataprocSpec
       status <- IO.fromOption(DataprocClusterStatus.withNameInsensitiveOption(cluster.getStatus.getState.name))(
         fail(s"Unknown Dataproc status ${cluster.getStatus.getState.name}")
       )
-      _ <- IO(status shouldBe DataprocClusterStatus.Running)
+      _ <- IO(List(DataprocClusterStatus.Running, DataprocClusterStatus.Stopped).contains(status) shouldBe true)
 
       // check cluster instances in Dataproc
       instances = GoogleDataprocInterpreter.getAllInstanceNames(cluster)
