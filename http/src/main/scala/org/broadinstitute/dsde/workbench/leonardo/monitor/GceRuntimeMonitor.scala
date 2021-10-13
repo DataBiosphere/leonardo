@@ -101,7 +101,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
         case RuntimeStatus.Deleting =>
           deletedRuntime(monitorContext, runtimeAndRuntimeConfig)
         case RuntimeStatus.Stopping =>
-          stopRuntime(runtimeAndRuntimeConfig, Set.empty, monitorContext)
+          stopRuntime(runtimeAndRuntimeConfig, None, monitorContext)
         case x =>
           F.raiseError(new Exception(s"Monitoring ${x} with pollOperation is not supported"))
       }
@@ -176,7 +176,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
           instance match {
             case None => deletedRuntime(monitorContext, runtimeAndRuntimeConfig)
             case _ =>
-              checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some("Instance hasn't been deleted yet"))
+              checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Instance hasn't been deleted yet"))
           }
         case RuntimeStatus.Starting =>
           startingRuntime(instance, monitorContext, runtimeAndRuntimeConfig)
@@ -212,7 +212,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
               Set.empty
             )
           else
-            checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Can't retrieve instance yet"))
+            checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(s"Can't retrieve instance yet"))
         }
     case Some(i) =>
       for {
@@ -222,7 +222,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                   new SQLDataException(s"Unknown GCE instance status ${i.getStatus}"))
         r <- gceStatus match {
           case GceInstanceStatus.Provisioning | GceInstanceStatus.Staging =>
-            checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Instance is still in ${gceStatus}"))
+            checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(s"Instance is still in ${gceStatus}"))
           case GceInstanceStatus.Running =>
             val userScriptOutputFile = runtimeAndRuntimeConfig.runtime.asyncRuntimeFields
               .map(_.stagingBucket)
@@ -239,7 +239,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
               )
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
-                  checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))
+                  checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(msg))
                 case UserScriptsValidationResult.Error(msg) =>
                   logger
                     .info(context.loggingCtx)(
@@ -257,10 +257,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                       Temporal[F]
                         .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty)
                     case None =>
-                      checkAgain(monitorContext,
-                                 runtimeAndRuntimeConfig,
-                                 Set.empty,
-                                 Some("Could not retrieve instance IP"))
+                      checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))
                   }
               }
             } yield r
@@ -315,12 +312,12 @@ class GceRuntimeMonitor[F[_]: Parallel](
                 else
                   checkAgain(monitorContext,
                              runtimeAndRuntimeConfig,
-                             Set.empty,
+                             None,
                              Some(s"Instance is still in ${GceInstanceStatus.Terminated}"))
               }
 
           case s if (startableStatuses.contains(s)) =>
-            checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(s"Instance is still in ${gceStatus}"))
+            checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(s"Instance is still in ${gceStatus}"))
           case GceInstanceStatus.Running =>
             val userStartupScript = getUserScript(i)
 
@@ -329,7 +326,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                                             runtimeAndRuntimeConfig.runtime.startUserScriptUri)
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
-                  checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, Some(msg))
+                  checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(msg))
                 case UserScriptsValidationResult.Error(msg) =>
                   failedRuntime(monitorContext,
                                 runtimeAndRuntimeConfig,
@@ -345,10 +342,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                       Temporal[F]
                         .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty)
                     case None =>
-                      checkAgain(monitorContext,
-                                 runtimeAndRuntimeConfig,
-                                 Set.empty,
-                                 Some("Could not retrieve instance IP"))
+                      checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))
                   }
               }
             } yield r
@@ -379,12 +373,12 @@ class GceRuntimeMonitor[F[_]: Parallel](
       case Some(s) =>
         s match {
           case Stopped | Terminated =>
-            stopRuntime(runtimeAndRuntimeConfig, Set.empty, monitorContext)
+            stopRuntime(runtimeAndRuntimeConfig, None, monitorContext)
           case _ =>
             checkAgain(
               monitorContext,
               runtimeAndRuntimeConfig,
-              Set.empty,
+              None,
               Some(s"hasn't been terminated yet"),
               None
             )

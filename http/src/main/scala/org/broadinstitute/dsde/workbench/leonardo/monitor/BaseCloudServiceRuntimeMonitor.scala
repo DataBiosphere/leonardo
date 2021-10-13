@@ -214,7 +214,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def checkAgain(
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-    dataprocInstances: Set[DataprocInstance], //only applies to dataproc
+    fetchDataprocInstances: Option[F[Set[DataprocInstance]]], //only applies to dataproc
     message: Option[String],
     ip: Option[IP] = None
   ): F[CheckResult] =
@@ -232,8 +232,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             _ <- logger.info(ctx.loggingCtx)(
               s"Detected that ${runtimeAndRuntimeConfig.runtime.projectNameString} has been stuck in status ${runtimeAndRuntimeConfig.runtime.status} too long."
             )
-            r <- // Take care not to Error out a cluster if it timed out in Starting status
-            if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Starting) {
+            // Take care not to Error out a cluster if it timed out in Starting status
+            r <- if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Starting) {
               for {
                 _ <- runtimeAlg.stopRuntime(
                   StopRuntimeParams(runtimeAndRuntimeConfig, now)
@@ -247,15 +247,19 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 )
                 rrc = runtimeAndRuntimeConfigAfterSetIp.lens(_.runtime.status).set(RuntimeStatus.Stopping)
               } yield ((), Some(MonitorState.Check(rrc, Some(RuntimeStatus.Stopping)))): CheckResult
-            } else
-              failedRuntime(
-                monitorContext,
-                runtimeAndRuntimeConfig,
-                RuntimeErrorDetails(
-                  s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toMinutes} minutes"
-                ),
-                dataprocInstances
-              )
+            } else {
+              for {
+                dataprocInstances <- fetchDataprocInstances.traverse(identity)
+                r <- failedRuntime(
+                  monitorContext,
+                  runtimeAndRuntimeConfig,
+                  RuntimeErrorDetails(
+                    s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toMinutes} minutes"
+                  ),
+                  dataprocInstances.getOrElse(Set.empty)
+                )
+              } yield r
+            }
           } yield r
         case _ =>
           logger
@@ -317,13 +321,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     }
 
   protected def stopRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                            dataprocInstances: Set[DataprocInstance],
+                            fetchDataprocInstances: Option[F[Set[DataprocInstance]]],
                             monitorContext: MonitorContext)(
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
-      _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances)
+      dataprocInstances <- fetchDataprocInstances.traverse(identity)
+      _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances.getOrElse(Set.empty))
       stoppingDuration = (ctx.now.toEpochMilli - monitorContext.start.toEpochMilli).millis
       // this sets the cluster status to stopped and clears the cluster IP
       _ <- clusterQuery

@@ -331,7 +331,6 @@ class DataprocInterpreter[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
-      ctx <- ev.ask
       region <- F.fromOption(
         LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
