@@ -348,7 +348,6 @@ class DataprocInterpreter[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      ctx <- ev.ask
       dataprocConfig <- F.fromOption(
         LeoLenses.dataprocPrism.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
