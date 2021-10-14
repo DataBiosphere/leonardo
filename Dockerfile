@@ -29,7 +29,7 @@ ENV TERRA_APP_VERSION 0.3.0
 ENV GALAXY_VERSION 1.1.0
 ENV NGINX_VERSION 3.23.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_LOCAL_VERSION 0.1.2
+ENV CROMWELL_CHART_VERSION 0.1.2
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -59,7 +59,7 @@ RUN cd /leonardo && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
-    helm pull cromwell-local/CromwellHsqldbLocalMinikube --version $CROMWELL_LOCAL_VERSION --untar && \
+    helm pull cromwell-local/CromwellHsqldbLocalMinikube --version $CROMWELL_CHART_VERSION --untar && \
     cd /
 
 # Add Leonardo as a service (it will start when the container starts)
