@@ -645,7 +645,7 @@ object Config {
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
   val gkeIngressConfig = config.as[KubernetesIngressConfig]("gke.ingress")
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
-  val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellLocalApp")
+  val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")

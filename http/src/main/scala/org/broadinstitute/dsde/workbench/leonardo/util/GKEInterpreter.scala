@@ -1022,7 +1022,7 @@ class GKEInterpreter[F[_]](
 
       _ <- if (!last.isDone) {
         val msg =
-          s"CromwellLocal installation has failed or timed out for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
+          s"Cromwell app installation has failed or timed out for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
         logger.error(ctx.loggingCtx)(msg) >>
           F.raiseError[Unit](AppCreationException(msg))
       } else F.unit
