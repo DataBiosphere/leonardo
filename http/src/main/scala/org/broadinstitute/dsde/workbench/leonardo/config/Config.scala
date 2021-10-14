@@ -598,6 +598,7 @@ object Config {
         chartName = config.as[ChartName]("chartName"),
         chartVersion = config.as[ChartVersion]("chartVersion"),
         namespaceNameSuffix = config.as[String]("namespaceNameSuffix"),
+        releaseNameSuffix = config.as[String]("releaseNameSuffix"),
         services = config.as[List[ServiceConfig]]("services"),
         serviceAccountName = config.as[ServiceAccountName]("serviceAccountName")
       )
