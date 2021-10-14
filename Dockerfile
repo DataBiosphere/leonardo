@@ -28,6 +28,7 @@ ENV TERRA_APP_VERSION 0.3.0
 # This is galaxykubeman 1.1.0, which references Galaxy 21.05
 ENV GALAXY_VERSION 1.1.0
 ENV NGINX_VERSION 3.23.0
+# If you update this here, make sure to also update reference.conf:
 ENV CROMWELL_LOCAL_VERSION 0.1.2
 
 RUN mkdir /leonardo

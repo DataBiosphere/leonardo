@@ -592,9 +592,9 @@ object Config {
     )
   }
 
-  implicit private val cromwellLocalAppConfigReader: ValueReader[CromwellLocalAppConfig] = ValueReader.relative {
+  implicit private val cromwellAppConfigReader: ValueReader[CromwellAppConfig] = ValueReader.relative {
     config =>
-      CromwellLocalAppConfig(
+      CromwellAppConfig(
         chartName = config.as[ChartName]("chartName"),
         chartVersion = config.as[ChartVersion]("chartVersion"),
         namespaceNameSuffix = config.as[String]("namespaceNameSuffix"),
@@ -645,7 +645,7 @@ object Config {
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
   val gkeIngressConfig = config.as[KubernetesIngressConfig]("gke.ingress")
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
-  val gkeCromwellLocalAppConfig = config.as[CromwellLocalAppConfig]("gke.cromwellLocalApp")
+  val gkeCromwellLocalAppConfig = config.as[CromwellAppConfig]("gke.cromwellLocalApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")

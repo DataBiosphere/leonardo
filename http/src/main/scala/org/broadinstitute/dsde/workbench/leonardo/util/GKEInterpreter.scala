@@ -383,8 +383,8 @@ class GKEInterpreter[F[_]](
             nfsDisk,
             galaxyRestore
           )
-        case AppType.CromwellLocal =>
-          installCromwellLocal(
+        case AppType.Cromwell =>
+          installCromwellApp(
             helmAuthContext,
             app.appName,
             app.release,
@@ -974,13 +974,13 @@ class GKEInterpreter[F[_]](
 
     } yield ()
 
-  private[util] def installCromwellLocal(helmAuthContext: AuthContext,
-                                         appName: AppName,
-                                         release: Release,
-                                         cluster: KubernetesCluster,
-                                         nodepoolName: NodepoolName,
-                                         namespaceName: NamespaceName)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    val chart = config.cromwellLocalAppConfig.chart
+  private[util] def installCromwellApp(helmAuthContext: AuthContext,
+                                       appName: AppName,
+                                       release: Release,
+                                       cluster: KubernetesCluster,
+                                       nodepoolName: NodepoolName,
+                                       namespaceName: NamespaceName)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    val chart = config.cromwellAppConfig.chart
 
     for {
       ctx <- ev.ask
@@ -989,7 +989,7 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart ${chart} for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
-      chartValues = buildCromwellLocalChartOverrideValuesString(appName, cluster, nodepoolName, namespaceName)
+      chartValues = buildCromwellAppChartOverrideValuesString(appName, cluster, nodepoolName, namespaceName)
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
       // Invoke helm
@@ -1013,7 +1013,7 @@ class GKEInterpreter[F[_]](
 
       // Poll the app until it starts up
       last <- streamFUntilDone(
-        config.cromwellLocalAppConfig.services
+        config.cromwellAppConfig.services
           .map(_.name)
           .traverse(s => appDao.isProxyAvailable(cluster.googleProject, appName, s)),
         config.monitorConfig.createApp.maxAttempts,
@@ -1226,10 +1226,10 @@ class GKEInterpreter[F[_]](
     )
   }
 
-  private[util] def buildCromwellLocalChartOverrideValuesString(appName: AppName,
-                                                                cluster: KubernetesCluster,
-                                                                nodepoolName: NodepoolName,
-                                                                namespaceName: NamespaceName): List[String] = {
+  private[util] def buildCromwellAppChartOverrideValuesString(appName: AppName,
+                                                              cluster: KubernetesCluster,
+                                                              nodepoolName: NodepoolName,
+                                                              namespaceName: NamespaceName): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -1239,22 +1239,20 @@ class GKEInterpreter[F[_]](
     // Some apps do not like behind behind a reverse proxy in this way, and require routing specified via this baseUrl
     // The two methods are mutually exclusive
     val ingress = List(
+      raw"""ingress.enabled=true""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
-      raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}"""
-    )
-
-    List(
-//      raw"""nameOverride=${serviceName}""",
-      // Ingress
-      raw"""ingress.enabled=true""",
+      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
       raw"""ingress.port=8000""", // TODO: Move port to .Values.service.port in chart
       raw"""ingress.path=${ingressPath}""",
       raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
+      raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
+    )
+
+    List(
       // Node selector
       raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}"""
     ) ++ ingress
@@ -1499,7 +1497,7 @@ final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
 final case class GKEInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig,
                                       ingressConfig: KubernetesIngressConfig,
                                       galaxyAppConfig: GalaxyAppConfig,
-                                      cromwellLocalAppConfig: CromwellLocalAppConfig,
+                                      cromwellAppConfig: CromwellAppConfig,
                                       customAppConfig: CustomAppConfig,
                                       monitorConfig: AppMonitorConfig,
                                       clusterConfig: KubernetesClusterConfig,

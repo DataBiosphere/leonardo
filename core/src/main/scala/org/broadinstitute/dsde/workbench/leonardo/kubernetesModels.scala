@@ -301,8 +301,8 @@ object AppType {
   case object Galaxy extends AppType {
     override def toString: String = "GALAXY"
   }
-  case object CromwellLocal extends AppType {
-    override def toString: String = "CROMWELL_LOCAL"
+  case object Cromwell extends AppType {
+    override def toString: String = "CROMWELL"
   }
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"

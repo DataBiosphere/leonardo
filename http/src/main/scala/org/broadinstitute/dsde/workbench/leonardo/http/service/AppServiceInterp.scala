@@ -13,7 +13,7 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesName
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.AppType.{CromwellLocal, Custom, Galaxy}
+import org.broadinstitute.dsde.workbench.leonardo.AppType.{Cromwell, Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -513,7 +513,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
     val now = ctx.now
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
     val galaxyConfig = leoKubernetesConfig.galaxyAppConfig
-    val cromwellConfig = leoKubernetesConfig.cromwellLocalAppConfig
+    val cromwellConfig = leoKubernetesConfig.cromwellAppConfig
 
     val allLabels =
       DefaultKubernetesLabels(googleProject,
@@ -564,7 +564,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
             galaxyConfig.chart
           else lastUsed.chart
         }
-        // TODO fix this for the cromwell case.
+        // TODO fix this for the cromwell case (BW-867)
         // For now for cromwell apps, the chart is wrong in the Leo DB.
         // Back Leo reads the chart from config instead of the DB.
         .getOrElse(galaxyConfig.chart)
@@ -596,7 +596,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           req.appType match {
             case Galaxy =>
               galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))
-            case CromwellLocal =>
+            case Cromwell =>
               cromwellConfig.services.map(config => KubernetesService(ServiceId(-1), config))
             case Custom =>
               // Back Leo will populate services when it parses the descriptor
@@ -622,7 +622,7 @@ object LeoAppServiceInterp {
                                  galaxyAppConfig: GalaxyAppConfig,
                                  galaxyDiskConfig: GalaxyDiskConfig,
                                  diskConfig: PersistentDiskConfig,
-                                 cromwellLocalAppConfig: CromwellLocalAppConfig)
+                                 cromwellAppConfig: CromwellAppConfig)
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {
     val aSplited = a.asString.split("\\.")
