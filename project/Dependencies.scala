@@ -3,14 +3,14 @@ import sbt._
 object Dependencies {
   val scalaV = "2.13"
 
-  val akkaV = "2.6.16"
+  val akkaV = "2.6.17"
   val akkaHttpV = "10.2.6"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.10"
   val slickV = "3.3.3"
-  val http4sVersion = "0.23.5"
+  val http4sVersion = "0.23.6"
   val guavaV = "31.0.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
@@ -61,7 +61,7 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.6"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.3"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.5"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
