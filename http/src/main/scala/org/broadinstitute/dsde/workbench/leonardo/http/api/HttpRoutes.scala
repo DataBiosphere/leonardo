@@ -10,7 +10,7 @@ import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.http.scaladsl.server.{Directive0, ExceptionHandler, RejectionHandler, Route, ValidationRejection}
 import akka.stream.scaladsl.Sink
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.Encoder
 import org.broadinstitute.dsde.workbench.leonardo.config.{RefererConfig, SwaggerConfig}
@@ -40,7 +40,7 @@ class HttpRoutes(
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String,
   refererConfig: RefererConfig
-)(implicit ec: ExecutionContext, ac: ActorSystem, cs: ContextShift[IO], metrics: OpenTelemetryMetrics[IO])
+)(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO])
     extends LazyLogging {
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)

@@ -1,12 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import cats.Parallel
-import cats.effect.{Async, Blocker, ContextShift}
+import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.{Operation, _}
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.{
   GoogleComputeService,
   GoogleDiskService,
@@ -28,6 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
@@ -41,14 +40,13 @@ final case class InstanceResourceConstraintsException(project: GoogleProject, ma
 final case class MissingServiceAccountException(projectAndName: RuntimeProjectAndName)
     extends LeoException(s"Cannot create instance ${projectAndName}: service account required", traceId = None)
 
-class GceInterpreter[F[_]: Parallel: ContextShift](
+class GceInterpreter[F[_]](
   config: GceInterpreterConfig,
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
   googleComputeService: GoogleComputeService[F],
   googleDiskService: GoogleDiskService[F],
-  welderDao: WelderDAO[F],
-  blocker: Blocker
+  welderDao: WelderDAO[F]
 )(implicit val executionContext: ExecutionContext,
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F],
@@ -136,7 +134,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
             .newBuilder()
             .setDescription("Leonardo Managed Boot Disk")
             .setSourceImage(config.gceConfig.sourceImage.asString)
-            .setDiskSizeGb(bootDiskSize.gb.toString)
+            .setDiskSizeGb(bootDiskSize.gb)
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )
@@ -172,7 +170,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                 AttachedDiskInitializeParams
                   .newBuilder()
                   .setDiskName(persistentDisk.name.value)
-                  .setDiskSizeGb(persistentDisk.size.gb.toString)
+                  .setDiskSizeGb(persistentDisk.size.gb)
                   .putAllLabels(Map("leonardo" -> "true").asJava)
                   .setDiskType(
                     persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject,
@@ -191,7 +189,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
             .setInitializeParams(
               AttachedDiskInitializeParams
                 .newBuilder()
-                .setDiskSizeGb(x.diskSize.gb.toString)
+                .setDiskSizeGb(x.diskSize.gb)
                 .build()
             )
             .setAutoDelete(true)
@@ -296,7 +294,12 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
                 .setAcceleratorCount(gc.numOfGpus)
                 .build()
             )
-            .setScheduling(Scheduling.newBuilder().setOnHostMaintenance("TERMINATE").build())
+            .setScheduling(
+              Scheduling
+                .newBuilder()
+                .setOnHostMaintenance(com.google.cloud.compute.v1.Scheduling.OnHostMaintenance.TERMINATE)
+                .build()
+            )
             //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
             .build()
         case None => instanceBuilder.build()
@@ -307,7 +310,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
 
       res = operation.map(o =>
         CreateGoogleRuntimeResponse(
-          AsyncRuntimeFields(GoogleId(o.getTargetId), OperationName(o.getName), stagingBucketName, None),
+          AsyncRuntimeFields(GoogleId(o.getTargetId.toString), OperationName(o.getName), stagingBucketName, None),
           initBucketName,
           BootSource.VmImage(config.gceConfig.sourceImage)
         )
@@ -324,7 +327,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
           "GceInterpreter shouldn't get a stop dataproc runtime request. Something is very wrong"
         )
       )
-      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, blocker)
+      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
       _ <- googleComputeService.addInstanceMetadata(
         params.runtimeAndRuntimeConfig.runtime.googleProject,
         zoneParam,
@@ -353,7 +356,6 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
       metadata <- getStartupScript(params.runtimeAndRuntimeConfig,
                                    params.welderAction,
                                    params.initBucket,
-                                   blocker,
                                    resourceConstraints,
                                    true)
       // remove the startup-script-url metadata entry if present which is only used at creation time
@@ -398,7 +400,7 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
             "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
           )
         )
-        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, blocker)
+        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
         _ <- googleComputeService
           .addInstanceMetadata(
             params.runtimeAndRuntimeConfig.runtime.googleProject,
@@ -425,10 +427,25 @@ class GceInterpreter[F[_]: Parallel: ContextShift](
   override def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     UpdateDiskSizeParams.gcePrism
       .getOption(params)
-      .traverse_(p =>
-        googleDiskService
-          .resizeDisk(p.googleProject, p.zone, p.diskName, p.diskSize.gb)
-      )
+      .traverse_ { p =>
+        for {
+          ctx <- ev.ask
+          _ <- googleDiskService
+            .resizeDisk(p.googleProject, p.zone, p.diskName, p.diskSize.gb)
+            .void
+            .recoverWith {
+              case e: com.google.api.gax.rpc.InvalidArgumentException =>
+                if (e.getMessage.contains("must be larger than existing size")) {
+                  // Sometimes pubsub messages get resent. So we don't want to fail resize if we get the second resize request.
+                  // This assumes we never send reducing size request to back leo
+                  logger.warn(ctx.loggingCtx, e)(
+                    "Disk resize failed due to invalid request. Ignore this error since target size and existing size are the same"
+                  )
+                } else F.raiseError[Unit](e)
+              case e => F.raiseError[Unit](e)
+            }
+        } yield ()
+      }
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     F.unit
@@ -469,7 +486,7 @@ object GceInterpreter {
   def instanceStatusToRuntimeStatus(instance: Option[Instance]): RuntimeStatus =
     instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(s =>
       GceInstanceStatus
-        .withNameInsensitiveOption(s.getStatus)
+        .withNameInsensitiveOption(s.getStatus.name)
         .map(RuntimeStatus.fromGceInstanceStatus)
         .getOrElse(RuntimeStatus.Unknown)
     )

@@ -1,24 +1,19 @@
 package org.broadinstitute.dsde.workbench.leonardo.dns
 
 import akka.http.scaladsl.model.Uri.Host
-import cats.effect.concurrent.Ref
-import cats.effect.implicits._
-import cats.effect.{Blocker, ContextShift, Effect, Timer}
+import cats.effect.{Async, Ref}
 import cats.syntax.all._
-import com.google.common.cache.{CacheBuilder, CacheLoader, CacheStats}
-import fs2.Stream
-import org.broadinstitute.dsde.workbench.leonardo.config.{CacheConfig, ProxyConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.leonardo.{GoogleId, Runtime, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
+import scalacache.Cache
 
-import java.util.concurrent.TimeUnit
 import scala.concurrent.ExecutionContext
 
 final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
@@ -30,49 +25,29 @@ final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: R
  * It also populates HostToIpMapping reference used by JupyterNameService to match a "fake" hostname to a
  * real IP address.
  */
-class RuntimeDnsCache[F[_]: ContextShift: Logger: Timer: OpenTelemetryMetrics](
+class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
-  cacheConfig: CacheConfig,
   hostToIpMapping: Ref[F, Map[Host, IP]],
-  blocker: Blocker
-)(implicit F: Effect[F], ec: ExecutionContext) {
-
+  runtimeDnsCache: Cache[F, HostStatus]
+)(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
-    blocker.blockOn(Effect[F].delay(projectClusterToHostStatus.get(key)))
-  def size: Long = projectClusterToHostStatus.size
-  def stats: CacheStats = projectClusterToHostStatus.stats
+    runtimeDnsCache.cachingF(key)(None)(getHostStatusHelper(key))
 
-  private val projectClusterToHostStatus = CacheBuilder
-    .newBuilder()
-    .expireAfterWrite(cacheConfig.cacheExpiryTime.toSeconds, TimeUnit.SECONDS)
-    .maximumSize(cacheConfig.cacheMaxSize)
-    .recordStats
-    .build(
-      new CacheLoader[RuntimeDnsCacheKey, HostStatus] {
-        def load(key: RuntimeDnsCacheKey): HostStatus = {
-          val res = for {
-            _ <- Logger[F].debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
-            runtimeOpt <- dbRef.inTransaction {
-              clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
-            }
-            hostStatus <- runtimeOpt match {
-              case Some(runtime) =>
-                hostStatusByProjectAndCluster(runtime)
-              case None =>
-                F.pure[HostStatus](HostNotFound)
-            }
-          } yield hostStatus
-
-          res.toIO.unsafeRunSync()
-        }
+  private def getHostStatusHelper(key: RuntimeDnsCacheKey): F[HostStatus] =
+    for {
+      _ <- Logger[F]
+        .debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
+      runtimeOpt <- dbRef.inTransaction {
+        clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
       }
-    )
-
-  val recordCacheMetricsProcess: Stream[F, Unit] =
-    CacheMetrics("runtimeDnsCache")
-      .process(() => Effect[F].delay(projectClusterToHostStatus.size),
-               () => Effect[F].delay(projectClusterToHostStatus.stats))
+      hostStatus <- runtimeOpt match {
+        case Some(runtime) =>
+          hostStatusByProjectAndCluster(runtime)
+        case None =>
+          F.pure[HostStatus](HostNotFound)
+      }
+    } yield hostStatus
 
   private def host(googleId: GoogleId): Host =
     Host(googleId.value + proxyConfig.proxyDomain)

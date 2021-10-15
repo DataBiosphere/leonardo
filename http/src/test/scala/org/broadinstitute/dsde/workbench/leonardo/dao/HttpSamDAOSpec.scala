@@ -1,12 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import java.nio.file.Paths
-
 import cats.effect.IO
-import cats.syntax.all._
-import org.typelevel.log4cats.slf4j.Slf4jLogger
+import cats.effect.std.Dispatcher
+import cats.effect.unsafe.implicits.global
+import com.github.benmanes.caffeine.cache.Caffeine
 import io.circe.parser._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config.httpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
@@ -17,7 +17,10 @@ import org.http4s.client.Client
 import org.http4s.client.middleware.{Retry, RetryPolicy}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
+import org.typelevel.log4cats.slf4j.Slf4jLogger
+import scalacache.caffeine.CaffeineCache
 
+import java.nio.file.Paths
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
@@ -28,6 +31,11 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
                                 10,
                                 ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test")))
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
+  val underlyingPetTokenCache = Caffeine
+    .newBuilder()
+    .maximumSize(httpSamDaoConfig.petCacheMaxSize)
+    .build[String, scalacache.Entry[Option[String]]]()
+  val petTokenCache = CaffeineCache[IO, Option[String]](underlyingPetTokenCache)
 
   "HttpSamDAO" should "get Sam ok status" in {
     val okResponse =
@@ -55,17 +63,21 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config, blocker)
-    val expectedResponse = StatusCheckResponse(
-      true,
-      Map(
-        OpenDJ -> SubsystemStatus(true, None),
-        GoogleIam -> SubsystemStatus(true, None),
-        GoogleGroups -> SubsystemStatus(true, None),
-        GooglePubSub -> SubsystemStatus(true, None)
+    val res = Dispatcher[IO].use { d =>
+      val samDao = new HttpSamDAO(okSam, config, petTokenCache)
+      val expectedResponse = StatusCheckResponse(
+        true,
+        Map(
+          OpenDJ -> SubsystemStatus(true, None),
+          GoogleIam -> SubsystemStatus(true, None),
+          GoogleGroups -> SubsystemStatus(true, None),
+          GooglePubSub -> SubsystemStatus(true, None)
+        )
       )
-    )
-    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
+      samDao.getStatus.map(s => s shouldBe expectedResponse)
+    }
+
+    res.unsafeRunSync
   }
 
   it should "get Sam ok status with no systems" in {
@@ -81,10 +93,10 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(okResponse)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config, blocker)
+    val samDao = new HttpSamDAO(okSam, config, petTokenCache)
     val expectedResponse = StatusCheckResponse(true, Map.empty)
 
-    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
+    samDao.getStatus.map(s => s shouldBe expectedResponse)
   }
 
   it should "get Sam unhealthy status with no systems" in {
@@ -107,13 +119,18 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val samDao = new HttpSamDAO(okSam, config, blocker)
-    val expectedResponse =
-      StatusCheckResponse(false,
-                          Map(GoogleIam -> SubsystemStatus(true, None),
-                              OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
+    val res = Dispatcher[IO].use { d =>
+      val samDao = new HttpSamDAO(okSam, config, petTokenCache)
+      val expectedResponse =
+        StatusCheckResponse(false,
+                            Map(GoogleIam -> SubsystemStatus(true, None),
+                                OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
 
-    samDao.getStatus.unsafeRunSync() shouldBe expectedResponse
+      samDao.getStatus.map(s => s shouldBe expectedResponse)
+    }
+
+    res.unsafeRunSync
+
   }
 
   it should "throws exception once client times out" in {
@@ -125,15 +142,18 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       }
     )
     val clientWithRetry = Retry(retryPolicy)(errorSam)
-    val samDao = new HttpSamDAO(clientWithRetry, config, blocker)
 
-    val res = for {
-      result <- samDao.getStatus.attempt
-    } yield {
-      result shouldBe Left(FakeException("retried 5 times"))
+    val res = Dispatcher[IO].use { d =>
+      val samDao = new HttpSamDAO(clientWithRetry, config, petTokenCache)
+
+      for {
+        result <- samDao.getStatus.attempt
+      } yield {
+        result shouldBe Left(FakeException("retried 5 times"))
+      }
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }
 

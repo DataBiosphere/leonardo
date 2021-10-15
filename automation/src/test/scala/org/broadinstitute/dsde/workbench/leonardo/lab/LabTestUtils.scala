@@ -3,13 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo.lab
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.openqa.selenium.WebDriver
-import org.scalatest.Suite
+import org.scalatest.TestSuite
 
 import scala.concurrent._
 import scala.concurrent.duration._
 
 trait LabTestUtils extends LeonardoTestUtils {
-  this: Suite =>
+  this: TestSuite =>
 
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
     case _: KernelNotReadyException => true
@@ -20,11 +20,11 @@ trait LabTestUtils extends LeonardoTestUtils {
 
   def withLabLauncherPage[T](cluster: ClusterCopy)(testCode: LabLauncherPage => T)(implicit webDriver: WebDriver,
                                                                                    token: AuthToken): T = {
-    val labLauncherPage = lab.Lab.get(cluster.googleProject, cluster.clusterName)
+    val labLauncherPage = Lab.get(cluster.googleProject, cluster.clusterName)
     testCode(labLauncherPage.open)
   }
 
-  def withNewLabNotebook[T](cluster: ClusterCopy, kernel: LabKernel = lab.Python2, timeout: FiniteDuration = 2.minutes)(
+  def withNewLabNotebook[T](cluster: ClusterCopy, kernel: LabKernel = Python3, timeout: FiniteDuration = 2.minutes)(
     testCode: LabNotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withLabLauncherPage(cluster) { labLauncherPage =>

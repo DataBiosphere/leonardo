@@ -2,9 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
-import cats.effect.{Async, ContextShift, Timer}
-import cats.syntax.all._
+import cats.effect.Async
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
@@ -43,7 +43,7 @@ final case class FirewallNotReadyException(project: GoogleProject, firewall: Fir
     extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time",
                          traceId = None)
 
-final class VPCInterpreter[F[_]: Parallel: ContextShift: StructuredLogger: Timer](
+final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
   config: VPCInterpreterConfig,
   googleResourceService: GoogleResourceService[F],
   googleComputeService: GoogleComputeService[F],

@@ -1,6 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
-import cats.effect.{IO, Timer}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.openqa.selenium.WebDriver
 
@@ -10,11 +9,6 @@ import scala.util.{Failure, Success, Try}
 sealed trait LabKernel {
   def string: String
   def cssSelectorString: String
-}
-
-case object Python2 extends LabKernel {
-  def string: String = "Python 2"
-  override def cssSelectorString: String = "[title='Python 2'][data-category='Notebook']"
 }
 
 case object Python3 extends LabKernel {
@@ -37,10 +31,10 @@ case object RKernel extends LabKernel {
   override def cssSelectorString: String = "[title='R'][data-category='Notebook']"
 }
 
-class LabLauncherPage(override val url: String)(implicit override val authToken: AuthToken,
-                                                override val webDriver: WebDriver,
-                                                override val timer: Timer[IO])
-    extends LabPage {
+class LabLauncherPage(override val url: String)(
+  implicit override val authToken: AuthToken,
+  override val webDriver: WebDriver
+) extends LabPage {
 
   override def open(implicit webDriver: WebDriver): LabLauncherPage = super.open.asInstanceOf[LabLauncherPage]
 

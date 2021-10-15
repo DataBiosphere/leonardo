@@ -28,6 +28,7 @@ import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
+
 import java.nio.charset.{Charset, StandardCharsets}
 import java.util.UUID
 import org.scalatest.tagobjects.Retryable
@@ -91,7 +92,7 @@ class RuntimeDataprocSpec
       } yield ()
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "should create a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
@@ -140,7 +141,7 @@ class RuntimeDataprocSpec
       } yield ()
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "should stop/start a Dataproc cluster with workers and preemptible workers" taggedAs Retryable in { project =>
@@ -279,7 +280,7 @@ class RuntimeDataprocSpec
       } yield ()
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def verifyDataproc(project: GoogleProject,

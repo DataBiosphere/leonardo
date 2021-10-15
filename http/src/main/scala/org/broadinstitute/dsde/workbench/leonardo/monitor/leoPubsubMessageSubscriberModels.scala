@@ -11,6 +11,7 @@ import org.broadinstitute.dsde.workbench.google2.JsonCodec.{traceIdDecoder, trac
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.config.GalaxyDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocInCreateRuntimeMsgToDataprocRuntime,
   RuntimeConfigRequest
@@ -838,6 +839,7 @@ final case class PersistentDiskMonitorConfig(create: PollMonitorConfig,
 
 final case class LeoPubsubMessageSubscriberConfig(concurrency: Int,
                                                   timeout: FiniteDuration,
-                                                  persistentDiskMonitorConfig: PersistentDiskMonitorConfig)
+                                                  persistentDiskMonitorConfig: PersistentDiskMonitorConfig,
+                                                  galaxyDiskConfig: GalaxyDiskConfig)
 
 final case class DiskDetachStatus(disk: Option[Disk], originalDetachTimestampOpt: Option[String])

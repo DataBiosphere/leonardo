@@ -4,8 +4,9 @@ package service
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Host
-import cats.effect.{Blocker, ContextShift, IO, Timer}
-import fs2.concurrent.InspectableQueue
+import cats.effect.IO
+import cats.effect.std.Queue
+import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
@@ -14,10 +15,12 @@ import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
+import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
+import scalacache.Cache
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 class MockProxyService(
@@ -26,15 +29,14 @@ class MockProxyService(
   authProvider: LeoAuthProvider[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
+  googleTokenCache: Cache[IO, (UserInfo, Instant)],
+  samResourceCache: Cache[IO, Option[String]],
   googleOauth2Service: GoogleOAuth2Service[IO],
   samDAO: Option[SamDAO[IO]] = None,
-  queue: Option[InspectableQueue[IO, UpdateDateAccessMessage]] = None
+  queue: Option[Queue[IO, UpdateDateAccessMessage]] = None
 )(implicit system: ActorSystem,
   executionContext: ExecutionContext,
-  timer: Timer[IO],
-  cs: ContextShift[IO],
   dbRef: DbReference[IO],
-  metrics: OpenTelemetryMetrics[IO],
   logger: StructuredLogger[IO])
     extends ProxyService(TestUtils.sslContext(system),
                          proxyConfig,
@@ -42,11 +44,12 @@ class MockProxyService(
                          runtimeDnsCache,
                          kubernetesDnsCache,
                          authProvider,
-                         queue.getOrElse(InspectableQueue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
+                         queue.getOrElse(Queue.bounded[IO, UpdateDateAccessMessage](100).unsafeRunSync),
                          googleOauth2Service,
                          LocalProxyResolver,
                          samDAO.getOrElse(new MockSamDAO()),
-                         Blocker.liftExecutionContext(ExecutionContext.global)) {
+                         googleTokenCache,
+                         samResourceCache) {
 
   override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost")))

@@ -10,28 +10,27 @@ object Dependencies {
   val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.10"
   val slickV = "3.3.3"
-  val http4sVersion = "0.21.26"
+  val http4sVersion = "0.23.5"
   val guavaV = "31.0.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
 
-  private val workbenchLibsHash = "bf66e61"
-  val serviceTestV = s"0.19-$workbenchLibsHash"
+  private val workbenchLibsHash = "4cb37a0"
+  val serviceTestV = s"0.20-$workbenchLibsHash"
   val workbenchModelV = s"0.14-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.21-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.1-$workbenchLibsHash"
-  val workbenchErrorReportingV = s"0.1-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.22-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.2-$workbenchLibsHash"
+  val workbenchErrorReportingV = s"0.2-$workbenchLibsHash"
 
-  val helmScalaSdkV = "0.0.3"
+  val helmScalaSdkV = "0.0.4"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")
   val excludeAkkaHttpSprayJson = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http-spray-json_${scalaV}")
   val excludeGuavaJDK5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeGuava = ExclusionRule(organization = "com.google.guava", name = "guava")
-  val excludeWorkbenchModel = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-model_${scalaV}")
   val excludeWorkbenchMetrics = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-metrics_${scalaV}")
   val excludeIoGrpc = ExclusionRule(organization = "io.grpc", name = "grpc-core")
   val excludeFindbugsJsr = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
@@ -93,7 +92,6 @@ object Dependencies {
     excludeStatsD,
     excludeKms)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (
-    excludeWorkbenchModel,
     excludeWorkbenchMetrics,
     excludeIoGrpc,
     excludeFindbugsJsr,
@@ -110,7 +108,7 @@ object Dependencies {
     excludeSundrCodegen,
     excludeGuava)
 
-  val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeGuava, excludeStatsD)
+  val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
@@ -125,11 +123,9 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.5.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.2" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.10" % Test // brought in for FakeStorageInterpreter
 
-  val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
-  val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
@@ -153,9 +149,7 @@ object Dependencies {
     "com.github.pureconfig" %% "pureconfig" % "0.17.0" % Provided,
     sealerate,
     enumeratum,
-    http4sCirce,
     circeYaml,
-    http4sBlazeClient,
     http4sDsl,
     scalaTestScalaCheck
   )

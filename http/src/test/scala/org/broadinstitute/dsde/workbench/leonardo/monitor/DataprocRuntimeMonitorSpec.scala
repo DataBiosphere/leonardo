@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
+import java.time.Instant
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{AccessConfig, Instance, NetworkInterface, Operation}
@@ -32,7 +33,6 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
 
-import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
@@ -44,7 +44,10 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       status = RuntimeStatus.Creating
     )
     val monitorContext =
-      MonitorContext(Instant.now(), runtime.id, appContext.ask.unsafeRunSync().traceId, RuntimeStatus.Creating)
+      MonitorContext(Instant.now(),
+                     runtime.id,
+                     appContext.ask.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).traceId,
+                     RuntimeStatus.Creating)
 
     val res = for {
       savedRuntime <- IO(runtime.save())
@@ -55,7 +58,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will check again status is either Creating or Unknown" in isolatedDbTest {
@@ -87,7 +90,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r2._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will check again status is Running but not all instances are running" in isolatedDbTest {
@@ -113,7 +116,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will error if can't find zone for master instance" in isolatedDbTest {
@@ -140,7 +143,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error.head.errorMessage shouldBe ("Can't find master instance for this cluster")
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will persist error if cluster is in Error state" in isolatedDbTest {
@@ -167,7 +170,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error.head.errorMessage shouldBe ("Error not available")
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will error if cluster is in unexpected state when trying to create" in isolatedDbTest {
@@ -194,7 +197,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error.head.errorMessage shouldBe ("unexpected Dataproc cluster status Updating when trying to creating an instance")
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will try to persist user script error if cluster is in Error state but no error shown from dataproc" in isolatedDbTest {
@@ -222,7 +225,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error.head.errorMessage shouldBe ("Error not available")
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will persist error if cluster is in Error state when Creating" in isolatedDbTest {
@@ -258,7 +261,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error.head.errorMessage shouldBe ("time out")
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "startingRuntime" should "will check again if not all instances are Running when trying to start" in isolatedDbTest {
@@ -283,7 +286,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will check again if master instance doesn't have IP when trying to start" in isolatedDbTest {
@@ -308,7 +311,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "will persist error if cluster is in Error state when Starting" in isolatedDbTest {
@@ -334,7 +337,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error.head.errorMessage shouldBe ("Cluster failed to start")
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "stoppingRuntime" should "check again if there's still instance Running" in isolatedDbTest {
@@ -357,7 +360,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe (Some(Check(runtimeAndRuntimeConfig, None)))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "stoppingRuntime" should "update DB when all instances are stopped" in isolatedDbTest {
@@ -382,7 +385,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       updatedStatus shouldBe (Some(RuntimeStatus.Stopped))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "terminate monitoring stopping if cluster doesn't exist" in isolatedDbTest {
@@ -407,7 +410,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       )
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "updatingRuntime" should "terminate monitoring stopping if cluster doesn't exist" in isolatedDbTest {
@@ -434,7 +437,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       error.head.errorMessage shouldBe (s"-1/${ctx.traceId.asString} | Can't update an instance that hasn't been initialized yet or doesn't exist")
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "check again if cluster is still being updated" in isolatedDbTest {
@@ -457,7 +460,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe Some(Check(runtimeAndRuntimeConfig, None))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "check again if not all instances are Running" in isolatedDbTest {
@@ -482,7 +485,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe Some(Check(runtimeAndRuntimeConfig, None))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "check again if instance IP is not available yet" in isolatedDbTest {
@@ -507,7 +510,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe Some(Check(runtimeAndRuntimeConfig, None))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "complete update" in isolatedDbTest {
@@ -534,7 +537,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       status.head shouldBe (RuntimeStatus.Running)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "deleteRuntime" should "check again if cluster still exists" in isolatedDbTest {
@@ -557,7 +560,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       r._2 shouldBe Some(Check(runtimeAndRuntimeConfig, None))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete runtime if runtime no longer exists in google" in isolatedDbTest {
@@ -581,7 +584,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       status shouldBe Some(RuntimeStatus.Deleted)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   val successToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = _ => MockToolDAO(true)
@@ -627,8 +630,8 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ): IO[Option[Instance]] = {
         val instanceBuilder = Instance
           .newBuilder()
-          .setStatus(status.toString)
-          .setId("100")
+          .setStatus(status.instanceStatus)
+          .setId(100)
         val instance = ip.fold(instanceBuilder.build()) { i =>
           instanceBuilder
             .addNetworkInterfaces(

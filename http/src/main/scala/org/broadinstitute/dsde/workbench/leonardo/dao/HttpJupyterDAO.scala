@@ -1,6 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
-import cats.effect.{Concurrent, ContextShift, Timer}
+import cats.effect.Async
 import cats.syntax.all._
 import io.circe.Decoder
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
@@ -15,8 +15,8 @@ import org.http4s.{Method, Request, Uri}
 import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
-class HttpJupyterDAO[F[_]: Timer: ContextShift](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
-  implicit F: Concurrent[F],
+class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
+  implicit F: Async[F],
   logger: Logger[F]
 ) extends JupyterDAO[F] {
   def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =

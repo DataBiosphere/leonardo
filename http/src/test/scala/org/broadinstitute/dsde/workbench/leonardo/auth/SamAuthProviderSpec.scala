@@ -4,18 +4,22 @@ package auth
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.data.NonEmptyList
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
+import com.github.benmanes.caffeine.cache.Caffeine
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchUserId}
 import org.scalatest._
 import org.scalatest.flatspec.AnyFlatSpec
+import scalacache.Cache
+import scalacache.caffeine.CaffeineCache
 
-import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
+import scala.concurrent.duration._
 
 class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter {
   val samAuthProviderConfigWithoutCache: SamAuthProviderConfig = SamAuthProviderConfig(false)
@@ -35,16 +39,18 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   val projectOwnerAuthHeader = MockSamDAO.userEmailToAuthorization(MockSamDAO.projectOwnerEmail)
   val authHeader = MockSamDAO.userEmailToAuthorization(userInfo.userEmail)
 
+  val underlyingCaffeineCache = Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[Boolean]]()
+  implicit val authCache: Cache[IO, Boolean] = CaffeineCache[IO, Boolean](underlyingCaffeineCache)
   var mockSam: MockSamDAO = _
   var samAuthProvider: SamAuthProvider[IO] = _
   var samAuthProviderWithCache: SamAuthProvider[IO] = _
 
   before {
     setUpMockSam()
-    samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider, blocker)
+    authCache.removeAll
+    samAuthProvider = new SamAuthProvider(mockSam, samAuthProviderConfigWithoutCache, serviceAccountProvider, authCache)
     samAuthProviderWithCache =
-      new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider, blocker)
-
+      new SamAuthProvider(mockSam, samAuthProviderConfigWithCache, serviceAccountProvider, authCache)
   }
 
   "SamAuthProvider" should "check resource permissions" in {
@@ -157,8 +163,14 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .getActions(ProjectSamResourceId(project), projectOwnerUserInfo)
       .unsafeRunSync()
       .toSet shouldBe ProjectAction.allActions
-    samAuthProvider.getActions(runtimeSamResource, userInfo).unsafeRunSync().toSet shouldBe RuntimeAction.allActions
-    samAuthProvider.getActions(diskSamResource, userInfo).unsafeRunSync().toSet shouldBe PersistentDiskAction.allActions
+    samAuthProvider
+      .getActions(runtimeSamResource, userInfo)
+      .unsafeRunSync()
+      .toSet shouldBe RuntimeAction.allActions
+    samAuthProvider
+      .getActions(diskSamResource, userInfo)
+      .unsafeRunSync()
+      .toSet shouldBe PersistentDiskAction.allActions
     samAuthProvider.getActions(appSamId, userInfo).unsafeRunSync().toSet shouldBe AppAction.allActions
     samAuthProvider
       .getActions(appSamId, projectOwnerUserInfo)
@@ -166,7 +178,9 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .toSet shouldBe MockSamDAO.appManagerActions
 
     // negative tests
-    samAuthProvider.getActions(ProjectSamResourceId(project), unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
+    samAuthProvider
+      .getActions(ProjectSamResourceId(project), unauthorizedUserInfo)
+      .unsafeRunSync() shouldBe List.empty
     samAuthProvider.getActions(runtimeSamResource, unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
     samAuthProvider.getActions(runtimeSamResource, projectOwnerUserInfo).unsafeRunSync() shouldBe List.empty
     samAuthProvider.getActions(diskSamResource, unauthorizedUserInfo).unsafeRunSync() shouldBe List.empty
@@ -203,8 +217,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   }
 
   it should "cache hasPermission results" in {
-    // cache should be empty
-    samAuthProviderWithCache.authCache.size shouldBe 0
+    underlyingCaffeineCache.asMap().size shouldBe 0
 
     // these actions should be cached
     List(ProjectAction.GetRuntimeStatus, ProjectAction.ReadPersistentDisk).foreach { a =>
@@ -216,6 +229,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       samAuthProviderWithCache
         .hasPermission(runtimeSamResource, a, userInfo)
         .unsafeRunSync() shouldBe true
+//    This is duplicated to make sure cache works as expected
       samAuthProviderWithCache
         .hasPermission(runtimeSamResource, a, userInfo)
         .unsafeRunSync() shouldBe true
@@ -261,8 +275,9 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     }
 
     // check cache
-    samAuthProviderWithCache.authCache.size shouldBe 7
-    samAuthProviderWithCache.authCache.asMap().asScala.keySet shouldBe
+    val cacheMap = underlyingCaffeineCache.asMap()
+    cacheMap.size shouldBe 7
+    cacheMap.asScala.keySet.toSet should contain theSameElementsAs
       Set(
         AuthCacheKey(SamResourceType.Project,
                      project.value,
@@ -286,8 +301,8 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
                      PersistentDiskAction.ReadPersistentDisk.asString),
         AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.GetAppStatus.asString),
         AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.ConnectToApp.asString)
-      )
-    samAuthProviderWithCache.authCache.asMap().asScala.values.toSet shouldBe Set(true)
+      ).map(_.toString)
+    cacheMap.asScala.values.map(_.value).toSet shouldBe Set(true)
   }
 
   it should "create a resource" in {
@@ -405,7 +420,7 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe List.empty
   }
 
-  private def setUpMockSam(): Unit = {
+  private def setUpMockSam(): SamDAO[IO] = {
     mockSam = new MockSamDAO
     // set up mock sam with a project, runtime, disk, and app
     mockSam.createResource(ProjectSamResourceId(project), MockSamDAO.projectOwnerEmail, project).unsafeRunSync()
@@ -429,5 +444,6 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     mockSam.apps.get((appSamId, projectOwnerAuthHeader)) shouldBe Some(
       MockSamDAO.appManagerActions
     )
+    mockSam
   }
 }

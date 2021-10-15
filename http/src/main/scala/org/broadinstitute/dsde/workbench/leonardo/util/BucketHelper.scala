@@ -1,13 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import java.nio.charset.StandardCharsets
 import _root_.org.typelevel.log4cats.Logger
-import cats.Parallel
 import cats.data.NonEmptyList
-import cats.effect.{Async, Blocker, Concurrent, ContextShift}
-import cats.syntax.all._
+import cats.effect.Async
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.Identity
 import fs2._
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GoogleStorageService, StorageRole}
@@ -16,12 +14,14 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{LeoInternalServerError,
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject, ServiceAccountKey}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 
+import java.nio.charset.StandardCharsets
 import scala.io.Source
 
-class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
-                                                 google2StorageDAO: GoogleStorageService[F],
-                                                 serviceAccountProvider: ServiceAccountProvider[F],
-                                                 blocker: Blocker)(implicit val logger: Logger[F], F: Concurrent[F]) {
+class BucketHelper[F[_]](
+  config: BucketHelperConfig,
+  google2StorageDAO: GoogleStorageService[F],
+  serviceAccountProvider: ServiceAccountProvider[F]
+)(implicit val logger: Logger[F], F: Async[F]) {
 
   val leoEntity = serviceAccountIdentity(Config.serviceAccountProviderConfig.leoServiceAccountEmail)
 
@@ -119,7 +119,7 @@ class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
           config.clusterFilesConfig.rstudioLicenseFile
         )
       )
-      _ <- TemplateHelper.fileStream[F](f, blocker) through google2StorageDAO.streamUploadBlob(
+      _ <- TemplateHelper.fileStream[F](f) through google2StorageDAO.streamUploadBlob(
         initBucketName,
         GcsBlobName(f.getFileName.toString)
       )
@@ -139,7 +139,7 @@ class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
         )
         .covary[F]
         .evalMap { r =>
-          (TemplateHelper.resourceStream[F](r, blocker) through google2StorageDAO.streamUploadBlob(
+          (TemplateHelper.resourceStream[F](r) through google2StorageDAO.streamUploadBlob(
             initBucketName,
             GcsBlobName(r.asString)
           )).compile.drain
@@ -165,7 +165,8 @@ class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
           .fromIterator(
             Source
               .fromResource(s"${ClusterResourcesConfig.basePath}/${gpuDockerCompose.asString}")
-              .getLines()
+              .getLines(),
+            1024
           )
           .intersperse("\n") ++ Stream.emit(additionalGpuConfigString).covary[F]).flatMap(s =>
           Stream.emits(s.getBytes(java.nio.charset.Charset.forName("UTF-8"))).covary[F]
@@ -186,7 +187,7 @@ class BucketHelper[F[_]: ContextShift: Parallel](config: BucketHelperConfig,
           )
         )
         .evalMap { r =>
-          (TemplateHelper.templateResource[F](replacements, r, blocker) through google2StorageDAO.streamUploadBlob(
+          (TemplateHelper.templateResource[F](replacements, r) through google2StorageDAO.streamUploadBlob(
             initBucketName,
             GcsBlobName(r.asString)
           )).compile.drain

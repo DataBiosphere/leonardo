@@ -9,7 +9,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.{GcsPathUtils, RuntimeContainerServiceType, RuntimeStatus}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import cats.syntax.all._
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito._
 import org.scalatest.concurrent.Eventually.eventually
@@ -114,12 +113,12 @@ class ClusterToolMonitorSpec
                                                              ArgumentMatchers.any[Map[String, String]])
         }
 
-        val res = testTimer.sleep(clusterToolConfig.pollPeriod) >> IO(
+        val res = IO.sleep(clusterToolConfig.pollPeriod) >> IO(
           verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
                                                          ArgumentMatchers.anyLong(),
                                                          ArgumentMatchers.any[Map[String, String]])
         )
-        res.unsafeRunSync
+        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 

@@ -2,11 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-
+import cats.syntax.all._
 import cats.data.Chain
 import cats.effect.IO
-import cats.effect.concurrent.Deferred
-import fs2.concurrent.InspectableQueue
+import cats.effect.Deferred
+import cats.effect.std.Queue
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
@@ -53,8 +53,8 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     ).covary[IO]
 
     for {
-      queue <- InspectableQueue.bounded[IO, UpdateDateAccessMessage](10)
-      _ <- (messagesToEnqueue through queue.enqueue).compile.drain
+      queue <- Queue.bounded[IO, UpdateDateAccessMessage](10)
+      _ <- (messagesToEnqueue through (in => in.evalMap(m => queue.offer(m)))).compile.drain
       _ <- monitor(queue)(5 seconds)
       updatedRuntime1 <- clusterQuery.getClusterById(runtime1.id).transaction
       updatedRuntime2 <- clusterQuery.getClusterById(runtime2.id).transaction
@@ -65,11 +65,11 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
   }
 
   private def monitor(
-    queue: InspectableQueue[IO, UpdateDateAccessMessage]
+    queue: Queue[IO, UpdateDateAccessMessage]
   )(waitDuration: FiniteDuration): IO[Unit] = {
     val monitor = new DateAccessedUpdater[IO](Config.dateAccessUpdaterConfig, queue)
     val process = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
-      val signal = Stream.sleep(waitDuration).evalMap(_ => signalToStop.complete(()))
+      val signal = Stream.sleep[IO](waitDuration).evalMap(_ => signalToStop.complete(())).void
       val p = Stream(monitor.process.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ()))), signal)
         .parJoin(2)
       p ++ Stream.eval(signalToStop.get)

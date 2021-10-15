@@ -3,7 +3,6 @@ package http
 package db
 
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
@@ -74,7 +73,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val savedCluster1 = makeKubeCluster(1).save()
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
-    val disk = makePersistentDisk(None).save().unsafeRunSync()
+    val disk = makePersistentDisk(None).save().unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val basicApp = makeApp(1, savedNodepool1.id)
     val complexApp = basicApp.copy(appResources =
       basicApp.appResources.copy(
@@ -275,11 +274,11 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val saveResult2IO = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2).transaction
 
     the[KubernetesAppCreationException] thrownBy {
-      saveResult1IO.unsafeRunSync()
+      saveResult1IO.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
     the[KubernetesAppCreationException] thrownBy {
-      saveResult2IO.unsafeRunSync()
+      saveResult2IO.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 
@@ -300,7 +299,10 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
       )
       .get
 
-    val saveResult = KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2).transaction.unsafeRunSync()
+    val saveResult = KubernetesServiceDbQueries
+      .saveOrGetClusterForApp(saveCluster2)
+      .transaction
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     // We are verifying it saved a new cluster here.
     // We don't know the ID, but the method not returning the original DELETED cluster is sufficient
     saveResult.minimalCluster.id should not be savedCluster1.id
@@ -354,8 +356,8 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val now = Instant.now()
     val error1 = AppError("error1", now, ErrorAction.CreateApp, ErrorSource.App, Some(1))
     val error2 = AppError("error2", now, ErrorAction.DeleteApp, ErrorSource.Nodepool, Some(2))
-    appErrorQuery.save(savedApp1.id, error1).transaction.unsafeRunSync()
-    appErrorQuery.save(savedApp1.id, error2).transaction.unsafeRunSync()
+    appErrorQuery.save(savedApp1.id, error1).transaction.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    appErrorQuery.save(savedApp1.id, error2).transaction.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val getApp = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
@@ -371,7 +373,10 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val savedNodepool2 = makeNodepool(2, savedCluster1.id).copy(status = NodepoolStatus.Running).save()
     val app2 = makeApp(1, savedNodepool2.id).copy(status = AppStatus.Running).save()
 
-    KubernetesServiceDbQueries.hasClusterOperationInProgress(savedCluster1.id).transaction.unsafeRunSync() shouldBe true
+    KubernetesServiceDbQueries
+      .hasClusterOperationInProgress(savedCluster1.id)
+      .transaction
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe true
   }
 
   it should "list Error'd apps if the underlying cluster is deleted" in {

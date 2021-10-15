@@ -428,14 +428,6 @@ object Config {
         c.getInt("max-concurrent-tasks")
       )
   }
-  implicit private val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
-    ValueReader.relative { config =>
-      LeoPubsubMessageSubscriberConfig(
-        config.getInt("concurrency"),
-        config.as[FiniteDuration]("timeout"),
-        config.as[PersistentDiskMonitorConfig]("persistent-disk-monitor")
-      )
-    }
 
   val dateAccessUpdaterConfig = config.as[DateAccessedUpdaterConfig]("dateAccessedUpdater")
   val applicationConfig = config.as[ApplicationConfig]("application")
@@ -645,6 +637,17 @@ object Config {
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
+
+  implicit private val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
+    ValueReader.relative { config =>
+      LeoPubsubMessageSubscriberConfig(
+        config.getInt("concurrency"),
+        config.as[FiniteDuration]("timeout"),
+        config.as[PersistentDiskMonitorConfig]("persistent-disk-monitor"),
+        gkeGalaxyDiskConfig
+      )
+    }
+
   val leoKubernetesConfig = LeoKubernetesConfig(
     kubeServiceAccountProviderConfig,
     gkeClusterConfig,
