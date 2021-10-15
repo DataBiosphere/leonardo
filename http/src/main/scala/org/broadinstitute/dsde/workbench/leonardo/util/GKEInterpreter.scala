@@ -906,7 +906,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Installing helm chart ${chart} for Galaxy app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
       postgresDiskNameOpt <- for {
         disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, nfsDisk.googleProject, nfsDisk.zone)
@@ -980,13 +980,14 @@ class GKEInterpreter[F[_]](
                                        cluster: KubernetesCluster,
                                        nodepoolName: NodepoolName,
                                        namespaceName: NamespaceName)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+    // TODO: Use the chart from the database instead of re-looking it up in config:
     val chart = config.cromwellAppConfig.chart
 
     for {
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${chart} for app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
+        s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
       chartValues = buildCromwellAppChartOverrideValuesString(appName, cluster, nodepoolName, namespaceName)
@@ -1008,7 +1009,7 @@ class GKEInterpreter[F[_]](
       retryConfig = RetryPredicates.retryAllConfig
       _ <- tracedRetryF(retryConfig)(
         helmInstall,
-        s"helm install for app ${appName.value} in project ${cluster.googleProject.value}"
+        s"helm install for CROMWELL app ${appName.value} in project ${cluster.googleProject.value}"
       ).compile.lastOrError
 
       // Poll the app until it starts up
@@ -1047,7 +1048,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${config.customAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Installing helm chart ${config.customAppConfig.chart} for custom app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
       desc <- F.fromOption(descriptorOpt, AppRequiresDescriptorException(appId))
@@ -1235,16 +1236,12 @@ class GKEInterpreter[F[_]](
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
 
     val rewriteTarget = "$2"
-    // These nginx an ingress rules are condition.
-    // Some apps do not like behind behind a reverse proxy in this way, and require routing specified via this baseUrl
-    // The two methods are mutually exclusive
     val ingress = List(
       raw"""ingress.enabled=true""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://${k8sProxyHost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.port=8000""", // TODO: Move port to .Values.service.port in chart
       raw"""ingress.path=${ingressPath}""",
       raw"""ingress.hosts[0].host=${k8sProxyHost}""",
       raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}""",
