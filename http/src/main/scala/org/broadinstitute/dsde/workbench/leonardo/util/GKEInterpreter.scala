@@ -1104,7 +1104,7 @@ class GKEInterpreter[F[_]](
       helmInstall = helmClient
         .installChart(
           release,
-          config.customAppConfig.chartName,
+          config.customAppConfig.chartName, // TODO: Use the chart from the database instead of re-looking it up in config?
           config.customAppConfig.chartVersion,
           org.broadinstitute.dsp.Values(chartValues)
         )
