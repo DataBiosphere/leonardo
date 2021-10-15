@@ -236,7 +236,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             r <- if (runtimeAndRuntimeConfig.runtime.status == RuntimeStatus.Starting) {
               for {
                 _ <- runtimeAlg.stopRuntime(
-                  StopRuntimeParams(runtimeAndRuntimeConfig, now)
+                  StopRuntimeParams(runtimeAndRuntimeConfig, now, true)
                 )
                 // Stopping the runtime
                 _ <- clusterQuery

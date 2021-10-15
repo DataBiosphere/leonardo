@@ -340,7 +340,8 @@ class DataprocInterpreter[F[_]: Parallel](
         params.runtimeAndRuntimeConfig.runtime.googleProject,
         region,
         DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
-        Some(metadata)
+        Some(metadata),
+        params.isDataprocFullStop
       )
     } yield None
 
