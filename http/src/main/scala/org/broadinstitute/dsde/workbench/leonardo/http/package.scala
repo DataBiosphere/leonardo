@@ -27,6 +27,7 @@ import java.sql.SQLDataException
 
 package object http {
   val includeDeletedKey = "includeDeleted"
+  val includeLabelsKey = "includeLabels"
   val bucketPathMaxLength = 1024
   val WORKSPACE_NAME_KEY = "WORKSPACE_NAME"
 

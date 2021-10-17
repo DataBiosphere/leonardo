@@ -256,8 +256,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]] =
     for {
-      params <- F.fromEither(processListParameters(params))
-      allClusters <- KubernetesServiceDbQueries.listFullApps(googleProject, params._1, params._2).transaction
+      ctx <- as.ask
+      paramMap <- F.fromEither(processListParameters(params))
+      labelsToReturn <- F.fromEither(processLabelsToReturn(params, Some(ctx.traceId)))
+      allClusters <- KubernetesServiceDbQueries.listFullApps(googleProject, paramMap._1, paramMap._2).transaction
       samResources = allClusters.flatMap(_.nodepools.flatMap(_.apps.map(_.samResourceId)))
       samVisibleAppsOpt <- NonEmptyList.fromList(samResources).traverse { apps =>
         authProvider.filterUserVisible(apps, userInfo)
@@ -284,7 +286,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
               )
             }
             .filterNot(_.nodepools.isEmpty)
-            .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase))
+            .flatMap(c => ListAppResponse.fromCluster(c, Config.proxyConfig.proxyUrlBase, labelsToReturn))
             .toVector
       }
     } yield res

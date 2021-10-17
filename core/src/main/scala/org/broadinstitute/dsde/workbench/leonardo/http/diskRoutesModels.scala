@@ -36,7 +36,8 @@ final case class ListPersistentDiskResponse(id: DiskId,
                                             auditInfo: AuditInfo,
                                             size: DiskSize,
                                             diskType: DiskType,
-                                            blockSize: BlockSize)
+                                            blockSize: BlockSize,
+                                            labels: LabelMap)
 
 final case class GetPersistentDiskResponse(id: DiskId,
                                            googleProject: GoogleProject,

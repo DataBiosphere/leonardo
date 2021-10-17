@@ -3,7 +3,8 @@ package http
 
 import cats.syntax.all._
 import cats.Monoid
-import org.broadinstitute.dsde.workbench.leonardo.model.ParseLabelsException
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ParseLabelsException}
+import org.broadinstitute.dsde.workbench.model.TraceId
 
 package object service {
 
@@ -48,6 +49,30 @@ package object service {
         processLabelMap(params - includeDeletedKey).map(lm => (lm, includeDeletedValue.toBoolean))
       case None =>
         processLabelMap(params).map(lm => (lm, false))
+    }
+
+  /**
+   * Top-level query string parameter for apps and disks: GET /api/apps?includeLabels=foo,bar
+   * where foo,bar are label keys for which this endpoint returns the LabelMap for each key
+   *
+   * @param params raw query string params
+   */
+  private[service] def processLabelsToReturn(
+    params: LabelMap,
+    traceId: Option[TraceId]
+  ): Either[BadRequestException, List[String]] =
+    params.get(includeLabelsKey) match {
+      case Some(includeLabelsValue) =>
+        Either
+          .catchNonFatal(includeLabelsValue.split(',').toList)
+          .leftMap(_ =>
+            BadRequestException(
+              s"Failed to process ${includeLabelsKey} query string because it's not comma separated. Expected format [key1,key2,...]",
+              traceId
+            )
+          )
+      case None =>
+        List.empty.asRight[BadRequestException]
     }
 
 }
