@@ -142,11 +142,9 @@ class LeoPubsubMessageSubscriberSpec
     dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
-  val stoppedCluster = makeCluster(2).copy(
-    serviceAccount = serviceAccount,
-    asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
-    status = RuntimeStatus.Stopped
-  )
+  val stoppedCluster = makeCluster(2).copy(serviceAccount = serviceAccount,
+                                           asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
+                                           status = RuntimeStatus.Stopped)
 
   it should "handle CreateRuntimeMessage and create cluster" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
@@ -154,7 +152,7 @@ class LeoPubsubMessageSubscriberSpec
       for {
         runtime <- IO(
           makeCluster(1)
-            .copy(asyncRuntimeFields = None, status = RuntimeStatus.Creating, serviceAccount = serviceAccount)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
             .save()
         )
         tr <- traceId.ask[TraceId]
@@ -169,7 +167,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.asyncRuntimeFields.get.stagingBucket.value should startWith("leostaging")
         updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
         updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
-        updatedRuntime.get.asyncRuntimeFields.get.googleId.value shouldBe "258165385"
+        updatedRuntime.get.asyncRuntimeFields.get.proxyHostName.value shouldBe "258165385"
         updatedRuntime.get.runtimeImages.map(_.imageType) should contain(BootSource)
       }
 
@@ -195,9 +193,9 @@ class LeoPubsubMessageSubscriberSpec
       for {
         runtime <- IO(
           makeCluster(1)
-            .copy(status = RuntimeStatus.Creating,
-                  serviceAccount = serviceAccount,
-                  asyncRuntimeFields = Some(asyncFields))
+            .copy(serviceAccount = serviceAccount,
+                  asyncRuntimeFields = Some(asyncFields),
+                  status = RuntimeStatus.Creating)
             .save()
         )
         tr <- traceId.ask[TraceId]
@@ -598,7 +596,6 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
       } yield {
         updatedDisk shouldBe defined
-        updatedDisk.get.googleId.get.value shouldBe "258165385"
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1576,7 +1573,6 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
       } yield {
         updatedDisk shouldBe defined
-        updatedDisk.get.googleId.get.value shouldBe "258165385"
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

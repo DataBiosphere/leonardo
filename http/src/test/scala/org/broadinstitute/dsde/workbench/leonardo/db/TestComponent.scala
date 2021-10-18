@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfi
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
-  AppContext,
+  CloudContext,
   CommonTestData,
   DefaultNodepool,
   GcsPathUtils,
@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   RuntimeConfig,
   RuntimeName
 }
-import org.broadinstitute.dsde.workbench.model.google.{GoogleProject, ServiceAccountKeyId}
+import org.broadinstitute.dsde.workbench.model.google.ServiceAccountKeyId
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, TestSuite}
@@ -93,12 +93,12 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     }
 
   protected def getClusterId(getClusterIdRequest: GetClusterKey): Long =
-    getClusterId(getClusterIdRequest.googleProject, getClusterIdRequest.clusterName, getClusterIdRequest.destroyedDate)
+    getClusterId(getClusterIdRequest.cloudContext, getClusterIdRequest.clusterName, getClusterIdRequest.destroyedDate)
 
-  protected def getClusterId(googleProject: GoogleProject,
+  protected def getClusterId(cloudContext: CloudContext,
                              clusterName: RuntimeName,
                              destroyedDateOpt: Option[Instant]): Long =
-    dbFutureValue(clusterQuery.getIdByUniqueKey(googleProject, clusterName, destroyedDateOpt)).get
+    dbFutureValue(clusterQuery.getIdByUniqueKey(cloudContext, clusterName, destroyedDateOpt)).get
 
   implicit class ClusterExtensions(cluster: Runtime) {
     def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Runtime =

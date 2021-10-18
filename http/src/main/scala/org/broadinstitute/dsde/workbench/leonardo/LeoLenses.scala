@@ -1,7 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.time.Instant
+import cats.implicits._
 
+import java.time.Instant
 import monocle.macros.GenLens
 import monocle.{Lens, Optional, Prism}
 import org.broadinstitute.dsde.workbench.google2.{RegionName, ZoneName}
@@ -10,6 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
   dataprocRuntimeToDataprocInCreateRuntimeMsg
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{DiskUpdate, RuntimeConfigInCreateRuntimeMessage}
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 
 object LeoLenses {
@@ -36,6 +38,20 @@ object LeoLenses {
     GenLens[RuntimeAndRuntimeConfig](x => x.runtime.status)
 
   val diskToDestroyedDate: Lens[PersistentDisk, Option[Instant]] = GenLens[PersistentDisk](_.auditInfo.destroyedDate)
+  val cloudContextToGoogleProject: Lens[CloudContext, Option[GoogleProject]] =
+    Lens[CloudContext, Option[GoogleProject]] { x =>
+      x match {
+        case p: CloudContext.Gcp   => p.value.some
+        case _: CloudContext.Azure => none[GoogleProject]
+      }
+    }(googleProjectOpt => cloudContext => googleProjectOpt.fold(cloudContext)(p => CloudContext.Gcp(p)))
+  val cloudContextToManagedResourceGroup: Lens[CloudContext, Option[ManagedResourceGroup]] =
+    Lens[CloudContext, Option[ManagedResourceGroup]] { x =>
+      x match {
+        case _: CloudContext.Gcp   => none[ManagedResourceGroup]
+        case p: CloudContext.Azure => p.value.some
+      }
+    }(mrg => cloudContext => mrg.fold(cloudContext)(p => CloudContext.Azure(p)))
 
   val diskToCreator: Lens[PersistentDisk, WorkbenchEmail] = GenLens[PersistentDisk](_.auditInfo.creator)
 

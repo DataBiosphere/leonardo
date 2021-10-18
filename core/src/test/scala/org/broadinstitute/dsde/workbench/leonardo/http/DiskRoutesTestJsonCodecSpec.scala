@@ -1,14 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.scalatest.flatspec.AnyFlatSpecLike
-import org.scalatest.matchers.should.Matchers
-import DiskRoutesTestJsonCodec._
 import io.circe.parser._
 import org.broadinstitute.dsde.workbench.google2._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
 
 import java.time.Instant
 
@@ -19,6 +19,7 @@ class DiskRoutesTestJsonCodecSpec extends LeonardoTestSuite with Matchers with A
         |{
         |    "id": 107,
         |    "googleProject": "gpalloc-dev-master-tzprbkr",
+        |    "cloudContext": {"cloudResource": "gpalloc-dev-master-tzprbkr", "cloudProvider": "GCP"},
         |    "zone": "us-central1-a",
         |    "name": "rzxybksgvy",
         |    "googleId": "3579418231488887016",
@@ -47,10 +48,9 @@ class DiskRoutesTestJsonCodecSpec extends LeonardoTestSuite with Matchers with A
     val res = decode[GetPersistentDiskResponse](inputString)
     val expected = GetPersistentDiskResponse(
       DiskId(107),
-      GoogleProject("gpalloc-dev-master-tzprbkr"),
+      CloudContext.Gcp(GoogleProject("gpalloc-dev-master-tzprbkr")),
       ZoneName("us-central1-a"),
       DiskName("rzxybksgvy"),
-      Some(GoogleId("3579418231488887016")),
       WorkbenchEmail("b305pet-114763077412354570085@gpalloc-dev-master-tzprbkr.iam.gserviceaccount.com"),
       PersistentDiskSamResourceId("test"),
       DiskStatus.Ready,

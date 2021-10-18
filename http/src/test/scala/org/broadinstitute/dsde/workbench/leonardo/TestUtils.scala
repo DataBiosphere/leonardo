@@ -204,11 +204,11 @@ object TestUtils extends Matchers {
   }
 
   def stripFieldsForListCluster: Runtime => Runtime = { cluster =>
-    cluster.copy(dataprocInstances = Set.empty,
+    cluster.copy(errors = List.empty,
+                 dataprocInstances = Set.empty,
+                 userJupyterExtensionConfig = None,
                  runtimeImages = Set.empty,
-                 errors = List.empty,
-                 scopes = Set.empty,
-                 userJupyterExtensionConfig = None)
+                 scopes = Set.empty)
   }
 
   def sslContext(implicit as: ActorSystem): SSLContext =

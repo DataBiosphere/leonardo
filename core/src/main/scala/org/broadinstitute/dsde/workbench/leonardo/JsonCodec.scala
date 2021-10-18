@@ -53,7 +53,7 @@ object JsonCodec {
   val upsertEmptyLabelDecodingFailure = DecodingFailure("Label values are not allowed to be empty", List.empty)
 
   implicit val operationNameEncoder: Encoder[OperationName] = Encoder.encodeString.contramap(_.value)
-  implicit val googleIdEncoder: Encoder[GoogleId] = Encoder.encodeString.contramap(_.value)
+  implicit val googleIdEncoder: Encoder[ProxyHostName] = Encoder.encodeString.contramap(_.value)
   implicit val ipEncoder: Encoder[IP] = Encoder.encodeString.contramap(_.asString)
   implicit val gcsBucketNameEncoder: Encoder[GcsBucketName] = Encoder.encodeString.contramap(_.value)
   implicit val workbenchEmailEncoder: Encoder[WorkbenchEmail] = Encoder.encodeString.contramap(_.value)
@@ -77,6 +77,12 @@ object JsonCodec {
   implicit val diskStatusEncoder: Encoder[DiskStatus] = Encoder.encodeString.contramap(_.entryName)
   implicit val diskTypeEncoder: Encoder[DiskType] = Encoder.encodeString.contramap(_.asString)
   implicit val gpuTypeEncoder: Encoder[GpuType] = Encoder.encodeString.contramap(_.asString)
+  implicit val cloudProviderEncoder: Encoder[CloudProvider] = Encoder.encodeString.contramap(_.asString)
+
+  implicit val cloudContextEncoder: Encoder[CloudContext] = Encoder.forProduct2(
+    "cloudProvider",
+    "cloudResource"
+  )(x => (x.cloudProvider, x.asString))
 
   implicit val gpuConfigEncoder: Encoder[GpuConfig] = Encoder.forProduct2(
     "gpuType",
@@ -171,10 +177,11 @@ object JsonCodec {
   )(x => DefaultRuntimeLabels.unapply(x).get)
   implicit val asyncRuntimeFieldsEncoder: Encoder[AsyncRuntimeFields] =
     Encoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(x => AsyncRuntimeFields.unapply(x).get)
-  implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct2(
-    "googleProject",
-    "clusterName"
-  )(x => RuntimeProjectAndName.unapply(x).get)
+  implicit val clusterProjectAndNameEncoder: Encoder[RuntimeProjectAndName] = Encoder.forProduct3(
+    "cloudProvider",
+    "cloudContext",
+    "runtimeName"
+  )(x => (x.cloudContext.cloudProvider, x.cloudContext.asString, x.runtimeName))
   implicit val runtimeErrorEncoder: Encoder[RuntimeError] = Encoder.forProduct4(
     "errorMessage",
     "errorCode",
@@ -244,7 +251,11 @@ object JsonCodec {
   implicit val gceInstanceStatusDecoder: Decoder[GceInstanceStatus] =
     Decoder.decodeString.emap(s => GceInstanceStatus.withNameInsensitiveOption(s).toRight(s"invalid gce status ${s}"))
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
-  implicit val googleIdDecoder: Decoder[GoogleId] = Decoder.decodeString.map(GoogleId)
+  implicit val managedResourceGroupDecoder: Decoder[ManagedResourceGroup] =
+    Decoder.decodeString.map(ManagedResourceGroup)
+  implicit val cloudProviderDecoder: Decoder[CloudProvider] =
+    Decoder.decodeString.emap(s => CloudProvider.stringToCloudProvider.get(s).toRight(s"invalid cloud provider ${s}"))
+  implicit val googleIdDecoder: Decoder[ProxyHostName] = Decoder.decodeString.map(ProxyHostName)
   implicit val ipDecoder: Decoder[IP] = Decoder.decodeString.map(IP)
   implicit val containerImageDecoder: Decoder[ContainerImage] =
     Decoder.decodeString.emap(s => ContainerImage.fromImageUrl(s).toRight(s"invalid container image ${s}"))
@@ -274,6 +285,18 @@ object JsonCodec {
   implicit val runtimeImageTypeDecoder: Decoder[RuntimeImageType] = Decoder.decodeString.emap(s =>
     RuntimeImageType.stringToRuntimeImageType.get(s).toRight(s"invalid RuntimeImageType ${s}")
   )
+
+  implicit val cloudContextDecoder: Decoder[CloudContext] = Decoder.instance { x =>
+    for {
+      cloudProvider <- x.downField("cloudProvider").as[CloudProvider]
+      context <- cloudProvider match {
+        case CloudProvider.Gcp =>
+          x.downField("cloudResource").as[GoogleProject].map(p => CloudContext.Gcp(p))
+        case CloudProvider.Azure =>
+          x.downField("cloudResource").as[ManagedResourceGroup].map(p => CloudContext.Azure(p))
+      }
+    } yield context
+  }
 
   implicit val runtimeImageDecoder: Decoder[RuntimeImage] = Decoder.forProduct4(
     "imageType",
@@ -350,8 +373,28 @@ object JsonCodec {
                                        le.getOrElse(Map.empty))
   }
 
+  // Used only in pubsub messages
   implicit val clusterProjectAndNameDecoder: Decoder[RuntimeProjectAndName] =
-    Decoder.forProduct2("googleProject", "clusterName")(RuntimeProjectAndName.apply)
+    Decoder.instance(x =>
+      // support old messages where `googleProject` and `clusterName` are still being used. Remove once this code is released
+      for {
+        cloudProviderOpt <- x.downField("cloudProvider").as[Option[CloudProvider]]
+        cloudContext <- cloudProviderOpt match {
+          case Some(value) =>
+            value match {
+              case CloudProvider.Gcp =>
+                x.downField("cloudContext").as[GoogleProject].map(p => CloudContext.Gcp(p))
+              case CloudProvider.Azure =>
+                x.downField("cloudContext").as[ManagedResourceGroup].map(mrg => CloudContext.Azure(mrg))
+            }
+          case None =>
+            x.downField("googleProject")
+              .as[GoogleProject]
+              .map(p => CloudContext.Gcp(p)) //TODO: remove this case since this is just for backwards compatibility once this change is released to prod
+        }
+        runtimeName <- x.downField("clusterName").as[RuntimeName].orElse(x.downField("runtimeName").as[RuntimeName])
+      } yield RuntimeProjectAndName(cloudContext, runtimeName)
+    )
 
   implicit val asyncRuntimeFieldsDecoder: Decoder[AsyncRuntimeFields] =
     Decoder.forProduct4("googleId", "operationName", "stagingBucket", "hostIp")(AsyncRuntimeFields.apply)

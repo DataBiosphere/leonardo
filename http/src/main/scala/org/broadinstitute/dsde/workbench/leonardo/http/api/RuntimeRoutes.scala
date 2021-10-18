@@ -47,13 +47,14 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
               }
             } ~
               pathPrefix(googleProjectSegment) { googleProject =>
+                val cloudContext = CloudContext.Gcp(googleProject)
                 pathEndOrSingleSlash {
                   parameterMap { params =>
                     get {
                       complete(
                         listRuntimesHandler(
                           userInfo,
-                          Some(googleProject),
+                          Some(cloudContext),
                           params
                         )
                       )
@@ -68,7 +69,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                             complete(
                               createRuntimeHandler(
                                 userInfo,
-                                googleProject,
+                                cloudContext,
                                 runtimeName,
                                 req
                               )
@@ -78,7 +79,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
                           complete(
                             getRuntimeHandler(
                               userInfo,
-                              googleProject,
+                              cloudContext,
                               runtimeName
                             )
                           )
@@ -138,14 +139,14 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   }
 
   private[api] def createRuntimeHandler(userInfo: UserInfo,
-                                        googleProject: GoogleProject,
+                                        cloudContext: CloudContext,
                                         runtimeName: RuntimeName,
                                         req: CreateRuntime2Request)(
     implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = runtimeService.createRuntime(userInfo, googleProject, runtimeName, req)
+      apiCall = runtimeService.createRuntime(userInfo, cloudContext, runtimeName, req)
       _ <- metrics.incrementCounter("createRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createRuntime")
@@ -153,12 +154,12 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
-  private[api] def getRuntimeHandler(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  private[api] def getRuntimeHandler(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
     implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = runtimeService.getRuntime(userInfo, googleProject, runtimeName)
+      apiCall = runtimeService.getRuntime(userInfo, cloudContext, runtimeName)
       _ <- metrics.incrementCounter("getRuntime")
       resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "getRuntime")
@@ -167,13 +168,13 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
 
   private[api] def listRuntimesHandler(userInfo: UserInfo,
-                                       googleProject: Option[GoogleProject],
+                                       cloudContext: Option[CloudContext],
                                        params: Map[String, String])(
     implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = runtimeService.listRuntimes(userInfo, googleProject, params)
+      apiCall = runtimeService.listRuntimes(userInfo, cloudContext, params)
       _ <- metrics.incrementCounter("listRuntime")
       resp <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "listRuntime")
@@ -205,7 +206,7 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = runtimeService.stopRuntime(userInfo, googleProject, runtimeName)
+      apiCall = runtimeService.stopRuntime(userInfo, CloudContext.Gcp(googleProject), runtimeName)
       _ <- metrics.incrementCounter("stopRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "stopRuntime")
@@ -511,7 +512,8 @@ object RuntimeRoutes {
     Json.obj(
       ("id", x.id.asJson),
       ("runtimeName", x.clusterName.asJson),
-      ("googleProject", x.googleProject.asJson),
+      ("googleProject", x.cloudContext.asString.asJson),
+      ("cloudContext", x.cloudContext.asJson),
       ("serviceAccount", x.serviceAccountInfo.asJson),
       ("asyncRuntimeFields", x.asyncRuntimeFields.asJson),
       ("auditInfo", x.auditInfo.asJson),
@@ -535,10 +537,11 @@ object RuntimeRoutes {
     )
   }
 
-  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct9(
+  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct10(
     "id",
     "runtimeName",
     "googleProject",
+    "cloudContext",
     "auditInfo",
     "runtimeConfig",
     "proxyUrl",
@@ -549,7 +552,8 @@ object RuntimeRoutes {
     (
       x.id,
       x.clusterName,
-      x.googleProject,
+      x.cloudContext.asString,
+      x.cloudContext,
       x.auditInfo,
       x.runtimeConfig,
       x.proxyUrl,
@@ -564,7 +568,7 @@ object RuntimeRoutes {
 final case class ListRuntimeResponse2(id: Long,
                                       samResource: RuntimeSamResourceId,
                                       clusterName: RuntimeName,
-                                      googleProject: GoogleProject,
+                                      cloudContext: CloudContext,
                                       auditInfo: AuditInfo,
                                       runtimeConfig: RuntimeConfig,
                                       proxyUrl: URL,

@@ -35,7 +35,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.cryptoDetectorServerName shouldBe "cryptomining-detector"
       result.disableDelocalization shouldBe "false"
       result.googleClientId shouldBe "clientId"
-      result.googleProject shouldBe CommonTestData.testCluster.googleProject.value
+      result.googleProject shouldBe CommonTestData.testCluster.cloudContext.asString
       result.gpuEnabled shouldBe "true"
       result.jupyterCombinedExtensions shouldBe ""
       result.jupyterDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,

@@ -62,7 +62,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
   it should "successfully create a persistent disk" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val googleProject = GoogleProject("googleProject")
+    val cloudContext = CloudContext.Gcp(GoogleProject("project1"))
     val diskName = DiskName("diskName1")
 
     val res = for {
@@ -70,17 +70,17 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       d <- diskService
         .createDisk(
           userInfo,
-          googleProject,
+          GoogleProject(cloudContext.asString),
           diskName,
           emptyCreateDiskReq
         )
         .attempt
-      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
+      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
       disk = diskOpt.get
       message <- publisherQueue.take
     } yield {
       d shouldBe Right(())
-      disk.googleProject shouldBe (googleProject)
+      disk.cloudContext shouldBe (cloudContext)
       disk.name shouldBe (diskName)
       val expectedMessage = CreateDiskMessage.fromDisk(disk, Some(context.traceId))
 
@@ -98,7 +98,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label1", "value1").transaction
       _ <- labelQuery.save(disk.id.value, LabelResourceType.PersistentDisk, "label2", "value2").transaction
       labelResp <- labelQuery.getAllForResource(disk.id.value, LabelResourceType.PersistentDisk).transaction
-      getResponse <- diskService.getDisk(userInfo, disk.googleProject, disk.name)
+      getResponse <- diskService.getDisk(userInfo, disk.cloudContext, disk.name)
     } yield {
       getResponse.samResource shouldBe disk.samResource
       getResponse.labels shouldBe labelResp
@@ -125,10 +125,10 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
     val res = for {
-      disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
-      disk2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      _ <- makePersistentDisk(None).copy(googleProject = project2).save()
-      listResponse <- diskService.listDisks(userInfo, Some(project), Map.empty)
+      disk1 <- makePersistentDisk(Some(DiskName("d1")), cloudContextOpt = Some(cloudContext)).save()
+      disk2 <- makePersistentDisk(Some(DiskName("d2")), cloudContextOpt = Some(cloudContext)).save()
+      _ <- makePersistentDisk(None, cloudContextOpt = Some(CloudContext.Gcp(GoogleProject("non-default")))).save()
+      listResponse <- diskService.listDisks(userInfo, Some(cloudContext), Map.empty)
     } yield {
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
@@ -180,9 +180,9 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
 
-      _ <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name)
+      _ <- diskService.deleteDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name)
       dbDiskOpt <- persistentDiskQuery
-        .getActiveByName(disk.googleProject, disk.name)
+        .getActiveByName(disk.cloudContext, disk.name)
         .transaction
       dbDisk = dbDiskOpt.get
       message <- publisherQueue.take
@@ -211,7 +211,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
                                         None)
         )
       )
-      err <- diskService.deleteDisk(userInfo, disk.googleProject, disk.name).attempt
+      err <- diskService.deleteDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name).attempt
     } yield {
       err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t.traceId))
     }
@@ -229,7 +229,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
           disk <- makePersistentDisk(None).copy(samResource = diskSamResource, status = status).save()
           req = UpdateDiskRequest(Map.empty, DiskSize(600))
           fail <- diskService
-            .updateDisk(userInfo, disk.googleProject, disk.name, req)
+            .updateDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name, req)
             .attempt
         } yield {
           fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = t.traceId))
@@ -246,7 +246,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       diskSamResource <- IO(PersistentDiskSamResourceId(UUID.randomUUID.toString))
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       req = UpdateDiskRequest(Map.empty, DiskSize(600))
-      _ <- diskService.updateDisk(userInfo, disk.googleProject, disk.name, req)
+      _ <- diskService.updateDisk(userInfo, GoogleProject(disk.cloudContext.asString), disk.name, req)
       message <- publisherQueue.take
     } yield {
       val expectedMessage = UpdateDiskMessage(disk.id, DiskSize(600), Some(context.traceId))

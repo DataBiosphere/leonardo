@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.time.Instant
-
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
@@ -12,13 +10,13 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unma
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 final case class PersistentDiskRecord(id: DiskId,
-                                      googleProject: GoogleProject,
+                                      cloudContext: CloudContext,
                                       zone: ZoneName,
                                       name: DiskName,
-                                      googleId: Option[GoogleId],
                                       serviceAccount: WorkbenchEmail,
                                       samResource: PersistentDiskSamResourceId,
                                       status: DiskStatus,
@@ -34,10 +32,10 @@ final case class PersistentDiskRecord(id: DiskId,
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
   def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
-  def googleProject = column[GoogleProject]("googleProject", O.Length(255))
+  def cloudContext = column[CloudContextDb]("cloudContext", O.Length(255))
+  def cloudProvider = column[CloudProvider]("cloudProvider", O.Length(50))
   def zone = column[ZoneName]("zone", O.Length(255))
   def name = column[DiskName]("name", O.Length(255))
-  def googleId = column[Option[GoogleId]]("googleId", O.Length(255))
   def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(255))
   def samResourceId = column[PersistentDiskSamResourceId]("samResourceId", O.Length(255))
   def status = column[DiskStatus]("status", O.Length(255))
@@ -55,10 +53,9 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
 
   override def * =
     (id,
-     googleProject,
+     (cloudProvider, cloudContext),
      zone,
      name,
-     googleId,
      serviceAccount,
      samResourceId,
      status,
@@ -72,10 +69,9 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      formattedBy,
      (galaxyPvcId, cvmfsPvcId, lastUsedBy)) <> ({
       case (id,
-            googleProject,
+            (cloudProvider, cloudContextDb),
             zone,
             name,
-            googleId,
             serviceAccount,
             samResourceId,
             status,
@@ -90,10 +86,14 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             (galaxyPvcId, cvmfsPvcId, lastUsedBy)) =>
         PersistentDiskRecord(
           id,
-          googleProject,
+          cloudProvider match {
+            case CloudProvider.Gcp =>
+              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
+            case CloudProvider.Azure =>
+              CloudContext.Azure(ManagedResourceGroup(cloudContextDb.value)): CloudContext
+          },
           zone,
           name,
-          googleId,
           serviceAccount,
           samResourceId,
           status,
@@ -110,10 +110,14 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
     }, { record: PersistentDiskRecord =>
       Some(
         record.id,
-        record.googleProject,
+        record.cloudContext match {
+          case CloudContext.Gcp(value) =>
+            (CloudProvider.Gcp, CloudContextDb(value.value))
+          case CloudContext.Azure(value) =>
+            (CloudProvider.Azure, CloudContextDb(value.value))
+        },
         record.zone,
         record.name,
-        record.googleId,
         record.serviceAccount,
         record.samResource,
         record.status,
@@ -137,15 +141,17 @@ object persistentDiskQuery {
 
   private[db] def findByIdQuery(id: DiskId) = tableQuery.filter(_.id === id)
 
-  private[db] def findActiveByNameQuery(googleProject: GoogleProject, name: DiskName) =
+  private[db] def findActiveByNameQuery(cloudContext: CloudContext, name: DiskName) =
     tableQuery
-      .filter(_.googleProject === googleProject)
+      .filter(_.cloudContext === cloudContext.asCloudContextDb)
       .filter(_.name === name)
       .filter(_.destroyedDate === dummyDate)
 
-  private[db] def findByNameQuery(googleProject: GoogleProject, name: DiskName) =
+  private[db] def findByNameQuery(cloudContext: CloudContext, name: DiskName) =
     tableQuery
-      .filter(_.googleProject === googleProject)
+      .filter(
+        _.cloudContext === cloudContext.asCloudContextDb
+      )
       .filter(_.name === name)
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
@@ -189,9 +195,9 @@ object persistentDiskQuery {
   def getPersistentDiskRecord(id: DiskId): DBIO[Option[PersistentDiskRecord]] =
     findByIdQuery(id).result.headOption
 
-  def getActiveByName(googleProject: GoogleProject,
+  def getActiveByName(cloudContext: CloudContext,
                       name: DiskName)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
-    joinLabelQuery(findActiveByNameQuery(googleProject, name)).result.map(aggregateLabels).map(_.headOption)
+    joinLabelQuery(findActiveByNameQuery(cloudContext, name)).result.map(aggregateLabels).map(_.headOption)
 
   def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.status, d.dateAccessed)).update((newStatus, dateAccessed))
@@ -212,9 +218,6 @@ object persistentDiskQuery {
     findByIdQuery(id)
       .map(d => (d.status, d.destroyedDate, d.dateAccessed))
       .update((DiskStatus.Deleted, destroyedDate, destroyedDate))
-
-  def updateGoogleId(id: DiskId, googleId: GoogleId, dateAccessed: Instant) =
-    findByIdQuery(id).map(d => (d.googleId, d.dateAccessed)).update((Some(googleId), dateAccessed))
 
   def updateSize(id: DiskId, newSize: DiskSize, dateAccessed: Instant) =
     findByIdQuery(id).map(d => (d.size, d.dateAccessed)).update((newSize, dateAccessed))
@@ -241,10 +244,9 @@ object persistentDiskQuery {
   private[db] def marshalPersistentDisk(disk: PersistentDisk): PersistentDiskRecord =
     PersistentDiskRecord(
       disk.id,
-      disk.googleProject,
+      disk.cloudContext,
       disk.zone,
       disk.name,
-      disk.googleId,
       disk.serviceAccount,
       disk.samResource,
       disk.status,
@@ -278,10 +280,9 @@ object persistentDiskQuery {
   private[db] def unmarshalPersistentDisk(rec: PersistentDiskRecord, labels: LabelMap): PersistentDisk =
     PersistentDisk(
       rec.id,
-      rec.googleProject,
+      rec.cloudContext,
       rec.zone,
       rec.name,
-      rec.googleId,
       rec.serviceAccount,
       rec.samResource,
       rec.status,

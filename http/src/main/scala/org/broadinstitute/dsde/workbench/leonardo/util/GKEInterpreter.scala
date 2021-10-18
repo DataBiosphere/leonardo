@@ -918,8 +918,12 @@ class GKEInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(
         s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(nfsDisk.cloudContext),
+        new RuntimeException("this should never happen. Galaxy disk's cloud context should be a google project")
+      )
       postgresDiskNameOpt <- for {
-        disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, nfsDisk.googleProject, nfsDisk.zone)
+        disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, googleProject, nfsDisk.zone)
       } yield disk.map(x => DiskName(x.getName))
 
       postgresDiskName <- F.fromOption(

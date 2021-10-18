@@ -71,12 +71,16 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
   override def createRuntime(
     userInfo: UserInfo,
-    googleProject: GoogleProject,
+    cloudContext: CloudContext,
     runtimeName: RuntimeName,
     req: CreateRuntime2Request
   )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(cloudContext),
+        new RuntimeException("Azure runtime is not supported yet")
+      )
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateRuntime,
                                                   userInfo)
@@ -90,7 +94,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
-      runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(googleProject, runtimeName).transaction
+      runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done DB query for active cluster")))
       _ <- runtimeOpt match {
         case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, status))
@@ -161,7 +165,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               }
             runtime = convertToRuntime(userInfo,
                                        petSA,
-                                       googleProject,
+                                       CloudContext.Gcp(googleProject),
                                        runtimeName,
                                        samResource,
                                        runtimeImages,
@@ -206,32 +210,38 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
     } yield ()
 
-  override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
     implicit as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
       // throws 404 if not existent
-      resp <- RuntimeServiceDbQueries.getRuntime(googleProject, runtimeName).transaction
+      resp <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
       // throw 404 if no GetClusterStatus permission
-      hasPermission <- authProvider.hasPermissionWithProjectFallback(resp.samResource,
-                                                                     RuntimeAction.GetRuntimeStatus,
-                                                                     ProjectAction.GetRuntimeStatus,
-                                                                     userInfo,
-                                                                     googleProject)
+      hasPermission <- authProvider.hasPermissionWithProjectFallback(
+        resp.samResource,
+        RuntimeAction.GetRuntimeStatus,
+        ProjectAction.GetRuntimeStatus,
+        userInfo,
+        GoogleProject(cloudContext.asString)
+      ) //TODO: support azure
       _ <- if (hasPermission) F.unit
-      else F.raiseError[Unit](RuntimeNotFoundException(googleProject, runtimeName, "permission denied"))
+      else
+        F.raiseError[Unit](
+          RuntimeNotFoundException(cloudContext, runtimeName, "permission denied")
+        )
     } yield resp
 
-  override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
+  override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
     implicit as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]] =
     for {
       ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
-      runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, googleProject).transaction
+      runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, cloudContext).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done listRuntime db query")))
-      runtimesAndProjects = runtimes.map(r => (r.googleProject, r.samResource))
+      runtimesAndProjects = runtimes.map(r => (GoogleProject(r.cloudContext.asString), r.samResource))
       samVisibleRuntimesOpt <- NonEmptyList.fromList(runtimesAndProjects).traverse { rs =>
+        // TODO: refactor `filterUserVisibleWithProjectFallback` to take `cloudContext` instead
         authProvider
           .filterUserVisibleWithProjectFallback(
             rs,
@@ -248,7 +258,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           runtimes
             .filter(c =>
               c.auditInfo.creator == userInfo.userEmail || samVisibleRuntimesSet
-                .contains((c.googleProject, c.samResource))
+                .contains((GoogleProject(c.cloudContext.asString), c.samResource))
             )
             .toVector
       }
@@ -259,17 +269,18 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       ctx <- ev.ask
+      cloudContext = CloudContext.Gcp(req.googleProject)
       // throw 404 if not existent
-      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(req.googleProject, req.runtimeName).transaction
+      runtimeOpt <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, req.runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("DB | Done getActiveClusterByNameMinimal")))
       runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](RuntimeNotFoundException(req.googleProject, req.runtimeName, "no record in database"))
+        F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, req.runtimeName, "no record in database"))
       )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
       // GetClusterStatus permission. We return 403 if the user can view the runtime but can't perform some other action.
       listOfPermissions <- authProvider.getActionsWithProjectFallback(runtime.samResource,
-                                                                      runtime.googleProject,
+                                                                      req.googleProject,
                                                                       req.userInfo)
       hasStatusPermission = listOfPermissions._1.toSet.contains(RuntimeAction.GetRuntimeStatus) ||
         listOfPermissions._2.contains(ProjectAction.GetRuntimeStatus)
@@ -280,7 +291,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       else
         log.info(ctx.loggingCtx)(s"${req.userInfo.userEmail.value} has no permission to get runtime status") >> F
           .raiseError[Unit](
-            RuntimeNotFoundException(req.googleProject,
+            RuntimeNotFoundException(cloudContext,
                                      req.runtimeName,
                                      "no active runtime record in database",
                                      Some(ctx.traceId))
@@ -294,7 +305,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
       else
-        F.raiseError[Unit](RuntimeCannotBeDeletedException(runtime.googleProject, runtime.runtimeName, runtime.status))
+        F.raiseError[Unit](RuntimeCannotBeDeletedException(req.googleProject, runtime.runtimeName, runtime.status))
       // delete the runtime
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       persistentDiskToDelete <- runtimeConfig match {
@@ -365,24 +376,28 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         clusterQuery.completeDeletion(runtime.id, ctx.now).transaction.void >> authProvider.notifyResourceDeleted(
           runtime.samResource,
           runtime.auditInfo.creator,
-          runtime.googleProject
+          req.googleProject
         )
       }
     } yield ()
 
-  def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- as.ask
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(cloudContext),
+        new RuntimeException("Azure runtime is not supported yet")
+      )
       // throw 404 if not existent
       runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(googleProject, runtimeName)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
         .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Finish query for active runtime")))
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](
-          RuntimeNotFoundException(googleProject, runtimeName, "no active runtime found in database")
+          RuntimeNotFoundException(cloudContext, runtimeName, "no active runtime found in database")
         )
       )(F.pure)
       // throw 404 if no GetClusterStatus permission
@@ -399,9 +414,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (hasStatusPermission) F.unit
       else
         F.raiseError[Unit](
-          RuntimeNotFoundException(googleProject,
-                                   runtimeName,
-                                   "GetRuntimeStatus permission is required for stopRuntime")
+          RuntimeNotFoundException(cloudContext, runtimeName, "GetRuntimeStatus permission is required for stopRuntime")
         )
 
       // throw 403 if no StopStartCluster permission
@@ -419,7 +432,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
         } yield ()
       } else
-        F.raiseError[Unit](RuntimeCannotBeStoppedException(runtime.googleProject, runtime.runtimeName, runtime.status))
+        F.raiseError[Unit](RuntimeCannotBeStoppedException(googleProject, runtime.runtimeName, runtime.status))
     } yield ()
 
   def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
@@ -427,13 +440,15 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
+      cloudContext = CloudContext.Gcp(googleProject)
       // throw 404 if not existent
       runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(googleProject, runtimeName)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
         .transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done query for active runtime")))
       runtime <- runtimeOpt.fold(
-        F.raiseError[Runtime](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
+        F.raiseError[Runtime](RuntimeNotFoundException(cloudContext, runtimeName, "no record in database"))
       )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
@@ -447,7 +462,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (hasStatusPermission) F.unit
       else
         F.raiseError[Unit](
-          RuntimeNotFoundException(googleProject, runtimeName, "GetRuntimeStatus permission is required")
+          RuntimeNotFoundException(cloudContext, runtimeName, "GetRuntimeStatus permission is required")
         )
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Sam | Done get list of allowed actions")))
@@ -461,7 +476,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 409 if the cluster is not startable
       _ <- if (runtime.status.isStartable) F.unit
       else
-        F.raiseError[Unit](RuntimeCannotBeStartedException(runtime.googleProject, runtime.runtimeName, runtime.status))
+        F.raiseError[Unit](RuntimeCannotBeStartedException(googleProject, runtime.runtimeName, runtime.status))
       // start the runtime
       ctx <- as.ask
       _ <- clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.PreStarting, ctx.now).transaction
@@ -476,10 +491,12 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
+      // TODO: take cloudContext directly instead of googleProject once we start supporting patching an Azure VM
+      cloudContext = CloudContext.Gcp(googleProject)
       // throw 404 if not existent
-      runtimeOpt <- clusterQuery.getActiveClusterRecordByName(googleProject, runtimeName).transaction
+      runtimeOpt <- clusterQuery.getActiveClusterRecordByName(cloudContext, runtimeName).transaction
       runtime <- runtimeOpt.fold(
-        F.raiseError[ClusterRecord](RuntimeNotFoundException(googleProject, runtimeName, "no record in database"))
+        F.raiseError[ClusterRecord](RuntimeNotFoundException(cloudContext, runtimeName, "no record in database"))
       )(F.pure)
       // throw 404 if no GetClusterStatus permission
       // Note: the general pattern is to 404 (e.g. pretend the runtime doesn't exist) if the caller doesn't have
@@ -495,7 +512,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- if (hasStatusPermission) F.unit
       else
         F.raiseError[Unit](
-          RuntimeNotFoundException(googleProject,
+          RuntimeNotFoundException(cloudContext,
                                    runtimeName,
                                    "GetRuntimeStatus permission is required for update runtime")
         )
@@ -657,7 +674,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           for {
             // should disk size be updated?
             diskId <- F.fromEither(
-              diskIdOpt.toRight(RuntimeDiskNotFound(runtime.googleProject, runtime.runtimeName, context.traceId))
+              diskIdOpt.toRight(RuntimeDiskNotFound(runtime.cloudContext, runtime.runtimeName, context.traceId))
             )
             diskOpt <- persistentDiskQuery.getById(diskId).transaction
             disk <- F.fromEither(diskOpt.toRight(DiskNotFoundByIdException(diskId, context.traceId)))
@@ -818,7 +835,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 object RuntimeServiceInterp {
   private def convertToRuntime(userInfo: UserInfo,
                                serviceAccountInfo: WorkbenchEmail,
-                               googleProject: GoogleProject,
+                               cloudContext: CloudContext,
                                runtimeName: RuntimeName,
                                clusterInternalId: RuntimeSamResourceId,
                                clusterImages: Set[RuntimeImage],
@@ -828,7 +845,7 @@ object RuntimeServiceInterp {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
-      googleProject,
+      GoogleProject(cloudContext.asString), //TODO: potentially support azure
       userInfo.userEmail,
       serviceAccountInfo,
       req.userScriptUri,
@@ -861,12 +878,12 @@ object RuntimeServiceInterp {
       0,
       samResource = clusterInternalId,
       runtimeName = runtimeName,
-      googleProject = googleProject,
+      cloudContext = cloudContext,
       serviceAccount = serviceAccountInfo,
       asyncRuntimeFields = None,
       auditInfo = AuditInfo(userInfo.userEmail, now, None, now),
       kernelFoundBusyDate = None,
-      proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, googleProject, runtimeName, clusterImages, allLabels),
+      proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, cloudContext, runtimeName, clusterImages, allLabels),
       status = RuntimeStatus.PreCreating,
       labels = allLabels,
       userScriptUri = req.userScriptUri,
@@ -876,11 +893,11 @@ object RuntimeServiceInterp {
       userJupyterExtensionConfig = req.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
       defaultClientId = req.defaultClientId,
+      allowStop = false,
       runtimeImages = clusterImages,
       scopes = clusterScopes,
       welderEnabled = true,
       customEnvironmentVariables = req.customEnvironmentVariables,
-      allowStop = false, //TODO: double check this should be false when cluster is created
       runtimeConfigId = RuntimeConfigId(-1),
       patchInProgress = false
     )
@@ -910,7 +927,8 @@ object RuntimeServiceInterp {
     log: StructuredLogger[F]): F[PersistentDiskRequestResult] =
     for {
       ctx <- as.ask
-      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, req.name).transaction
+      cloudContext = CloudContext.Gcp(googleProject)
+      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, req.name).transaction
       disk <- diskOpt match {
         case Some(pd) =>
           for {
@@ -977,7 +995,7 @@ object RuntimeServiceInterp {
               DiskServiceInterp.convertToDisk(
                 userInfo,
                 serviceAccount,
-                googleProject,
+                cloudContext,
                 req.name,
                 samResource,
                 diskConfig,
@@ -1030,9 +1048,9 @@ final case class WrongCloudServiceException(runtimeCloudService: CloudService,
     )
 
 // thrown when a runtime has a GceWithPdConfig but has no PD attached, which should only happen for deleted runtimes
-final case class RuntimeDiskNotFound(googleProject: GoogleProject, runtimeName: RuntimeName, traceId: TraceId)
+final case class RuntimeDiskNotFound(cloudContext: CloudContext, runtimeName: RuntimeName, traceId: TraceId)
     extends LeoException(
-      s"Persistent disk not found for runtime ${googleProject.value}/${runtimeName.asString}",
+      s"Persistent disk not found for runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString}",
       StatusCodes.NotFound,
       traceId = Some(traceId)
     )

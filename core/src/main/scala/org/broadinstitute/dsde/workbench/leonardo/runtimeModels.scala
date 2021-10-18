@@ -22,7 +22,7 @@ import scala.collection.immutable
 final case class Runtime(id: Long,
                          samResource: RuntimeSamResourceId,
                          runtimeName: RuntimeName,
-                         googleProject: GoogleProject,
+                         cloudContext: CloudContext,
                          serviceAccount: WorkbenchEmail,
                          asyncRuntimeFields: Option[AsyncRuntimeFields],
                          auditInfo: AuditInfo,
@@ -44,13 +44,13 @@ final case class Runtime(id: Long,
                          customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId,
                          patchInProgress: Boolean) {
-  def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
+  def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
   def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
 }
 
 object Runtime {
   def getProxyUrl(urlBase: String,
-                  googleProject: GoogleProject,
+                  cloudContext: CloudContext,
                   runtimeName: RuntimeName,
                   runtimeImages: Set[RuntimeImage],
                   labels: Map[String, String]): URL = {
@@ -64,7 +64,7 @@ object Runtime {
       .getOrElse(JupyterService)
 
     new URL(
-      urlBase + googleProject.value + "/" + runtimeName.asString + "/" + tool.proxySegment
+      urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
     )
   }
 }
@@ -185,7 +185,7 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
 }
 
 /** Fields that are populated asynchronous to the runtime's creation */
-case class AsyncRuntimeFields(googleId: GoogleId,
+case class AsyncRuntimeFields(proxyHostName: ProxyHostName,
                               operationName: OperationName,
                               stagingBucket: GcsBucketName,
                               hostIp: Option[IP])
@@ -446,7 +446,7 @@ object MemorySize {
  */
 final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
 
-final case class RunningRuntime(googleProject: GoogleProject,
+final case class RunningRuntime(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,
                                 containers: List[RuntimeContainerServiceType])
 
@@ -460,14 +460,14 @@ final case class RuntimeErrorDetails(longMessage: String,
                                      shortMessage: Option[String] = None,
                                      labels: Map[String, String] = Map.empty)
 final case class RuntimeResource(asString: String) extends AnyVal
-final case class RuntimeProjectAndName(googleProject: GoogleProject, runtimeName: RuntimeName) {
-  override def toString: String = s"${googleProject.value}/${runtimeName.asString}"
+final case class RuntimeProjectAndName(cloudContext: CloudContext, runtimeName: RuntimeName) {
+  override def toString: String = s"${cloudContext.asString}/${runtimeName.asString}"
 }
 final case class RuntimeAndRuntimeConfig(runtime: Runtime, runtimeConfig: RuntimeConfig)
 final case class IpRange(value: String) extends AnyVal
 final case class NetworkTag(value: String) extends ValueObject
-final case class GoogleOperation(name: OperationName, id: GoogleId)
-final case class GoogleId(value: String) extends AnyVal
+final case class GoogleOperation(name: OperationName, id: ProxyHostName)
+final case class ProxyHostName(value: String) extends AnyVal
 
 sealed trait RuntimeOperation extends Product with Serializable {
   def asString: String

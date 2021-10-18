@@ -5,11 +5,10 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.{
   RStudioService,
   WelderService
 }
-import org.broadinstitute.dsde.workbench.leonardo.{RuntimeContainerServiceType, RuntimeName}
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeContainerServiceType, RuntimeName}
 
 trait ToolDAO[F[_], A] {
-  def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
+  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
 }
 
 object ToolDAO {
@@ -21,13 +20,13 @@ object ToolDAO {
     clusterTool =>
       clusterTool match {
         case JupyterService =>
-          (googleProject: GoogleProject, runtimeName: RuntimeName) =>
-            jupyterDAO.isProxyAvailable(googleProject, runtimeName)
+          (cloudContext: CloudContext, runtimeName: RuntimeName) =>
+            jupyterDAO.isProxyAvailable(cloudContext, runtimeName)
         case WelderService =>
-          (googleProject: GoogleProject, runtimeName: RuntimeName) =>
-            welderDAO.isProxyAvailable(googleProject, runtimeName)
+          (cloudContext: CloudContext, runtimeName: RuntimeName) =>
+            welderDAO.isProxyAvailable(cloudContext, runtimeName)
         case RStudioService =>
-          (googleProject: GoogleProject, runtimeName: RuntimeName) =>
-            rstudioDAO.isProxyAvailable(googleProject, runtimeName)
+          (cloudContext: CloudContext, runtimeName: RuntimeName) =>
+            rstudioDAO.isProxyAvailable(cloudContext, runtimeName)
       }
 }
