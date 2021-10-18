@@ -2,7 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import akka.actor.{Actor, Props, Timers}
-import cats.effect.{ContextShift, IO}
+import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.leonardo.config.ClusterToolConfig
@@ -20,8 +21,7 @@ object ClusterToolMonitor {
     dbRef: DbReference[IO],
     metrics: OpenTelemetryMetrics[IO]
   )(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
-    ec: ExecutionContext,
-    cs: ContextShift[IO]): Props =
+    ec: ExecutionContext): Props =
     Props(new ClusterToolMonitor(config, dbRef, metrics))
 
   sealed trait ClusterToolMonitorMessage
@@ -39,8 +39,7 @@ class ClusterToolMonitor(
   dbRef: DbReference[IO],
   metrics: OpenTelemetryMetrics[IO]
 )(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
-  ec: ExecutionContext,
-  cs: ContextShift[IO])
+  ec: ExecutionContext)
     extends Actor
     with Timers
     with LazyLogging {

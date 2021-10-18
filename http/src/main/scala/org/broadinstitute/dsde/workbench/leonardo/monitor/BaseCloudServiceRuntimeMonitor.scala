@@ -1,13 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import cats.Parallel
-import cats.effect.concurrent.Ref
-import cats.effect.{Async, Sync, Timer}
+import cats.effect.{Async, Ref, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.storage.BucketInfo
 import fs2.Stream
-import org.typelevel.log4cats.StructuredLogger
+import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
@@ -20,11 +19,11 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor.{
   recordStatusTransitionMetrics,
   CheckResult
 }
-import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteRuntimeParams, RuntimeAlgebra, StopRuntimeParams}
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -32,7 +31,6 @@ import scala.concurrent.duration._
 abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   implicit def F: Async[F]
   implicit def parallel: Parallel[F]
-  implicit def timer: Timer[F]
   implicit def dbRef: DbReference[F]
   implicit def ec: ExecutionContext
   implicit def runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType]
@@ -50,7 +48,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     for {
       // building up a stream that will terminate when gce runtime is ready
       traceId <- Stream.eval(ev.ask)
-      startMonitoring <- Stream.eval(nowInstant[F])
+      startMonitoring <- Stream.eval(F.realTimeInstant)
       monitorContextRef <- Stream.eval(
         Ref.of[F, MonitorContext](MonitorContext(startMonitoring, runtimeId, traceId, runtimeStatus))
       )
@@ -58,7 +56,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         for {
           _ <- s.newTransition.traverse(newStatus => monitorContextRef.modify(x => (x.copy(action = newStatus), ())))
           monitorContext <- monitorContextRef.get
-          _ <- Timer[F].sleep(monitorConfig.pollingInterval)
+          _ <- F.sleep(monitorConfig.pollStatus.interval)
           res <- handler(
             monitorContext,
             s
@@ -74,7 +72,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
 
   private[monitor] def handler(monitorContext: MonitorContext, monitorState: MonitorState): F[CheckResult] =
     for {
-      now <- nowInstant
+      now <- F.realTimeInstant
       ctx = AppContext(monitorContext.traceId, now)
       implicit0(ct: Ask[F, AppContext]) = Ask.const[F, AppContext](
         ctx
@@ -221,7 +219,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     ip: Option[IP] = None
   ): F[CheckResult] =
     for {
-      now <- nowInstant[F]
+      now <- F.realTimeInstant
       ctx = AppContext(monitorContext.traceId, now)
       implicit0(traceId: Ask[F, AppContext]) = Ask.const[F, AppContext](
         ctx
@@ -254,7 +252,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                 monitorContext,
                 runtimeAndRuntimeConfig,
                 RuntimeErrorDetails(
-                  s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toSeconds} seconds"
+                  s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toMinutes} minutes"
                 ),
                 dataprocInstances
               )
@@ -263,7 +261,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           logger
             .info(monitorContext.loggingContext)(
               s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} is still in ${runtimeAndRuntimeConfig.runtime.status}, not in ${runtimeAndRuntimeConfig.runtime.status.terminalStatus
-                .getOrElse("final")} state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollingInterval}. ${message
+                .getOrElse("final")} state yet and has taken ${timeElapsed.toSeconds} seconds so far. Checking again in ${monitorConfig.pollStatus.interval}. ${message
                 .getOrElse("")}"
             )
             .as(((), Some(Check(runtimeAndRuntimeConfig, None))))
@@ -468,9 +466,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           )
       }
       // wait for 10 minutes for tools to start up before time out.
-      availableTools <- streamFUntilDone(checkTools,
-                                         monitorConfig.checkToolsMaxAttempts,
-                                         monitorConfig.checkToolsInterval).compile.lastOrError
+      availableTools <- streamFUntilDone(
+        checkTools,
+        monitorConfig.checkTools.maxAttempts,
+        monitorConfig.checkTools.interval
+      ).interruptAfter(monitorConfig.checkTools.interruptAfter).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
           readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
@@ -479,7 +479,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           failedRuntime(
             monitorContext,
             runtimeAndRuntimeConfig,
-            RuntimeErrorDetails(s"${toolsStillNotAvailable} didn't start up properly", None, Some("tool_start_up")),
+            RuntimeErrorDetails(
+              s"${toolsStillNotAvailable.map(_.entryName).mkString(", ")} failed to start after ${monitorConfig.checkTools.interruptAfter.toMinutes} minutes.",
+              None,
+              Some("tool_start_up")
+            ),
             dataprocInstances
           )
       }

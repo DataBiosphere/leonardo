@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{galaxyChartName, galaxyChartVersion}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  InterruptablePollMonitorConfig,
   LeoPubsubMessageSubscriberConfig,
   PersistentDiskMonitorConfig,
   PollMonitorConfig
@@ -24,6 +25,14 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         PollMonitorConfig(5, 3 seconds),
         PollMonitorConfig(5, 3 seconds),
         PollMonitorConfig(5, 3 seconds)
+      ),
+      GalaxyDiskConfig(
+        "nfs-disk",
+        DiskSize(100),
+        "postgres-disk",
+        "gxy-postres-disk",
+        DiskSize(10),
+        BlockSize(4096)
       )
     )
 
@@ -33,16 +42,14 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read gce.monitor properly" in {
     val expected = GceMonitorConfig(
       20 seconds,
-      15 seconds,
-      120,
-      8 seconds,
-      75,
-      Config.clusterBucketConfig,
+      PollMonitorConfig(120, 15 seconds),
       Map(
         RuntimeStatus.Creating -> 30.minutes,
         RuntimeStatus.Starting -> 20.minutes,
         RuntimeStatus.Deleting -> 30.minutes
       ),
+      InterruptablePollMonitorConfig(75, 8 seconds, 10 minutes),
+      Config.clusterBucketConfig,
       Config.imageConfig
     )
 
@@ -69,7 +76,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
         "69.173.127.240/28",
         "69.173.112.0/21"
       ).map(CidrIP),
-      KubernetesClusterVersion("1.18"),
+      KubernetesClusterVersion("1.19"),
       1 hour,
       200
     )

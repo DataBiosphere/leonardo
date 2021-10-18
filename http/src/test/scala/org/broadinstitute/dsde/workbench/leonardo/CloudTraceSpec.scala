@@ -1,11 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import java.nio.file.Paths
-
 import akka.http.scaladsl.client.RequestBuilding
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.http.serviceData
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -32,7 +32,7 @@ class CloudTraceSpec
 
     val credentialFilePath = Paths.get("Your SA Path")
     val res = OpenTelemetryMetrics
-      .registerTracing(credentialFilePath, blocker)
+      .registerTracing[IO](credentialFilePath)
       .use { _ =>
         val req = Post("/route")
         IO {
@@ -41,7 +41,7 @@ class CloudTraceSpec
           }
         }
       }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     1 shouldBe (1)
   }

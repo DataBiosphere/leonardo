@@ -1,10 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
-import java.util.concurrent.TimeUnit
-
-import cats.effect.{Async, Timer}
+import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
@@ -15,6 +12,7 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
+import java.time.Instant
 import scala.collection.immutable.Set
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -41,7 +39,7 @@ object RuntimeMonitor {
     else if (runtime.labels.contains(Config.uiConfig.allOfUsLabel)) RuntimeUI.AoU
     else RuntimeUI.Other
 
-  private[monitor] def recordStatusTransitionMetrics[F[_]: Timer: Async](
+  private[monitor] def recordStatusTransitionMetrics[F[_]: Async](
     startTime: Instant,
     runtimeUI: RuntimeUI,
     origStatus: RuntimeStatus,
@@ -49,9 +47,9 @@ object RuntimeMonitor {
     cloudService: CloudService
   )(implicit openTelemetry: OpenTelemetryMetrics[F]): F[Unit] =
     for {
-      endTime <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
+      endTime <- Async[F].realTimeInstant
       metricsName = s"monitor/transition/${origStatus}_to_${finalStatus}"
-      duration = (endTime - startTime.toEpochMilli).millis
+      duration = (endTime.toEpochMilli - startTime.toEpochMilli).millis
       tags = Map("cloudService" -> cloudService.asString, "ui_client" -> runtimeUI.asString)
       _ <- openTelemetry.incrementCounter(metricsName, 1, tags)
       distributionBucket = List(0.5 minutes,
@@ -82,17 +80,17 @@ object RuntimeMonitor {
     }
   }
 
-  private[monitor] def recordClusterCreationMetrics[F[_]: Timer: Async](
+  private[monitor] def recordClusterCreationMetrics[F[_]: Async](
     createdDate: Instant,
     images: Set[RuntimeImage],
     imageConfig: ImageConfig,
     cloudService: CloudService
   )(implicit openTelemetry: OpenTelemetryMetrics[F]): F[Unit] =
     for {
-      endTime <- Timer[F].clock.realTime(TimeUnit.MILLISECONDS)
+      endTime <- Async[F].realTimeInstant
       toolImageInfo = findToolImageInfo(images, imageConfig)
       metricsName = s"monitor/runtimeCreation"
-      duration = (endTime - createdDate.toEpochMilli).milliseconds
+      duration = (endTime.toEpochMilli - createdDate.toEpochMilli).milliseconds
       tags = Map("cloudService" -> cloudService.asString, "image" -> toolImageInfo)
       _ <- openTelemetry.incrementCounter(metricsName, 1, tags)
       distributionBucket = List(1 minutes,
@@ -141,31 +139,27 @@ object MonitorState {
 
 sealed trait MonitorConfig {
   def initialDelay: FiniteDuration
-  def pollingInterval: FiniteDuration
-  def imageConfig: ImageConfig
-  def checkToolsInterval: FiniteDuration
-  def checkToolsMaxAttempts: Int
+  def pollStatus: PollMonitorConfig
   def monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration]
+  def checkTools: InterruptablePollMonitorConfig
+  def runtimeBucketConfig: RuntimeBucketConfig
+  def imageConfig: ImageConfig
 }
 
 object MonitorConfig {
   final case class GceMonitorConfig(initialDelay: FiniteDuration,
-                                    pollingInterval: FiniteDuration,
-                                    pollCheckMaxAttempts: Int,
-                                    checkToolsInterval: FiniteDuration,
-                                    checkToolsMaxAttempts: Int,
-                                    runtimeBucketConfig: RuntimeBucketConfig,
+                                    pollStatus: PollMonitorConfig,
                                     monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
+                                    checkTools: InterruptablePollMonitorConfig,
+                                    runtimeBucketConfig: RuntimeBucketConfig,
                                     imageConfig: ImageConfig)
       extends MonitorConfig
 
   final case class DataprocMonitorConfig(initialDelay: FiniteDuration,
-                                         pollingInterval: FiniteDuration,
-                                         pollCheckMaxAttempts: Int,
-                                         checkToolsInterval: FiniteDuration,
-                                         checkToolsMaxAttempts: Int,
-                                         runtimeBucketConfig: RuntimeBucketConfig,
+                                         pollStatus: PollMonitorConfig,
                                          monitorStatusTimeouts: Map[RuntimeStatus, FiniteDuration],
+                                         checkTools: InterruptablePollMonitorConfig,
+                                         runtimeBucketConfig: RuntimeBucketConfig,
                                          imageConfig: ImageConfig)
       extends MonitorConfig
 }

@@ -103,6 +103,13 @@ object kubernetesClusterQuery extends TableQuery(new KubernetesClusterTable(_)) 
     } yield unmarshalKubernetesCluster(clusterRecord.copy(id = clusterId), List(nodepool), List())
   }
 
+  private[db] def save(
+    kubernetesClusterRecord: KubernetesClusterRecord
+  )(implicit ec: ExecutionContext): DBIO[KubernetesCluster] =
+    for {
+      clusterId <- kubernetesClusterQuery returning kubernetesClusterQuery.map(_.id) += kubernetesClusterRecord
+    } yield unmarshalKubernetesCluster(kubernetesClusterRecord.copy(id = clusterId), List(), List())
+
   def updateStatus(id: KubernetesClusterLeoId, status: KubernetesClusterStatus): DBIO[Int] =
     findByIdQuery(id)
       .map(_.status)
@@ -225,7 +232,8 @@ case class SaveKubernetesCluster(googleProject: GoogleProject,
                                  status: KubernetesClusterStatus,
                                  ingressChart: Chart,
                                  auditInfo: AuditInfo,
-                                 defaultNodepool: DefaultNodepool) {
+                                 defaultNodepool: DefaultNodepool // Question: does this have to be `DefaultNodepool`?
+) {
   def toClusterRecord: KubernetesClusterRecord =
     KubernetesClusterRecord(
       KubernetesClusterLeoId(0),

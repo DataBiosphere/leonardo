@@ -1,11 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import cats.data.NonEmptyList
-import cats.effect.{IO, Timer}
 import org.apache.commons.text.StringEscapeUtils
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.KernelNotReadyException
-import org.broadinstitute.dsde.workbench.leonardo.notebooks.Notebook.NotebookMode
 import org.openqa.selenium.interactions.Actions
 import org.openqa.selenium.{By, WebDriver, WebElement}
 import org.scalatest.concurrent.Eventually
@@ -18,10 +16,10 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-class NotebookPage(override val url: String)(implicit override val webDriver: WebDriver,
-                                             override val authToken: AuthToken,
-                                             override val timer: Timer[IO])
-    extends JupyterPage
+class NotebookPage(override val url: String)(
+  implicit override val webDriver: WebDriver,
+  override val authToken: AuthToken
+) extends JupyterPage
     with Eventually {
 
   override def open(implicit webDriver: WebDriver): NotebookPage = super.open.asInstanceOf[NotebookPage]
@@ -422,7 +420,6 @@ class NotebookPage(override val url: String)(implicit override val webDriver: We
     click on (await enabled confirmKernelDiedButton)
     await notVisible jupyterModal
   }
-
 }
 
 // Notebook cells can have multiple output blocks. This class captures all cell outputs.

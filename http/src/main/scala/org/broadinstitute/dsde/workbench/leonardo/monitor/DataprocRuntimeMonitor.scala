@@ -2,12 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import cats.Parallel
-import cats.effect.{Async, Timer}
-import cats.syntax.all._
+import cats.effect.Async
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
 import com.google.cloud.dataproc.v1.Cluster
-import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
@@ -29,6 +28,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -44,7 +44,6 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   override val F: Async[F],
   override val parallel: Parallel[F],
-  override val timer: Timer[F],
   override val logger: StructuredLogger[F],
   override val ec: ExecutionContext,
   override val openTelemetry: OpenTelemetryMetrics[F])
@@ -137,8 +136,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                   i.ip match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                      Timer[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
+                      F.sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
                     case None =>
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
@@ -259,8 +257,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                   master.flatMap(_._1.ip) match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                      Timer[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
+                      F.sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
                     case None =>
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
@@ -357,8 +354,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             instances.find(_.dataprocRole == DataprocRole.Master).flatMap(_.ip) match {
               case Some(ip) =>
                 // It takes a bit for jupyter to startup, hence wait a few seconds before we check jupyter
-                Timer[F]
-                  .sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
+                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
               case None =>
                 checkAgain(monitorContext, runtimeAndRuntimeConfig, instances, Some("Could not retrieve instance IP"))
             }
@@ -453,7 +449,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                     (DataprocInstance(
                        DataprocInstanceKey(googleProject, z, i),
                        BigInt(instance.getId),
-                       GceInstanceStatus.withNameInsensitive(instance.getStatus),
+                       GceInstanceStatus.withNameInsensitive(instance.getStatus.name()),
                        getInstanceIP(instance),
                        role,
                        parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(ctx.now)

@@ -9,17 +9,19 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 object DiskRoutesTestJsonCodec {
-  implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] = Encoder.forProduct4(
+  implicit val createDiskRequestEncoder: Encoder[CreateDiskRequest] = Encoder.forProduct5(
     "labels",
     "size",
     "diskType",
-    "blockSize"
+    "blockSize",
+    "zone"
   )(x =>
     (
       x.labels,
       x.size,
       x.diskType,
-      x.blockSize
+      x.blockSize,
+      x.zone
     )
   )
 

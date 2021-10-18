@@ -51,6 +51,7 @@ object GPAllocFixtureSpec {
   val shouldUnclaimProjectsKey = "leonardo.shouldUnclaimProjects"
   val gpallocErrorPrefix = "Failed To Claim Project: "
   val initalRuntimeName = RuntimeName("initial-runtime")
+  val proxyRedirectServerPortKey = "proxyRedirectServerPort"
 }
 
 case class GoogleProjectAndWorkspaceName(
@@ -119,7 +120,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
       _ <- unclaimProject(googleProjectAndWorkspaceName.workspaceName)
     } yield t
 
-    test.unsafeRunSync()
+    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }
 
@@ -146,11 +147,12 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
             googleProjectAndWorkspaceName.googleProject
           )
       }
-      proxyRedirectServer <- ProxyRedirectClient.baseUri
-      _ <- loggerIO.info(s"Serving proxy redirect page at ${proxyRedirectServer.renderString}")
+      port <- ProxyRedirectClient.startServer()
+      _ <- IO(sys.props.put(proxyRedirectServerPortKey, port.toString))
+      _ <- loggerIO.info(s"Serving proxy redirect page at ${ProxyRedirectClient.baseUri.renderString}")
     } yield ()
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   override def afterAll(): Unit = {
@@ -167,12 +169,12 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
         }
       } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
       _ <- IO(sys.props.subtractAll(List(googleProjectKey, workspaceNamespaceKey, workspaceNameKey)))
-      _ <- ProxyRedirectClient.stopServer()
+      _ <- ProxyRedirectClient.stopServer(sys.props.get(proxyRedirectServerPortKey).get.toInt)
       _ <- loggerIO.info(s"Stopped proxy redirect server")
       _ <- IO(super.afterAll())
     } yield ()
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   // NOTE: createInitialRuntime / deleteInitialRuntime exists so we can ensure that project-level
@@ -180,50 +182,52 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   // We can remove this once https://broadworkbench.atlassian.net/browse/IA-2121 is done.
 
   private def createInitialRuntime(project: GoogleProject): IO[Unit] =
-    LeonardoApiClient.client.use { implicit c =>
-      implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
-      for {
-        res <- LeonardoApiClient
-          .createRuntimeWithWait(
-            project,
-            initalRuntimeName,
-            LeonardoApiClient.defaultCreateRuntime2Request
-          )
-          .attempt
-        _ <- res match {
-          case Right(_) =>
-            loggerIO.info(s"Created initial runtime ${project.value} / ${initalRuntimeName.asString}")
-          case Left(err) =>
-            loggerIO
-              .warn(err)(
-                s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
-              )
-        }
-      } yield ()
-    }
+    if (isHeadless) {
+      LeonardoApiClient.client.use { implicit c =>
+        implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+        for {
+          res <- LeonardoApiClient
+            .createRuntimeWithWait(
+              project,
+              initalRuntimeName,
+              LeonardoApiClient.defaultCreateRuntime2Request
+            )
+            .attempt
+          _ <- res match {
+            case Right(_) =>
+              loggerIO.info(s"Created initial runtime ${project.value} / ${initalRuntimeName.asString}")
+            case Left(err) =>
+              loggerIO
+                .warn(err)(
+                  s"Failed to create initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
+                )
+          }
+        } yield ()
+      }
+    } else IO.unit
 
   private def deleteInitialRuntime(project: GoogleProject): IO[Unit] =
-    LeonardoApiClient.client.use { implicit c =>
-      implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
-      for {
-        res <- LeonardoApiClient
-          .deleteRuntime(
-            project,
-            initalRuntimeName
-          )
-          .attempt
-        _ <- res match {
-          case Right(_) =>
-            loggerIO.info(s"Deleted initial runtime ${project.value} / ${initalRuntimeName.asString}")
-          case Left(err) =>
-            IO(
+    if (isHeadless) {
+      LeonardoApiClient.client.use { implicit c =>
+        implicit val authHeader = Authorization(Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+        for {
+          res <- LeonardoApiClient
+            .deleteRuntime(
+              project,
+              initalRuntimeName
+            )
+            .attempt
+          _ <- res match {
+            case Right(_) =>
+              loggerIO.info(s"Deleted initial runtime ${project.value} / ${initalRuntimeName.asString}")
+            case Left(err) =>
               loggerIO.warn(err)(
                 s"Failed to delete initial runtime ${project.value} / ${initalRuntimeName.asString} with error"
               )
-            )
-        }
-      } yield ()
-    }
+          }
+        } yield ()
+      }
+    } else IO.unit
 }
 
 final class LeonardoSuite

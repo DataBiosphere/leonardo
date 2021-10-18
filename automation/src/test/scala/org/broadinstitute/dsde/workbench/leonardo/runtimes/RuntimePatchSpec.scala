@@ -1,8 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package runtimes
 
-import cats.effect.{IO, Sync}
-import cats.syntax.all._
+import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}
@@ -76,17 +75,17 @@ class RuntimePatchSpec
       for {
         _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         _ <- updateRuntime(googleProject, runtimeName, updateRuntimeRequest)
-        _ <- testTimer.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
+        _ <- IO.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
         ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
         getRuntimeResult <- ioa
         _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
-        monitorStoppingResult <- testTimer.sleep(30 seconds) >> streamFUntilDone(ioa, 20, 10 seconds)(
-          testTimer,
+        monitorStoppingResult <- IO.sleep(30 seconds) >> streamFUntilDone(ioa, 20, 10 seconds)(
+          implicitly,
           stoppingDoneCheckable
         ).compile.lastOrError
         _ = monitorStoppingResult.status shouldBe ClusterStatus.Starting
-        monitoringStartingResult <- testTimer.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
-          testTimer,
+        monitoringStartingResult <- IO.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
+          implicitly,
           startingDoneCheckable
         ).compile.lastOrError
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
@@ -112,7 +111,7 @@ class RuntimePatchSpec
         res.diskSize shouldBe newDiskSize
       }
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   //this is an end to end test of the pub/sub infrastructure
@@ -157,11 +156,11 @@ class RuntimePatchSpec
         for {
           _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
           _ <- updateRuntime(googleProject, runtimeName, updateRuntimeRequest)
-          _ <- testTimer.sleep(70 seconds) //We need this because DB update happens in subscriber for update API.
+          _ <- IO.sleep(70 seconds) //We need this because DB update happens in subscriber for update API.
           ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
           getRuntimeResult <- ioa
-          monitoringStartingResult <- testTimer.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
-            testTimer,
+          monitoringStartingResult <- IO.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
+            implicitly,
             startingDoneCheckable
           ).compile.lastOrError
           clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
@@ -186,7 +185,7 @@ class RuntimePatchSpec
           res.machineType shouldBe newMasterMachineType
         }
       }
-      res.unsafeRunSync()
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs (Tags.SmokeTest, Retryable) in {
@@ -233,29 +232,27 @@ class RuntimePatchSpec
         for {
           _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
           _ <- updateRuntime(googleProject, runtimeName, updateRuntimeRequest)
-          _ <- testTimer.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
+          _ <- IO.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
           ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
           getRuntimeResult <- ioa
           _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
-          monitorStoppingResult <- testTimer.sleep(30 seconds) >> streamUntilDoneOrTimeout(
+          monitorStoppingResult <- IO.sleep(30 seconds) >> streamUntilDoneOrTimeout(
             ioa,
             30,
             10 seconds,
             s"Stopping ${googleProject}/${runtimeName} timed out"
           )(
-            implicitly[Sync[IO]],
-            testTimer,
+            implicitly,
             stoppingDoneCheckable
           )
           _ = monitorStoppingResult.status shouldBe ClusterStatus.Starting
-          monitringStartingResult <- testTimer.sleep(50 seconds) >> streamUntilDoneOrTimeout(
+          monitringStartingResult <- IO.sleep(50 seconds) >> streamUntilDoneOrTimeout(
             ioa,
             30,
             10 seconds,
             s"starting ${googleProject}/${runtimeName} timed out"
           )(
-            implicitly[Sync[IO]],
-            testTimer,
+            implicitly,
             startingDoneCheckable
           )
           clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
@@ -281,6 +278,6 @@ class RuntimePatchSpec
           res.diskSize shouldBe newDiskSize
         }
       }
-      res.unsafeRunSync()
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

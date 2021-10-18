@@ -3,35 +3,34 @@ import sbt._
 object Dependencies {
   val scalaV = "2.13"
 
-  val akkaV = "2.6.16"
+  val akkaV = "2.6.17"
   val akkaHttpV = "10.2.6"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.10"
   val slickV = "3.3.3"
-  val http4sVersion = "0.21.26"
-  val guavaV = "30.1.1-jre"
+  val http4sVersion = "0.23.6"
+  val guavaV = "31.0.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
 
-  private val workbenchLibsHash = "bf66e61"
-  val serviceTestV = s"0.19-$workbenchLibsHash"
+  private val workbenchLibsHash = "4cb37a0"
+  val serviceTestV = s"0.20-$workbenchLibsHash"
   val workbenchModelV = s"0.14-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.21-$workbenchLibsHash"
-  val workbenchOpenTelemetryV = s"0.1-$workbenchLibsHash"
-  val workbenchErrorReportingV = s"0.1-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.22-$workbenchLibsHash"
+  val workbenchOpenTelemetryV = s"0.2-$workbenchLibsHash"
+  val workbenchErrorReportingV = s"0.2-$workbenchLibsHash"
 
-  val helmScalaSdkV = "0.0.3"
+  val helmScalaSdkV = "0.0.4"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")
   val excludeAkkaHttpSprayJson = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http-spray-json_${scalaV}")
   val excludeGuavaJDK5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
   val excludeGuava = ExclusionRule(organization = "com.google.guava", name = "guava")
-  val excludeWorkbenchModel = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-model_${scalaV}")
   val excludeWorkbenchMetrics = ExclusionRule(organization = "org.broadinstitute.dsde.workbench", name = s"workbench-metrics_${scalaV}")
   val excludeIoGrpc = ExclusionRule(organization = "io.grpc", name = "grpc-core")
   val excludeFindbugsJsr = ExclusionRule(organization = "com.google.code.findbugs", name = "jsr305")
@@ -62,7 +61,7 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.6"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.1"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.5"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
@@ -93,7 +92,6 @@ object Dependencies {
     excludeStatsD,
     excludeKms)
   val workbenchGoogle2: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V excludeAll (
-    excludeWorkbenchModel,
     excludeWorkbenchMetrics,
     excludeIoGrpc,
     excludeFindbugsJsr,
@@ -110,7 +108,7 @@ object Dependencies {
     excludeSundrCodegen,
     excludeGuava)
 
-  val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeWorkbenchModel, excludeGuava, excludeStatsD)
+  val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
@@ -123,13 +121,11 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.4.3"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.5.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.2" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.10" % Test // brought in for FakeStorageInterpreter
 
-  val http4sCirce =       "org.http4s"        %% "http4s-circe"         % http4sVersion
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
-  val http4sBlazeClient = "org.http4s"        %% "http4s-blaze-client"  % http4sVersion
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
@@ -150,12 +146,10 @@ object Dependencies {
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
     // brings in an older version of `pureconfig`
-    "com.github.pureconfig" %% "pureconfig" % "0.16.0" % Provided,
+    "com.github.pureconfig" %% "pureconfig" % "0.17.0" % Provided,
     sealerate,
     enumeratum,
-    http4sCirce,
     circeYaml,
-    http4sBlazeClient,
     http4sDsl,
     scalaTestScalaCheck
   )
@@ -172,7 +166,7 @@ object Dependencies {
     akkaTestKit,
     akkaHttpTestKit,
     akkaStream,
-    "de.heikoseeberger" %% "akka-http-circe" % "1.37.0" excludeAll(excludeAkkaHttp, excludeAkkaStream),
+    "de.heikoseeberger" %% "akka-http-circe" % "1.38.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleRpc,
 
     hikariCP,
@@ -196,7 +190,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.12.5" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.0" % "test",
     "ch.qos.logback" % "logback-classic" % "1.2.6" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,

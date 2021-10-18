@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.http
+package org.broadinstitute.dsde.workbench.leonardo
+package http
 package api
 
 import akka.event.{Logging, LoggingAdapter}
@@ -10,24 +11,23 @@ import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.http.scaladsl.server.{Directive0, Directive1, Route}
 import akka.stream.Materializer
-import cats.effect.{ContextShift, IO}
-import cats.syntax.all._
+import cats.effect.IO
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
+import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeContainerServiceType, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
-import org.broadinstitute.dsde.workbench.model.UserInfo
+import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
+import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeContainerServiceType, RuntimeName}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
   implicit materializer: Materializer,
-  cs: ContextShift[IO],
   metrics: OpenTelemetryMetrics[IO]
 ) extends LazyLogging {
   val route: Route =
@@ -44,7 +44,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                 pathPrefix("google" / "v1" / "apps") {
                   pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
                     (googleProject, appName, serviceName) =>
-                      extractUserInfo { userInfo =>
+                      extractUserInfo(implicitly) { userInfo =>
                         logRequestResultForMetrics(userInfo) {
                           complete {
                             proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
@@ -57,7 +57,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                   pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
                     // Note the setCookie route exists at the top-level /proxy/setCookie as well
                     path("setCookie") {
-                      extractUserInfoFromHeader { userInfoOpt =>
+                      extractUserInfoFromHeader(implicitly) { userInfoOpt =>
                         get {
                           val cookieDirective = userInfoOpt match {
                             case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
@@ -73,7 +73,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     } ~
                       pathPrefix("jupyter" / "terminals") {
                         pathSuffix(terminalNameSegment) { terminalName =>
-                          (extractUserInfo) { userInfo =>
+                          extractUserInfo(implicitly) { userInfo =>
                             logRequestResultForMetrics(userInfo) {
                               complete {
                                 openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
@@ -82,7 +82,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                           }
                         }
                       } ~
-                      (extractUserInfo) { userInfo =>
+                      (extractUserInfo)(implicitly) { userInfo =>
                         logRequestResultForMetrics(userInfo) {
                           // Proxy logic handled by the ProxyService class
                           // Note ProxyService calls the LeoAuthProvider internally
@@ -95,7 +95,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                   // Top-level routes
                   path("invalidateToken") {
                     get {
-                      extractUserInfoOpt { userInfoOpt =>
+                      extractUserInfoOpt(implicitly) { userInfoOpt =>
                         CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
                           complete {
                             invalidateTokenHandler(userInfoOpt)
@@ -105,7 +105,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     }
                   } ~
                   path("setCookie") {
-                    extractUserInfoFromHeader { userInfoOpt =>
+                    extractUserInfoFromHeader(implicitly) { userInfoOpt =>
                       get {
                         val cookieDirective = userInfoOpt match {
                           case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
@@ -142,29 +142,34 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    * Extracts user info from an Authorization header or LeoToken cookie.
    * Returns None if a token cannot be retrieved.
    */
-  private def extractUserInfoOpt: Directive1[Option[UserInfo]] =
+  private def extractUserInfoOpt(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
-      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()).map(_.some)
-      case None        => provide(None)
+      case Some(token) =>
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
+          .map(_.some)
+      case None => provide(None)
     }
 
   /**
    * Like extractUserInfoOpt, but fails with AuthenticationError if a token cannot be retrieved.
    */
-  private def extractUserInfo: Directive1[UserInfo] =
+  private def extractUserInfo(implicit ev: Ask[IO, TraceId]): Directive1[UserInfo] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
-      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture())
-      case None        => failWith(AuthenticationError())
+      case Some(token) =>
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
+      case None => failWith(AuthenticationError())
     }
 
   /**
    * Extracts user info from an Authorization header _only_.
    * Returns None if a token cannot be retrieved.
    */
-  private def extractUserInfoFromHeader: Directive1[Option[UserInfo]] =
+  private def extractUserInfoFromHeader(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
     extractTokenFromHeader flatMap {
-      case Some(token) => onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()).map(_.some)
-      case None        => provide(None)
+      case Some(token) =>
+        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
+          .map(_.some)
+      case None => provide(None)
     }
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests

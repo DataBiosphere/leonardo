@@ -3,9 +3,11 @@ package org.broadinstitute.dsde.workbench.leonardo
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model.headers.{HttpCookiePair, OAuth2BearerToken}
 import cats.effect.IO
-import cats.effect.concurrent.Ref
+import cats.effect.Ref
+import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
+import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
@@ -334,7 +336,7 @@ object CommonTestData {
 
   val readyInstance = Instance
     .newBuilder()
-    .setStatus("Running")
+    .setStatus(Status.RUNNING)
     .setMetadata(
       Metadata
         .newBuilder()

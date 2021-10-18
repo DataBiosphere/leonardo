@@ -1,10 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import java.io.File
-
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.{HttpHeader, Uri}
-import cats.effect.{IO, Timer}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -18,6 +15,8 @@ import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.RestClient
 import org.openqa.selenium.WebDriver
 
+import java.io.File
+
 /**
  * Leonardo API service client.
  */
@@ -25,7 +24,7 @@ object Notebook extends RestClient with LazyLogging {
 
   private val url = LeonardoConfig.Leonardo.apiUrl
 
-  private val refererUrl = ProxyRedirectClient.baseUri.map(_.renderString).unsafeRunSync()
+  private val refererUrl = ProxyRedirectClient.baseUri.renderString
 
   def handleContentItemResponse(response: String): ContentItem =
     mapper.readValue(response, classOf[ContentItem])
@@ -47,8 +46,7 @@ object Notebook extends RestClient with LazyLogging {
     s"${notebooksBasePath(googleProject, clusterName)}/api/localize${if (async) "?async=true" else ""}"
 
   def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken,
-                                                                  webDriver: WebDriver,
-                                                                  timer: Timer[IO]): NotebooksListPage = {
+                                                                  webDriver: WebDriver): NotebooksListPage = {
     val path = notebooksBasePath(googleProject, clusterName)
     logger.info(s"Get notebook: GET /$path")
     new NotebooksListPage(url + path)
@@ -108,7 +106,8 @@ object Notebook extends RestClient with LazyLogging {
     logger.info(s"Get notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
     val referer = Referer(Uri(refererUrl))
-    handleContentItemResponse(parseResponse(getRequest(url + path, httpHeaders = List(cookie, referer))))
+    val resp = getRequest(url + path, httpHeaders = List(cookie, referer))
+    handleContentItemResponse(parseResponse(resp))
   }
 
   def getNotebookItem(googleProject: GoogleProject,
@@ -130,30 +129,30 @@ object Notebook extends RestClient with LazyLogging {
     logger.info(s"Set cookie: GET /$path")
     parseResponse(getRequest(url + path, httpHeaders = List(Authorization(OAuth2BearerToken(token.value)), referer)))
   }
+}
 
-  sealed trait NotebookMode extends Product with Serializable {
-    def asString: String
+sealed trait NotebookMode extends Product with Serializable {
+  def asString: String
+}
+
+object NotebookMode {
+  final case object SafeMode extends NotebookMode {
+    def asString: String = "playground"
   }
 
-  object NotebookMode {
-    final case object SafeMode extends NotebookMode {
-      def asString: String = "playground"
-    }
-
-    final case object EditMode extends NotebookMode {
-      def asString: String = "edit"
-    }
-
-    final case object NoMode extends NotebookMode {
-      def asString: String = ""
-    }
-
-    def getModeFromString(message: String): NotebookMode =
-      message match {
-        case message if message.toLowerCase().contains(SafeMode.asString) => SafeMode
-        case message if message.toLowerCase().contains(EditMode.asString) => EditMode
-        case _                                                            => NoMode
-      }
-
+  final case object EditMode extends NotebookMode {
+    def asString: String = "edit"
   }
+
+  final case object NoMode extends NotebookMode {
+    def asString: String = ""
+  }
+
+  def getModeFromString(message: String): NotebookMode =
+    message match {
+      case message if message.toLowerCase().contains(SafeMode.asString) => SafeMode
+      case message if message.toLowerCase().contains(EditMode.asString) => EditMode
+      case _                                                            => NoMode
+    }
+
 }

@@ -11,13 +11,11 @@ import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.http.scaladsl.unmarshalling.Unmarshal
 import akka.http.scaladsl.{ClientTransport, ConnectionContext, Http}
 import akka.stream.scaladsl.{Flow, Keep, Sink, Source}
-import cats.effect.{Blocker, ContextShift, IO, Timer}
+import cats.effect.IO
+import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.common.cache.{CacheBuilder, CacheLoader}
 import com.typesafe.scalalogging.LazyLogging
-import fs2.Stream
-import fs2.concurrent.InspectableQueue
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
@@ -30,20 +28,16 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.CacheMetrics
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
-import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.typelevel.log4cats.StructuredLogger
+import scalacache.Cache
 
 import java.time.Instant
-import java.util.UUID
-import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import scala.collection.immutable
 import scala.concurrent.{ExecutionContext, Future}
-
 final case class HostContext(status: HostStatus, description: String)
 
 sealed trait SamResourceCacheKey extends Product with Serializable {
@@ -88,20 +82,17 @@ class ProxyService(
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
   authProvider: LeoAuthProvider[IO],
-  dateAccessUpdaterQueue: InspectableQueue[IO, UpdateDateAccessMessage],
+  dateAccessUpdaterQueue: Queue[IO, UpdateDateAccessMessage],
   googleOauth2Service: GoogleOAuth2Service[IO],
   proxyResolver: ProxyResolver[IO],
   samDAO: SamDAO[IO],
-  blocker: Blocker
+  googleTokenCache: Cache[IO, (UserInfo, Instant)],
+  samResourceCache: Cache[IO, Option[String]]
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
-  timer: Timer[IO],
-  cs: ContextShift[IO],
   dbRef: DbReference[IO],
-  metrics: OpenTelemetryMetrics[IO],
   loggerIO: StructuredLogger[IO])
     extends LazyLogging {
-
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
   val clientConnectionSettings =
     ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))
@@ -109,44 +100,24 @@ class ProxyService(
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
   logger.info(s"Leo proxy request timeout is $requestTimeout")
 
-  /* Cache for the bearer token and corresponding google user email */
-  private[leonardo] val googleTokenCache = CacheBuilder
-    .newBuilder()
-    .expireAfterWrite(proxyConfig.tokenCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
-    .maximumSize(proxyConfig.tokenCacheMaxSize)
-    .recordStats()
-    .build(
-      new CacheLoader[String, (UserInfo, Instant)] {
-        def load(key: String): (UserInfo, Instant) = {
-          implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
-          // UserInfo only stores a _relative_ expiration time to when the tokeninfo call was made
-          // (e.g. tokenExpiresIn). So we also cache the _absolute_ expiration by doing
-          // (now + tokenExpiresIn).
-          val res = for {
-            now <- nowInstant
-            userInfo <- googleOauth2Service.getUserInfoFromToken(key)
-            userOpt <- samDAO.getUserSubjectIdFromToken(key)
-            _ <- IO.fromOption(userOpt)(AuthenticationError(Some(userInfo.userEmail)))
-          } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
-          res.unsafeRunSync()
-        }
-      }
-    )
-
-  val recordGoogleTokenCacheMetricsProcess: Stream[IO, Unit] =
-    CacheMetrics("googleTokenCache")
-      .process(() => IO(googleTokenCache.size), () => IO(googleTokenCache.stats))
+  private[leonardo] def getUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[(UserInfo, Instant)] =
+    for {
+      now <- IO.realTimeInstant
+      userInfo <- googleOauth2Service.getUserInfoFromToken(token)
+      userOpt <- samDAO.getUserSubjectIdFromToken(token)
+      _ <- IO.fromOption(userOpt)(AuthenticationError(Some(userInfo.userEmail)))
+    } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
 
   /* Ask the cache for the corresponding user info given a token */
-  def getCachedUserInfoFromToken(token: String): IO[UserInfo] =
+  def getCachedUserInfoFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[UserInfo] =
     for {
-      cache <- blocker.blockOn(IO(googleTokenCache.get(token))).adaptError {
+      cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token)).adaptError {
         case e: AuthenticationError => e
         case _                      =>
           // Rethrow AuthenticationError if unable to look up the token
           AuthenticationError()
       }
-      now <- nowInstant
+      now <- IO.realTimeInstant
       res <- cache match {
         case (userInfo, expireTime) =>
           if (expireTime.isAfter(now))
@@ -156,39 +127,25 @@ class ProxyService(
       }
     } yield res
 
-  /* Cache for the sam resource from the database */
-  private[leonardo] val samResourceCache = CacheBuilder
-    .newBuilder()
-    .expireAfterWrite(proxyConfig.internalIdCacheExpiryTime.toSeconds, TimeUnit.SECONDS)
-    .maximumSize(proxyConfig.internalIdCacheMaxSize)
-    .recordStats()
-    .build(
-      new CacheLoader[SamResourceCacheKey, Option[String]] {
-        def load(key: SamResourceCacheKey): Option[String] = {
-          val io = key match {
-            case RuntimeCacheKey(googleProject, name) =>
-              clusterQuery.getActiveClusterInternalIdByName(googleProject, name).map(_.map(_.resourceId)).transaction
-            case AppCacheKey(googleProject, name) =>
-              KubernetesServiceDbQueries
-                .getActiveFullAppByName(googleProject, name)
-                .map(_.map(_.app.samResourceId.resourceId))
-                .transaction
-          }
-          io.unsafeRunSync()
-        }
-      }
-    )
-
-  val recordSamResourceCacheMetricsProcess: Stream[IO, Unit] =
-    CacheMetrics("samResourceCache")
-      .process(() => IO(samResourceCache.size), () => IO(samResourceCache.stats))
+  private[leonardo] def getSamResourceFromDb(samResourceCacheKey: SamResourceCacheKey): IO[Option[String]] =
+    samResourceCacheKey match {
+      case RuntimeCacheKey(googleProject, name) =>
+        clusterQuery.getActiveClusterInternalIdByName(googleProject, name).map(_.map(_.resourceId)).transaction
+      case AppCacheKey(googleProject, name) =>
+        KubernetesServiceDbQueries
+          .getActiveFullAppByName(googleProject, name)
+          .map(_.map(_.app.samResourceId.resourceId))
+          .transaction
+    }
 
   def getCachedRuntimeSamResource(key: RuntimeCacheKey)(
     implicit ev: Ask[IO, AppContext]
   ): IO[RuntimeSamResourceId] =
     for {
       ctx <- ev.ask[AppContext]
-      cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
+      cacheResult <- samResourceCache.cachingF(key)(None)(
+        getSamResourceFromDb(key)
+      )
       resourceId = cacheResult.map(RuntimeSamResourceId)
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
@@ -208,7 +165,9 @@ class ProxyService(
   ): IO[AppSamResourceId] =
     for {
       ctx <- ev.ask[AppContext]
-      cacheResult <- blocker.blockOn(IO(samResourceCache.get(key)))
+      cacheResult <- samResourceCache.cachingF(key)(None)(
+        getSamResourceFromDb(key)
+      )
       resourceId = cacheResult.map(AppSamResourceId)
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
@@ -228,7 +187,7 @@ class ProxyService(
     } yield res
 
   def invalidateAccessToken(token: String): IO[Unit] =
-    blocker.blockOn(IO(googleTokenCache.invalidate(token)))
+    googleTokenCache.remove(token)
 
   def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
     implicit ev: Ask[IO, AppContext]
@@ -248,7 +207,7 @@ class ProxyService(
       hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
       _ <- hostStatus match {
         case HostReady(_) =>
-          dateAccessUpdaterQueue.enqueue1(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
+          dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
         case _ => IO.unit
       }
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
@@ -304,9 +263,6 @@ class ProxyService(
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
-      _ <- loggerIO.debug(ctx.loggingCtx)(
-        s"Received proxy request for ${hostContext.description}: ${runtimeDnsCache.stats} / ${runtimeDnsCache.size}"
-      )
       res <- hostContext.status match {
         case HostReady(targetHost) =>
           // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a

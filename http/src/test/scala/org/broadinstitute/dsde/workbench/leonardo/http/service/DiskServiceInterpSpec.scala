@@ -4,7 +4,6 @@ package service
 
 import java.time.Instant
 import java.util.UUID
-
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
@@ -19,7 +18,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
-
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpec
 
@@ -59,7 +57,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     } yield {
       d shouldBe (Left(ForbiddenError(userInfo.userEmail)))
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "successfully create a persistent disk" in isolatedDbTest {
@@ -79,7 +77,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .attempt
       diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
       disk = diskOpt.get
-      message <- publisherQueue.dequeue1
+      message <- publisherQueue.take
     } yield {
       d shouldBe Right(())
       disk.googleProject shouldBe (googleProject)
@@ -88,7 +86,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
 
       message shouldBe expectedMessage
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "get a disk" in isolatedDbTest {
@@ -105,7 +103,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       getResponse.samResource shouldBe disk.samResource
       getResponse.labels shouldBe labelResp
     }
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks" in isolatedDbTest {
@@ -119,7 +117,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks with a project" in isolatedDbTest {
@@ -134,7 +132,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks with parameters" in isolatedDbTest {
@@ -149,7 +147,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       listResponse.map(_.id).toSet shouldBe Set(disk1.id)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list disks belonging to other users" in isolatedDbTest {
@@ -170,7 +168,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete a disk" in isolatedDbTest {
@@ -186,14 +184,14 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         .getActiveByName(disk.googleProject, disk.name)
         .transaction
       dbDisk = dbDiskOpt.get
-      message <- publisherQueue.dequeue1
+      message <- publisherQueue.take
     } yield {
       dbDisk.status shouldBe DiskStatus.Deleting
       val expectedMessage = DeleteDiskMessage(disk.id, Some(context.traceId))
       message shouldBe expectedMessage
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "fail to delete a disk if it is attached to a runtime" in isolatedDbTest {
@@ -217,7 +215,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       err shouldBe Left(DiskAlreadyAttachedException(project, disk.name, t.traceId))
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   List(DiskStatus.Creating, DiskStatus.Restoring, DiskStatus.Failed, DiskStatus.Deleting, DiskStatus.Deleted).foreach {
@@ -235,7 +233,7 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
         } yield {
           fail shouldBe Left(DiskCannotBeUpdatedException(disk.projectNameString, disk.status, traceId = t.traceId))
         }
-        res.unsafeRunSync()
+        res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       }
   }
 
@@ -248,12 +246,12 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
       disk <- makePersistentDisk(None).copy(samResource = diskSamResource).save()
       req = UpdateDiskRequest(Map.empty, DiskSize(600))
       _ <- diskService.updateDisk(userInfo, disk.googleProject, disk.name, req)
-      message <- publisherQueue.dequeue1
+      message <- publisherQueue.take
     } yield {
       val expectedMessage = UpdateDiskMessage(disk.id, DiskSize(600), Some(context.traceId))
       message shouldBe expectedMessage
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

@@ -1,8 +1,5 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
-import java.io.File
-import java.time.Instant
-
 import cats.data.NonEmptyList
 import cats.effect.IO
 import com.google.cloud.Identity
@@ -13,15 +10,16 @@ import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.openqa.selenium.WebDriver
-import org.scalatest.Suite
+import org.scalatest.TestSuite
 
+import java.io.File
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
 trait NotebookTestUtils extends LeonardoTestUtils {
-  this: Suite =>
-
+  this: TestSuite =>
   private def whenKernelNotReady(t: Throwable): Boolean = t match {
     case _: KernelNotReadyException => true
     case _                          => false

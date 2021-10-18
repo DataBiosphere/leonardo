@@ -1,8 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package config
 
-import java.nio.file.{Path, Paths}
-
 import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
 import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
@@ -38,6 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   PersistentDiskMonitorConfig,
   PollMonitorConfig
 }
+
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
@@ -49,6 +48,7 @@ import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
 
+import java.nio.file.{Path, Paths}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -428,14 +428,6 @@ object Config {
         c.getInt("max-concurrent-tasks")
       )
   }
-  implicit private val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
-    ValueReader.relative { config =>
-      LeoPubsubMessageSubscriberConfig(
-        config.getInt("concurrency"),
-        config.as[FiniteDuration]("timeout"),
-        config.as[PersistentDiskMonitorConfig]("persistent-disk-monitor")
-      )
-    }
 
   val dateAccessUpdaterConfig = config.as[DateAccessedUpdaterConfig]("dateAccessedUpdater")
   val applicationConfig = config.as[ApplicationConfig]("application")
@@ -484,12 +476,10 @@ object Config {
 
     GceMonitorConfig(
       config.as[FiniteDuration]("initialDelay"),
-      config.as[FiniteDuration]("pollingInterval"),
-      config.as[Int]("pollCheckMaxAttempts"),
-      config.as[FiniteDuration]("checkToolsInterval"),
-      config.as[Int]("checkToolsMaxAttempts"),
-      clusterBucketConfig,
+      config.as[PollMonitorConfig]("pollStatus"),
       timeoutMap,
+      config.as[InterruptablePollMonitorConfig]("checkTools"),
+      clusterBucketConfig,
       imageConfig
     )
   }
@@ -506,15 +496,14 @@ object Config {
 
       DataprocMonitorConfig(
         config.as[FiniteDuration]("initialDelay"),
-        config.as[FiniteDuration]("pollingInterval"),
-        config.as[Int]("pollCheckMaxAttempts"),
-        config.as[FiniteDuration]("checkToolsInterval"),
-        config.as[Int]("checkToolsMaxAttempts"),
-        clusterBucketConfig,
+        config.as[PollMonitorConfig]("pollStatus"),
         timeoutMap,
+        config.as[InterruptablePollMonitorConfig]("checkTools"),
+        clusterBucketConfig,
         imageConfig
       )
   }
+
   val gceMonitorConfig = config.as[GceMonitorConfig]("gce.monitor")
   val dataprocMonitorConfig = config.as[DataprocMonitorConfig]("dataproc.monitor")
   val uiConfig = config.as[ClusterUIConfig]("ui")
@@ -648,6 +637,17 @@ object Config {
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
+
+  implicit private val leoPubsubMessageSubscriberConfigReader: ValueReader[LeoPubsubMessageSubscriberConfig] =
+    ValueReader.relative { config =>
+      LeoPubsubMessageSubscriberConfig(
+        config.getInt("concurrency"),
+        config.as[FiniteDuration]("timeout"),
+        config.as[PersistentDiskMonitorConfig]("persistent-disk-monitor"),
+        gkeGalaxyDiskConfig
+      )
+    }
+
   val leoKubernetesConfig = LeoKubernetesConfig(
     kubeServiceAccountProviderConfig,
     gkeClusterConfig,

@@ -14,29 +14,20 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AppService,
-  BaseMockRuntimeServiceInterp,
-  DeleteRuntimeRequest,
-  MockAppService,
-  MockDiskServiceInterp,
-  MockRuntimeServiceInterp,
-  RuntimeService
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
 import java.net.URL
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
-
 import scala.concurrent.duration._
 
 class HttpRoutesSpec
@@ -50,17 +41,18 @@ class HttpRoutesSpec
   val clusterName = "test"
   val googleProject = "dsp-leo-test"
 
-  val routes = new HttpRoutes(
-    swaggerConfig,
-    statusService,
-    proxyService,
-    MockRuntimeServiceInterp,
-    MockDiskServiceInterp,
-    MockAppService,
-    timedUserInfoDirectives,
-    contentSecurityPolicy,
-    refererConfig
-  )
+  val routes =
+    new HttpRoutes(
+      swaggerConfig,
+      statusService,
+      proxyService,
+      MockRuntimeServiceInterp,
+      MockDiskServiceInterp,
+      MockAppService,
+      timedUserInfoDirectives,
+      contentSecurityPolicy,
+      refererConfig
+    )
 
   "RuntimeRoutes" should "create runtime" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
@@ -220,8 +212,7 @@ class HttpRoutesSpec
         deleteRuntimeRequest shouldBe expectedDeleteRuntime
       }
     }
-    val routes = fakeRoutes(runtimeService)
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=true") ~> routes.route ~> check {
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=true") ~> fakeRoutes(runtimeService).route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -243,11 +234,11 @@ class HttpRoutesSpec
         deleteRuntimeRequest shouldBe expectedDeleteRuntime
       }
     }
-    val routes = fakeRoutes(runtimeService)
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=false") ~> routes.route ~> check {
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1?deleteDisk=false") ~> fakeRoutes(runtimeService).route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
+
   }
 
   it should "not delete disk when deleting a runtime with PD enabled if deleteDisk is not set" in {
@@ -260,8 +251,7 @@ class HttpRoutesSpec
         deleteRuntimeRequest shouldBe expectedDeleteRuntime
       }
     }
-    val routes = fakeRoutes(runtimeService)
-    Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> routes.route ~> check {
+    Delete("/api/google/v1/runtimes/googleProject1/runtime1") ~> fakeRoutes(runtimeService).route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -277,8 +267,7 @@ class HttpRoutesSpec
         request shouldBe expectedDeleteApp
       }
     }
-    val routes = fakeRoutes(kubernetesService)
-    Delete("/api/google/v1/apps/googleProject1/app1") ~> routes.route ~> check {
+    Delete("/api/google/v1/apps/googleProject1/app1") ~> fakeRoutes(kubernetesService).route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }

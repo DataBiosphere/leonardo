@@ -3,7 +3,6 @@ package http
 package db
 
 import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
@@ -41,12 +40,12 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       statusAfterDeletion shouldBe Some(RuntimeStatus.Deleting)
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes" in isolatedDbTest {
     val res = for {
-      start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
+      start <- IO.realTimeInstant
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       d1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
@@ -68,8 +67,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
         makeCluster(2).saveWithRuntimeConfig(d2RuntimeConfig)
       )
       list3 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
-      end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
-      elapsed = (end - start).millis
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       list1 shouldEqual List.empty
@@ -80,12 +79,12 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed should be < maxElapsed
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes by labels" in isolatedDbTest {
     val res = for {
-      start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
+      start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d1.id),
@@ -115,8 +114,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       list5 <- RuntimeServiceDbQueries
         .listRuntimes(Map("googleProject" -> c1.googleProject.value), false, None)
         .transaction
-      end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
-      elapsed = (end - start).millis
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       list1 shouldEqual List.empty
@@ -129,12 +128,12 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed should be < maxElapsed
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes by project" in isolatedDbTest {
     val res = for {
-      start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
+      start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d1.id),
@@ -155,8 +154,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(project)).transaction
       list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(project2)).transaction
-      end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
-      elapsed = (end - start).millis
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       val c1Expected = toListRuntimeResponse(c1, Map.empty, c1RuntimeConfig)
@@ -166,12 +165,12 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed should be < maxElapsed
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "list runtimes including deleted" in isolatedDbTest {
     val res = for {
-      start <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
+      start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d1.id),
@@ -211,8 +210,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None).transaction
       list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None).transaction
-      end <- testTimer.clock.monotonic(TimeUnit.MILLISECONDS)
-      elapsed = (end - start).millis
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       val c1Expected = toListRuntimeResponse(c1, Map.empty, c1RuntimeConfig)
@@ -223,7 +222,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       elapsed should be < maxElapsed
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "get a runtime" in isolatedDbTest {
@@ -242,7 +241,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       get2.isLeft shouldBe true
     }
 
-    res.unsafeRunSync()
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private def toListRuntimeResponse(
