@@ -906,7 +906,7 @@ class GKEInterpreter[F[_]](
       ctx <- ev.ask
 
       _ <- logger.info(ctx.loggingCtx)(
-        s"Installing helm chart ${chart} for Galaxy app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
+        s"Installing helm chart ${config.galaxyAppConfig.chart} for app ${appName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
       postgresDiskNameOpt <- for {
         disk <- getGalaxyPostgresDisk(nfsDisk.name, namespaceName, nfsDisk.googleProject, nfsDisk.zone)
