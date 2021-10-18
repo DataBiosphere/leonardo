@@ -134,6 +134,8 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
       case DataprocClusterStatus.Unknown  => Unknown
       case DataprocClusterStatus.Updating => Updating
       case DataprocClusterStatus.Stopped  => Stopped
+      case DataprocClusterStatus.Starting => Starting
+      case DataprocClusterStatus.Stopping => Stopping
     }
 
   def fromGceInstanceStatus(gceInstanceStatus: GceInstanceStatus): RuntimeStatus =

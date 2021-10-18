@@ -238,7 +238,13 @@ class RuntimeDataprocSpec
         _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be removed in Dataproc
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0, RegionName("us-central1"))
+        _ <- verifyDataproc(project,
+                            runtime.clusterName,
+                            dep.dataproc,
+                            2,
+                            0,
+                            RegionName("us-central1"),
+                            RuntimeStatus.Stopped)
 
         // start the cluster
         _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
@@ -283,12 +289,15 @@ class RuntimeDataprocSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  private def verifyDataproc(project: GoogleProject,
-                             runtimeName: RuntimeName,
-                             dataproc: GoogleDataprocService[IO],
-                             expectedNumWorkers: Int,
-                             expectedPreemptibles: Int,
-                             expectedRegion: RegionName)(implicit httpClient: Client[IO]): IO[Unit] =
+  private def verifyDataproc(
+    project: GoogleProject,
+    runtimeName: RuntimeName,
+    dataproc: GoogleDataprocService[IO],
+    expectedNumWorkers: Int,
+    expectedPreemptibles: Int,
+    expectedRegion: RegionName,
+    expectedStatus: RuntimeStatus = RuntimeStatus.Running
+  )(implicit httpClient: Client[IO]): IO[Unit] =
     for {
       // check cluster status in Dataproc
       clusterOpt <- dataproc.getCluster(project, expectedRegion, DataprocClusterName(runtimeName.asString))
@@ -298,7 +307,7 @@ class RuntimeDataprocSpec
       status <- IO.fromOption(DataprocClusterStatus.withNameInsensitiveOption(cluster.getStatus.getState.name))(
         fail(s"Unknown Dataproc status ${cluster.getStatus.getState.name}")
       )
-      _ <- IO(List(DataprocClusterStatus.Running, DataprocClusterStatus.Stopped).contains(status) shouldBe true)
+      _ <- IO(status shouldBe expectedStatus)
 
       // check cluster instances in Dataproc
       instances = GoogleDataprocInterpreter.getAllInstanceNames(cluster)

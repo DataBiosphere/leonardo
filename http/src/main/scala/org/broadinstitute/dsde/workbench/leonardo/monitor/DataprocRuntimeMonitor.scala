@@ -247,7 +247,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
           .withNameInsensitiveOption(c.getStatus.getState.name())
           .getOrElse(DataprocClusterStatus.Unknown) //TODO: this needs to be verified
         r <- clusterStatus match {
-          case DataprocClusterStatus.Stopped =>
+          case DataprocClusterStatus.Stopped | DataprocClusterStatus.Starting =>
             checkAgain(monitorContext,
                        runtimeAndRuntimeConfig,
                        Some(fetchInstances),

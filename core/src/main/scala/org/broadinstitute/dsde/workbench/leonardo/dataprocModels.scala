@@ -94,6 +94,8 @@ object DataprocClusterStatus extends Enum[DataprocClusterStatus] {
 
   case object Creating extends DataprocClusterStatus // The cluster is being created and set up. It is not ready for use.
 
+  case object Starting extends DataprocClusterStatus
+
   case object Deleting extends DataprocClusterStatus // The cluster is being deleted. It cannot be used.
 
   case object Error extends DataprocClusterStatus // The cluster encountered an error. It is not ready for use.
@@ -104,5 +106,7 @@ object DataprocClusterStatus extends Enum[DataprocClusterStatus] {
 
   case object Updating extends DataprocClusterStatus // The cluster is being updated. It continues to accept and process jobs.
 
-  case object Stopped extends DataprocClusterStatus // The cluster is being updated. It continues to accept and process jobs.
+  case object Stopping extends DataprocClusterStatus
+
+  case object Stopped extends DataprocClusterStatus
 }
