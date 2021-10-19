@@ -329,7 +329,7 @@ chmod a+rwx ${WORK_DIRECTORY}
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 
-# Start up crypto detector.
+# Start up crypto detector, if enabled.
 # This should be started after other containers.
 # Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
 # See https://github.com/broadinstitute/terra-cryptomining-security-alerts/tree/master/v2
