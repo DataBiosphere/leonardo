@@ -316,11 +316,13 @@ END
     fi
 
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
+      TOOL_SERVER_NAME=${JUPYTER_SERVER_NAME}
       COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
     fi
 
     if [ ! -z ${RSTUDIO_DOCKER_IMAGE} ] ; then
+      TOOL_SERVER_NAME=${RSTUDIO_SERVER_NAME}
       COMPOSE_FILES+=(-f /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
       cat /etc/`basename ${RSTUDIO_DOCKER_COMPOSE}`
     fi
@@ -333,8 +335,10 @@ END
     # This should be started after other containers.
     # Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
     # See https://github.com/broadinstitute/terra-cryptomining-security-alerts/tree/master/v2
-    docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
-      --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
+    if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
+      docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
+        --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
+    fi
 
     STEP_TIMINGS+=($(date +%s))
 

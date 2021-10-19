@@ -333,8 +333,10 @@ ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
 # This should be started after other containers.
 # Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
 # See https://github.com/broadinstitute/terra-cryptomining-security-alerts/tree/master/v2
-docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
-  --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
+if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
+  docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
+    --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
+fi
 
 # done welder start
 STEP_TIMINGS+=($(date +%s))
