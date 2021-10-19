@@ -244,7 +244,7 @@ class RuntimeDataprocSpec
                             2,
                             0,
                             RegionName("us-central1"),
-                            RuntimeStatus.Stopped)
+                            DataprocClusterStatus.Stopped)
 
         // start the cluster
         _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
@@ -296,7 +296,7 @@ class RuntimeDataprocSpec
     expectedNumWorkers: Int,
     expectedPreemptibles: Int,
     expectedRegion: RegionName,
-    expectedStatus: RuntimeStatus = RuntimeStatus.Running
+    expectedStatus: DataprocClusterStatus = DataprocClusterStatus.Running
   )(implicit httpClient: Client[IO]): IO[Unit] =
     for {
       // check cluster status in Dataproc
