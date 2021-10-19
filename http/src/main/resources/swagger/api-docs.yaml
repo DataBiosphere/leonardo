@@ -2823,7 +2823,7 @@ components:
           $ref: '#/components/schemas/PersistentDiskRequest'
         appType:
           type: string
-          description: currently only "GALAXY" and "CUSTOM" are supported
+          description: currently "GALAXY", "CROMWELL" and "CUSTOM" are supported
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         labels:

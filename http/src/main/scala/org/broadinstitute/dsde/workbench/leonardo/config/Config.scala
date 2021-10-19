@@ -592,6 +592,17 @@ object Config {
     )
   }
 
+  implicit private val cromwellAppConfigReader: ValueReader[CromwellAppConfig] = ValueReader.relative { config =>
+    CromwellAppConfig(
+      chartName = config.as[ChartName]("chartName"),
+      chartVersion = config.as[ChartVersion]("chartVersion"),
+      namespaceNameSuffix = config.as[String]("namespaceNameSuffix"),
+      releaseNameSuffix = config.as[String]("releaseNameSuffix"),
+      services = config.as[List[ServiceConfig]]("services"),
+      serviceAccountName = config.as[ServiceAccountName]("serviceAccountName")
+    )
+  }
+
   implicit private val customAppConfigReader: ValueReader[CustomAppConfig] = ValueReader.relative { config =>
     CustomAppConfig(
       config.as[ChartName]("chartName"),
@@ -634,6 +645,7 @@ object Config {
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
   val gkeIngressConfig = config.as[KubernetesIngressConfig]("gke.ingress")
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
+  val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
@@ -655,7 +667,8 @@ object Config {
     gkeIngressConfig,
     gkeGalaxyAppConfig,
     gkeGalaxyDiskConfig,
-    ConfigReader.appConfig.persistentDisk
+    ConfigReader.appConfig.persistentDisk,
+    gkeCromwellAppConfig
   )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
@@ -754,6 +767,7 @@ object Config {
       org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader.appConfig.terraAppSetupChart,
       gkeIngressConfig,
       gkeGalaxyAppConfig,
+      gkeCromwellAppConfig,
       gkeCustomAppConfig,
       gkeMonitorConfig,
       gkeClusterConfig,
