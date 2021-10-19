@@ -176,7 +176,6 @@ object Config {
         config.as[RuntimeResource]("rstudioDockerCompose"),
         config.as[RuntimeResource]("proxyDockerCompose"),
         config.as[RuntimeResource]("welderDockerCompose"),
-        config.as[RuntimeResource]("cryptoDetectorDockerCompose"),
         config.as[RuntimeResource]("proxySiteConf"),
         config.as[RuntimeResource]("jupyterNotebookConfigUri"),
         config.as[RuntimeResource]("jupyterNotebookFrontendConfigUri"),

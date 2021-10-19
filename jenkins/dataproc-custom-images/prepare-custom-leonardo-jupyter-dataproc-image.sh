@@ -33,7 +33,7 @@ terra_jupyter_base_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.0"
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.1"
 
 # Not replaced by Jenkins. If you change this you must also change Leo reference.conf!
-cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.1"
+cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
 
 # this array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI

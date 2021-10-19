@@ -128,7 +128,6 @@ JUPYTER_DOCKER_COMPOSE_GCE=$(jupyterDockerCompose)
 RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
 PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
 WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
-CRYPTO_DETECTOR_DOCKER_COMPOSE=$(cryptoDetectorDockerCompose)
 GPU_DOCKER_COMPOSE=$(gpuDockerCompose)
 PROXY_SITE_CONF=$(proxySiteConf)
 JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
@@ -275,23 +274,19 @@ if [ ! -z "$WELDER_DOCKER_IMAGE" ] && [ "$WELDER_ENABLED" == "true" ] ; then
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${WELDER_DOCKER_COMPOSE}`
 fi
 
-# Note: crypto-detector should be started after user containers
-if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
-  COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
-  cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`
-fi
-
 if [ "${GPU_ENABLED}" == "true" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`)
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${GPU_DOCKER_COMPOSE}`
 fi
 
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+  TOOL_SERVER_NAME=${JUPYTER_SERVER_NAME}
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`)
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${JUPYTER_DOCKER_COMPOSE_GCE}`
 fi
 
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  TOOL_SERVER_NAME=${RSTUDIO_SERVER_NAME}
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`
 fi
@@ -314,8 +309,6 @@ WELDER_SERVER_NAME=${WELDER_SERVER_NAME}
 WELDER_DOCKER_IMAGE=${WELDER_DOCKER_IMAGE}
 STAGING_BUCKET=${STAGING_BUCKET}
 WELDER_MEM_LIMIT=${WELDER_MEM_LIMIT}
-CRYPTO_DETECTOR_SERVER_NAME=${CRYPTO_DETECTOR_SERVER_NAME}
-CRYPTO_DETECTOR_DOCKER_IMAGE=${CRYPTO_DETECTOR_DOCKER_IMAGE}
 JUPYTER_SCRIPTS=${JUPYTER_SCRIPTS}
 HOST_PROXY_SITE_CONF_FILE_PATH=${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${PROXY_SITE_CONF}`
 DOCKER_COMPOSE_FILES_DIRECTORY=${DOCKER_COMPOSE_FILES_DIRECTORY}
@@ -335,6 +328,15 @@ retry 5 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" pu
 chmod a+rwx ${WORK_DIRECTORY}
 
 ${DOCKER_COMPOSE} --env-file=/var/variables.env "${COMPOSE_FILES[@]}" up -d
+
+# Start up crypto detector, if enabled.
+# This should be started after other containers.
+# Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
+# See https://github.com/broadinstitute/terra-cryptomining-security-alerts/tree/master/v2
+if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
+  docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
+    --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
+fi
 
 # done welder start
 STEP_TIMINGS+=($(date +%s))

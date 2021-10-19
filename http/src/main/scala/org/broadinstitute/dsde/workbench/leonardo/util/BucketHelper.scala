@@ -133,8 +133,7 @@ class BucketHelper[F[_]](
             clusterResourcesConfig.rstudioDockerCompose,
             clusterResourcesConfig.proxyDockerCompose,
             clusterResourcesConfig.proxySiteConf,
-            clusterResourcesConfig.welderDockerCompose,
-            clusterResourcesConfig.cryptoDetectorDockerCompose
+            clusterResourcesConfig.welderDockerCompose
           )
         )
         .covary[F]

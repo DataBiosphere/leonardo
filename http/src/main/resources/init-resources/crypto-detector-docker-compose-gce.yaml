@@ -1,8 +1,0 @@
-version: '2.4'
-services:
-  crypto-detector:
-    container_name: "${CRYPTO_DETECTOR_SERVER_NAME}"
-    image: "${CRYPTO_DETECTOR_DOCKER_IMAGE}"
-    networks:
-      - app_network
-    restart: always
