@@ -64,7 +64,7 @@ package object service {
     params.get(includeLabelsKey) match {
       case Some(includeLabelsValue) =>
         Either
-          .catchNonFatal(includeLabelsValue.split(',').toList)
+          .catchNonFatal(includeLabelsValue.split(',').toList.filter(l => !l.isEmpty))
           .leftMap(_ =>
             BadRequestException(
               s"Failed to process ${includeLabelsKey} query string because it's not comma separated. Expected format [key1,key2,...]",
