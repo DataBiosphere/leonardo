@@ -38,7 +38,7 @@ docker_composer="docker/compose:1.29.1"
 docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
 # Not replaced by Jenkins. If you change this you must also change Leo reference.conf!
-cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.1"
+cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.2"
 
 # This array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI

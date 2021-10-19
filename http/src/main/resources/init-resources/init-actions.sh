@@ -194,7 +194,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     RSTUDIO_DOCKER_COMPOSE=$(rstudioDockerCompose)
     PROXY_DOCKER_COMPOSE=$(proxyDockerCompose)
     WELDER_DOCKER_COMPOSE=$(welderDockerCompose)
-    CRYPTO_DETECTOR_DOCKER_COMPOSE=$(cryptoDetectorDockerCompose)
     PROXY_SITE_CONF=$(proxySiteConf)
     JUPYTER_SERVER_EXTENSIONS=$(jupyterServerExtensions)
     JUPYTER_NB_EXTENSIONS=$(jupyterNbExtensions)
@@ -316,12 +315,6 @@ END
       cat /etc/`basename ${WELDER_DOCKER_COMPOSE}`
     fi
 
-    # Note: cryto detector should be started after user containers
-    if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
-      COMPOSE_FILES+=(-f /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`)
-      cat /etc/`basename ${CRYPTO_DETECTOR_DOCKER_COMPOSE}`
-    fi
-
     if [ ! -z ${JUPYTER_DOCKER_IMAGE} ] ; then
       COMPOSE_FILES+=(-f /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`)
       cat /etc/`basename ${JUPYTER_DOCKER_COMPOSE}`
@@ -335,6 +328,13 @@ END
     retry 5 docker-compose "${COMPOSE_FILES[@]}" config
     retry 5 docker-compose "${COMPOSE_FILES[@]}" pull
     retry 5 docker-compose "${COMPOSE_FILES[@]}" up -d
+
+    # Start up crypto detector.
+    # This should be started after other containers.
+    # Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
+    # See https://github.com/broadinstitute/terra-cryptomining-security-alerts/tree/master/v2
+    docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
+      --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
 
     STEP_TIMINGS+=($(date +%s))
 
