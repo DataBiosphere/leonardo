@@ -276,7 +276,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
-        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now)
+        StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, true)
       )
       poll = op match {
         case Some(o) =>
@@ -406,7 +406,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
           operation <- runtimeConfig.cloudService.interpreter
             .stopRuntime(
-              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now)
+              StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, false)
             )(
               ctxStopping
             )

@@ -331,7 +331,6 @@ class DataprocInterpreter[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[Option[com.google.cloud.compute.v1.Operation]] =
     for {
-      ctx <- ev.ask
       region <- F.fromOption(
         LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
@@ -341,7 +340,8 @@ class DataprocInterpreter[F[_]: Parallel](
         params.runtimeAndRuntimeConfig.runtime.googleProject,
         region,
         DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
-        Some(metadata)
+        Some(metadata),
+        params.isDataprocFullStop
       )
     } yield None
 
@@ -349,7 +349,6 @@ class DataprocInterpreter[F[_]: Parallel](
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      ctx <- ev.ask
       dataprocConfig <- F.fromOption(
         LeoLenses.dataprocPrism.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
