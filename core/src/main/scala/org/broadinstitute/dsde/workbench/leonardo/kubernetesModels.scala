@@ -7,8 +7,19 @@ import java.util.UUID
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName, ServiceName}
-import org.broadinstitute.dsde.workbench.google2.{KubernetesName, Location, MachineTypeName, NetworkName, RegionName, SubnetworkName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  ServiceAccountName,
+  ServiceName
+}
+import org.broadinstitute.dsde.workbench.google2.{
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  RegionName,
+  SubnetworkName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.{Cromwell, Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -346,17 +357,17 @@ final case class App(id: AppId,
                      customEnvironmentVariables: Map[String, String],
                      descriptorPath: Option[Uri],
                      extraArgs: List[String]) {
-  def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] = {
+  def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
       appType match {
         case Galaxy | Custom =>
           (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}"))
         case Cromwell =>
-          (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}/swagger/index.html?url=/proxy/${proxyPath}/swagger/cromwell.yaml"))
+          (service.config.name,
+           new URL(s"${proxyUrlBase}${proxyPath}/swagger/index.html?url=/proxy/${proxyPath}/swagger/cromwell.yaml"))
       }
     }.toMap
-  }
 }
 
 sealed abstract class AppStatus
