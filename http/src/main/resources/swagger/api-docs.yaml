@@ -2237,6 +2237,7 @@ components:
         - size
         - diskType
         - blockSize
+        - labels
       properties:
         id:
           type: integer
@@ -2262,6 +2263,9 @@ components:
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
+        labels:
+          type: object
+          description: The labels of each persistent disk in the response whose key is in includeLabels in the request. Of type Map[String,String]
 
     GetPersistentDiskResponse:
       description: ""
@@ -2937,6 +2941,9 @@ components:
           description: the name of the app
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
+        labels:
+          type: object
+          description: The labels of each app in the response whose key is in includeLabels in the request. Of type Map[String,String]
 
     KubernetesRuntimeConfig:
       description: configuration for a kubernetes app runtime

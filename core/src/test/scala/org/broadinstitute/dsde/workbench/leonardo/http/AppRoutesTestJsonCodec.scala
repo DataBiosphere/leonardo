@@ -53,5 +53,5 @@ object AppRoutesTestJsonCodec {
                         "appName",
                         "diskName",
                         "auditInfo",
-                        "includeLabels")(ListAppResponse.apply)
+                        "labels")(ListAppResponse.apply)
 }

@@ -69,7 +69,7 @@ object DiskRoutesTestJsonCodec {
       size <- x.downField("size").as[DiskSize]
       diskType <- x.downField("diskType").as[DiskType]
       blockSize <- x.downField("blockSize").as[BlockSize]
-      includeLabels <- x.downField("includeLabels").as[LabelMap]
+      labels <- x.downField("labels").as[LabelMap]
     } yield ListPersistentDiskResponse(
       id,
       googleProject,
@@ -80,7 +80,7 @@ object DiskRoutesTestJsonCodec {
       size,
       diskType,
       blockSize,
-      includeLabels
+      labels
     )
   }
 }
