@@ -18,9 +18,7 @@ class PackageSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "process labels to return properly" in {
-    val input1 = Map("includeLabels" -> "foo,bar")
-    processLabelsToReturn(input1, None) shouldBe Right(List("foo", "bar"))
-
-    // TODO: what would a bad request look like?
+    val input1 = "foo,bar"
+    processLabelsToReturn(input1) shouldBe Right(List("foo", "bar"))
   }
 }

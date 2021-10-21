@@ -11,6 +11,7 @@ import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
 import com.typesafe.config.ConfigFactory
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.LabelMap
 import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
@@ -376,7 +377,7 @@ object CommonTestData {
       blockSize,
       formattedBy,
       galaxyRestore,
-      Map.empty
+      Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3")
     )
 
   // TODO look into parameterized tests so both provider impls can be tested

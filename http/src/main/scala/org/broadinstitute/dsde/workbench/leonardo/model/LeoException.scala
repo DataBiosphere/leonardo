@@ -131,10 +131,7 @@ case class BucketObjectAccessException(userEmail: WorkbenchEmail, gcsUri: GcsPat
                          StatusCodes.Forbidden,
                          traceId = None)
 
-case class ParseLabelsException(labelString: String)
-    extends LeoException(s"Could not parse label string: $labelString. Expected format [key1=value1,key2=value2,...]",
-                         StatusCodes.BadRequest,
-                         traceId = None)
+case class ParseLabelsException(msg: String) extends LeoException(msg, StatusCodes.BadRequest, traceId = None)
 
 case class IllegalLabelKeyException(labelKey: String)
     extends LeoException(s"Labels cannot have a key of '$labelKey'", StatusCodes.NotAcceptable, traceId = None)
