@@ -63,7 +63,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
       // Stop the cluster in Google
       r <- stopGoogleRuntime(
-        StopGoogleRuntime(params.runtimeAndRuntimeConfig)
+        StopGoogleRuntime(params.runtimeAndRuntimeConfig, params.isDataprocFullStop)
       )
     } yield r
 
@@ -242,6 +242,6 @@ final case class StartGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeCo
                                     initBucket: GcsBucketName,
                                     welderAction: Option[WelderAction])
 
-final case class StopGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
+final case class StopGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, isDataprocFullStop: Boolean)
 
 final case class SetGoogleMachineType(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, machineType: MachineTypeName)

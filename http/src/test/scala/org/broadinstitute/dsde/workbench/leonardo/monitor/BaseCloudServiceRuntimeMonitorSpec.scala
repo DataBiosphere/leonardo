@@ -46,7 +46,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtimeMonitor = new MockRuntimeMonitor(true, Map(RuntimeStatus.Starting -> 2.seconds)) {
         override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
           implicit ev: Ask[IO, AppContext]
-        ): IO[(Unit, Option[MonitorState])] = checkAgain(monitorContext, runtimeAndRuntimeConfig, Set.empty, None, None)
+        ): IO[(Unit, Option[MonitorState])] = checkAgain(monitorContext, runtimeAndRuntimeConfig, None, None, None)
       }
       assersions = for {
         status <- clusterQuery.getClusterStatus(runtime.id).transaction

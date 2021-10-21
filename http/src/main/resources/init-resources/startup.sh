@@ -54,9 +54,11 @@ export OWNER_EMAIL=$(loginHint)
 export JUPYTER_SERVER_NAME=$(jupyterServerName)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export WELDER_SERVER_NAME=$(welderServerName)
+export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
 export NOTEBOOKS_DIR=$(notebooksDir)
 export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
 export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
+export CRYPTO_DETECTOR_DOCKER_IMAGE=$(cryptoDetectorDockerImage)
 export WELDER_ENABLED=$(welderEnabled)
 export UPDATE_WELDER=$(updateWelder)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
@@ -216,6 +218,8 @@ fi
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+    TOOL_SERVER_NAME=${JUPYTER_SERVER_NAME}
+
     # update container MEM_LIMIT to reflect VM's MEM_LIMIT
     docker update $JUPYTER_SERVER_NAME --memory $MEM_LIMIT --memory-swap $MEM_LIMIT
 
@@ -237,6 +241,8 @@ fi
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
     echo "Starting RStudio on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+    TOOL_SERVER_NAME=${RSTUDIO_SERVER_NAME}
+
     # update container MEM_LIMIT to reflect VM's MEM_LIMIT
     docker update $RSTUDIO_SERVER_NAME --memory $MEM_LIMIT --memory-swap $MEM_LIMIT
 
@@ -245,6 +251,15 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 
     # Start RStudio server
     docker exec -d $RSTUDIO_SERVER_NAME /init
+fi
+
+# Start up crypto detector, if enabled.
+# This should be started after other containers.
+# Use `docker run` instead of docker-compose so we can link it to the Jupyter/RStudio container's network.
+# See https://github.com/broadinstitute/terra-cryptomining-security-alerts/tree/master/v2
+if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
+    docker run --name=${CRYPTO_DETECTOR_SERVER_NAME} --rm -d \
+        --net=container:${TOOL_SERVER_NAME} ${CRYPTO_DETECTOR_DOCKER_IMAGE}
 fi
 
 # Resize persistent disk if needed.
