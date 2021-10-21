@@ -108,9 +108,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
     implicit as: Ask[F, AppContext]
   ): F[Vector[ListPersistentDiskResponse]] =
     for {
-      ctx <- as.ask
       paramMap <- F.fromEither(processListParameters(params))
-      labelsToReturn <- F.fromEither(processLabelsToReturn(params, Some(ctx.traceId)))
       disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, googleProject).transaction
       diskAndProjects = disks.map(d => (d.googleProject, d.samResource))
       samVisibleDisksOpt <- NonEmptyList.fromList(diskAndProjects).traverse { ds =>
