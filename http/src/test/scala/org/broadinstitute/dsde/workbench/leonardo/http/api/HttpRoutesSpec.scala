@@ -160,7 +160,7 @@ class HttpRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get("/api/google/v1/runtimes?filterLabels=label4%3Dvalue4") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes?_labels=label4%3Dvalue4") ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.OK
 
       val responseClusters = responseAs[List[ListRuntimeResponse2]]
@@ -182,7 +182,7 @@ class HttpRoutesSpec
       validateRawCookie(header("Set-Cookie"))
     }
 
-    Get("/api/google/v1/runtimes?filterLabels=bad") ~> httpRoutes.route ~> check {
+    Get("/api/google/v1/runtimes?_labels=bad") ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
     }
   }

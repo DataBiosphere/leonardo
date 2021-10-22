@@ -827,41 +827,41 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
 
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "foo=bar"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1,
       listRuntimeResponse2
     )
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "foo=bar,bam=yes"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse1
     )
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "foo=bar,bam=yes,vcf=no"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam=yes,vcf=no"))
       .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
       .futureValue
       .toSet shouldBe Set(listRuntimeResponse1)
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "a=b"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "a=b"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     )
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "baz=biz"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "baz=biz"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set.empty
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "A=B"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "A=B"))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .toSet shouldBe Set(
       listRuntimeResponse2
     ) // labels are not case sensitive because MySQL
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "foo%3Dbar"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "foo%3Dbar"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -869,7 +869,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "foo=bar;bam=yes"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar;bam=yes"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -877,16 +877,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .get
       .isInstanceOf[ParseLabelsException] shouldBe true
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "foo=bar,bam"))
-      .attempt
-      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-      .swap
-      .toOption
-      .get
-      .isInstanceOf[ParseLabelsException] shouldBe true
-
-    runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "bogus"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "foo=bar,bam"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -895,7 +886,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       .isInstanceOf[ParseLabelsException] shouldBe true
 
     runtimeService
-      .listRuntimes(userInfo, None, Map("filterLabels" -> "a,b"))
+      .listRuntimes(userInfo, None, Map("_labels" -> "bogus"))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+      .isInstanceOf[ParseLabelsException] shouldBe true
+
+    runtimeService
+      .listRuntimes(userInfo, None, Map("_labels" -> "a,b"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap

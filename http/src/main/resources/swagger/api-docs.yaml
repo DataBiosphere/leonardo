@@ -78,7 +78,7 @@ paths:
         - runtimes
       parameters:
         - in: query
-          name: filterLabels
+          name: _labels
           description: >
             Optional label key-value pairs to filter results by. Example:
             Querying by key1=val1,key2=val2
@@ -133,7 +133,7 @@ paths:
           schema:
             type: string
         - in: query
-          name: filterLabels
+          name: _labels
           description: >
             Optional label key-value pairs to filter results by. Example:
             Querying by key1=val1,key2=val2
@@ -443,7 +443,7 @@ paths:
         - disks
       parameters:
         - in: query
-          name: filterLabels
+          name: _labels
           description: >
             Optional label key-value pairs to filter results by. Example:
             Querying by key1=val1,key2=val2
@@ -507,7 +507,7 @@ paths:
           schema:
             type: string
         - in: query
-          name: filterLabels
+          name: _labels
           description: >
             Optional label key-value pairs to filter results by. Example:
             Querying by key1=val1,key2=val2
@@ -732,7 +732,7 @@ paths:
       operationId: listApp
       parameters:
         - in: query
-          name: filterLabels
+          name: _labels
           description: >
             Optional label key-value pairs to filter results by. Example:
             Querying by key1=val1,key2=val2
@@ -800,7 +800,7 @@ paths:
           schema:
             type: string
         - in: query
-          name: filterLabels
+          name: _labels
           description: >
             Optional label key-value pairs to filter results by. Example:
             Querying by key1=val1,key2=val2
