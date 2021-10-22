@@ -11,19 +11,19 @@ package object service {
    * There are 2 styles of passing labels to the list clusters endpoint:
    *
    * 1. As top-level query string parameters: GET /api/clusters?foo=bar&baz=biz
-   * 2. Using the _labels query string parameter: GET /api/clusters?_labels=foo%3Dbar,baz%3Dbiz
+   * 2. Using the filterLabels query string parameter: GET /api/clusters?filterLabels=foo%3Dbar,baz%3Dbiz
    *
    * The latter style exists because Swagger doesn't provide a way to specify free-form query string
    * params. This method handles both styles, and returns a Map[String, String] representing the labels.
    *
-   * Note that style 2 takes precedence: if _labels is present on the query string, any additional
+   * Note that style 2 takes precedence: if filterLabels is present on the query string, any additional
    * parameters are ignored.
    *
    * @param params raw query string params
    * @return a Map[String, String] representing the labels
    */
   private[service] def processLabelMap(params: LabelMap): Either[ParseLabelsException, LabelMap] =
-    params.get("_labels") match {
+    params.get("filterLabels") match {
       case Some(extraLabels) =>
         val labels: List[Either[ParseLabelsException, LabelMap]] = extraLabels
           .split(',')
