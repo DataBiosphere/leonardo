@@ -51,7 +51,8 @@ object MockDiskServiceInterp extends DiskService[IO] {
           CommonTestData.auditInfo,
           CommonTestData.diskSize,
           CommonTestData.diskType,
-          CommonTestData.blockSize
+          CommonTestData.blockSize,
+          Map.empty
         )
       )
     )

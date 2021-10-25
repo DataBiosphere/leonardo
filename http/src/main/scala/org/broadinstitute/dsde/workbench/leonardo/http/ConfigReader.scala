@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.TerraAppSetupChartConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 
 object ConfigReader {
-  val appConfig =
+  lazy val appConfig =
     ConfigSource
       .fromConfig(org.broadinstitute.dsde.workbench.leonardo.config.Config.config)
       .loadOrThrow[AppConfig]

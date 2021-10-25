@@ -530,7 +530,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName2 = AppName("app2")
     val appName3 = AppName("app3")
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
-    val appReq1 = createAppRequest.copy(diskConfig = Some(createDiskConfig1))
+    val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
+                                        diskConfig = Some(createDiskConfig1))
     val diskName2 = DiskName("newDiskName")
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
     val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
@@ -552,9 +553,12 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val listAllApps =
-      kubeServiceInterp.listApp(userInfo, None, Map()).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      kubeServiceInterp
+        .listApp(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listAllApps.length shouldEqual 3
     listAllApps.map(_.appName) should contain(appName1)
+    listAllApps.map(_.labels) should contain(Map("key1" -> "val1", "key2" -> "val2"))
     listAllApps.map(_.appName) should contain(appName2)
     listAllApps.map(_.appName) should contain(appName3)
     listAllApps.map(_.diskName).sortBy(_.get.value) shouldBe Vector(Some(diskName), Some(diskName), Some(diskName2))

@@ -112,9 +112,10 @@ class DiskServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Test
     val res = for {
       disk1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       disk2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      listResponse <- diskService.listDisks(userInfo, None, Map.empty)
+      listResponse <- diskService.listDisks(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
     } yield {
       listResponse.map(_.id).toSet shouldBe Set(disk1.id, disk2.id)
+      listResponse.map(_.labels).toSet shouldBe Set(Map("key1" -> "value1", "key2" -> "value2"))
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
