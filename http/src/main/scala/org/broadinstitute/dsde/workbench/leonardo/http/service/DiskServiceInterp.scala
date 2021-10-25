@@ -133,7 +133,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
                                          d.auditInfo,
                                          d.size,
                                          d.diskType,
-                                         d.blockSize)
+                                         d.blockSize,
+                                         d.labels.filter(l => paramMap._3.contains(l._1)))
             )
             .toVector
       }

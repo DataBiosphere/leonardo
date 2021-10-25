@@ -376,7 +376,7 @@ object CommonTestData {
       blockSize,
       formattedBy,
       galaxyRestore,
-      Map.empty
+      Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3")
     )
 
   // TODO look into parameterized tests so both provider impls can be tested

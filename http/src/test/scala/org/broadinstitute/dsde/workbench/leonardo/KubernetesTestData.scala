@@ -76,7 +76,9 @@ object KubernetesTestData {
 
   val listAppResponse =
     ListAppResponse
-      .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))), "https://leo/proxy/")
+      .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))),
+                   "https://leo/proxy/",
+                   List.empty)
       .toVector
 
   def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId, prefix: String = "", isDefault: Boolean = false) = {
