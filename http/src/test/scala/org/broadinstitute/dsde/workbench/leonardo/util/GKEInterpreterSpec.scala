@@ -142,7 +142,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build Cromwell override values string" in {
     val savedCluster1 = makeKubeCluster(1)
-    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Galaxy))
+    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Custom))
     val res = gkeInterp.buildCromwellAppChartOverrideValuesString(
       AppName("app1"),
       savedCluster1,
@@ -151,7 +151,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       savedDisk1
     )
 
-    res.mkString(",") shouldBe """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,ingress.enabled=true,ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,ingress.hosts[0].host=1455694897.jupyter.firecloud.org,ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service(/|$)(.*),ingress.tls[0].secretName=tls-secret,ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org"""
+    res.mkString(",") shouldBe """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,persistence.size=250G,persistence.gcePersistentDisk=disk1,ingress.enabled=true,ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,ingress.hosts[0].host=1455694897.jupyter.firecloud.org,ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service(/|$)(.*),ingress.tls[0].secretName=tls-secret,ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org"""
   }
 
   it should "check if a pod is done" in {
