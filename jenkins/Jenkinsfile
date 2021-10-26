@@ -101,6 +101,7 @@ LinkedHashMap<String,String> getVersionMap(Set<String> imageNames, String config
         ).trim()
 
         versionMap[image] = version
+        println("Detecting $version for '$image'")
     }
 
     return versionMap
