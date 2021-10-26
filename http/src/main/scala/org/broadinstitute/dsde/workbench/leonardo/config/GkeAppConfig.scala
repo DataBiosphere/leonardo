@@ -23,7 +23,8 @@ final case class GalaxyAppConfig(releaseNameSuffix: String,
                                  uninstallKeepHistory: Boolean,
                                  postgresPassword: String,
                                  orchUrl: String,
-                                 drsUrl: String) extends GkeAppConfig {
+                                 drsUrl: String)
+    extends GkeAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
@@ -32,14 +33,16 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    namespaceNameSuffix: String,
                                    releaseNameSuffix: String,
                                    services: List[ServiceConfig],
-                                   serviceAccountName: ServiceAccountName) extends GkeAppConfig {
+                                   serviceAccountName: ServiceAccountName)
+    extends GkeAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
 final case class CustomAppConfig(chartName: ChartName,
                                  chartVersion: ChartVersion,
                                  releaseNameSuffix: String,
-                                 namespaceNameSuffix: String) extends GkeAppConfig {
+                                 namespaceNameSuffix: String)
+    extends GkeAppConfig {
   // Not known at config. Generated at runtime.
   override lazy val kubernetesServices: List[KubernetesService] = List.empty
 }

@@ -513,9 +513,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](
     val now = ctx.now
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
     val gkeAppConfig: GkeAppConfig = req.appType match {
-      case Galaxy => leoKubernetesConfig.galaxyAppConfig
+      case Galaxy   => leoKubernetesConfig.galaxyAppConfig
       case Cromwell => leoKubernetesConfig.cromwellAppConfig
-      case Custom => leoKubernetesConfig.customAppConfig
+      case Custom   => leoKubernetesConfig.customAppConfig
     }
 
     val allLabels =
