@@ -142,7 +142,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
   it should "build Cromwell override values string" in {
     val savedCluster1 = makeKubeCluster(1)
-    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Custom))
+    val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
     val res = gkeInterp.buildCromwellAppChartOverrideValuesString(
       AppName("app1"),
       savedCluster1,
