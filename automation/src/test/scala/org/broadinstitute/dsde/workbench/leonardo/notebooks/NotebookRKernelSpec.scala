@@ -156,7 +156,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               // See https://broadworkbench.atlassian.net/browse/IA-2936
               "WORKSPACE_NAME" -> "Untitled Folder"
             )
-        withNewNotebookInSubfolder(runtimeFixture.runtime, RKernel) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
           expectedEVs.foreach {
             case (k, v) =>
               val res = notebookPage.executeCell(s"Sys.getenv('$k')")

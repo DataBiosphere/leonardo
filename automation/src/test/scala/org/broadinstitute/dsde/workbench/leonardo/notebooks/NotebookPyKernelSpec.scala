@@ -192,7 +192,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               // See https://broadworkbench.atlassian.net/browse/IA-2936
               "WORKSPACE_NAME" -> "Untitled Folder"
             )
-        withNewNotebookInSubfolder(runtimeFixture.runtime, Python3) { notebookPage =>
+        withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import os")
           expectedEVs.foreach {
             case (k, v) =>
