@@ -190,7 +190,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               // TODO: remove when PPW is rolled out to all workspaces
               // and Leo removes the kernel_bootstrap logic.
               // See https://broadworkbench.atlassian.net/browse/IA-2936
-              "WORKSPACE_NAME" -> "Untitled Folder"
+              "WORKSPACE_NAME" -> "jupyter"
             )
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import os")
