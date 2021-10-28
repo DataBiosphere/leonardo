@@ -33,7 +33,7 @@ class AppLifecycleSpec
   val customCreateAppRequest = defaultCreateAppRequest.copy(
     diskConfig = Some(
       PersistentDiskRequest(
-        randomDiskName,
+        randomDiskName(),
         Some(DiskSize(500)),
         None,
         Map.empty
@@ -48,7 +48,7 @@ class AppLifecycleSpec
   val cromwellCreateAppRequest = defaultCreateAppRequest.copy(
     diskConfig = Some(
       PersistentDiskRequest(
-        randomDiskName,
+        randomDiskName(),
         Some(DiskSize(500)),
         None,
         Map.empty
