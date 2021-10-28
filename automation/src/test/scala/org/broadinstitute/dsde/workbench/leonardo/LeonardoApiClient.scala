@@ -554,7 +554,7 @@ object LeonardoApiClient {
           headers = Headers(authHeader, traceIdHeader),
           uri = uri
         )
-      )(onError(s"Failed to list apps in project ${googleProject.value}"))
+      )(onError(s"Failed to list apps in project ${googleProject.value} -- Trace ID: ${traceIdHeader.value}"))
     } yield r
   }
 
