@@ -390,7 +390,8 @@ class GKEInterpreter[F[_]](
             app.release,
             dbCluster,
             dbApp.nodepool.nodepoolName,
-            namespaceName
+            namespaceName,
+            nfsDisk
           )
         case AppType.Custom =>
           installCustomApp(
@@ -979,7 +980,8 @@ class GKEInterpreter[F[_]](
                                        release: Release,
                                        cluster: KubernetesCluster,
                                        nodepoolName: NodepoolName,
-                                       namespaceName: NamespaceName)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+                                       namespaceName: NamespaceName,
+                                       disk: PersistentDisk)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     // TODO: Use the chart from the database instead of re-looking it up in config:
     val chart = config.cromwellAppConfig.chart
 
@@ -990,7 +992,7 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
-      chartValues = buildCromwellAppChartOverrideValuesString(appName, cluster, nodepoolName, namespaceName)
+      chartValues = buildCromwellAppChartOverrideValuesString(appName, cluster, nodepoolName, namespaceName, disk)
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
       // Invoke helm
@@ -1230,7 +1232,8 @@ class GKEInterpreter[F[_]](
   private[util] def buildCromwellAppChartOverrideValuesString(appName: AppName,
                                                               cluster: KubernetesCluster,
                                                               nodepoolName: NodepoolName,
-                                                              namespaceName: NamespaceName): List[String] = {
+                                                              namespaceName: NamespaceName,
+                                                              disk: PersistentDisk): List[String] = {
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -1251,7 +1254,10 @@ class GKEInterpreter[F[_]](
 
     List(
       // Node selector
-      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}"""
+      raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
+      // Persistence
+      raw"""persistence.size=${disk.size.gb.toString}G""",
+      raw"""persistence.gcePersistentDisk=${disk.name.value}"""
     ) ++ ingress
   }
 
