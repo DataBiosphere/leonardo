@@ -598,7 +598,8 @@ object Config {
       namespaceNameSuffix = config.as[String]("namespaceNameSuffix"),
       releaseNameSuffix = config.as[String]("releaseNameSuffix"),
       services = config.as[List[ServiceConfig]]("services"),
-      serviceAccountName = config.as[ServiceAccountName]("serviceAccountName")
+      serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
+      config.as[String]("dbPassword"),
     )
   }
 

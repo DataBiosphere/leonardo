@@ -9,7 +9,9 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    namespaceNameSuffix: String,
                                    releaseNameSuffix: String,
                                    services: List[ServiceConfig],
-                                   serviceAccountName: ServiceAccountName) {
+                                   serviceAccountName: ServiceAccountName,
+                                   dbPassword: String
+                                  ) {
 
   def chart: Chart = Chart(chartName, chartVersion)
 }
