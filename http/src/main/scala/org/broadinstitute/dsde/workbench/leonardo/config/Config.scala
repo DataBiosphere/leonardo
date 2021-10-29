@@ -599,7 +599,7 @@ object Config {
       releaseNameSuffix = config.as[String]("releaseNameSuffix"),
       services = config.as[List[ServiceConfig]]("services"),
       serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
-      config.as[String]("dbPassword"),
+      dbPassword = config.as[String]("dbPassword"),
     )
   }
 

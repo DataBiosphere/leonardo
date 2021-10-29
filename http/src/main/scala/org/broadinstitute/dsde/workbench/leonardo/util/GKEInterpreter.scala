@@ -1250,7 +1250,7 @@ class GKEInterpreter[F[_]](
       raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
-      raw"""db.password=${config.cromwellAppConfig.dbPassword}""",
+      raw"""db.password=${config.cromwellAppConfig.dbPassword}"""
     )
 
     List(
