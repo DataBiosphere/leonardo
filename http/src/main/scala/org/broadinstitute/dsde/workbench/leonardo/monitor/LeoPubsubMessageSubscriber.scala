@@ -114,17 +114,17 @@ class LeoPubsubMessageSubscriber[F[_]](
                   case _ => F.unit
                 }
                 _ <- if (ee.isRetryable)
-                  logger.error(e)("Fail to process retryable pubsub message") >> F
+                  logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F
                     .delay(event.consumer.nack())
                 else
-                  logger.error(e)("Fail to process non-retryable pubsub message") >> ack(event)
+                  logger.error(ctx.loggingCtx, e)("Fail to process non-retryable pubsub message") >> ack(event)
               } yield ()
             case ee: WorkbenchException if ee.getMessage.contains("Call to Google API failed") =>
               logger
-                .error(e)("Fail to process retryable pubsub message due to Google API call failure") >> F
+                .error(ctx.loggingCtx, e)("Fail to process retryable pubsub message due to Google API call failure") >> F
                 .delay(event.consumer.nack())
             case _ =>
-              logger.error(e)("Fail to process pubsub message due to unexpected error") >> ack(event)
+              logger.error(ctx.loggingCtx, e)("Fail to process pubsub message due to unexpected error") >> ack(event)
           }
         case Right(_) => ack(event)
       }
