@@ -1258,7 +1258,8 @@ class GKEInterpreter[F[_]](
       raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}"""
+      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
+      raw"""env.swaggerBasePath=$ingressPath"""
     ) ++ ingress
   }
 
