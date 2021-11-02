@@ -2909,6 +2909,9 @@ components:
           description: Optional environment variables to be set on the app
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
+        appType:
+          type: string
+          description: the type of app
 
     ListAppResponse:
       description: the configuration of an app
@@ -2939,6 +2942,9 @@ components:
         appName:
           type: string
           description: the name of the app
+        appType:
+          type: string
+          description: the type of app
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         labels:
