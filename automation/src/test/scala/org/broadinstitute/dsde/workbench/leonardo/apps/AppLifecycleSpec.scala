@@ -21,7 +21,8 @@ class AppLifecycleSpec
     with GPAllocUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks {
-  implicit val auth: Authorization =
+  // Using def instead of val to prevent test flakiness due to token expiration when tests take long
+  implicit def auth: Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
 
   override def withFixture(test: NoArgTest) =
