@@ -40,8 +40,7 @@ final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig
                                 diskName: Option[DiskName],
                                 customEnvironmentVariables: Map[String, String],
                                 auditInfo: AuditInfo,
-                                appType: AppType
-                               )
+                                appType: AppType)
 
 final case class ListAppResponse(googleProject: GoogleProject,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
