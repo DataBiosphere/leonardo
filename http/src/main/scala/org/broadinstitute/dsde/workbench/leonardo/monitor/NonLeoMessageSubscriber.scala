@@ -208,6 +208,8 @@ object NonLeoMessageSubscriber {
     } yield CryptoMining(textpayload, resource, googleProject)
   }
 
+  implicit val sccCategoryDecoder: Decoder[SccCategory] = Decoder.decodeString.emap(s => SccCategory.fromString(s))
+  implicit val findingDecoder: Decoder[Finding] = Decoder.forProduct1("category")(Finding.apply)
   val zonePatternInName = "zones\\/([a-z]*\\-[a-z|1-9]*\\-[a-z])\\/".r
   implicit val cryptoMiningSccResourceDecoder: Decoder[CryptoMiningSccResource] = Decoder.instance { c =>
     for {
@@ -237,7 +239,8 @@ object NonLeoMessageSubscriber {
   implicit val cryptoMiningSccDecoder: Decoder[CryptoMiningScc] = Decoder.instance { c =>
     for {
       resource <- c.downField("resource").as[CryptoMiningSccResource]
-    } yield CryptoMiningScc(resource)
+      finding <- c.downField("finding").as[Finding]
+    } yield CryptoMiningScc(resource, finding)
   }
   implicit val deleteNodepoolDecoder: Decoder[DeleteNodepoolMessage] =
     Decoder.forProduct3("nodepoolId", "googleProject", "traceId")(DeleteNodepoolMessage.apply)
@@ -266,7 +269,7 @@ object NonLeoMessage {
     val messageType: String = "crypto-minining"
   }
   // Cryptoming messages generated from Google's Security Command Center service
-  final case class CryptoMiningScc(resource: CryptoMiningSccResource) extends NonLeoMessage {
+  final case class CryptoMiningScc(resource: CryptoMiningSccResource, finding: Finding) extends NonLeoMessage {
     val messageType: String = "crypto-minining-scc"
   }
   final case class DeleteNodepoolMessage(nodepoolId: NodepoolLeoId,
@@ -280,6 +283,16 @@ final case class GoogleResource(labels: GoogleLabels)
 final case class GoogleLabels(instanceId: Long, zone: ZoneName)
 
 final case class CryptominingUserMessage(userSubjectId: UserSubjectId)
+final case class Finding(category: SccCategory)
+final case class SccCategory(asString: String) extends AnyVal
+object SccCategory {
+  def fromString(s: String): Either[String, SccCategory] = s match {
+    case "Execution: Cryptocurrency Mining Combined Detection" => SccCategory(s).asRight[String]
+    case "Execution: Cryptocurrency Mining YARA Rule"          => SccCategory(s).asRight[String]
+    case "Execution: Cryptocurrency Mining Hash Match"         => SccCategory(s).asRight[String]
+    case s                                                     => (s"Unsupported SCC category ${s}").asLeft[SccCategory]
+  }
+}
 
 final case class CryptoMiningSccResource(
   googleProject: GoogleProject,
