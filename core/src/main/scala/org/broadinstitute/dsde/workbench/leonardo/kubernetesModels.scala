@@ -455,3 +455,10 @@ final case class NodepoolNotFoundException(nodepoolLeoId: NodepoolLeoId) extends
 final case class DefaultNodepoolNotFoundException(clusterId: KubernetesClusterLeoId) extends Exception {
   override def getMessage: String = s"Unable to find default nodepool for cluster with id ${clusterId}"
 }
+
+final case class DbPassword(value: String) extends AnyVal
+final case class ReleaseNameSuffix(value: String) extends AnyVal
+final case class NamespaceNameSuffix(value: String) extends AnyVal
+
+final case class GalaxyOrchUrl(value: String) extends AnyVal
+final case class GalaxyDrsUrl(value: String) extends AnyVal

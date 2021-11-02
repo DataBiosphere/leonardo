@@ -1249,7 +1249,8 @@ class GKEInterpreter[F[_]](
       raw"""ingress.hosts[0].host=${k8sProxyHost}""",
       raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
-      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}"""
+      raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
+      raw"""db.password=${config.cromwellAppConfig.dbPassword.value}"""
     )
 
     List(
@@ -1328,8 +1329,8 @@ class GKEInterpreter[F[_]](
       // Note most of the below file_sources configs are specified in galaxykubeman,
       // but helm can't update 1 item in a list if the value is an object.
       // See https://github.com/helm/helm/issues/7569
-      raw"""galaxy.configs.file_sources_conf\.yml[0].api_url=${config.galaxyAppConfig.orchUrl}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].drs_url=${config.galaxyAppConfig.drsUrl}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].api_url=${config.galaxyAppConfig.orchUrl.value}""",
+      raw"""galaxy.configs.file_sources_conf\.yml[0].drs_url=${config.galaxyAppConfig.drsUrl.value}""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].doc=${workspaceName}""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].id=${workspaceName}""",
       raw"""galaxy.configs.file_sources_conf\.yml[0].workspace=${workspaceName}""",
@@ -1346,7 +1347,7 @@ class GKEInterpreter[F[_]](
       raw"""persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=${nfsDisk.name.value}""",
       raw"""persistence.nfs.size=${nfsDisk.size.gb.toString}Gi""",
       raw"""persistence.postgres.name=${namespaceName.value}-${config.galaxyDiskConfig.postgresPersistenceName}""",
-      raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword}""",
+      raw"""galaxy.postgresql.galaxyDatabasePassword=${config.galaxyAppConfig.postgresPassword.value}""",
       raw"""persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=${postgresDiskName.value}""",
       raw"""persistence.postgres.size=${config.galaxyDiskConfig.postgresDiskSizeGB.gb.toString}Gi""",
       raw"""nfs.persistence.existingClaim=${namespaceName.value}-${config.galaxyDiskConfig.nfsPersistenceName}-pvc""",

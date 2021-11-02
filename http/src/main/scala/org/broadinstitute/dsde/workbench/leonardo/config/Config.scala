@@ -565,18 +565,26 @@ object Config {
     )
   }
 
+  implicit private val namespaceNameSuffixReader: ValueReader[NamespaceNameSuffix] =
+    stringValueReader.map(NamespaceNameSuffix)
+  implicit private val releaseNameSuffixReader: ValueReader[ReleaseNameSuffix] =
+    stringValueReader.map(ReleaseNameSuffix)
+  implicit private val dbPasswordReader: ValueReader[DbPassword] = stringValueReader.map(DbPassword)
+  implicit private val galaxyOrchUrlReader: ValueReader[GalaxyOrchUrl] = stringValueReader.map(GalaxyOrchUrl)
+  implicit private val galaxyDrsUrlReader: ValueReader[GalaxyDrsUrl] = stringValueReader.map(GalaxyDrsUrl)
+
   implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
     GalaxyAppConfig(
-      config.as[String]("releaseNameSuffix"),
+      config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("chartVersion"),
-      config.as[String]("namespaceNameSuffix"),
+      config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[Boolean]("uninstallKeepHistory"),
-      config.as[String]("postgres.password"),
-      config.as[String]("orchUrl"),
-      config.as[String]("drsUrl")
+      config.as[DbPassword]("postgres.password"),
+      config.as[GalaxyOrchUrl]("orchUrl"),
+      config.as[GalaxyDrsUrl]("drsUrl")
     )
   }
 
@@ -595,10 +603,11 @@ object Config {
     CromwellAppConfig(
       chartName = config.as[ChartName]("chartName"),
       chartVersion = config.as[ChartVersion]("chartVersion"),
-      namespaceNameSuffix = config.as[String]("namespaceNameSuffix"),
-      releaseNameSuffix = config.as[String]("releaseNameSuffix"),
+      namespaceNameSuffix = config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
+      releaseNameSuffix = config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       services = config.as[List[ServiceConfig]]("services"),
-      serviceAccountName = config.as[ServiceAccountName]("serviceAccountName")
+      serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
+      dbPassword = config.as[DbPassword]("dbPassword")
     )
   }
 
@@ -606,7 +615,7 @@ object Config {
     CustomAppConfig(
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("chartVersion"),
-      config.as[String]("releaseNameSuffix")
+      config.as[ReleaseNameSuffix]("releaseNameSuffix")
     )
   }
 
