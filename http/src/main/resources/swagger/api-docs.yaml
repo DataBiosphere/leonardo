@@ -1990,6 +1990,12 @@ components:
             email: email authorization
             profile: profile authorization
   schemas:
+    AppType:
+      type: string
+      enum:
+        - CROMWELL
+        - CUSTOM
+        - GALAXY
     AppStatus:
       type: string
       enum:
@@ -2862,8 +2868,7 @@ components:
         diskConfig:
           $ref: '#/components/schemas/PersistentDiskRequest'
         appType:
-          type: string
-          description: currently "GALAXY", "CROMWELL" and "CUSTOM" are supported
+          $ref: '#/components/schemas/AppType'
         kubernetesRuntimeConfig:
           $ref: '#/components/schemas/KubernetesRuntimeConfig'
         labels:
@@ -2910,8 +2915,7 @@ components:
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         appType:
-          type: string
-          description: the type of app
+          $ref: '#/components/schemas/AppType'
 
     ListAppResponse:
       description: the configuration of an app
@@ -2943,8 +2947,7 @@ components:
           type: string
           description: the name of the app
         appType:
-          type: string
-          description: the type of app
+          $ref: '#/components/schemas/AppType'
         auditInfo:
           $ref: "#/components/schemas/AuditInfo"
         labels:
