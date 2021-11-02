@@ -2,12 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import cats.effect.Async
-import cats.syntax.all._
-import cats.mtl.Ask
-import fs2.Stream
 import cats.effect.std.Queue
-import org.typelevel.log4cats.StructuredLogger
+import cats.mtl.Ask
+import cats.syntax.all._
+import com.google.protobuf.ByteString
+import com.google.pubsub.v1.PubsubMessage
+import fs2.Stream
+import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 import org.broadinstitute.dsde.workbench.google2.{
   Event,
   GoogleComputeService,
@@ -17,25 +20,23 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, UserSubjectId}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, kubernetesClusterQuery, DbReference}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessage.{
   CryptoMining,
+  CryptoMiningScc,
   DeleteKubernetesClusterMessage,
   DeleteNodepoolMessage
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.cryptominingUserMessageEncoder
 import org.broadinstitute.dsde.workbench.leonardo.util.{DeleteClusterParams, DeleteNodepoolParams, GKEAlgebra}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
-import org.broadinstitute.dsde.workbench.leonardo.ErrorAction.DeleteNodepool
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import NonLeoMessageSubscriber.cryptominingUserMessageEncoder
-import com.google.protobuf.ByteString
-import com.google.pubsub.v1.PubsubMessage
-import io.circe.syntax._
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -75,9 +76,10 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
   private[monitor] def messageResponder(
     message: NonLeoMessage
   )(implicit traceId: Ask[F, AppContext]): F[Unit] = message match {
-    case m: DeleteKubernetesClusterMessage => handleDeleteKubernetesClusterMessage(m)
-    case m: NonLeoMessage.CryptoMining     => handleCryptoMiningMessage(m)
-    case m: DeleteNodepoolMessage          => handleDeleteNodepoolMessage(m)
+    case m: NonLeoMessage.DeleteKubernetesClusterMessage => handleDeleteKubernetesClusterMessage(m)
+    case m: NonLeoMessage.CryptoMining                   => handleCryptoMiningMessage(m)
+    case m: NonLeoMessage.DeleteNodepoolMessage          => handleDeleteNodepoolMessage(m)
+    case m: NonLeoMessage.CryptoMiningScc                => handleCryptoMiningMessageScc(m)
   }
 
   private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
@@ -106,11 +108,15 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
         }
     } yield ()
 
+  private[monitor] def handleCryptoMiningMessageScc(
+    msg: NonLeoMessage.CryptoMiningScc
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    deleteCryptominingRuntime(msg.resource.googleProject, msg.resource.runtimeName, msg.resource.zone)
+
   private[monitor] def handleCryptoMiningMessage(
     msg: NonLeoMessage.CryptoMining
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
-      ctx <- ev.ask
       _ <- if (!msg.textPayload.contains(
                  "CRYPTOMINING_DETECTED"
                )) // needs to match https://github.com/broadinstitute/terra-cryptomining-security-alerts/blob/master/v2/main.go#L24
@@ -123,35 +129,41 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
           // We mark the runtime as Deleted, and delete the instance.
           // If instance deletion fails for some reason, it will be cleaned up by resource-validator
           _ <- runtimeFromGoogle.traverse { instance =>
-            for {
-              runtimeInfo <- clusterQuery
-                .getActiveClusterRecordByName(msg.googleProject, RuntimeName(instance.getName))
-                .transaction
-              _ <- runtimeInfo.traverse { runtime =>
-                for {
-                  _ <- clusterQuery
-                    .markDeleted(msg.googleProject, RuntimeName(instance.getName), ctx.now, Some("cryptomining"))
-                    .transaction
-                  _ <- computeService.deleteInstance(msg.googleProject,
-                                                     msg.resource.labels.zone,
-                                                     InstanceName(msg.resource.labels.instanceId.toString))
-                  userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, runtime.googleProject)
-                  _ <- userSubjectId.traverse { sid =>
-                    val byteString = ByteString.copyFromUtf8(CryptominingUserMessage(sid).asJson.noSpaces)
-
-                    val message = PubsubMessage
-                      .newBuilder()
-                      .setData(byteString)
-                      .putAttributes("traceId", ctx.traceId.asString)
-                      .putAttributes("cryptomining", "true")
-                      .build()
-                    publisher.publishNativeOne(message)
-                  }
-                } yield ()
-              }
-            } yield ()
+            deleteCryptominingRuntime(msg.googleProject, RuntimeName(instance.getName), msg.resource.labels.zone)
           }
         } yield ()
+    } yield ()
+
+  private[monitor] def deleteCryptominingRuntime(
+    googleProject: GoogleProject,
+    runtimeName: RuntimeName,
+    zone: ZoneName
+  )(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      runtimeInfo <- clusterQuery
+        .getActiveClusterRecordByName(googleProject, runtimeName)
+        .transaction
+      _ <- runtimeInfo.traverse { runtime =>
+        for {
+          _ <- clusterQuery
+            .markDeleted(googleProject, runtimeName, ctx.now, Some("cryptomining"))
+            .transaction
+          _ <- computeService.deleteInstance(googleProject, zone, InstanceName(runtimeName.asString))
+          userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, runtime.googleProject)
+          _ <- userSubjectId.traverse { sid =>
+            val byteString = ByteString.copyFromUtf8(CryptominingUserMessage(sid).asJson.noSpaces)
+
+            val message = PubsubMessage
+              .newBuilder()
+              .setData(byteString)
+              .putAttributes("traceId", ctx.traceId.asString)
+              .putAttributes("cryptomining", "true")
+              .build()
+            publisher.publishNativeOne(message)
+          }
+        } yield ()
+      }
     } yield ()
 
   private[monitor] def handleDeleteNodepoolMessage(
@@ -195,12 +207,44 @@ object NonLeoMessageSubscriber {
         .leftMap(t => DecodingFailure(s"can't parse google project from logName due to ${t}", List.empty))
     } yield CryptoMining(textpayload, resource, googleProject)
   }
+
+  val zonePatternInName = "zones\\/([a-z]*\\-[a-z|1-9]*\\-[a-z])\\/".r
+  implicit val cryptoMiningSccResourceDecoder: Decoder[CryptoMiningSccResource] = Decoder.instance { c =>
+    for {
+      googleProject <- c.downField("projectDisplayName").as[GoogleProject]
+      serviceType <- c.downField("type").as[String]
+      cloudService <- serviceType match {
+        case "google.compute.Instance" => CloudService.GCE.asRight[DecodingFailure]
+        case s                         => DecodingFailure(s"unsupported cryptomining-scc type ${s}", List.empty).asLeft[CloudService]
+      }
+      runtimeName <- c.downField("displayName").as[RuntimeName]
+      // name field looks like `//compute.googleapis.com/projects/terra-2d61a51b/zones/us-central1-a/instances/5289438569693667937`
+      name <- c.downField("name").as[String]
+      zone <- Either
+        .catchNonFatal(zonePatternInName.findFirstMatchIn(name).map(_.group(1)))
+        .leftMap(t =>
+          DecodingFailure(s"Can't find zone name in cryptomining message from SCC in ${zonePatternInName} due to ${t}",
+                          List.empty)
+        )
+        .flatMap(s =>
+          s.fold(
+            DecodingFailure(s"Can't find zone name in cryptomining message from SCC in ${zonePatternInName}",
+                            List.empty).asLeft[ZoneName]
+          )(ss => ZoneName(ss).asRight[DecodingFailure])
+        )
+    } yield CryptoMiningSccResource(googleProject, cloudService, runtimeName, zone)
+  }
+  implicit val cryptoMiningSccDecoder: Decoder[CryptoMiningScc] = Decoder.instance { c =>
+    for {
+      resource <- c.downField("resource").as[CryptoMiningSccResource]
+    } yield CryptoMiningScc(resource)
+  }
   implicit val deleteNodepoolDecoder: Decoder[DeleteNodepoolMessage] =
     Decoder.forProduct3("nodepoolId", "googleProject", "traceId")(DeleteNodepoolMessage.apply)
 
   implicit val nonLeoMessageDecoder: Decoder[NonLeoMessage] = Decoder.instance { x =>
     deleteKubernetesClusterDecoder.tryDecode(x) orElse (cryptoMiningDecoder.tryDecode(x)) orElse (deleteNodepoolDecoder
-      .tryDecode(x))
+      .tryDecode(x)) orElse (cryptoMiningSccDecoder.tryDecode(x))
   }
 
   implicit val userSubjectIdEncoder: Encoder[UserSubjectId] = Encoder.encodeString.contramap(_.asString)
@@ -216,9 +260,14 @@ object NonLeoMessage {
       extends NonLeoMessage {
     val messageType: String = "deleteKubernetesCluster"
   }
+  // Cryptoming messages generated from our custom cryptomining detector
   final case class CryptoMining(textPayload: String, resource: GoogleResource, googleProject: GoogleProject)
       extends NonLeoMessage {
     val messageType: String = "crypto-minining"
+  }
+  // Cryptoming messages generated from Google's Security Command Center service
+  final case class CryptoMiningScc(resource: CryptoMiningSccResource) extends NonLeoMessage {
+    val messageType: String = "crypto-minining-scc"
   }
   final case class DeleteNodepoolMessage(nodepoolId: NodepoolLeoId,
                                          googleProject: GoogleProject,
@@ -231,3 +280,10 @@ final case class GoogleResource(labels: GoogleLabels)
 final case class GoogleLabels(instanceId: Long, zone: ZoneName)
 
 final case class CryptominingUserMessage(userSubjectId: UserSubjectId)
+
+final case class CryptoMiningSccResource(
+  googleProject: GoogleProject,
+  cloudService: CloudService,
+  runtimeName: RuntimeName,
+  zone: ZoneName
+)
