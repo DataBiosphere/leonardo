@@ -111,7 +111,7 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
   private[monitor] def handleCryptoMiningMessageScc(
     msg: NonLeoMessage.CryptoMiningScc
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
-    deleteCryptominingRuntime(msg.resource.googleProject, msg.resource.runtimeName, msg.resource.zone)
+    deleteCryptominingRuntime(msg.resource.googleProject, msg.resource.runtimeName, msg.resource.zone, "scc")
 
   private[monitor] def handleCryptoMiningMessage(
     msg: NonLeoMessage.CryptoMining
@@ -129,7 +129,10 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
           // We mark the runtime as Deleted, and delete the instance.
           // If instance deletion fails for some reason, it will be cleaned up by resource-validator
           _ <- runtimeFromGoogle.traverse { instance =>
-            deleteCryptominingRuntime(msg.googleProject, RuntimeName(instance.getName), msg.resource.labels.zone)
+            deleteCryptominingRuntime(msg.googleProject,
+                                      RuntimeName(instance.getName),
+                                      msg.resource.labels.zone,
+                                      "custom detector")
           }
         } yield ()
     } yield ()
@@ -137,7 +140,8 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
   private[monitor] def deleteCryptominingRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
-    zone: ZoneName
+    zone: ZoneName,
+    message: String
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
@@ -147,7 +151,7 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
       _ <- runtimeInfo.traverse { runtime =>
         for {
           _ <- clusterQuery
-            .markDeleted(googleProject, runtimeName, ctx.now, Some("cryptomining"))
+            .markDeleted(googleProject, runtimeName, ctx.now, Some(s"cryptomining: ${message}"))
             .transaction
           _ <- computeService.deleteInstance(googleProject, zone, InstanceName(runtimeName.asString))
           userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, runtime.googleProject)
