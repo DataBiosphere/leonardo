@@ -551,7 +551,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       )(app => app.namespaceId)
       namespaceName <- lastUsedApp.fold(
         KubernetesName.withValidation(
-          s"${uid}-${galaxyConfig.namespaceNameSuffix}",
+          s"${uid}-${galaxyConfig.namespaceNameSuffix.value}",
           NamespaceName.apply
         )
       )(app => app.namespaceName.asRight[Throwable])
@@ -570,7 +570,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         .getOrElse(galaxyConfig.chart)
       release <- lastUsedApp.fold(
         KubernetesName.withValidation(
-          s"${uid}-${galaxyConfig.releaseNameSuffix}",
+          s"${uid}-${galaxyConfig.releaseNameSuffix.value}",
           Release.apply
         )
       )(app => app.release.asRight[Throwable])

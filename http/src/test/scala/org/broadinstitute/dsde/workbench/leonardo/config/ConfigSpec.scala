@@ -99,16 +99,16 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
 
   it should "read GalaxyAppConfig properly" in {
     val expectedResult = GalaxyAppConfig(
-      "gxy-rls",
+      ReleaseNameSuffix("gxy-rls"),
       galaxyChartName,
       galaxyChartVersion,
-      "gxy-ns",
+      NamespaceNameSuffix("gxy-ns"),
       List(ServiceConfig(ServiceName("galaxy"), KubernetesServiceKindName("ClusterIP"))),
       ServiceAccountName("gxy-ksa"),
       true,
-      "replace-me",
-      "https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/",
-      "https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3"
+      DbPassword("replace-me"),
+      GalaxyOrchUrl("https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/"),
+      GalaxyDrsUrl("https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3")
     )
     Config.gkeGalaxyAppConfig shouldBe expectedResult
   }
