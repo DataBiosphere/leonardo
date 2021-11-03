@@ -1234,7 +1234,7 @@ class GKEInterpreter[F[_]](
                                                               nodepoolName: NodepoolName,
                                                               namespaceName: NamespaceName,
                                                               disk: PersistentDisk): List[String] = {
-    val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
+    val proxyPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
 
@@ -1245,9 +1245,9 @@ class GKEInterpreter[F[_]](
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=${leoProxyhost}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/${rewriteTarget}""",
       raw"""ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=${namespaceName.value}/ca-secret""",
-      raw"""ingress.path=${ingressPath}""",
+      raw"""ingress.path=${proxyPath}""",
       raw"""ingress.hosts[0].host=${k8sProxyHost}""",
-      raw"""ingress.hosts[0].paths[0]=${ingressPath}${"(/|$)(.*)"}""",
+      raw"""ingress.hosts[0].paths[0]=${proxyPath}${"(/|$)(.*)"}""",
       raw"""ingress.tls[0].secretName=tls-secret""",
       raw"""ingress.tls[0].hosts[0]=${k8sProxyHost}""",
       raw"""db.password=${config.cromwellAppConfig.dbPassword.value}"""
@@ -1258,7 +1258,8 @@ class GKEInterpreter[F[_]](
       raw"""nodeSelector.cloud\.google\.com/gke-nodepool=${nodepoolName.value}""",
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
-      raw"""persistence.gcePersistentDisk=${disk.name.value}"""
+      raw"""persistence.gcePersistentDisk=${disk.name.value}""",
+      raw"""env.swaggerBasePath=$proxyPath"""
     ) ++ ingress
   }
 
