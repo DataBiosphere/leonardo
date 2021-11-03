@@ -80,7 +80,9 @@ final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFie
                                              bootSource: BootSource)
 final case class DeleteRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
 final case class FinalizeDeleteParams(runtime: Runtime)
-final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, now: Instant)
+final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                   now: Instant,
+                                   isDataprocFullStop: Boolean)
 final case class StartRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, initBucket: GcsBucketName)
 final case class UpdateMachineTypeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                          machineType: MachineTypeName,

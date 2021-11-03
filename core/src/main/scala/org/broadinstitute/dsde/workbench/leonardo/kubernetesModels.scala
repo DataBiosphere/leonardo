@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import java.net.URL
 import java.time.Instant
 import java.util.UUID
+
 import ca.mrvisser.sealerate
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterId, KubernetesClusterName, NodepoolName}
@@ -19,6 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
+import org.broadinstitute.dsde.workbench.leonardo.AppType.{Cromwell, Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
@@ -301,6 +303,9 @@ object AppType {
   case object Galaxy extends AppType {
     override def toString: String = "GALAXY"
   }
+  case object Cromwell extends AppType {
+    override def toString: String = "CROMWELL"
+  }
   case object Custom extends AppType {
     override def toString: String = "CUSTOM"
   }
@@ -354,8 +359,14 @@ final case class App(id: AppId,
                      extraArgs: List[String]) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
-      (service.config.name,
-       new URL(s"${proxyUrlBase}google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"))
+      val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
+      appType match {
+        case Galaxy | Custom =>
+          (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}"))
+        case Cromwell =>
+          (service.config.name,
+           new URL(s"${proxyUrlBase}${proxyPath}/swagger/index.html?url=/proxy/${proxyPath}/swagger/cromwell.yaml"))
+      }
     }.toMap
 }
 
@@ -444,3 +455,10 @@ final case class NodepoolNotFoundException(nodepoolLeoId: NodepoolLeoId) extends
 final case class DefaultNodepoolNotFoundException(clusterId: KubernetesClusterLeoId) extends Exception {
   override def getMessage: String = s"Unable to find default nodepool for cluster with id ${clusterId}"
 }
+
+final case class DbPassword(value: String) extends AnyVal
+final case class ReleaseNameSuffix(value: String) extends AnyVal
+final case class NamespaceNameSuffix(value: String) extends AnyVal
+
+final case class GalaxyOrchUrl(value: String) extends AnyVal
+final case class GalaxyDrsUrl(value: String) extends AnyVal

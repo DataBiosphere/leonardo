@@ -31,10 +31,6 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.clusterName shouldBe CommonTestData.testCluster.runtimeName.asString
       result.customEnvVarsConfigUri shouldBe GcsPath(CommonTestData.initBucketName,
                                                      GcsObjectName("custom_env_vars.env")).toUri
-      result.cryptoDetectorDockerCompose shouldBe GcsPath(
-        CommonTestData.initBucketName,
-        GcsObjectName("test-crypto-detector-docker-compose.yaml")
-      ).toUri
       result.cryptoDetectorDockerImage shouldBe CommonTestData.cryptoDetectorImage.imageUrl
       result.cryptoDetectorServerName shouldBe "cryptomining-detector"
       result.disableDelocalization shouldBe "false"

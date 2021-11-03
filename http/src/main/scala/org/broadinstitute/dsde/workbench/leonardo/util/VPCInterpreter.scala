@@ -39,9 +39,9 @@ final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork:
       traceId = None
     )
 
-final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName)
+final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName, traceId: TraceId)
     extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time",
-                         traceId = None)
+                         traceId = Some(traceId))
 
 final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
   config: VPCInterpreterConfig,
@@ -132,7 +132,7 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
               params.project,
               buildFirewall(params.project, params.networkName, firewallName, fw, firewallRegionalIprange)
             ),
-            FirewallNotReadyException(params.project, firewallName),
+            FirewallNotReadyException(params.project, firewallName, ctx),
             s"get or create firewall rule (${params.project} / ${firewallName.value})"
           )
         } yield ()

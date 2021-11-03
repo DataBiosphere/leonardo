@@ -28,6 +28,8 @@ ENV TERRA_APP_VERSION 0.3.0
 # This is galaxykubeman 1.1.0, which references Galaxy 21.05
 ENV GALAXY_VERSION 1.1.0
 ENV NGINX_VERSION 3.23.0
+# If you update this here, make sure to also update reference.conf:
+ENV CROMWELL_CHART_VERSION 0.1.5
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -44,6 +46,7 @@ RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
     helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
+    helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
     helm repo update
 
 # .Files helm helper can't access files outside a chart. Hence in order to populate cert file properly, we're
@@ -56,6 +59,7 @@ RUN cd /leonardo && \
     helm pull galaxy/galaxykubeman --version $GALAXY_VERSION --untar && \
     helm pull terra/terra-app --version $TERRA_APP_VERSION --untar  && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
+    helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     cd /
 
 # Add Leonardo as a service (it will start when the container starts)

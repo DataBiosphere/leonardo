@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
 import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.{AccessConfig, Instance, NetworkInterface, Operation}
@@ -33,6 +32,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
 
@@ -370,13 +370,13 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       status = RuntimeStatus.Stopping
     )
 
-    val cluster = getCluster(State.RUNNING, Some(ZoneName("zone-a")))
+    val cluster = getCluster(State.STOPPED, Some(ZoneName("zone-a")))
 
     val res = for {
       ctx <- appContext.ask[AppContext]
       monitorContext = MonitorContext(Instant.now(), runtime.id, ctx.traceId, RuntimeStatus.Stopping)
       savedRuntime <- IO(runtime.save())
-      monitor = dataprocRuntimeMonitor(computeService(GceInstanceStatus.Terminated, Some(IP("fakeIp"))))(failureToolDao)
+      monitor = dataprocRuntimeMonitor()(failureToolDao)
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig)
       r <- monitor.stoppingRuntime(Some(cluster), monitorContext, runtimeAndRuntimeConfig)
       updatedStatus <- clusterQuery.getClusterStatus(savedRuntime.id).transaction

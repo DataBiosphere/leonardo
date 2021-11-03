@@ -176,7 +176,6 @@ object Config {
         config.as[RuntimeResource]("rstudioDockerCompose"),
         config.as[RuntimeResource]("proxyDockerCompose"),
         config.as[RuntimeResource]("welderDockerCompose"),
-        config.as[RuntimeResource]("cryptoDetectorDockerCompose"),
         config.as[RuntimeResource]("proxySiteConf"),
         config.as[RuntimeResource]("jupyterNotebookConfigUri"),
         config.as[RuntimeResource]("jupyterNotebookFrontendConfigUri"),
@@ -566,18 +565,26 @@ object Config {
     )
   }
 
+  implicit private val namespaceNameSuffixReader: ValueReader[NamespaceNameSuffix] =
+    stringValueReader.map(NamespaceNameSuffix)
+  implicit private val releaseNameSuffixReader: ValueReader[ReleaseNameSuffix] =
+    stringValueReader.map(ReleaseNameSuffix)
+  implicit private val dbPasswordReader: ValueReader[DbPassword] = stringValueReader.map(DbPassword)
+  implicit private val galaxyOrchUrlReader: ValueReader[GalaxyOrchUrl] = stringValueReader.map(GalaxyOrchUrl)
+  implicit private val galaxyDrsUrlReader: ValueReader[GalaxyDrsUrl] = stringValueReader.map(GalaxyDrsUrl)
+
   implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
     GalaxyAppConfig(
-      config.as[String]("releaseNameSuffix"),
+      config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("chartVersion"),
-      config.as[String]("namespaceNameSuffix"),
+      config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
       config.as[List[ServiceConfig]]("services"),
       config.as[ServiceAccountName]("serviceAccountName"),
       config.as[Boolean]("uninstallKeepHistory"),
-      config.as[String]("postgres.password"),
-      config.as[String]("orchUrl"),
-      config.as[String]("drsUrl")
+      config.as[DbPassword]("postgres.password"),
+      config.as[GalaxyOrchUrl]("orchUrl"),
+      config.as[GalaxyDrsUrl]("drsUrl")
     )
   }
 
@@ -592,11 +599,23 @@ object Config {
     )
   }
 
+  implicit private val cromwellAppConfigReader: ValueReader[CromwellAppConfig] = ValueReader.relative { config =>
+    CromwellAppConfig(
+      chartName = config.as[ChartName]("chartName"),
+      chartVersion = config.as[ChartVersion]("chartVersion"),
+      namespaceNameSuffix = config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
+      releaseNameSuffix = config.as[ReleaseNameSuffix]("releaseNameSuffix"),
+      services = config.as[List[ServiceConfig]]("services"),
+      serviceAccountName = config.as[ServiceAccountName]("serviceAccountName"),
+      dbPassword = config.as[DbPassword]("dbPassword")
+    )
+  }
+
   implicit private val customAppConfigReader: ValueReader[CustomAppConfig] = ValueReader.relative { config =>
     CustomAppConfig(
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("chartVersion"),
-      config.as[String]("releaseNameSuffix")
+      config.as[ReleaseNameSuffix]("releaseNameSuffix")
     )
   }
 
@@ -634,6 +653,7 @@ object Config {
   val gkeGalaxyNodepoolConfig = config.as[GalaxyNodepoolConfig]("gke.galaxyNodepool")
   val gkeIngressConfig = config.as[KubernetesIngressConfig]("gke.ingress")
   val gkeGalaxyAppConfig = config.as[GalaxyAppConfig]("gke.galaxyApp")
+  val gkeCromwellAppConfig = config.as[CromwellAppConfig]("gke.cromwellApp")
   val gkeCustomAppConfig = config.as[CustomAppConfig]("gke.customApp")
   val gkeNodepoolConfig = NodepoolConfig(gkeDefaultNodepoolConfig, gkeGalaxyNodepoolConfig)
   val gkeGalaxyDiskConfig = config.as[GalaxyDiskConfig]("gke.galaxyDisk")
@@ -655,7 +675,8 @@ object Config {
     gkeIngressConfig,
     gkeGalaxyAppConfig,
     gkeGalaxyDiskConfig,
-    ConfigReader.appConfig.persistentDisk
+    ConfigReader.appConfig.persistentDisk,
+    gkeCromwellAppConfig
   )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
@@ -754,6 +775,7 @@ object Config {
       org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader.appConfig.terraAppSetupChart,
       gkeIngressConfig,
       gkeGalaxyAppConfig,
+      gkeCromwellAppConfig,
       gkeCustomAppConfig,
       gkeMonitorConfig,
       gkeClusterConfig,

@@ -48,12 +48,13 @@ final case class ListAppResponse(googleProject: GoogleProject,
                                  proxyUrls: Map[ServiceName, URL],
                                  appName: AppName,
                                  diskName: Option[DiskName],
-                                 auditInfo: AuditInfo)
+                                 auditInfo: AuditInfo,
+                                 labels: LabelMap)
 
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 
 object ListAppResponse {
-  def fromCluster(c: KubernetesCluster, proxyUrlBase: String): List[ListAppResponse] =
+  def fromCluster(c: KubernetesCluster, proxyUrlBase: String, labelsToReturn: List[String]): List[ListAppResponse] =
     c.nodepools.flatMap(n =>
       n.apps.map { a =>
         ListAppResponse(
@@ -68,7 +69,8 @@ object ListAppResponse {
           a.getProxyUrls(c.googleProject, proxyUrlBase),
           a.appName,
           a.appResources.disk.map(_.name),
-          a.auditInfo
+          a.auditInfo,
+          a.labels.filter(l => labelsToReturn.contains(l._1))
         )
       }
     )
