@@ -137,11 +137,11 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                   // Note we don't need to check startup script results here because Dataproc
                   // won't transition the cluster to Running if a startup script failed.
 
-                  val masterInstance = instances.find(_.dataprocRole == DataprocRole.Master)
+                  val masterInstance = dataprocAndComputeInstances.find(_._1.dataprocRole == DataprocRole.Master)
 
                   masterInstance match {
-                    case Some(i) =>
-                      i.ip match {
+                    case Some((dataprocInstance, computeInstance)) =>
+                      dataprocInstance.ip match {
                         case Some(ip) =>
                           for {
                             // If the cluster is configured with worker private access, then
@@ -149,10 +149,14 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                             // once it is running.
                             _ <- if (dataprocConfig.workerPrivateAccess) {
                               googleComputeService.setInstanceTags(
-                                i.key.project,
-                                i.key.zone,
-                                i.key.name,
-                                Tags.newBuilder().addItems(config.vpcConfig.networkTag.value).build()
+                                dataprocInstance.key.project,
+                                dataprocInstance.key.zone,
+                                dataprocInstance.key.name,
+                                Tags
+                                  .newBuilder()
+                                  .addItems(config.vpcConfig.networkTag.value)
+                                  .setFingerprint(computeInstance.getTags.getFingerprint)
+                                  .build()
                               )
                             } else F.unit
                             // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
