@@ -145,7 +145,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                         case Some(ip) =>
                           for {
                             // If the cluster is configured with worker private access, then
-                            // remove the workerPrivateAccessNetworkTag from the master node.
+                            // remove the workerPrivateAccessNetworkTag from the master node
+                            // once it is running.
                             _ <- if (dataprocConfig.workerPrivateAccess) {
                               googleComputeService.setInstanceTags(
                                 i.key.project,

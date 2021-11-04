@@ -295,7 +295,7 @@ class RuntimeDataprocSpec
   "should create a Dataproc cluster with worker private access" taggedAs Retryable in { project =>
     val runtimeName = randomClusterName
 
-    // In a europe region
+    // With workerPrivateAccess enabled
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(
         RuntimeConfigRequest.DataprocConfig(
