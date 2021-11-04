@@ -449,6 +449,7 @@ object Config {
   val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
   val refererConfig = config.as[RefererConfig]("refererConfig")
+  val vpcConfig = config.as[VPCConfig]("vpc")
 
   implicit private val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
     config =>
@@ -686,7 +687,6 @@ object Config {
   )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
-  val vpcConfig = config.as[VPCConfig]("vpc")
   val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
 
   val subscriberConfig: SubscriberConfig = SubscriberConfig(
