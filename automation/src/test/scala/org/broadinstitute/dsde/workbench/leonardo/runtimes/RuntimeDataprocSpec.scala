@@ -27,11 +27,12 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
+import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import java.nio.charset.{Charset, StandardCharsets}
 import java.util.UUID
-import org.scalatest.tagobjects.Retryable
+import scala.jdk.CollectionConverters._
 
 @DoNotDiscover
 class RuntimeDataprocSpec
@@ -325,7 +326,13 @@ class RuntimeDataprocSpec
         // check cluster status in Dataproc
         // This tests the Leo proxy, therefore verifies the master node is publicly accessible.
         // It does _not_ verify the workers are only privately accessible.
-        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0, RegionName("us-central1"))
+        _ <- verifyDataproc(project,
+                            runtime.clusterName,
+                            dep.dataproc,
+                            2,
+                            0,
+                            RegionName("us-central1"),
+                            workerPrivateAccess = true)
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
@@ -341,7 +348,8 @@ class RuntimeDataprocSpec
     expectedNumWorkers: Int,
     expectedPreemptibles: Int,
     expectedRegion: RegionName,
-    expectedStatus: DataprocClusterStatus = DataprocClusterStatus.Running
+    expectedStatus: DataprocClusterStatus = DataprocClusterStatus.Running,
+    workerPrivateAccess: Boolean = false
   )(implicit httpClient: Client[IO]): IO[Unit] =
     for {
       // check cluster status in Dataproc
@@ -373,6 +381,10 @@ class RuntimeDataprocSpec
             }
           )
       }
+
+      // check expected network tags
+      expectedTags = if (workerPrivateAccess) Set("leonardo", "leonardo-worker") else Set("leonardo")
+      _ <- IO(cluster.getConfig.getGceClusterConfig.getTagsList.asScala.toSet shouldBe expectedTags)
 
       // verify web interfaces return OK status
       _ <- List("yarn", "jobhistory", "sparkhistory", "apphistory", "hdfs").traverse_ { path =>
