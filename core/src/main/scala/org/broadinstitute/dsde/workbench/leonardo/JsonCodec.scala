@@ -83,7 +83,7 @@ object JsonCodec {
     "numOfGpus"
   )(x => GpuConfig.unapply(x).get)
 
-  implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct10(
+  implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct11(
     "numberOfWorkers",
     "masterMachineType",
     "masterDiskSize",
@@ -94,7 +94,8 @@ object JsonCodec {
     "numberOfPreemptibleWorkers",
     "cloudService",
     "region",
-    "componentGatewayEnabled"
+    "componentGatewayEnabled",
+    "workerPrivateAccess"
   )(x =>
     (x.numberOfWorkers,
      x.machineType,
@@ -105,7 +106,8 @@ object JsonCodec {
      x.numberOfPreemptibleWorkers,
      x.cloudService,
      x.region,
-     x.componentGatewayEnabled)
+     x.componentGatewayEnabled,
+     x.workerPrivateAccess)
   )
   implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct6(
     "machineType",
