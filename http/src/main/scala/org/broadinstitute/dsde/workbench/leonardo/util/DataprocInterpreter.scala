@@ -178,10 +178,16 @@ class DataprocInterpreter[F[_]: Parallel](
         // If we need to support 2 version of dataproc custom image, we'll update this
         dataprocImage = config.dataprocConfig.customDataprocImage
 
+        tags = if (machineConfig.workerPrivateAccess) {
+          List(config.vpcConfig.networkTag.value, config.vpcConfig.workerPrivateAccessNetworkTag.value)
+        } else {
+          List(config.vpcConfig.networkTag.value)
+        }
+
         gceClusterConfig = {
           val bldr = GceClusterConfig
             .newBuilder()
-            .addTags(config.vpcConfig.networkTag.value)
+            .addAllTags(tags.asJava)
             .setSubnetworkUri(subnetwork.value)
             .setServiceAccount(params.serviceAccountInfo.value)
             .addAllServiceAccountScopes(params.scopes.asJava)

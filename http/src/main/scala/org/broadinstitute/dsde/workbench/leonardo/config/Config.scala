@@ -79,7 +79,9 @@ object Config {
         config.getAs[Int]("numberOfPreemptibleWorkers"),
         Map.empty,
         config.as[RegionName]("region"),
-        false // Not used; default defined in RuntimeConfigRequest.DataprocConfig decoder
+        // Below 2 fields are not used; defaults are defined in RuntimeConfigRequest.DataprocConfig decoder
+        false,
+        false
       )
   }
 
@@ -382,6 +384,7 @@ object Config {
       config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
       config.as[NetworkName]("networkName"),
       config.as[NetworkTag]("networkTag"),
+      config.as[NetworkTag]("workerPrivateAccessNetworkTag"),
       config.as[Boolean]("autoCreateSubnetworks"),
       config.as[SubnetworkName]("subnetworkName"),
       config.as[Map[RegionName, IpRange]]("subnetworkRegionIpRangeMap"),
@@ -499,7 +502,8 @@ object Config {
         timeoutMap,
         config.as[InterruptablePollMonitorConfig]("checkTools"),
         clusterBucketConfig,
-        imageConfig
+        imageConfig,
+        vpcConfig
       )
   }
 

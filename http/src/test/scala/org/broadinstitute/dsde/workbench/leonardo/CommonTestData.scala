@@ -143,7 +143,8 @@ object CommonTestData {
     numberOfPreemptibleWorkers = None,
     properties = Map.empty,
     region = Some(singleNodeDefaultMachineConfig.region),
-    componentGatewayEnabled = singleNodeDefaultMachineConfig.componentGatewayEnabled
+    componentGatewayEnabled = singleNodeDefaultMachineConfig.componentGatewayEnabled,
+    workerPrivateAccess = singleNodeDefaultMachineConfig.workerPrivateAccess
   )
 
   val mockSamDAO = new MockSamDAO
@@ -196,6 +197,7 @@ object CommonTestData {
                                  None,
                                  Map.empty,
                                  RegionName("us-central1"),
+                                 true,
                                  true)
 
   val defaultCreateRuntimeRequest = CreateRuntime2Request(
@@ -229,6 +231,7 @@ object CommonTestData {
       None,
       Map.empty[String, String],
       Some(RegionName("us-central1")),
+      true,
       true
     )
 

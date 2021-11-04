@@ -59,7 +59,8 @@ object RuntimeConfigRequest {
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
                                   region: Option[RegionName],
-                                  componentGatewayEnabled: Boolean)
+                                  componentGatewayEnabled: Boolean,
+                                  workerPrivateAccess: Boolean)
       extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }

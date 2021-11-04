@@ -5,7 +5,7 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.cloud.compute.v1.Instance
+import com.google.cloud.compute.v1.{Instance, Tags}
 import com.google.cloud.dataproc.v1.Cluster
 import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.{
@@ -143,8 +143,21 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                     case Some(i) =>
                       i.ip match {
                         case Some(ip) =>
-                          // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                          F.sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
+                          for {
+                            // If the cluster is configured with worker private access, then
+                            // remove the workerPrivateAccessNetworkTag from the master node.
+                            _ <- if (dataprocConfig.workerPrivateAccess) {
+                              googleComputeService.setInstanceTags(
+                                i.key.project,
+                                i.key.zone,
+                                i.key.name,
+                                Tags.newBuilder().addItems(config.vpcConfig.networkTag.value).build()
+                              )
+                            } else F.unit
+                            // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                            _ <- F.sleep(8 seconds)
+                            result <- handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
+                          } yield result
                         case None =>
                           checkAgain(monitorContext,
                                      runtimeAndRuntimeConfig,

@@ -71,7 +71,8 @@ class RuntimeDataprocSpec
           Some(1),
           Map.empty,
           Some(RegionName("europe-west1")),
-          true
+          true,
+          false
         )
       ),
       toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -111,7 +112,8 @@ class RuntimeDataprocSpec
           Some(5),
           Map.empty,
           None,
-          true
+          true,
+          false
         )
       ),
       toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -195,7 +197,8 @@ class RuntimeDataprocSpec
               Some(5),
               Map.empty,
               None,
-              true
+              true,
+              false
             )
           ),
           toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -281,6 +284,48 @@ class RuntimeDataprocSpec
 
         _ = startScriptOutputs.size shouldBe 2
         _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
+
+        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
+      } yield ()
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  "should create a Dataproc cluster with worker private access" taggedAs Retryable in { project =>
+    val runtimeName = randomClusterName
+
+    // In a europe region
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.DataprocConfig(
+          Some(2),
+          Some(MachineTypeName("n1-standard-4")),
+          Some(DiskSize(100)),
+          Some(MachineTypeName("n1-standard-4")),
+          Some(DiskSize(100)),
+          None,
+          None,
+          Map.empty,
+          None,
+          true,
+          true
+        )
+      ),
+      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.aouImageUrl, ContainerRegistry.DockerHub))
+    )
+
+    val res = dependencies.use { dep =>
+      implicit val client = dep.httpClient
+      for {
+        // create runtime
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
+        runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
+
+        // check cluster status in Dataproc
+        // This tests the Leo proxy, therefore verifies the master node is publicly accessible.
+        // It does _not_ verify the workers are only privately accessible.
+        _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 0, RegionName("us-central1"))
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
