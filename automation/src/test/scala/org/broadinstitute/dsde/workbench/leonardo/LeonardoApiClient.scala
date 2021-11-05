@@ -538,7 +538,7 @@ object LeonardoApiClient {
   def listApps(
     googleProject: GoogleProject,
     includeDeleted: Boolean = false
-  )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListAppResponse]] = {
+  )(implicit client: Client[IO], authHeader: => Authorization): IO[List[ListAppResponse]] = {
     val uriWithoutQueryParam = rootUri
       .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}"))
 

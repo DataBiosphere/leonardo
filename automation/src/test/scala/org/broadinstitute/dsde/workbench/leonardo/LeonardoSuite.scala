@@ -95,12 +95,12 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   protected def unclaimProject(workspaceName: WorkspaceName): IO[Unit] =
     for {
       _ <- IO(
-        Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronAuthToken)
+        Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronCreds.makeAuthToken())
       ).attempt
       _ <- IO(
         Orchestration.billing
           .removeUserFromBillingProject(workspaceName.namespace, ronEmail, BillingProject.BillingProjectRole.User)(
-            hermioneAuthToken
+            hermioneCreds.makeAuthToken()
           )
       )
       releaseProject <- IO(releaseGPAllocProject(workspaceName.namespace, hermioneCreds)).attempt
@@ -130,7 +130,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     val res = for {
       _ <- IO(super.beforeAll())
-      _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll beforeAll")
+      _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll.beforeAll()")
       claimAttempt <- claimGPAllocProjectAndCreateWorkspace().attempt
       _ <- claimAttempt match {
         case Left(e) => IO(sys.props.put(googleProjectKey, gpallocErrorPrefix + e.getMessage))
@@ -158,7 +158,7 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     val res = for {
       shouldUnclaimProp <- IO(sys.props.get(shouldUnclaimProjectsKey))
-      _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll afterAll ${shouldUnclaimProjectsKey}: $shouldUnclaimProp")
+      _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll.afterAll() ${shouldUnclaimProjectsKey}: $shouldUnclaimProp")
       projectProp <- IO(sys.props.get(googleProjectKey))
       workspaceNamespaceProp <- IO(sys.props.get(workspaceNamespaceKey))
       workspaceNameProp <- IO(sys.props.get(workspaceNameKey))

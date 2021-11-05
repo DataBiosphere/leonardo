@@ -14,11 +14,19 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
-@DoNotDiscover
-class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
+//@DoNotDiscover
+class AppCreationSpec
+    extends GPAllocFixtureSpec
+    with LeonardoTestUtils
+    with GPAllocUtils
+    with ParallelTestExecution
+    with GPAllocBeforeAndAfterAll {
   // Using def instead of val to prevent test flakiness due to token expiration when tests take long
-  implicit def auth: Authorization =
+  implicit def auth: Authorization = {
+    val tokenValue = ronCreds.makeAuthToken().value
+    println(s"\n\n****** token value = ${tokenValue.take(15)} ****\n\n")
     Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+  }
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
@@ -194,6 +202,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
 
           _ <- IO.sleep(1 minute)
 
+          _ <- loggerIO.info("\n\n SLEEEEEEEEEEEEEP before Deletion\n\n")
+          _ <- IO.sleep(15 minutes)
+
           // Delete the app
           _ <- LeonardoApiClient.deleteApp(googleProject, appName, true)
           _ <- IO.sleep(30 seconds)
@@ -201,6 +212,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           // Verify getApp again
           getAppResponse <- getApp
           _ = getAppResponse.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
+
+          _ <- loggerIO.info("\n\n SLEEEEEEEEEEEEEP after Deletion\n\n")
+          _ <- IO.sleep(20 minutes)
 
           // Verify the app eventually becomes Deleted
           // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
