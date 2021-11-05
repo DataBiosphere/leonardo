@@ -324,8 +324,8 @@ class RuntimeDataprocSpec
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
 
         // check cluster status in Dataproc
-        // This tests the Leo proxy, therefore verifies the master node is publicly accessible.
-        // It does _not_ verify the workers are only privately accessible.
+        // This verifies the network tags are set correctly, but does _not_ verify the workers
+        // are only privately accessible.
         _ <- verifyDataproc(project,
                             runtime.clusterName,
                             dep.dataproc,
