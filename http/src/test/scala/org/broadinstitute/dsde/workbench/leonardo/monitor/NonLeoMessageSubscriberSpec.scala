@@ -242,48 +242,56 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     decode[NonLeoMessage](jsonString) shouldBe expectedResult
   }
 
-  it should "handle cryptomining message" in {
-    for {
-      runtime <- IO(makeCluster(1).save())
-      computeService = new FakeGoogleComputeService {
-        override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-          implicit ev: Ask[IO, TraceId]
-        ): cats.effect.IO[scala.Option[com.google.cloud.compute.v1.Instance]] =
-          IO.pure(Some(Instance.newBuilder().setName(runtime.runtimeName.asString).build()))
+  it should "handle cryptomining message" in isolatedDbTest {
+    ioAssertion {
+      for {
+        runtime <- IO(makeCluster(1).save())
+        computeService = new FakeGoogleComputeService {
+          override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+            implicit ev: Ask[IO, TraceId]
+          ): cats.effect.IO[scala.Option[com.google.cloud.compute.v1.Instance]] =
+            IO.pure(Some(Instance.newBuilder().setName(runtime.runtimeName.asString).build()))
+        }
+        subscriber = makeSubscribler(computeService = computeService)
+        _ <- subscriber.handleCryptoMiningMessage(
+          NonLeoMessage
+            .CryptoMining("CRYPTOMINING_DETECTED",
+                          GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
+                          runtime.googleProject)
+        )
+        statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
+        deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
+      } yield {
+        statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
+        deletedFrom.get shouldBe ("cryptomining: custom detector")
       }
-      subscriber = makeSubscribler(computeService = computeService)
-      _ <- subscriber.handleCryptoMiningMessage(
-        NonLeoMessage
-          .CryptoMining("CRYPTOMINING_DETECTED",
-                        GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
-                        runtime.googleProject)
-      )
-      statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
-      deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
-    } yield {
-      statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
-      deletedFrom.get shouldBe ("cryptomining")
     }
   }
 
-  it should "handle cryptomining-scc message" in {
-    for {
-      runtime <- IO(makeCluster(1).save())
-      subscriber = makeSubscribler()
-      _ <- subscriber.messageResponder(
-        NonLeoMessage.CryptoMiningScc(
-          CryptoMiningSccResource(GoogleProject("terra-2d61a51b"),
-                                  CloudService.GCE,
-                                  RuntimeName("saturn-5434a6f7-6739-4843-9b5e-4fa03fe51d76"),
-                                  ZoneName("us-central1-a")),
-          Finding(SccCategory("Execution: Cryptocurrency Mining Combined Detection"))
+  it should "handle cryptomining-scc message" in isolatedDbTest {
+    ioAssertion {
+      for {
+        runtime <- IO(
+          makeCluster(1)
+            .copy(status = RuntimeStatus.Running)
+            .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeConfig)
         )
-      )
-      statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
-      deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
-    } yield {
-      statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
-      deletedFrom.get shouldBe ("cryptomining")
+        subscriber = makeSubscribler()
+        _ <- subscriber.messageResponder(
+          NonLeoMessage.CryptoMiningScc(
+            CryptoMiningSccResource(runtime.googleProject,
+                                    CloudService.GCE,
+                                    runtime.runtimeName,
+                                    CommonTestData.defaultGceRuntimeConfig.zone),
+            Finding(SccCategory("Execution: Cryptocurrency Mining Combined Detection"))
+          )
+        )
+        statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
+        deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
+      } yield {
+        statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
+        deletedFrom.get shouldBe ("cryptomining: scc")
+      }
     }
   }
 
