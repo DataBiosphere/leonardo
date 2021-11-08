@@ -124,7 +124,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   }
 }
 
-trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll with LeonardoTestUtils {
+trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
   override def beforeAll(): Unit = {
