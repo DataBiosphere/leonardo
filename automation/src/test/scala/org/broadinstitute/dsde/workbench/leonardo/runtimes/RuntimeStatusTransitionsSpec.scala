@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.runtimes
 
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.service.RestException
 import org.http4s.AuthScheme
@@ -19,10 +20,8 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
   // these tests just hit the Leo APIs; they don't interact with notebooks via selenium
   "RuntimeStatusTransitionsSpec" - {
 
-    implicit val ronToken: AuthToken = ronAuthToken
-    implicit val auth: Authorization = Authorization(
-      org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
-    )
+    implicit def ronToken: AuthToken = Ron.authToken()
+    implicit def auth: Authorization = Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, ronToken.value))
 
     "create, monitor, delete should transition correctly" in { billingProject =>
       logger.info("Starting RuntimeStatusTransitionsSpec: create, monitor, delete should transition correctly")

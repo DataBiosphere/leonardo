@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
@@ -25,8 +26,8 @@ class RuntimeCreationDiskSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit val authTokenForOldApiClient = ronAuthToken
-  implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+  implicit def authTokenForOldApiClient = Ron.authToken()
+  implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, authTokenForOldApiClient.value))
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))

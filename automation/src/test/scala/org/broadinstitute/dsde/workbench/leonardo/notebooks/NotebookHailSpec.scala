@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.{CloudService, LeonardoConfig, RuntimeFixtureSpec}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
 import org.broadinstitute.dsde.workbench.service.Sam
@@ -83,7 +84,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       // Create a new bucket
       withNewGoogleBucket(clusterFixture.runtime.googleProject) { bucketName =>
         val ronPetServiceAccount =
-          Sam.user.petServiceAccountEmail(clusterFixture.runtime.googleProject.value)(ronAuthToken)
+          Sam.user.petServiceAccountEmail(clusterFixture.runtime.googleProject.value)(Ron.authToken())
         googleStorageDAO.setBucketAccessControl(bucketName,
                                                 EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
                                                 GcsRoles.Owner)

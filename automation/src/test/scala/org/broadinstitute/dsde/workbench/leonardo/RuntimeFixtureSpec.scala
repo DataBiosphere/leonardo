@@ -8,6 +8,7 @@ import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 import RuntimeFixtureSpec._
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, RuntimeConfigRequest}
 import org.http4s.{AuthScheme, Credentials}
 import org.http4s.client.Client
@@ -23,7 +24,7 @@ abstract class RuntimeFixtureSpec
     with LeonardoTestUtils
     with Retries {
 
-  implicit val ronToken: AuthToken = ronAuthToken
+  implicit def ronToken: AuthToken = Ron.authToken()
 
   def toolDockerImage: Option[String] = None
   def welderRegistry: Option[ContainerRegistry] = None
@@ -74,7 +75,7 @@ abstract class RuntimeFixtureSpec
   def createRonRuntime(billingProject: GoogleProject): Unit = {
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
     implicit val auth: Authorization = Authorization(
-      Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
+      Credentials.Token(AuthScheme.Bearer, Ron.authToken().value)
     )
 
     val runtimeName = randomClusterName
@@ -114,7 +115,7 @@ abstract class RuntimeFixtureSpec
    */
   def deleteRonRuntime(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
     logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    deleteRuntime(billingProject, ronCluster.clusterName, monitoringDelete)(ronAuthToken)
+    deleteRuntime(billingProject, ronCluster.clusterName, monitoringDelete)(ronToken)
   }
 
   override def beforeAll(): Unit = {

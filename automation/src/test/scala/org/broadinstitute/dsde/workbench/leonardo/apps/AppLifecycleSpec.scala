@@ -5,6 +5,7 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateAppRequest
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials, Uri}
@@ -23,7 +24,7 @@ class AppLifecycleSpec
     with TableDrivenPropertyChecks {
   // Using def instead of val to prevent test flakiness due to token expiration when tests take long
   implicit def auth: Authorization =
-    Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+    Authorization(Credentials.Token(AuthScheme.Bearer, Ron.authToken().value))
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))

@@ -15,6 +15,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.{defaultCreateRuntime2Request, getRuntime}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -34,8 +35,8 @@ class RuntimeGceSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit val authTokenForOldApiClient = ronAuthToken
-  implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+  implicit def authTokenForOldApiClient = Ron.authToken()
+  implicit def auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, authTokenForOldApiClient.value))
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
   val dependencies = for {

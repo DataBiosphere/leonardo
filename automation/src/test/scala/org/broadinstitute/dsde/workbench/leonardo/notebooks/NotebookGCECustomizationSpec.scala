@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoApiClient}
 import org.http4s.AuthScheme
 import org.http4s.headers.Authorization
@@ -10,16 +11,14 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 /**
- * This spec verfies different cluster creation options, such as extensions, scopes, environment variables.
+ * This spec verifies different cluster creation options, such as extensions, scopes, environment variables.
  *
  * TODO consider removing this spec and moving test cases to RuntimeGceSpec.
  */
 @DoNotDiscover
 final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
-  implicit val ronToken: AuthToken = ronAuthToken
-  implicit val auth: Authorization = Authorization(
-    org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
-  )
+  implicit def ronToken: AuthToken = Ron.authToken()
+  implicit def auth: Authorization = Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, ronToken.value))
 
   "NotebookGCECustomizationSpec" - {
     // Using nbtranslate extension from here:
@@ -91,9 +90,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
     }
 
     "should populate user-specified environment variables" in { billingProject =>
-      implicit val ronToken: AuthToken = ronAuthToken
-
-      // Note: the R image includes R and python 3 kernels
+      // Note: the R image includes R and Python 3 kernels
       val runtimeRequest =
         LeonardoApiClient.defaultCreateRuntime2Request.copy(customEnvironmentVariables = Map("KEY" -> "value"))
 

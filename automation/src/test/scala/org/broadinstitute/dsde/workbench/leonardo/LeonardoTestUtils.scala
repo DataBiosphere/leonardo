@@ -6,7 +6,8 @@ import cats.effect.std.Semaphore
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
+import enumeratum.{Enum, EnumEntry}
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.config.Credentials
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{
@@ -62,16 +63,6 @@ trait LeonardoTestUtils
   logDir.mkdirs
 
   def enableWelder: Boolean = true
-
-  // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
-  lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
-  lazy val hermioneCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("hermione")
-  lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
-
-  lazy val ronAuthToken = UserAuthToken(ronCreds, AuthTokenScopes.userLoginScopes)
-  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds, AuthTokenScopes.userLoginScopes)
-  lazy val voldyAuthToken = UserAuthToken(voldyCreds, AuthTokenScopes.userLoginScopes)
-  lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val clusterStopAfterCreatePatience =
@@ -501,7 +492,6 @@ trait LeonardoTestUtils
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): WorkbenchEmail = {
     val samPetEmail = Sam.user.petServiceAccountEmail(project.value)
-    val userStatus = Sam.user.status().get
     implicit val patienceConfig: PatienceConfig = saPatience
     val googlePetEmail = googleIamDAO.findServiceAccount(project, samPetEmail).futureValue.map(_.email)
     googlePetEmail shouldBe Some(samPetEmail)
@@ -723,4 +713,20 @@ trait LeonardoTestUtils
   def appInStateOrError(status: AppStatus): DoneCheckable[GetAppResponse] =
     x => x.status == status || x.status == AppStatus.Error
 
+}
+
+// Ron and Hermione are on the dev Leo's allowed list, and Hermione is a Project Owner
+sealed trait TestUser extends EnumEntry with Product with Serializable {
+  val name: String
+  val creds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
+  val email: String = creds.email
+  def authToken(): AuthToken = creds.makeAuthToken()
+}
+object TestUser extends Enum[TestUser] {
+  val values = findValues
+  val stringToObject = values.map(v => v.name -> v).toMap
+
+  final case object Ron extends TestUser { override val name: String = "ron" }
+  final case object Hermione extends TestUser { override val name: String = "hermione" }
+  final case object Voldy extends TestUser { override val name: String = "voldemort" }
 }

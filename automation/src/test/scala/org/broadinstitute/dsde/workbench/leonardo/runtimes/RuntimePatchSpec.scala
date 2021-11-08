@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   PersistentDiskRequest,
   RuntimeConfigRequest,
@@ -27,8 +28,8 @@ class RuntimePatchSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit val ronToken: AuthToken = ronAuthToken
-  implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+  implicit def ronToken: AuthToken = Ron.authToken()
+  implicit def auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronToken.value))
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))

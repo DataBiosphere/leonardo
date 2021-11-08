@@ -5,6 +5,7 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
@@ -22,11 +23,7 @@ class AppCreationSpec
     with ParallelTestExecution
     with GPAllocBeforeAndAfterAll {
   // Using def instead of val to prevent test flakiness due to token expiration when tests take long
-  implicit def auth: Authorization = {
-    val tokenValue = ronCreds.makeAuthToken().value
-    println(s"\n\n****** token value = ${tokenValue.take(15)} ****\n\n")
-    Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
-  }
+  implicit def auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, Ron.authToken().value))
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
