@@ -192,10 +192,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           )
           _ = monitorStartResult.status shouldBe AppStatus.Running
 
-          _ <- IO.sleep(1 minute)
-
-          _ <- loggerIO.info("\n\n SLEEEEEEEEEEEEEP before Deletion\n\n")
-          _ <- IO.sleep(15 minutes)
+          _ <- IO.sleep(60 seconds)
 
           // Delete the app
           _ <- LeonardoApiClient.deleteApp(googleProject, appName, true)
@@ -204,9 +201,6 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           // Verify getApp again
           getAppResponse <- getApp
           _ = getAppResponse.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
-
-          _ <- loggerIO.info("\n\n SLEEEEEEEEEEEEEP after Deletion\n\n")
-          _ <- IO.sleep(20 minutes)
 
           // Verify the app eventually becomes Deleted
           // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
