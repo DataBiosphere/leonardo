@@ -51,16 +51,17 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withNewNotebook[T](cluster: ClusterCopy, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 3.minutes)(
     testCode: NotebookPage => T
-  )(implicit webDriver: WebDriver, token: AuthToken): T =
-    withNotebooksListPage(cluster) { notebooksListPage =>
-      logger.info(
-        s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
-      )
-      val result: Future[T] = retryUntilSuccessOrTimeout(
-        whenKernelNotReady,
-        failureLogMessage =
-          s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.asString} for ${kernel}"
-      )(30 seconds, 3 minutes) { () =>
+  )(implicit webDriver: WebDriver, token: AuthToken): T = {
+    // Note we retry the entire notebook creation when we encounter KernelNotReadyException
+    val result = retryUntilSuccessOrTimeout(
+      whenKernelNotReady,
+      failureLogMessage =
+        s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.asString} for ${kernel}"
+    )(30 seconds, 3 minutes) { () =>
+      withNotebooksListPage(cluster) { notebooksListPage =>
+        logger.info(
+          s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
+        )
         Future(
           notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
             val res = testCode(notebookPage)
@@ -69,8 +70,9 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           }
         )
       }
-      Await.result(result, 10 minutes)
     }
+    Await.result(result, 10 minutes)
+  }
 
   // Creates a notebook with the directory structure:
   //   ~jupyter-user/notebooks/Untitled Folder/Untitled Folder/Untitled.ipynb
@@ -81,25 +83,26 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     cluster: ClusterCopy,
     kernel: NotebookKernel = Python3,
     timeout: FiniteDuration = 2.minutes
-  )(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T =
-    withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
-        notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
-          logger.info(
-            s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
-          )
-          val result: Future[T] =
-            retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
-                                                                                                            2 minutes) {
-              () =>
-                Future(
-                  notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
-                )
+  )(testCode: NotebookPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    // Note we retry the entire notebook creation when we encounter KernelNotReadyException
+    val result =
+      retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
+                                                                                                      2 minutes) { () =>
+        withNotebooksListPage(cluster) { notebooksListPage =>
+          notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
+            notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
+              logger.info(
+                s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
+              )
+              Future(
+                notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
+              )
             }
-          Await.result(result, 10 minutes)
+          }
         }
       }
-    }
+    Await.result(result, 10 minutes)
+  }
 
   def withOpenNotebook[T](cluster: ClusterCopy, notebookPath: File, timeout: FiniteDuration = 2.minutes)(
     testCode: NotebookPage => T
