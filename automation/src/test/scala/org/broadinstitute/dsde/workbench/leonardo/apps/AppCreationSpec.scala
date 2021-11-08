@@ -15,13 +15,8 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
-//@DoNotDiscover
-class AppCreationSpec
-    extends GPAllocFixtureSpec
-    with LeonardoTestUtils
-    with GPAllocUtils
-    with ParallelTestExecution
-    with GPAllocBeforeAndAfterAll {
+@DoNotDiscover
+class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
   // Using def instead of val to prevent test flakiness due to token expiration when tests take long
   implicit def auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, Ron.authToken().value))
 
