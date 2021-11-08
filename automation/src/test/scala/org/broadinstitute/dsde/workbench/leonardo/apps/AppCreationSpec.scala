@@ -102,9 +102,11 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
               )
-              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(client,
-                                                                                                        auth,
-                                                                                                        loggerIO)
+              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(
+                client,
+                ronAuthorization,
+                loggerIO
+              )
               _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName)
             } yield ()
           }
@@ -215,7 +217,6 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             loggerIO.warn(
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes. Result: $monitorDeleteResult"
             )
-            //IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
           } else {
             // verify disk is also deleted
             for {

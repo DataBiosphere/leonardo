@@ -7,7 +7,7 @@ import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, AppLifecycleSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
@@ -131,6 +131,8 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
 trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
+  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
+
   override def beforeAll(): Unit = {
     val res = for {
       _ <- IO(super.beforeAll())
@@ -189,8 +191,6 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
     if (isHeadless) {
       LeonardoApiClient.client.use { implicit c =>
         for {
-          ronAuthToken <- Ron.authToken()
-          implicit0(authHeader: Authorization) = Authorization(Token(AuthScheme.Bearer, ronAuthToken.value))
           res <- LeonardoApiClient
             .createRuntimeWithWait(
               project,

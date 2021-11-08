@@ -6,6 +6,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import com.google.cloud.Identity
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{
   GcsBlobName,
@@ -15,7 +16,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.{defaultCreateRuntime2Request, getRuntime}
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -35,8 +36,7 @@ class RuntimeGceSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit def authTokenForOldApiClient = Ron.authToken()
-  implicit def auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, authTokenForOldApiClient.value))
+  implicit val (authTokenForOldApiClient, auth) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
   val dependencies = for {
@@ -110,6 +110,8 @@ class RuntimeGceSpec
       for {
         runtime <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
+        rat <- Ron.authToken()
+        implicit0(authToken: AuthToken) = rat
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val deviceNameOutput =
@@ -143,6 +145,8 @@ class RuntimeGceSpec
       implicit val client = deps.httpClient
       for {
         // Set up test bucket for startup script
+        rat <- Ron.authToken()
+        implicit0(authToken: AuthToken) = rat
         petSA <- IO(Sam.user.petServiceAccountEmail(project.value))
         bucketName <- IO(UUID.randomUUID()).map(u => GcsBucketName(s"leo-test-bucket-${u.toString}"))
         userScriptObjectName = GcsBlobName("test-user-script.sh")
@@ -213,6 +217,7 @@ class RuntimeGceSpec
         _ = startScriptOutputs.foreach(o => o.trim shouldBe "This is a start user script")
 
         // stop/start the runtime
+        implicit0(authorization: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
         _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
         _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 

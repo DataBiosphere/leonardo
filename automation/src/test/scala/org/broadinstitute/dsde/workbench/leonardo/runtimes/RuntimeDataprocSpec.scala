@@ -6,6 +6,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.Identity
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.{Master, SecondaryWorker, Worker}
 import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
@@ -19,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateRuntime2Request
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeConfig.DataprocConfig
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeConfigRequest
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
@@ -40,8 +41,7 @@ class RuntimeDataprocSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit def authTokenForOldApiClient = Ron.authToken()
-  implicit def auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, authTokenForOldApiClient.value))
+  implicit val (authTokenForOldApiClient, auth) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
   override def withFixture(test: NoArgTest) =
@@ -129,6 +129,8 @@ class RuntimeDataprocSpec
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
         // check output of yarn node -list command
+        rat <- Ron.authToken()
+        implicit0(authToken: AuthToken) = rat
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(runtime, Python3) { notebookPage =>
@@ -152,6 +154,8 @@ class RuntimeDataprocSpec
       implicit val client = dep.httpClient
       for {
         // Set up test bucket for startup script
+        rat <- Ron.authToken()
+        implicit0(authToken: AuthToken) = rat
         petSA <- IO(Sam.user.petServiceAccountEmail(project.value))
         bucketName <- IO(UUID.randomUUID()).map(u => GcsBucketName(s"leo-test-bucket-${u.toString}"))
         userScriptObjectName = GcsBlobName("test-user-script.sh")
@@ -248,6 +252,7 @@ class RuntimeDataprocSpec
                             DataprocClusterStatus.Stopped)
 
         // start the cluster
+        implicit0(authorization: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
         _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be added in Dataproc
