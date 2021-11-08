@@ -573,7 +573,7 @@ object Config {
   implicit private val galaxyOrchUrlReader: ValueReader[GalaxyOrchUrl] = stringValueReader.map(GalaxyOrchUrl)
   implicit private val galaxyDrsUrlReader: ValueReader[GalaxyDrsUrl] = stringValueReader.map(GalaxyDrsUrl)
 
-  implicit private val appConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
+  implicit private val galaxyAppConfigReader: ValueReader[GalaxyAppConfig] = ValueReader.relative { config =>
     GalaxyAppConfig(
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
       config.as[ChartName]("chartName"),
@@ -615,7 +615,8 @@ object Config {
     CustomAppConfig(
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("chartVersion"),
-      config.as[ReleaseNameSuffix]("releaseNameSuffix")
+      config.as[ReleaseNameSuffix]("releaseNameSuffix"),
+      config.as[NamespaceNameSuffix]("namespaceNameSuffix")
     )
   }
 
@@ -676,7 +677,8 @@ object Config {
     gkeGalaxyAppConfig,
     gkeGalaxyDiskConfig,
     ConfigReader.appConfig.persistentDisk,
-    gkeCromwellAppConfig
+    gkeCromwellAppConfig,
+    gkeCustomAppConfig
   )
 
   val pubsubConfig = config.as[PubsubConfig]("pubsub")

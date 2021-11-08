@@ -512,8 +512,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](
                                      ctx: AppContext): Either[Throwable, SaveApp] = {
     val now = ctx.now
     val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
-    val galaxyConfig = leoKubernetesConfig.galaxyAppConfig
-    val cromwellConfig = leoKubernetesConfig.cromwellAppConfig
+    val gkeAppConfig: GkeAppConfig = req.appType match {
+      case Galaxy   => leoKubernetesConfig.galaxyAppConfig
+      case Cromwell => leoKubernetesConfig.cromwellAppConfig
+      case Custom   => leoKubernetesConfig.customAppConfig
+    }
 
     val allLabels =
       DefaultKubernetesLabels(googleProject,
@@ -551,7 +554,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       )(app => app.namespaceId)
       namespaceName <- lastUsedApp.fold(
         KubernetesName.withValidation(
-          s"${uid}-${galaxyConfig.namespaceNameSuffix.value}",
+          s"${uid}-${gkeAppConfig.namespaceNameSuffix.value}",
           NamespaceName.apply
         )
       )(app => app.namespaceName.asRight[Throwable])
@@ -559,18 +562,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       chart = lastUsedApp
         .map { lastUsed =>
           // if there's a patch version bump, then we use the later version defined in leo config; otherwise, we use lastUsed chart definition
-          if (lastUsed.chart.name == galaxyConfig.chartName && isPatchVersionDifference(lastUsed.chart.version,
-                                                                                        galaxyConfig.chartVersion))
-            galaxyConfig.chart
+          if (lastUsed.chart.name == gkeAppConfig.chartName && isPatchVersionDifference(lastUsed.chart.version,
+                                                                                        gkeAppConfig.chartVersion))
+            gkeAppConfig.chart
           else lastUsed.chart
         }
         // TODO fix this for the cromwell case (BW-867)
         // For now for cromwell apps, the chart is wrong in the Leo DB.
         // Back Leo reads the chart from config instead of the DB.
-        .getOrElse(galaxyConfig.chart)
+        .getOrElse(gkeAppConfig.chart)
       release <- lastUsedApp.fold(
         KubernetesName.withValidation(
-          s"${uid}-${galaxyConfig.releaseNameSuffix.value}",
+          s"${uid}-${gkeAppConfig.releaseNameSuffix.value}",
           Release.apply
         )
       )(app => app.release.asRight[Throwable])
@@ -593,15 +596,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
             namespaceName
           ),
           Some(disk),
-          req.appType match {
-            case Galaxy =>
-              galaxyConfig.services.map(config => KubernetesService(ServiceId(-1), config))
-            case Cromwell =>
-              cromwellConfig.services.map(config => KubernetesService(ServiceId(-1), config))
-            case Custom =>
-              // Back Leo will populate services when it parses the descriptor
-              List.empty
-          },
+          gkeAppConfig.kubernetesServices,
           Option.empty
         ),
         List.empty,
@@ -622,7 +617,8 @@ object LeoAppServiceInterp {
                                  galaxyAppConfig: GalaxyAppConfig,
                                  galaxyDiskConfig: GalaxyDiskConfig,
                                  diskConfig: PersistentDiskConfig,
-                                 cromwellAppConfig: CromwellAppConfig)
+                                 cromwellAppConfig: CromwellAppConfig,
+                                 customAppConfig: CustomAppConfig)
 
   private[http] def isPatchVersionDifference(a: ChartVersion, b: ChartVersion): Boolean = {
     val aSplited = a.asString.split("\\.")
