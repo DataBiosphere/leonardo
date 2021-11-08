@@ -383,7 +383,7 @@ class RuntimeDataprocSpec
       }
 
       // check expected network tags
-      expectedTags = if (workerPrivateAccess) Set("leonardo", "leonardo-worker") else Set("leonardo")
+      expectedTags = if (workerPrivateAccess) Set("leonardo", "leonardo-private") else Set("leonardo")
       _ <- IO(cluster.getConfig.getGceClusterConfig.getTagsList.asScala.toSet shouldBe expectedTags)
 
       // verify web interfaces return OK status

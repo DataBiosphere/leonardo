@@ -384,7 +384,7 @@ object Config {
       config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
       config.as[NetworkName]("networkName"),
       config.as[NetworkTag]("networkTag"),
-      config.as[NetworkTag]("workerPrivateAccessNetworkTag"),
+      config.as[NetworkTag]("privateAccessNetworkTag"),
       config.as[Boolean]("autoCreateSubnetworks"),
       config.as[SubnetworkName]("subnetworkName"),
       config.as[Map[RegionName, IpRange]]("subnetworkRegionIpRangeMap"),

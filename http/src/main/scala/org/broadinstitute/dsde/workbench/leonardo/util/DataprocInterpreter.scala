@@ -179,10 +179,10 @@ class DataprocInterpreter[F[_]: Parallel](
         dataprocImage = config.dataprocConfig.customDataprocImage
 
         // If the cluster is configured with worker private access, then specify the
-        // `leonardo-worker` network tag. This tag will be removed from the master node
+        // `leonardo-private` network tag. This tag will be removed from the master node
         // once the cluster is running.
         tags = if (machineConfig.workerPrivateAccess) {
-          List(config.vpcConfig.networkTag.value, config.vpcConfig.workerPrivateAccessNetworkTag.value)
+          List(config.vpcConfig.networkTag.value, config.vpcConfig.privateAccessNetworkTag.value)
         } else {
           List(config.vpcConfig.networkTag.value)
         }
