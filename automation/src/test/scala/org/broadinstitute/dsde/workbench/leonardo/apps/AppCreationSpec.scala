@@ -5,7 +5,7 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
@@ -17,8 +17,7 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
-  // Using def instead of val to prevent test flakiness due to token expiration when tests take long
-  implicit def auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, Ron.authToken().value))
+  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
@@ -47,6 +46,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
       LeonardoApiClient.client.use { implicit client =>
         for {
           _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
+
+          rat <- Ron.authToken()
+          implicit0(auth: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
 
           // Create the app
           _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)

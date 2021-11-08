@@ -8,7 +8,7 @@ import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.config.Credentials
+import org.broadinstitute.dsde.workbench.config.{Credentials => WorkbenchCredentials}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpe
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
+import org.http4s.{AuthScheme, Credentials}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.TestSuite
@@ -358,12 +359,11 @@ trait LeonardoTestUtils
   def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
-    //we cannot save the log if the cluster isn't running
-
+    // We cannot save the log if the cluster isn't running
     if (Leonardo.cluster.getRuntime(googleProject, runtimeName).status == ClusterStatus.Running) {
-
       saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "delete")
     }
+
     try {
       Leonardo.cluster.deleteRuntime(googleProject, runtimeName) shouldBe
         "The request has been accepted for processing, but the processing has not been completed."
@@ -718,13 +718,20 @@ trait LeonardoTestUtils
 // Ron and Hermione are on the dev Leo's allowed list, and Hermione is a Project Owner
 sealed trait TestUser extends EnumEntry with Product with Serializable {
   val name: String
-  val creds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
+  val creds: WorkbenchCredentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
   val email: String = creds.email
-  def authToken(): AuthToken = creds.makeAuthToken()
+  def authToken(): IO[AuthToken] = IO(creds.makeAuthToken())
 }
 object TestUser extends Enum[TestUser] {
   val values = findValues
   val stringToObject = values.map(v => v.name -> v).toMap
+
+  def getAuthTokenAndAuthorization(user: TestUser) = {
+    val authToken = user.authToken()
+    val authorization = authToken.map(token => Authorization(Credentials.Token(AuthScheme.Bearer, token.value)))
+
+    (authToken, authorization)
+  }
 
   final case object Ron extends TestUser { override val name: String = "ron" }
   final case object Hermione extends TestUser { override val name: String = "hermione" }

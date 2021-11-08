@@ -69,18 +69,20 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   protected def claimGPAllocProjectAndCreateWorkspace(): IO[GoogleProjectAndWorkspaceName] =
     for {
       claimedBillingProject <- IO(claimGPAllocProject(Hermione.creds))
+      hermioneAuthToken <- Hermione.authToken()
+      ronAuthToken <- Ron.authToken()
       _ <- IO(
         Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
                                                       Ron.email,
-                                                      BillingProject.BillingProjectRole.User)(Hermione.authToken())
+                                                      BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       )
       _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
       workspaceName <- IO(UUID.randomUUID().toString)
       _ <- IO(
-        Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(Ron.authToken())
+        Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
       workspaceDetails <- IO(
-        Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(Ron.authToken())
+        Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
       )
       json <- IO.fromEither(parse(workspaceDetails))
       googleProjectOpt = json.hcursor.downField("workspace").get[String]("googleProject").toOption
@@ -95,13 +97,15 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
    */
   protected def unclaimProject(workspaceName: WorkspaceName): IO[Unit] =
     for {
+      hermioneAuthToken <- Hermione.authToken()
+      ronAuthToken <- Ron.authToken()
       _ <- IO(
-        Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(Ron.authToken())
+        Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronAuthToken)
       ).attempt
       _ <- IO(
         Orchestration.billing.removeUserFromBillingProject(workspaceName.namespace,
                                                            Ron.email,
-                                                           BillingProject.BillingProjectRole.User)(Hermione.authToken())
+                                                           BillingProject.BillingProjectRole.User)(hermioneAuthToken)
       )
       releaseProject <- IO(releaseGPAllocProject(workspaceName.namespace, Hermione.creds)).attempt
       _ <- releaseProject match {
@@ -184,8 +188,9 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   private def createInitialRuntime(project: GoogleProject): IO[Unit] =
     if (isHeadless) {
       LeonardoApiClient.client.use { implicit c =>
-        implicit val authHeader = Authorization(Token(AuthScheme.Bearer, Ron.authToken().value))
         for {
+          ronAuthToken <- Ron.authToken()
+          implicit0(authHeader: Authorization) = Authorization(Token(AuthScheme.Bearer, ronAuthToken.value))
           res <- LeonardoApiClient
             .createRuntimeWithWait(
               project,
@@ -209,8 +214,9 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   private def deleteInitialRuntime(project: GoogleProject): IO[Unit] =
     if (isHeadless) {
       LeonardoApiClient.client.use { implicit c =>
-        implicit val authHeader = Authorization(Token(AuthScheme.Bearer, Ron.authToken().value))
         for {
+          ronAuthToken <- Ron.authToken()
+          implicit0(authHeader: Authorization) = Authorization(Token(AuthScheme.Bearer, ronAuthToken.value))
           res <- LeonardoApiClient
             .deleteRuntime(
               project,

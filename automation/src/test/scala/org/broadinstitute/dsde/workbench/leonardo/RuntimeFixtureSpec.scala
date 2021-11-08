@@ -7,10 +7,12 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 import RuntimeFixtureSpec._
 import cats.effect.IO
+import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.http.{CreateRuntime2Request, RuntimeConfigRequest}
-import org.http4s.{AuthScheme, Credentials}
+import org.http4s.Credentials.Token
+import org.http4s.AuthScheme
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.freespec.FixtureAnyFreeSpec
@@ -24,7 +26,7 @@ abstract class RuntimeFixtureSpec
     with LeonardoTestUtils
     with Retries {
 
-  implicit def ronToken: AuthToken = Ron.authToken()
+  implicit def ronToken: IO[AuthToken] = Ron.authToken()
 
   def toolDockerImage: Option[String] = None
   def welderRegistry: Option[ContainerRegistry] = None
@@ -74,14 +76,13 @@ abstract class RuntimeFixtureSpec
    */
   def createRonRuntime(billingProject: GoogleProject): Unit = {
     logger.info(s"Creating cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    implicit val auth: Authorization = Authorization(
-      Credentials.Token(AuthScheme.Bearer, Ron.authToken().value)
-    )
 
     val runtimeName = randomClusterName
     val res = LeonardoApiClient.client.use { c =>
       implicit val client: Client[IO] = c
       for {
+        rt <- ronToken
+        implicit0(authHeader: Authorization) = Authorization(Token(AuthScheme.Bearer, rt.value))
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(
           billingProject,
           runtimeName,
@@ -115,7 +116,8 @@ abstract class RuntimeFixtureSpec
    */
   def deleteRonRuntime(billingProject: GoogleProject, monitoringDelete: Boolean = false): Unit = {
     logger.info(s"Deleting cluster for cluster fixture tests: ${getClass.getSimpleName}")
-    deleteRuntime(billingProject, ronCluster.clusterName, monitoringDelete)(ronToken)
+    // TODO: Remove unsafeRunSync() when deleteRuntime() accepts an IO[AuthToken]
+    deleteRuntime(billingProject, ronCluster.clusterName, monitoringDelete)(ronToken.unsafeRunSync())
   }
 
   override def beforeAll(): Unit = {
