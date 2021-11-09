@@ -17,7 +17,7 @@ class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           val result = notebookPage.executeCell("!command -v wondershaper")
           result shouldBe defined
-          result.get should include("/usr/sbin/wondershaper")
+          result.get should include("/usr/local/sbin/wondershaper")
         }
       }
     }
