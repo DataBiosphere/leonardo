@@ -300,21 +300,25 @@ object RuntimeRoutes {
         .flatMap(x => if (x.exists(_ < 0)) Left(negativeNumberDecodingFailure) else Right(x))
       region <- c.downField("region").as[Option[RegionName]]
       componentGatewayEnabled <- c.downField("componentGatewayEnabled").as[Option[Boolean]]
+      workerPrivateAccess <- c.downField("workerPrivateAccess").as[Option[Boolean]]
       res <- numberOfWorkersInput match {
         case Some(x) if x < 0 => Left(negativeNumberDecodingFailure)
         case Some(0) =>
           Right(
             RuntimeConfigRequest
-              .DataprocConfig(Some(0),
-                              masterMachineType,
-                              masterDiskSize,
-                              None,
-                              None,
-                              None,
-                              None,
-                              properties,
-                              region,
-                              componentGatewayEnabled.getOrElse(false))
+              .DataprocConfig(
+                Some(0),
+                masterMachineType,
+                masterDiskSize,
+                None,
+                None,
+                None,
+                None,
+                properties,
+                region,
+                componentGatewayEnabled.getOrElse(false),
+                workerPrivateAccess.getOrElse(false)
+              )
           )
         case Some(1) => Left(oneWorkerSpecifiedDecodingFailure)
         case Some(x) =>
@@ -329,7 +333,8 @@ object RuntimeRoutes {
               numberOfPreemptibleWorkers,
               properties,
               region,
-              componentGatewayEnabled.getOrElse(false)
+              componentGatewayEnabled.getOrElse(false),
+              workerPrivateAccess.getOrElse(false)
             )
           )
         case None =>
@@ -344,7 +349,8 @@ object RuntimeRoutes {
               numberOfPreemptibleWorkers,
               properties,
               region,
-              componentGatewayEnabled.getOrElse(false)
+              componentGatewayEnabled.getOrElse(false),
+              workerPrivateAccess.getOrElse(false)
             )
           )
       }

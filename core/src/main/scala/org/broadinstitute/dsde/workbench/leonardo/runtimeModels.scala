@@ -261,7 +261,8 @@ object RuntimeConfig {
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
                                   region: RegionName,
-                                  componentGatewayEnabled: Boolean)
+                                  componentGatewayEnabled: Boolean,
+                                  workerPrivateAccess: Boolean)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType

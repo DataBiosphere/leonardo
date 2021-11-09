@@ -676,7 +676,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                diskUpdate,
                                                context.traceId)
           } yield r
-        case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _),
+        case (dataprocConfig @ RuntimeConfig.DataprocConfig(_, _, _, _, _, _, _, _, _, _, _),
               req @ UpdateRuntimeConfigRequest.DataprocConfig(_, _, _, _)) =>
           processUpdateDataprocConfigRequest(req, allowStop, runtime, dataprocConfig)
 

@@ -178,10 +178,19 @@ class DataprocInterpreter[F[_]: Parallel](
         // If we need to support 2 version of dataproc custom image, we'll update this
         dataprocImage = config.dataprocConfig.customDataprocImage
 
+        // If the cluster is configured with worker private access, then specify the
+        // `leonardo-private` network tag. This tag will be removed from the master node
+        // once the cluster is running.
+        tags = if (machineConfig.workerPrivateAccess) {
+          List(config.vpcConfig.networkTag.value, config.vpcConfig.privateAccessNetworkTag.value)
+        } else {
+          List(config.vpcConfig.networkTag.value)
+        }
+
         gceClusterConfig = {
           val bldr = GceClusterConfig
             .newBuilder()
-            .addTags(config.vpcConfig.networkTag.value)
+            .addAllTags(tags.asJava)
             .setSubnetworkUri(subnetwork.value)
             .setServiceAccount(params.serviceAccountInfo.value)
             .addAllServiceAccountScopes(params.scopes.asJava)

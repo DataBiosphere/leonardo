@@ -573,6 +573,7 @@ class HttpRoutesSpec
       Some(100),
       Map.empty,
       Some(RegionName("europe-west1")),
+      true,
       true
     )
     decode[RuntimeConfigRequest](test.asJson.noSpaces) shouldBe Right(test)
