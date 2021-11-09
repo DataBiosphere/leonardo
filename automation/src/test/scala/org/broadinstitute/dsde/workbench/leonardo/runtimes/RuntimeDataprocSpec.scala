@@ -89,16 +89,6 @@ class RuntimeDataprocSpec
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 1, RegionName("europe-west1"))
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[DataprocConfig].region shouldBe RegionName("europe-west1")
 
-        // check output of yarn node -list command
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(runtime, Python3) { notebookPage =>
-              val output = notebookPage.executeCell("""!yarn node -list""")
-              output.get should include("Total Nodes:")
-            }
-          }
-        )
-
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
     }
