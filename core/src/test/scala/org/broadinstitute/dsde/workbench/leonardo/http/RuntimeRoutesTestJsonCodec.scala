@@ -23,7 +23,7 @@ import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 object RuntimeRoutesTestJsonCodec {
-  implicit val dataprocConfigRequestEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct10(
+  implicit val dataprocConfigRequestEncoder: Encoder[RuntimeConfigRequest.DataprocConfig] = Encoder.forProduct11(
     "cloudService",
     "numberOfWorkers",
     "masterMachineType",
@@ -34,7 +34,8 @@ object RuntimeRoutesTestJsonCodec {
     "numberOfWorkerLocalSSDs",
     "numberOfPreemptibleWorkers",
     "region",
-    "componentGatewayEnabled"
+    "componentGatewayEnabled",
+    "workerPrivateAccess"
   )(x =>
     (x.cloudService,
      x.numberOfWorkers,
@@ -45,7 +46,8 @@ object RuntimeRoutesTestJsonCodec {
      x.numberOfWorkerLocalSSDs,
      x.numberOfPreemptibleWorkers,
      x.region,
-     x.componentGatewayEnabled)
+     x.componentGatewayEnabled,
+     x.workerPrivateAccess)
   )
   implicit val gceRuntimeConfigRequestEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct5(
     "cloudService",

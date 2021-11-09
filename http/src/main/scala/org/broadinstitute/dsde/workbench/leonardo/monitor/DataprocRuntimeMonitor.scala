@@ -5,7 +5,7 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.cloud.compute.v1.Instance
+import com.google.cloud.compute.v1.{Instance, Tags}
 import com.google.cloud.dataproc.v1.Cluster
 import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.{
@@ -137,14 +137,32 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                   // Note we don't need to check startup script results here because Dataproc
                   // won't transition the cluster to Running if a startup script failed.
 
-                  val masterInstance = instances.find(_.dataprocRole == DataprocRole.Master)
+                  val masterInstance = dataprocAndComputeInstances.find(_._1.dataprocRole == DataprocRole.Master)
 
                   masterInstance match {
-                    case Some(i) =>
-                      i.ip match {
+                    case Some((dataprocInstance, computeInstance)) =>
+                      dataprocInstance.ip match {
                         case Some(ip) =>
-                          // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                          F.sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
+                          for {
+                            // If the cluster is configured with worker private access, then
+                            // remove the workerPrivateAccessNetworkTag from the master node
+                            // once it is running.
+                            _ <- if (dataprocConfig.workerPrivateAccess) {
+                              googleComputeService.setInstanceTags(
+                                dataprocInstance.key.project,
+                                dataprocInstance.key.zone,
+                                dataprocInstance.key.name,
+                                Tags
+                                  .newBuilder()
+                                  .addItems(config.vpcConfig.networkTag.value)
+                                  .setFingerprint(computeInstance.getTags.getFingerprint)
+                                  .build()
+                              )
+                            } else F.unit
+                            // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                            _ <- F.sleep(8 seconds)
+                            result <- handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, instances)
+                          } yield result
                         case None =>
                           checkAgain(monitorContext,
                                      runtimeAndRuntimeConfig,

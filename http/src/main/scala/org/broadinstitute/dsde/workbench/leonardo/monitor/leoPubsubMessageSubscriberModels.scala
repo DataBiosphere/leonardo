@@ -61,7 +61,8 @@ object RuntimeConfigInCreateRuntimeMessage {
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
                                   region: RegionName,
-                                  componentGatewayEnabled: Boolean)
+                                  componentGatewayEnabled: Boolean,
+                                  workerPrivateAccess: Boolean)
       extends RuntimeConfigInCreateRuntimeMessage {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
@@ -86,7 +87,8 @@ object RuntimeConfigInCreateRuntimeMessage {
           None,
           dataproc.properties,
           dataproc.region.getOrElse(default.region),
-          dataproc.componentGatewayEnabled
+          dataproc.componentGatewayEnabled,
+          dataproc.workerPrivateAccess
         )
       case Some(numWorkers) =>
         val wds = dataproc.workerDiskSize.orElse(default.workerDiskSize)
@@ -100,7 +102,8 @@ object RuntimeConfigInCreateRuntimeMessage {
           dataproc.numberOfPreemptibleWorkers.orElse(default.numberOfPreemptibleWorkers),
           dataproc.properties,
           dataproc.region.getOrElse(default.region),
-          dataproc.componentGatewayEnabled
+          dataproc.componentGatewayEnabled,
+          dataproc.workerPrivateAccess
         )
     }
   }
@@ -551,6 +554,7 @@ object LeoPubsubCodec {
       properties = propertiesOpt.getOrElse(Map.empty)
       region <- c.downField("region").as[RegionName]
       componentGatewayEnabled <- c.downField("componentGatewayEnabled").as[Boolean]
+      workerPrivateAccess <- c.downField("workerPrivateAccess").as[Boolean]
     } yield RuntimeConfigInCreateRuntimeMessage.DataprocConfig(
       numberOfWorkers,
       masterMachineType,
@@ -561,7 +565,8 @@ object LeoPubsubCodec {
       numberOfPreemptibleWorkers,
       properties,
       region,
-      componentGatewayEnabled
+      componentGatewayEnabled,
+      workerPrivateAccess
     )
   }
 

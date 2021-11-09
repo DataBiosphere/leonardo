@@ -157,7 +157,8 @@ class DataprocInterpreterSpec
                                                      None,
                                                      Map.empty[String, String],
                                                      RegionName("us-central1"),
-                                                     true)
+                                                     true,
+                                                     false)
     val resourceConstraints = dataprocInterp
       .getClusterResourceContraints(testClusterClusterProjectAndName,
                                     runtimeConfig.machineType,

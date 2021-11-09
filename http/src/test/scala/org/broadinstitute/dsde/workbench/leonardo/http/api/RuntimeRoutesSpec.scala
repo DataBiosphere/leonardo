@@ -47,6 +47,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       Map("spark:spark.executor.cores" -> "4"),
       None,
+      false,
       false
     )
     decode[RuntimeConfigRequest.DataprocConfig](jsonString) shouldBe Right(expectedResult)
@@ -191,6 +192,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       None,
       Map.empty,
       None,
+      false,
       false
     )
     decodeResult shouldBe Right(expectedRuntimeConfig)
@@ -207,7 +209,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |      "service" : "DATAPROC",
         |      "numberOfPreemptibleWorkers" : 0,
         |      "masterMachineType" : "test-master-machine-type",
-        |      "componentGatewayEnabled": true
+        |      "componentGatewayEnabled": true,
+        |      "workerPrivateAccess": true
         |}
         |""".stripMargin
 
@@ -225,6 +228,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Some(0),
       Map.empty,
       None,
+      true,
       true
     )
     decodeResult shouldBe Right(expectedRuntimeConfig)
@@ -296,6 +300,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
           None,
           Map.empty,
           None,
+          false,
           false
         )
       ),
