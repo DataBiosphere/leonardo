@@ -60,6 +60,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(1),
         Map.empty,
         RegionName("test-region"),
+        true,
         true
       )
     )
@@ -235,6 +236,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
           Some(1),
           Map.empty,
           RegionName("test-region"),
+          true,
           true
         )
       )
@@ -258,6 +260,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
         Some(1),
         Map.empty,
         RegionName("test-region"),
+        true,
         true
       )
     )
@@ -316,6 +319,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       Some(1),
       Map.empty,
       RegionName("test-region"),
+      true,
       true
     )
 

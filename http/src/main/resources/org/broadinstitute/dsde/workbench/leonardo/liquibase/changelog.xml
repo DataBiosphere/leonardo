@@ -78,4 +78,5 @@
     <include file="changesets/20210429_rename_vm.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210517_add_gpu_config.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210723_add_component_gateway_enabled_flag.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20211103_add_worker_private_access.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

@@ -29,11 +29,12 @@ import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
+import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import java.nio.charset.{Charset, StandardCharsets}
 import java.util.UUID
-import org.scalatest.tagobjects.Retryable
+import scala.jdk.CollectionConverters._
 
 @DoNotDiscover
 class RuntimeDataprocSpec
@@ -72,7 +73,8 @@ class RuntimeDataprocSpec
           Some(1),
           Map.empty,
           Some(RegionName("europe-west1")),
-          true
+          true,
+          false
         )
       ),
       toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -112,7 +114,8 @@ class RuntimeDataprocSpec
           Some(5),
           Map.empty,
           None,
-          true
+          true,
+          false
         )
       ),
       toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -200,7 +203,8 @@ class RuntimeDataprocSpec
               Some(5),
               Map.empty,
               None,
-              true
+              true,
+              false
             )
           ),
           toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.hailImageUrl, ContainerRegistry.GCR))
@@ -295,6 +299,54 @@ class RuntimeDataprocSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  "should create a Dataproc cluster with worker private access" taggedAs Retryable in { project =>
+    val runtimeName = randomClusterName
+
+    // With workerPrivateAccess enabled
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.DataprocConfig(
+          Some(2),
+          Some(MachineTypeName("n1-standard-4")),
+          Some(DiskSize(100)),
+          Some(MachineTypeName("n1-standard-4")),
+          Some(DiskSize(100)),
+          None,
+          None,
+          Map.empty,
+          None,
+          true,
+          true
+        )
+      ),
+      toolDockerImage = Some(ContainerImage(LeonardoConfig.Leonardo.aouImageUrl, ContainerRegistry.DockerHub))
+    )
+
+    val res = dependencies.use { dep =>
+      implicit val client = dep.httpClient
+      for {
+        // create runtime
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
+        runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
+
+        // check cluster status in Dataproc
+        // This verifies the network tags are set correctly, but does _not_ verify the workers
+        // are only privately accessible.
+        _ <- verifyDataproc(project,
+                            runtime.clusterName,
+                            dep.dataproc,
+                            2,
+                            0,
+                            RegionName("us-central1"),
+                            workerPrivateAccess = true)
+
+        _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
+      } yield ()
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   private def verifyDataproc(
     project: GoogleProject,
     runtimeName: RuntimeName,
@@ -302,7 +354,8 @@ class RuntimeDataprocSpec
     expectedNumWorkers: Int,
     expectedPreemptibles: Int,
     expectedRegion: RegionName,
-    expectedStatus: DataprocClusterStatus = DataprocClusterStatus.Running
+    expectedStatus: DataprocClusterStatus = DataprocClusterStatus.Running,
+    workerPrivateAccess: Boolean = false
   )(implicit httpClient: Client[IO]): IO[Unit] =
     for {
       // check cluster status in Dataproc
@@ -334,6 +387,10 @@ class RuntimeDataprocSpec
             }
           )
       }
+
+      // check expected network tags
+      expectedTags = if (workerPrivateAccess) Set("leonardo", "leonardo-private") else Set("leonardo")
+      _ <- IO(cluster.getConfig.getGceClusterConfig.getTagsList.asScala.toSet shouldBe expectedTags)
 
       // verify web interfaces return OK status
       _ <- List("yarn", "jobhistory", "sparkhistory", "apphistory", "hdfs").traverse_ { path =>

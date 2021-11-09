@@ -15,9 +15,9 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.28.3"
 
-
-  private val workbenchLibsHash = "504ac92"
-  val serviceTestV = s"0.20-$workbenchLibsHash"
+  
+  private val workbenchLibsHash = "82a345c"
+  val serviceTestV = s"0.21-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.22-$workbenchLibsHash"
