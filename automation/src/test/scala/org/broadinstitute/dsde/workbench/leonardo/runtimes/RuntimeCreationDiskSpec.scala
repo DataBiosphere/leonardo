@@ -4,16 +4,16 @@ package runtimes
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, GoogleDiskService}
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials, Status}
+import org.http4s.Status
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -26,8 +26,7 @@ class RuntimeCreationDiskSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit def authTokenForOldApiClient = Ron.authToken()
-  implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, authTokenForOldApiClient.value))
+  implicit val (authTokenForOldApiClient, auth) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
@@ -59,6 +58,8 @@ class RuntimeCreationDiskSpec
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
+        rat <- Ron.authToken()
+        implicit0(authToken: AuthToken) = rat
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(clusterCopy, Python3) { notebookPage =>
@@ -190,6 +191,8 @@ class RuntimeCreationDiskSpec
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
                                                   diskName,
                                                   defaultCreateDiskRequest.copy(size = Some(diskSize)))
+        rat <- Ron.authToken()
+        implicit0(authToken: AuthToken) = rat
         runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
         // validate that saved files and user installed packages persist

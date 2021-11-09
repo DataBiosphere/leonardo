@@ -27,8 +27,6 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.client.Client
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -256,7 +254,6 @@ class RuntimeDataprocSpec
                             DataprocClusterStatus.Stopped)
 
         // start the cluster
-        implicit0(authorization: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
         _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
 
         // preemptibles should be added in Dataproc

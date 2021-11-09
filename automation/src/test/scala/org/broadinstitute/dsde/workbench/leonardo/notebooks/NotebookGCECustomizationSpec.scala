@@ -1,11 +1,10 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoApiClient}
-import org.http4s.AuthScheme
-import org.http4s.headers.Authorization
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -17,8 +16,8 @@ import scala.concurrent.duration._
  */
 @DoNotDiscover
 final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
-  implicit def ronToken: AuthToken = Ron.authToken()
-  implicit def auth: Authorization = Authorization(org.http4s.Credentials.Token(AuthScheme.Bearer, ronToken.value))
+  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
+  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   "NotebookGCECustomizationSpec" - {
     // Using nbtranslate extension from here:

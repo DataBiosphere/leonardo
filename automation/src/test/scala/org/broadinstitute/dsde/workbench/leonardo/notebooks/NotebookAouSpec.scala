@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import cats.effect.unsafe.implicits.global
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.{ContainerRegistry, LeonardoConfig, RuntimeFixtureSpec}
 import org.scalatest.DoNotDiscover
 
@@ -8,6 +10,8 @@ import org.scalatest.DoNotDiscover
  */
 @DoNotDiscover
 class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
+  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
+
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.aouImageUrl)
   override val welderRegistry: Option[ContainerRegistry] = Some(ContainerRegistry.DockerHub)
 

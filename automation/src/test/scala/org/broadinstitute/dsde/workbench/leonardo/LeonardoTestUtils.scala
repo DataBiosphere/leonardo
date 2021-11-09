@@ -721,17 +721,14 @@ sealed trait TestUser extends EnumEntry with Product with Serializable {
   val creds: WorkbenchCredentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
   val email: String = creds.email
   def authToken(): IO[AuthToken] = IO(creds.makeAuthToken())
+  def authorization(): IO[Authorization] =
+    authToken().map(token => Authorization(Credentials.Token(AuthScheme.Bearer, token.value)))
 }
 object TestUser extends Enum[TestUser] {
   val values = findValues
   val stringToObject = values.map(v => v.name -> v).toMap
 
-  def getAuthTokenAndAuthorization(user: TestUser) = {
-    val authToken = user.authToken()
-    val authorization = authToken.map(token => Authorization(Credentials.Token(AuthScheme.Bearer, token.value)))
-
-    (authToken, authorization)
-  }
+  def getAuthTokenAndAuthorization(user: TestUser) = (user.authToken(), user.authorization())
 
   final case object Ron extends TestUser { override val name: String = "ron" }
   final case object Hermione extends TestUser { override val name: String = "hermione" }

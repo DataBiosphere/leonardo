@@ -1,11 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo.rstudio
 
+import cats.effect.unsafe.implicits.global
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.openqa.selenium.Keys
 import org.scalatest.DoNotDiscover
 
 @DoNotDiscover
 class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
+  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.rstudioBioconductorImage.imageUrl)
 

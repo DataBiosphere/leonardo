@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.lab
 
+import cats.effect.unsafe.implicits.global
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeFixtureSpec
 import org.scalatest.DoNotDiscover
 
@@ -8,6 +10,7 @@ import org.scalatest.DoNotDiscover
  */
 @DoNotDiscover
 class LabSpec extends RuntimeFixtureSpec with LabTestUtils {
+  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   "Leonardo lab" - {
 
