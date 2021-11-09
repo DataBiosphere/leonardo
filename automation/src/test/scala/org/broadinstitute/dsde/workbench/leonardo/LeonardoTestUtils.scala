@@ -6,7 +6,6 @@ import cats.effect.std.Semaphore
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
-import enumeratum.{Enum, EnumEntry}
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.config.{Credentials => WorkbenchCredentials}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
@@ -716,7 +715,7 @@ trait LeonardoTestUtils
 }
 
 // Ron and Hermione are on the dev Leo's allowed list, and Hermione is a Project Owner
-sealed trait TestUser extends EnumEntry with Product with Serializable {
+sealed trait TestUser extends Product with Serializable {
   val name: String
   val creds: WorkbenchCredentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
   val email: String = creds.email
@@ -724,10 +723,8 @@ sealed trait TestUser extends EnumEntry with Product with Serializable {
   def authorization(): IO[Authorization] =
     authToken().map(token => Authorization(Credentials.Token(AuthScheme.Bearer, token.value)))
 }
-object TestUser extends Enum[TestUser] {
-  val values = findValues
-  val stringToObject = values.map(v => v.name -> v).toMap
 
+object TestUser {
   def getAuthTokenAndAuthorization(user: TestUser) = (user.authToken(), user.authorization())
 
   final case object Ron extends TestUser { override val name: String = "ron" }
