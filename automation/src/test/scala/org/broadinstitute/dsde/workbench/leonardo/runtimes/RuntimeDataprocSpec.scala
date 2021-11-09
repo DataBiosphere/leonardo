@@ -130,8 +130,7 @@ class RuntimeDataprocSpec
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))
 
         // check output of yarn node -list command
-        rat <- Ron.authToken()
-        implicit0(authToken: AuthToken) = rat
+        implicit0(authToken: AuthToken) <- Ron.authToken()
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(runtime, Python3) { notebookPage =>
@@ -155,8 +154,7 @@ class RuntimeDataprocSpec
       implicit val client = dep.httpClient
       for {
         // Set up test bucket for startup script
-        rat <- Ron.authToken()
-        implicit0(authToken: AuthToken) = rat
+        implicit0(authToken: AuthToken) <- Ron.authToken()
         petSA <- IO(Sam.user.petServiceAccountEmail(project.value))
         bucketName <- IO(UUID.randomUUID()).map(u => GcsBucketName(s"leo-test-bucket-${u.toString}"))
         userScriptObjectName = GcsBlobName("test-user-script.sh")

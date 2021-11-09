@@ -87,8 +87,7 @@ class RuntimePatchSpec
           startingDoneCheckable
         ).compile.lastOrError
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
-        rat <- Ron.authToken()
-        implicit0(authToken: AuthToken) = rat
+        implicit0(authToken: AuthToken) <- Ron.authToken()
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(clusterCopy, Python3) { notebookPage =>
@@ -164,8 +163,7 @@ class RuntimePatchSpec
             startingDoneCheckable
           ).compile.lastOrError
           clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
-          rat <- Ron.authToken()
-          implicit0(authToken: AuthToken) = rat
+          implicit0(authToken: AuthToken) <- Ron.authToken()
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(clusterCopy, Python3) { notebookPage =>
@@ -259,8 +257,7 @@ class RuntimePatchSpec
             startingDoneCheckable
           )
           clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
-          rat <- Ron.authToken()
-          implicit0(authToken: AuthToken) = rat
+          implicit0(authToken: AuthToken) <- Ron.authToken()
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(clusterCopy, Python3) { notebookPage =>

@@ -58,8 +58,7 @@ class RuntimeCreationDiskSpec
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)
-        rat <- Ron.authToken()
-        implicit0(authToken: AuthToken) = rat
+        implicit0(authToken: AuthToken) <- Ron.authToken()
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(clusterCopy, Python3) { notebookPage =>
@@ -191,8 +190,7 @@ class RuntimeCreationDiskSpec
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
                                                   diskName,
                                                   defaultCreateDiskRequest.copy(size = Some(diskSize)))
-        rat <- Ron.authToken()
-        implicit0(authToken: AuthToken) = rat
+        implicit0(authToken: AuthToken) <- Ron.authToken()
         runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
         // validate that saved files and user installed packages persist
