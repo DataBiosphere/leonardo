@@ -38,7 +38,7 @@ python generate_custom_image.py \
     --zone $ZONE \
     --gcs-bucket $TEST_BUCKET \
     --project-id=$GOOGLE_PROJECT \
-    --disk-size=60
+    --disk-size=100
 
 popd
 
