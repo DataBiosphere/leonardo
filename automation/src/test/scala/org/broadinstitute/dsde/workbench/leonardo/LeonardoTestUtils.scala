@@ -717,8 +717,8 @@ trait LeonardoTestUtils
 // Ron and Hermione are on the dev Leo's allowed list, and Hermione is a Project Owner
 sealed trait TestUser extends Product with Serializable {
   val name: String
-  val creds: WorkbenchCredentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
-  val email: String = creds.email
+  lazy val creds: WorkbenchCredentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
+  lazy val email: String = creds.email
   def authToken(): IO[AuthToken] = IO(creds.makeAuthToken())
   def authorization(): IO[Authorization] =
     authToken().map(token => Authorization(Credentials.Token(AuthScheme.Bearer, token.value)))

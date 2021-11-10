@@ -7,7 +7,7 @@ import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, AppLifecycleSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
@@ -15,9 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, Rawls}
-import org.http4s.AuthScheme
-import org.http4s.Credentials.Token
-import org.http4s.headers.Authorization
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
@@ -131,7 +128,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
 trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  implicit val (ronTestersonAuthToken, ronTestersonAuthorization) = getAuthTokenAndAuthorization(Ron)
+  implicit val ronTestersonAuthorization = Ron.authorization()
 
   override def beforeAll(): Unit = {
     val res = for {
@@ -215,8 +212,6 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
     if (isHeadless) {
       LeonardoApiClient.client.use { implicit c =>
         for {
-          ronAuthToken <- Ron.authToken()
-          implicit0(authHeader: Authorization) = Authorization(Token(AuthScheme.Bearer, ronAuthToken.value))
           res <- LeonardoApiClient
             .deleteRuntime(
               project,
