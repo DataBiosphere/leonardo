@@ -238,6 +238,7 @@ object DiskRoutes {
     "size",
     "diskType",
     "blockSize",
+    "formattedBy",
     "labels"
   )(x =>
     (
@@ -251,6 +252,7 @@ object DiskRoutes {
       x.size,
       x.diskType,
       x.blockSize,
+      x.formattedBy,
       x.labels
     )
   )

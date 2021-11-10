@@ -36,6 +36,7 @@ final case class ListPersistentDiskResponse(id: DiskId,
                                             size: DiskSize,
                                             diskType: DiskType,
                                             blockSize: BlockSize,
+                                            formattedBy: Option[FormattedBy],
                                             labels: LabelMap)
 
 final case class GetPersistentDiskResponse(id: DiskId,

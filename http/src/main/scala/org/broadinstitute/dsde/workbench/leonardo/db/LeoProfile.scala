@@ -159,7 +159,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       )
     implicit val formattedByMappedColumnType: BaseColumnType[FormattedBy] =
       MappedColumnType.base[FormattedBy, String](
-        _.asString,
+        _.toString,
         s => FormattedBy.withNameInsensitiveOption(s).getOrElse(throw new RuntimeException(s"Unknown formattedBy $s"))
       )
 
