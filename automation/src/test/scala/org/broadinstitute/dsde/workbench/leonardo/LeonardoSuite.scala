@@ -131,7 +131,7 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
 trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
-  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
+  implicit val (ronTestersonAuthToken, ronTestersonAuthorization) = getAuthTokenAndAuthorization(Ron)
 
   override def beforeAll(): Unit = {
     val res = for {
