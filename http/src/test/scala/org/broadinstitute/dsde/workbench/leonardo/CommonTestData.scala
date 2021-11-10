@@ -361,7 +361,7 @@ object CommonTestData {
 
   def makePersistentDisk(diskName: Option[DiskName] = None,
                          formattedBy: Option[FormattedBy] = None,
-                         galaxyRestore: Option[GalaxyRestore] = None,
+                         appRestore: Option[AppRestore] = None,
                          zoneName: Option[ZoneName] = None,
                          googleProject: Option[GoogleProject] = None): PersistentDisk =
     PersistentDisk(
@@ -378,7 +378,7 @@ object CommonTestData {
       diskType,
       blockSize,
       formattedBy,
-      galaxyRestore,
+      appRestore,
       Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3")
     )
 

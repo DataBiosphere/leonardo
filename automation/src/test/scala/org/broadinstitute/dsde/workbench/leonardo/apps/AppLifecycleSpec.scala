@@ -45,22 +45,9 @@ class AppLifecycleSpec
     appType = AppType.Custom
   )
 
-  val cromwellCreateAppRequest = defaultCreateAppRequest.copy(
-    diskConfig = Some(
-      PersistentDiskRequest(
-        randomDiskName(),
-        Some(DiskSize(500)),
-        None,
-        Map.empty
-      )
-    ),
-    appType = AppType.Cromwell
-  )
-
   private val appTestCases = Table(
     ("description", "createAppRequest"),
-    ("create and delete a CUSTOM app", customCreateAppRequest),
-    ("create and delete a CROMWELL app", cromwellCreateAppRequest)
+    ("create and delete a CUSTOM app", customCreateAppRequest)
   )
 
   forAll(appTestCases) { (description, createAppRequest) =>

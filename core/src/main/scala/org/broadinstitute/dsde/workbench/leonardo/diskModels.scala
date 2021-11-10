@@ -19,7 +19,7 @@ final case class PersistentDisk(id: DiskId,
                                 diskType: DiskType,
                                 blockSize: BlockSize,
                                 formattedBy: Option[FormattedBy],
-                                galaxyRestore: Option[GalaxyRestore],
+                                appRestore: Option[AppRestore],
                                 labels: LabelMap) {
   def projectNameString: String = s"${googleProject.value}/${name.value}"
 }
@@ -95,24 +95,39 @@ object DiskType extends Enum[DiskType] {
   }
 }
 
-sealed trait FormattedBy extends EnumEntry with Product with Serializable {
-  def asString: String
-}
+sealed trait FormattedBy extends EnumEntry with Product with Serializable
+
 object FormattedBy extends Enum[FormattedBy] {
   val values = findValues
 
   final case object GCE extends FormattedBy {
-    override def asString: String = "GCE"
+    override def toString: String = "GCE"
   }
   final case object Galaxy extends FormattedBy {
-    override def asString: String = "GALAXY"
+    override def toString: String = "GALAXY"
   }
 
   final case object Custom extends FormattedBy {
-    override def asString: String = "CUSTOM"
+    override def toString: String = "CUSTOM"
   }
+
+  final case object Cromwell extends FormattedBy {
+    override def toString: String = "CROMWELL"
+  }
+
+  def stringToObject: Map[String, FormattedBy] = values.map(v => v.toString -> v).toMap
 }
 
 final case class PvcId(asString: String) extends AnyVal
-// information needed for restoring a galaxy app
-final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId)
+
+sealed trait AppRestore extends Product with Serializable {
+  def lastUsedBy: AppId
+}
+
+object AppRestore {
+  // information needed for restoring a Galaxy app
+  final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
+
+  // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
+  final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore
+}

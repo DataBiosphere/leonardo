@@ -6,17 +6,23 @@ import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
+import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
+class AppCreationSpec
+    extends GPAllocFixtureSpec
+    with LeonardoTestUtils
+    with GPAllocUtils
+    with ParallelTestExecution
+    with TableDrivenPropertyChecks {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
@@ -25,92 +31,102 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
     else
       super.withFixture(test)
 
-  "create, delete an app and re-create an app with same disk" taggedAs (Tags.SmokeTest, Retryable) in { _ =>
-    withNewProject { googleProject =>
-      val appName = randomAppName
-      val restoreAppName = AppName(s"restore-${appName.value}")
-      val diskName = Generators.genDiskName.sample.get
-
-      val createAppRequest = defaultCreateAppRequest.copy(
-        diskConfig = Some(
-          PersistentDiskRequest(
-            diskName,
-            Some(DiskSize(300)),
-            None,
-            Map.empty
-          )
-        ),
-        customEnvironmentVariables = Map("WORKSPACE_NAME" -> "Galaxy-Workshop-ASHG_2020_GWAS_Demo")
+  def createAppRequest(appType: AppType, workspaceName: String): CreateAppRequest = defaultCreateAppRequest.copy(
+    diskConfig = Some(
+      PersistentDiskRequest(
+        Generators.genDiskName.sample.get,
+        Some(DiskSize(300)),
+        None,
+        Map.empty
       )
+    ),
+    appType = appType,
+    customEnvironmentVariables = Map("WORKSPACE_NAME" -> workspaceName)
+  )
 
-      LeonardoApiClient.client.use { implicit client =>
-        for {
-          _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
+  private val appTestCases = Table(
+    ("description", "createAppRequest"),
+    ("create GALAXY app, delete it and re-create it with same disk",
+     createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo")),
+    ("create CROMWELL app, delete it and re-create it with same disk",
+     createAppRequest(AppType.Cromwell, "cromwell-test-workspace"))
+  )
 
-          rat <- Ron.authToken()
-          implicit0(auth: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
+  forAll(appTestCases) { (description, createAppRequest) =>
+    description taggedAs (Tags.SmokeTest, Retryable) in { _ =>
+      withNewProject { googleProject =>
+        val appName = randomAppName
+        val restoreAppName = AppName(s"restore-${appName.value}")
 
-          // Create the app
-          _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
+        LeonardoApiClient.client.use { implicit client =>
+          for {
+            _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
 
-          // Verify the initial getApp call
-          getApp = LeonardoApiClient.getApp(googleProject, appName)
-          getAppResponse <- getApp
-          _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
+            rat <- Ron.authToken()
+            implicit0(auth: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
 
-          // Verify the app eventually becomes Running
-          _ <- IO.sleep(120 seconds)
-          monitorCreateResult <- streamUntilDoneOrTimeout(
-            getApp,
-            120,
-            10 seconds,
-            s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
-          )(implicitly, appInStateOrError(AppStatus.Running))
-          _ <- loggerIO.info(
-            s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
-          )
-          _ = monitorCreateResult.status shouldBe AppStatus.Running
+            // Create the app
+            _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
 
-          _ <- IO.sleep(1 minute)
+            // Verify the initial getApp call
+            getApp = LeonardoApiClient.getApp(googleProject, appName)
+            getAppResponse <- getApp
+            _ = getAppResponse.status should (be(AppStatus.Provisioning) or be(AppStatus.Precreating))
 
-          // Delete the app
-          _ <- LeonardoApiClient.deleteApp(googleProject, appName, false)
-
-          // Verify getApp again
-          getAppResponse <- getApp
-          _ = getAppResponse.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
-
-          // Verify the app eventually becomes Deleted
-          // Don't fail the test if the deletion times out because the Galaxy pre-delete job can sporadically fail.
-          // See https://broadworkbench.atlassian.net/browse/IA-2471
-          listApps = LeonardoApiClient.listApps(googleProject, true)
-          implicit0(deletedDoneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
-          monitorDeleteResult <- streamFUntilDone(
-            listApps,
-            120,
-            10 seconds
-          ).compile.lastOrError
-          // TODO remove first case in below if statement when Galaxy deletion is reliable
-          _ <- if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
-            loggerIO.warn(
-              s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
+            // Verify the app eventually becomes Running
+            _ <- IO.sleep(120 seconds)
+            monitorCreateResult <- streamUntilDoneOrTimeout(
+              getApp,
+              120,
+              10 seconds,
+              s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish creating after 20 minutes"
+            )(implicitly, appInStateOrError(AppStatus.Running))
+            _ <- loggerIO.info(
+              s"AppCreationSpec: app ${googleProject.value}/${appName.value} monitor result: ${monitorCreateResult}"
             )
-            //IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
-          } else {
-            // Verify creating another app with the same disk doesn't error out
-            for {
-              _ <- loggerIO.info(
-                s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+            _ = monitorCreateResult.status shouldBe AppStatus.Running
+
+            _ <- IO.sleep(1 minute)
+
+            // Delete the app
+            _ <- LeonardoApiClient.deleteApp(googleProject, appName, false)
+
+            // Verify getApp again
+            getAppResponse <- getApp
+            _ = getAppResponse.status should (be(AppStatus.Deleting) or be(AppStatus.Predeleting))
+
+            // Verify the app eventually becomes Deleted
+            // Don't fail the test if the deletion times out because the app pre-delete job can sporadically fail.
+            // See https://broadworkbench.atlassian.net/browse/IA-2471
+            listApps = LeonardoApiClient.listApps(googleProject, true)
+            implicit0(deletedDoneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
+            monitorDeleteResult <- streamFUntilDone(
+              listApps,
+              120,
+              10 seconds
+            ).compile.lastOrError
+            // TODO remove first case in below if statement when app deletion is reliable
+            _ <- if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
+              loggerIO.warn(
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
               )
-              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(
-                client,
-                ronAuthorization,
-                loggerIO
-              )
-              _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName)
-            } yield ()
-          }
-        } yield ()
+              //IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
+            } else {
+              // Verify creating another app with the same disk doesn't error out
+              for {
+                _ <- loggerIO.info(
+                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+                )
+                _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(
+                  client,
+                  ronAuthorization,
+                  loggerIO
+                )
+                _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName)
+              } yield ()
+            }
+          } yield ()
+        }
       }
     }
   }

@@ -13,7 +13,8 @@ import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, KubernetesName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
-import org.broadinstitute.dsde.workbench.leonardo.AppType.{Cromwell, Custom, Galaxy}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+import org.broadinstitute.dsde.workbench.leonardo.AppType.{appTypeToFormattedByType, Cromwell, Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
@@ -33,6 +34,7 @@ import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
 import java.util.UUID
+
 import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](
@@ -138,7 +140,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           googleProject,
           userInfo,
           petSA,
-          if (req.appType == AppType.Galaxy) FormattedBy.Galaxy else FormattedBy.Custom,
+          appTypeToFormattedByType(req.appType),
           authProvider,
           leoKubernetesConfig.diskConfig
         )
@@ -147,17 +149,18 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       lastUsedApp <- diskResultOpt.flatTraverse { diskResult =>
         if (diskResult.creationNeeded) F.pure(none[LastUsedApp])
         else {
-          (diskResult.disk.formattedBy, diskResult.disk.galaxyRestore) match {
-            case (Some(FormattedBy.Galaxy), Some(galaxyRestore)) =>
+          (diskResult.disk.formattedBy, diskResult.disk.appRestore) match {
+            case (Some(FormattedBy.Galaxy), Some(GalaxyRestore(_, _, _))) |
+                (Some(FormattedBy.Cromwell), Some(CromwellRestore(_))) =>
+              val lastUsedBy = diskResult.disk.appRestore.get.lastUsedBy
               for {
-                lastUsedOpt <- appQuery.getLastUsedApp(galaxyRestore.lastUsedBy, Some(ctx.traceId)).transaction
+                lastUsedOpt <- appQuery.getLastUsedApp(lastUsedBy, Some(ctx.traceId)).transaction
                 lastUsed <- F.fromOption(
                   lastUsedOpt,
-                  new LeoException(s"last used app(${galaxyRestore.lastUsedBy}) not found", traceId = Some(ctx.traceId))
+                  new LeoException(s"last used app($lastUsedBy) not found", traceId = Some(ctx.traceId))
                 )
                 _ <- req.customEnvironmentVariables.get(WORKSPACE_NAME_KEY).traverse { s =>
-                  if (lastUsed.workspace.asString == s)
-                    F.unit
+                  if (lastUsed.workspace.asString == s) F.unit
                   else
                     F.raiseError[Unit](
                       BadRequestException(
@@ -167,16 +170,15 @@ final class LeoAppServiceInterp[F[_]: Parallel](
                     )
                 }
               } yield lastUsed.some
-            case (Some(FormattedBy.Galaxy), None) =>
+            case (Some(FormattedBy.Galaxy), Some(CromwellRestore(_))) =>
+              getAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.toString, ctx.traceId)
+            case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
+              getAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.toString, ctx.traceId)
+            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
+              getAlreadyFormattedError(diskResult.disk.formattedBy.get, s"${FormattedBy.Cromwell.toString} or ${FormattedBy.Galaxy.toString}", ctx.traceId)
+            case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
-              )
-            case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
-              F.raiseError[Option[LastUsedApp]](
-                new LeoException(
-                  s"Disk is formatted by ${diskResult.disk.formattedBy.get} already, cannot be used for galaxy app",
-                  traceId = Some(ctx.traceId)
-                )
               )
             case (None, _) =>
               F.raiseError[Option[LastUsedApp]](
@@ -412,6 +414,16 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       )
       _ <- publisherQueue.offer(message)
     } yield ()
+
+  private def getAlreadyFormattedError(formattedBy: FormattedBy,
+                                       appName: String,
+                                       traceId: TraceId): F[Option[LastUsedApp]] =
+    F.raiseError[Option[LastUsedApp]](
+      new LeoException(
+        s"Disk is formatted by $formattedBy already, cannot be used for $appName app",
+        traceId = Some(traceId)
+      )
+    )
 
   private[service] def getSavableCluster(
     userInfo: UserInfo,

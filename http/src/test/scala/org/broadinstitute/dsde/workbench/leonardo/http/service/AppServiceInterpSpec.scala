@@ -33,6 +33,9 @@ import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import java.time.Instant
+
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
@@ -313,7 +316,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Galaxy),
-                                  galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
       .copy(googleProject = project)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -338,7 +341,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val nodepool = makeNodepool(1, cluster.id).save()
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
-                                  galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)),
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)),
                                   formattedBy = Some(FormattedBy.Galaxy))
       .copy(googleProject = project)
       .save()
@@ -396,6 +399,62 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
+  it should "error creating Cromwell app with an existing disk if no restore info found" in isolatedDbTest {
+    val disk = makePersistentDisk(None, formattedBy = Some(FormattedBy.Cromwell))
+      .copy(googleProject = project)
+      .save()
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), appType = AppType.Cromwell)
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+    val res = kubeServiceInterp
+      .createApp(userInfo, project, appName, appReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    res.swap.toOption.get.getMessage shouldBe ("Existing disk found, but no restore info found in DB")
+  }
+
+  it should "error creating Galaxy app with an existing disk that was formatted by Cromwell" in isolatedDbTest {
+    val cluster = makeKubeCluster(0).save()
+    val nodepool = makeNodepool(1, cluster.id).save()
+    val cromwellApp = makeApp(1, nodepool.id).save()
+    val disk = makePersistentDisk(None,
+                                  formattedBy = Some(FormattedBy.Cromwell),
+                                  appRestore = Some(CromwellRestore(cromwellApp.id)))
+      .copy(googleProject = project)
+      .save()
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val galaxyAppName = AppName("galaxy-app1")
+    val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
+    val galaxyAppReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+    val res = kubeServiceInterp
+      .createApp(userInfo, project, galaxyAppName, galaxyAppReq)
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    res.swap.toOption.get.getMessage shouldBe ("Persistent disk dsp-leo-test/disk is already formatted by CROMWELL")
+  }
+
+  it should "error on creation of Cromwell app without a disk" in isolatedDbTest {
+    val appName = AppName("cromwell-app1")
+    val appReq = createAppRequest.copy(diskConfig = None, appType = AppType.Cromwell)
+
+    an[AppRequiresDiskException] should be thrownBy {
+      appServiceInterp
+        .createApp(userInfo, project, appName, appReq)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
   it should "error on creation if a disk is attached to another app" in isolatedDbTest {
     val customEnvVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws")
     val cluster = makeKubeCluster(0).save()
@@ -403,7 +462,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Galaxy),
-                                  galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
       .copy(googleProject = project)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

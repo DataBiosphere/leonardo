@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   OperationName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.leonardo.AppType.{appTypeToFormattedByType, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -851,7 +851,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       // create disk asynchronously
       createDiskOp = disk
         .traverse(d =>
-          createDisk(CreateDiskMessage.fromDisk(d, Some(ctx.traceId)), Some(FormattedBy.Galaxy), true).adaptError {
+          createDisk(CreateDiskMessage.fromDisk(d, Some(ctx.traceId)),
+                     Some(appTypeToFormattedByType(msg.appType)),
+                     true).adaptError {
             case e =>
               PubsubKubernetesError(
                 AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),

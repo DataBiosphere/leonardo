@@ -79,4 +79,5 @@
     <include file="changesets/20210517_add_gpu_config.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210723_add_component_gateway_enabled_flag.xml" relativeToChangelogFile="true" />
     <include file="changesets/20211103_add_worker_private_access.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20211116_update_persistent_disk_formattedBy_enum.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>
