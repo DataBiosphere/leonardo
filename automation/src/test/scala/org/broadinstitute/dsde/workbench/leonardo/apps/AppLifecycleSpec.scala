@@ -5,9 +5,9 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.defaultCreateAppRequest
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.Ron
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials, Uri}
+import org.http4s.Uri
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
@@ -21,9 +21,8 @@ class AppLifecycleSpec
     with GPAllocUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks {
-  // Using def instead of val to prevent test flakiness due to token expiration when tests take long
-  implicit def auth: Authorization =
-    Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+
+  implicit val ronAuthorization = Ron.authorization()
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))

@@ -6,8 +6,8 @@ import cats.effect.std.Semaphore
 import cats.effect.unsafe.implicits.global
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.auth.{AuthToken, AuthTokenScopes, UserAuthToken}
-import org.broadinstitute.dsde.workbench.config.Credentials
+import org.broadinstitute.dsde.workbench.auth.AuthToken
+import org.broadinstitute.dsde.workbench.config.{Credentials => WorkbenchCredentials}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpe
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
+import org.http4s.{AuthScheme, Credentials}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.scalatest.TestSuite
@@ -62,16 +63,6 @@ trait LeonardoTestUtils
   logDir.mkdirs
 
   def enableWelder: Boolean = true
-
-  // Ron and Hermione are on the dev Leo whitelist, and Hermione is a Project Owner
-  lazy val ronCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("ron")
-  lazy val hermioneCreds: Credentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential("hermione")
-  lazy val voldyCreds: Credentials = LeonardoConfig.Users.CampaignManager.getUserCredential("voldemort")
-
-  lazy val ronAuthToken = UserAuthToken(ronCreds, AuthTokenScopes.userLoginScopes)
-  lazy val hermioneAuthToken = UserAuthToken(hermioneCreds, AuthTokenScopes.userLoginScopes)
-  lazy val voldyAuthToken = UserAuthToken(voldyCreds, AuthTokenScopes.userLoginScopes)
-  lazy val ronEmail = ronCreds.email
 
   val clusterPatience = PatienceConfig(timeout = scaled(Span(15, Minutes)), interval = scaled(Span(20, Seconds)))
   val clusterStopAfterCreatePatience =
@@ -298,7 +289,7 @@ trait LeonardoTestUtils
                     runtimeName: RuntimeName,
                     runtimeRequest: CreateRuntime2Request,
                     monitor: Boolean,
-                    shouldError: Boolean = true)(implicit token: Authorization): GetRuntimeResponseCopy = {
+                    shouldError: Boolean = true)(implicit token: IO[Authorization]): GetRuntimeResponseCopy = {
     // Google doesn't seem to like simultaneous cluster creates.  Add 0-30 sec jitter
     Thread sleep Random.nextInt(30000)
 
@@ -367,12 +358,11 @@ trait LeonardoTestUtils
   def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, monitor: Boolean)(
     implicit token: AuthToken
   ): Unit = {
-    //we cannot save the log if the cluster isn't running
-
+    // We cannot save the log if the cluster isn't running
     if (Leonardo.cluster.getRuntime(googleProject, runtimeName).status == ClusterStatus.Running) {
-
       saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "delete")
     }
+
     try {
       Leonardo.cluster.deleteRuntime(googleProject, runtimeName) shouldBe
         "The request has been accepted for processing, but the processing has not been completed."
@@ -444,7 +434,7 @@ trait LeonardoTestUtils
 
   def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
     implicit token: AuthToken,
-    authorization: Authorization
+    authorization: IO[Authorization]
   ): Unit = {
     // verify with get()
     val waitForRunning = LeonardoApiClient.client.use { implicit c =>
@@ -472,7 +462,7 @@ trait LeonardoTestUtils
   def createNewRuntime(googleProject: GoogleProject,
                        name: RuntimeName = randomClusterName,
                        request: CreateRuntime2Request = LeonardoApiClient.defaultCreateRuntime2Request,
-                       monitor: Boolean = true)(implicit token: Authorization): ClusterCopy = {
+                       monitor: Boolean = true)(implicit token: IO[Authorization]): ClusterCopy = {
 
     val cluster = createRuntime(googleProject, name, request, monitor)
     if (monitor) {
@@ -501,7 +491,6 @@ trait LeonardoTestUtils
 
   def getAndVerifyPet(project: GoogleProject)(implicit token: AuthToken): WorkbenchEmail = {
     val samPetEmail = Sam.user.petServiceAccountEmail(project.value)
-    val userStatus = Sam.user.status().get
     implicit val patienceConfig: PatienceConfig = saPatience
     val googlePetEmail = googleIamDAO.findServiceAccount(project, samPetEmail).futureValue.map(_.email)
     googlePetEmail shouldBe Some(samPetEmail)
@@ -515,7 +504,7 @@ trait LeonardoTestUtils
     monitorCreate: Boolean = true,
     monitorDelete: Boolean = false,
     deleteRuntimeAfter: Boolean = true
-  )(testCode: ClusterCopy => T)(implicit token: Authorization, authToken: AuthToken): T = {
+  )(testCode: ClusterCopy => T)(implicit token: IO[Authorization], authToken: AuthToken): T = {
     val cluster = createNewRuntime(googleProject, name, request, monitorCreate)
     val testResult: IO[T] = IO(testCode(cluster))
 
@@ -555,7 +544,7 @@ trait LeonardoTestUtils
   def withNewErroredRuntime[T](
     googleProject: GoogleProject,
     isUserStartupScript: Boolean
-  )(testCode: GetRuntimeResponseCopy => T)(implicit token: AuthToken, authorization: Authorization): T = {
+  )(testCode: GetRuntimeResponseCopy => T)(implicit token: AuthToken, authorization: IO[Authorization]): T = {
     val name = RuntimeName(s"automation-test-a${makeRandomId()}z")
     // Fail a cluster by providing a user script which returns exit status 1
     val hailUploadFile = ResourceFile("bucket-tests/invalid_user_script.sh")
@@ -723,4 +712,22 @@ trait LeonardoTestUtils
   def appInStateOrError(status: AppStatus): DoneCheckable[GetAppResponse] =
     x => x.status == status || x.status == AppStatus.Error
 
+}
+
+// Ron and Hermione are on the dev Leo's allowed list, and Hermione is a Project Owner
+sealed trait TestUser extends Product with Serializable {
+  val name: String
+  lazy val creds: WorkbenchCredentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
+  lazy val email: String = creds.email
+  def authToken(): IO[AuthToken] = IO(creds.makeAuthToken())
+  def authorization(): IO[Authorization] =
+    authToken().map(token => Authorization(Credentials.Token(AuthScheme.Bearer, token.value)))
+}
+
+object TestUser {
+  def getAuthTokenAndAuthorization(user: TestUser) = (user.authToken(), user.authorization())
+
+  final case object Ron extends TestUser { override val name: String = "ron" }
+  final case object Hermione extends TestUser { override val name: String = "hermione" }
+  final case object Voldy extends TestUser { override val name: String = "voldemort" }
 }
