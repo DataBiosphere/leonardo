@@ -59,7 +59,7 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.6"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.7"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.5"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
@@ -191,7 +191,7 @@ object Dependencies {
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.0" % "test",
-    "ch.qos.logback" % "logback-classic" % "1.2.6" % "test",
+    "ch.qos.logback" % "logback-classic" % "1.2.7" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
