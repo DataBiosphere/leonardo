@@ -31,7 +31,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   new MockComputePollOperation)
 
     test
-      .setUpProjectNetwork(SetUpProjectNetworkParams(project, RegionName("us-central1")))
+      .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
       .unsafeRunSync() shouldBe (NetworkName("my_network"), SubnetworkName("my_subnet"))
   }
 
@@ -44,7 +44,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   new MockComputePollOperation)
 
     test
-      .setUpProjectNetwork(SetUpProjectNetworkParams(project, RegionName("us-central1")))
+      .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
       .attempt
       .unsafeRunSync() shouldBe Left(
       InvalidVPCSetupException(project)
@@ -58,7 +58,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                    new MockComputePollOperation)
 
     test2
-      .setUpProjectNetwork(SetUpProjectNetworkParams(project, RegionName("us-central1")))
+      .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
       .attempt
       .unsafeRunSync() shouldBe Left(
       InvalidVPCSetupException(project)
@@ -72,7 +72,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   new MockComputePollOperation)
 
     test
-      .setUpProjectNetwork(SetUpProjectNetworkParams(project, RegionName("us-central1")))
+      .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
       .unsafeRunSync() shouldBe (vpcConfig.networkName, vpcConfig.subnetworkName)
   }
 
@@ -84,7 +84,9 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   new MockComputePollOperation)
 
     test
-      .setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1")))
+      .setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1"), Map.empty)
+      )
       .unsafeRunSync()
     computeService.firewallMap.size shouldBe 3
     vpcConfig.firewallsToAdd.foreach { fwConfig =>
@@ -109,7 +111,9 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   computeService,
                                   new MockComputePollOperation)
     test
-      .setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1")))
+      .setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1"), Map.empty)
+      )
       .unsafeRunSync()
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
   }

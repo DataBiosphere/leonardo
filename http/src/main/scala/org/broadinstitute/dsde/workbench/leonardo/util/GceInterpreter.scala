@@ -76,11 +76,8 @@ class GceInterpreter[F[_]](
       regionParam = RegionName(zoneParam.value.substring(0, zoneParam.value.length - 2))
 
       // Set up VPC and firewall
-      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
+      (_, subnetwork) <- vpcAlg.setUpProjectNetworkAndFirewalls(
         SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject, regionParam)
-      )
-      _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network, regionParam)
       )
 
       // Get resource (e.g. memory) constraints for the instance
