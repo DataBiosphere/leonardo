@@ -148,25 +148,31 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
       runtimeInfo <- clusterQuery
         .getActiveClusterRecordByName(googleProject, runtimeName)
         .transaction
-      _ <- runtimeInfo.traverse { runtime =>
-        for {
-          _ <- clusterQuery
-            .markDeleted(googleProject, runtimeName, ctx.now, Some(s"cryptomining: ${message}"))
-            .transaction
-          _ <- computeService.deleteInstance(googleProject, zone, InstanceName(runtimeName.asString))
-          userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, runtime.googleProject)
-          _ <- userSubjectId.traverse { sid =>
-            val byteString = ByteString.copyFromUtf8(CryptominingUserMessage(sid).asJson.noSpaces)
+      _ <- runtimeInfo match {
+        case None =>
+          logger.info(
+            s"Detected ${message} activity for ${googleProject.value}/${runtimeName.asString};" +
+              s"This might be because the runtime has already been deleted, or the runtime wasn't created by Leonardo"
+          )
+        case Some(runtime) =>
+          for {
+            _ <- clusterQuery
+              .markDeleted(googleProject, runtimeName, ctx.now, Some(s"cryptomining: ${message}"))
+              .transaction
+            _ <- computeService.deleteInstance(googleProject, zone, InstanceName(runtimeName.asString))
+            userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, runtime.googleProject)
+            _ <- userSubjectId.traverse { sid =>
+              val byteString = ByteString.copyFromUtf8(CryptominingUserMessage(sid).asJson.noSpaces)
 
-            val message = PubsubMessage
-              .newBuilder()
-              .setData(byteString)
-              .putAttributes("traceId", ctx.traceId.asString)
-              .putAttributes("cryptomining", "true")
-              .build()
-            publisher.publishNativeOne(message)
-          }
-        } yield ()
+              val message = PubsubMessage
+                .newBuilder()
+                .setData(byteString)
+                .putAttributes("traceId", ctx.traceId.asString)
+                .putAttributes("cryptomining", "true")
+                .build()
+              publisher.publishNativeOne(message)
+            }
+          } yield ()
       }
     } yield ()
 
