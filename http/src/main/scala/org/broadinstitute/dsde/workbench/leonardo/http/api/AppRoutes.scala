@@ -10,7 +10,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder, KeyEncoder}
-import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.AppRoutes._
@@ -23,7 +23,7 @@ import org.http4s.Uri
 class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit metrics: OpenTelemetryMetrics[IO]
 ) {
-  val routes: server.Route = traceRequestForService(serviceData) { span =>
+  val routes: server.Route = CustomTracingDirectives.traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {

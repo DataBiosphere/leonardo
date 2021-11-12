@@ -15,7 +15,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
-import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
@@ -31,7 +31,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
   metrics: OpenTelemetryMetrics[IO]
 ) extends LazyLogging {
   val route: Route =
-    traceRequestForService(serviceData) { span =>
+    CustomTracingDirectives.traceRequestForService(serviceData) { span =>
       extractRequest { request =>
         extractAppContext(Some(span), request.uri.toString()) { implicit ctx =>
           // Note that the "notebooks" path prefix is deprecated

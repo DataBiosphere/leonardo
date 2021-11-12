@@ -13,7 +13,7 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
+
 import org.broadinstitute.dsde.workbench.leonardo.http.api.DiskRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskService
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -23,7 +23,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit metrics: OpenTelemetryMetrics[IO]
 ) {
-  val routes: server.Route = traceRequestForService(serviceData) { span =>
+  val routes: server.Route = CustomTracingDirectives.traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {

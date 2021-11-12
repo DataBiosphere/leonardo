@@ -27,6 +27,7 @@ object Dependencies {
   val helmScalaSdkV = "0.0.4"
 
   val excludeAkkaHttp = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http_${scalaV}")
+  val excludePureConfig = ExclusionRule(organization = "com.github.pureconfig", name = s"pureconfig_${scalaV}")
   val excludeAkkaStream = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-stream_${scalaV}")
   val excludeAkkaHttpSprayJson = ExclusionRule(organization = "com.typesafe.akka", name = s"akka-http-spray-json_${scalaV}")
   val excludeGuavaJDK5 = ExclusionRule(organization = "com.google.guava", name = "guava-jdk5")
@@ -178,10 +179,7 @@ object Dependencies {
     googleCloudNio,
     mysql,
     liquibase,
-    "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
-
-    // Dependent on the trace exporters you want to use add one or more of the following
-    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
+    "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2" excludeAll(excludePureConfig),
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito

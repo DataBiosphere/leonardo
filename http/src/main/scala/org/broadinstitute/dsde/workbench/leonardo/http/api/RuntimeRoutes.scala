@@ -12,7 +12,6 @@ import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
-import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
@@ -28,7 +27,7 @@ import scala.concurrent.duration._
 class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
   implicit metrics: OpenTelemetryMetrics[IO]
 ) {
-  val routes: server.Route = traceRequestForService(serviceData) { span =>
+  val routes: server.Route = CustomTracingDirectives.traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {

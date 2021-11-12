@@ -36,7 +36,7 @@ package object http {
   implicit def dbioToIO[A](dbio: DBIO[A]): DBIOOps[A] = new DBIOOps(dbio)
   implicit def cloudServiceOps(cloudService: CloudService): CloudServiceOps = new CloudServiceOps(cloudService)
 
-  val serviceData = ServiceData(Some("leonardo"), BuildTimeVersion.version)
+  val serviceData = ServiceData(Some("qi-leonardo"), BuildTimeVersion.version)
   def readFileToString[F[_]: Sync: Files](path: Path): F[String] =
     Files[F]
       .readAll(fs2.io.file.Path.fromNioPath(path))
