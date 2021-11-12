@@ -309,23 +309,26 @@ class DataprocInterpreter[F[_]: Parallel](
                 machineConfig.region,
                 DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString)
               )
-            masterComputeInstance <- dataprocInstances.find(_._1.role == DataprocRole.Master).flatTraverse {
-              case (DataprocRoleZonePreemptibility(_, z, _), is) =>
-                is.headOption.flatTraverse { i =>
-                  googleComputeService.getInstance(params.runtimeProjectAndName.googleProject, z, i)
-                }
+            masterComputeInstanceAndZone <- dataprocInstances.find(_._1.role == DataprocRole.Master).flatTraverse {
+              case (DataprocRoleZonePreemptibility(_, z, _), instances) =>
+                instances.headOption
+                  .flatTraverse { i =>
+                    googleComputeService.getInstance(params.runtimeProjectAndName.googleProject, z, i)
+                  }
+                  .map(_.map(i => (i, z)))
             }
-            op <- masterComputeInstance.traverse { m =>
-              googleComputeService.setInstanceTags(
-                params.runtimeProjectAndName.googleProject,
-                ZoneName(m.getZone),
-                InstanceName(m.getName),
-                Tags
-                  .newBuilder()
-                  .addItems(config.vpcConfig.networkTag.value)
-                  .setFingerprint(m.getTags.getFingerprint)
-                  .build()
-              )
+            op <- masterComputeInstanceAndZone.traverse {
+              case (instance, zone) =>
+                googleComputeService.setInstanceTags(
+                  params.runtimeProjectAndName.googleProject,
+                  zone,
+                  InstanceName(instance.getName),
+                  Tags
+                    .newBuilder()
+                    .addItems(config.vpcConfig.networkTag.value)
+                    .setFingerprint(instance.getTags.getFingerprint)
+                    .build()
+                )
             }
           } yield op
 
