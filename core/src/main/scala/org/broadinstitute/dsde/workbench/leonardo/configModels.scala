@@ -20,6 +20,7 @@ final case class VPCConfig(highSecurityProjectNetworkLabel: NetworkLabel,
                            maxAttempts: Int)
 
 final case class FirewallRuleConfig(namePrefix: String,
+                                    rbsName: Option[String],
                                     sourceRanges: Map[RegionName, List[IpRange]],
                                     allowed: List[Allowed])
 

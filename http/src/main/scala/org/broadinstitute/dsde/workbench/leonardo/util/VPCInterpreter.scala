@@ -58,7 +58,7 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
     RetryPredicates.whenStatusCode(409)
   )
 
-  override def setUpProjectNetwork(
+  override def setUpProjectNetworkAndFirewalls(
     params: SetUpProjectNetworkParams
   )(implicit ev: Ask[F, TraceId]): F[(NetworkName, SubnetworkName)] =
     for {
@@ -108,15 +108,19 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
         case _ =>
           F.raiseError[(NetworkName, SubnetworkName)](InvalidVPCSetupException(params.project))
       }
+      _ <- setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(params.project, network, params.region, projectLabels.getOrElse(Map.empty))
+      )
     } yield (network, subnetwork)
 
-  override def setUpProjectFirewalls(
+  private[util] def setUpProjectFirewalls(
     params: SetUpProjectFirewallsParams
   )(implicit ev: Ask[F, TraceId]): F[Unit] =
     for {
       ctx <- ev.ask
+      finalFirewallRulesToAdd = firewallRulesToAdd(params.projectLabels)
       // create firewalls in the Leonardo network
-      _ <- config.vpcConfig.firewallsToAdd.parTraverse_ { fw =>
+      _ <- finalFirewallRulesToAdd.parTraverse_ { fw =>
         for {
           firewallRegionalIprange <- F.fromOption(
             fw.sourceRanges.get(params.region),
@@ -143,6 +147,14 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
           .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
       } else F.unit
     } yield ()
+
+  private[util] def firewallRulesToAdd(projectLabels: Map[String, String]): List[FirewallRuleConfig] = {
+    val rbsAllowHttpsFirewallruleName = projectLabels.get(config.vpcConfig.firewallAllowHttpsLabelKey.value)
+    val rbsAllowInternalFirewallruleName =
+      projectLabels.get(config.vpcConfig.firewallAllowInternalLabelKey.value)
+    val firewallRulesCreatedByRbs = List(rbsAllowHttpsFirewallruleName, rbsAllowInternalFirewallruleName).flatten
+    config.vpcConfig.firewallsToAdd.filterNot(rule => rule.rbsName.exists(n => firewallRulesCreatedByRbs.contains(n)))
+  }
 
   private def createIfAbsent[A](project: GoogleProject,
                                 get: F[Option[A]],

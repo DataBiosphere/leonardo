@@ -3,6 +3,7 @@ package http
 
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, RegionName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReaderSpec._
 import org.broadinstitute.dsde.workbench.leonardo.util.TerraAppSetupChartConfig
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.scalatest.flatspec.AnyFlatSpec
@@ -11,34 +12,7 @@ import org.scalatest.matchers.should.Matchers
 import scala.concurrent.duration._
 
 class ConfigReaderSpec extends AnyFlatSpec with Matchers {
-  val allSupportedRegions = List(
-    RegionName("us-central1"),
-    RegionName("northamerica-northeast1"),
-    RegionName("southamerica-east1"),
-    RegionName("us-east1"),
-    RegionName("us-east4"),
-    RegionName("us-west1"),
-    RegionName("us-west2"),
-    RegionName("us-west3"),
-    RegionName("us-west4"),
-    RegionName("europe-central2"),
-    RegionName("europe-north1"),
-    RegionName("europe-west1"),
-    RegionName("europe-west2"),
-    RegionName("europe-west3"),
-    RegionName("europe-west4"),
-    RegionName("europe-west6"),
-    RegionName("asia-east1"),
-    RegionName("asia-east2"),
-    RegionName("asia-northeast1"),
-    RegionName("asia-northeast2"),
-    RegionName("asia-northeast3"),
-    RegionName("asia-south1"),
-    RegionName("asia-southeast1"),
-    RegionName("asia-southeast2"),
-    RegionName("australia-southeast1"),
-    RegionName("northamerica-northeast2")
-  )
+
   it should "read config file correctly" in {
     val config = ConfigReader.appConfig
     val expectedVPCConfig = VPCConfig(
@@ -82,11 +56,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       List(
         FirewallRuleConfig(
           "leonardo-allow-https",
+          Some("leonardo-allow-internal"),
           allSupportedRegions.map(r => r -> List(IpRange("0.0.0.0/0"))).toMap,
           List(Allowed("tcp", Some("443")))
         ),
         FirewallRuleConfig(
           "leonardo-allow-internal",
+          Some("leonardo-ssl"),
           Map(
             RegionName("asia-east1") -> List(IpRange("10.140.0.0/20")),
             RegionName("asia-east2") -> List(IpRange("10.170.0.0/20")),
@@ -117,30 +93,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
           ),
           List(Allowed("tcp", Some("0-65535")), Allowed("udp", Some("0-65535")), Allowed("icmp", None))
         ),
-        FirewallRuleConfig(
-          "leonardo-allow-broad-ssh",
-          allSupportedRegions
-            .map(r =>
-              r -> List(
-                IpRange("69.173.127.0/25"),
-                IpRange("69.173.124.0/23"),
-                IpRange("69.173.126.0/24"),
-                IpRange("69.173.127.230/31"),
-                IpRange("69.173.64.0/19"),
-                IpRange("69.173.127.224/30"),
-                IpRange("69.173.127.192/27"),
-                IpRange("69.173.120.0/22"),
-                IpRange("69.173.127.228/32"),
-                IpRange("69.173.127.232/29"),
-                IpRange("69.173.127.128/26"),
-                IpRange("69.173.96.0/20"),
-                IpRange("69.173.127.240/28"),
-                IpRange("69.173.112.0/21")
-              )
-            )
-            .toMap,
-          List(Allowed("tcp", Some("22")))
-        )
+        expectedSshFirewallRules
       ),
       List(FirewallRuleName("default-allow-rdp"),
            FirewallRuleName("default-allow-icmp"),
@@ -162,4 +115,61 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
 
     config shouldBe expectedConfig
   }
+}
+
+object ConfigReaderSpec {
+  val allSupportedRegions = List(
+    RegionName("us-central1"),
+    RegionName("northamerica-northeast1"),
+    RegionName("southamerica-east1"),
+    RegionName("us-east1"),
+    RegionName("us-east4"),
+    RegionName("us-west1"),
+    RegionName("us-west2"),
+    RegionName("us-west3"),
+    RegionName("us-west4"),
+    RegionName("europe-central2"),
+    RegionName("europe-north1"),
+    RegionName("europe-west1"),
+    RegionName("europe-west2"),
+    RegionName("europe-west3"),
+    RegionName("europe-west4"),
+    RegionName("europe-west6"),
+    RegionName("asia-east1"),
+    RegionName("asia-east2"),
+    RegionName("asia-northeast1"),
+    RegionName("asia-northeast2"),
+    RegionName("asia-northeast3"),
+    RegionName("asia-south1"),
+    RegionName("asia-southeast1"),
+    RegionName("asia-southeast2"),
+    RegionName("australia-southeast1"),
+    RegionName("northamerica-northeast2")
+  )
+
+  val expectedSshFirewallRules = FirewallRuleConfig(
+    "leonardo-allow-broad-ssh",
+    None,
+    allSupportedRegions
+      .map(r =>
+        r -> List(
+          IpRange("69.173.127.0/25"),
+          IpRange("69.173.124.0/23"),
+          IpRange("69.173.126.0/24"),
+          IpRange("69.173.127.230/31"),
+          IpRange("69.173.64.0/19"),
+          IpRange("69.173.127.224/30"),
+          IpRange("69.173.127.192/27"),
+          IpRange("69.173.120.0/22"),
+          IpRange("69.173.127.228/32"),
+          IpRange("69.173.127.232/29"),
+          IpRange("69.173.127.128/26"),
+          IpRange("69.173.96.0/20"),
+          IpRange("69.173.127.240/28"),
+          IpRange("69.173.112.0/21")
+        )
+      )
+      .toMap,
+    List(Allowed("tcp", Some("22")))
+  )
 }

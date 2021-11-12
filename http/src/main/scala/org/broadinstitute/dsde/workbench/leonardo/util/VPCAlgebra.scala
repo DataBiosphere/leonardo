@@ -8,14 +8,15 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait VPCAlgebra[F[_]] {
 
-  def setUpProjectNetwork(params: SetUpProjectNetworkParams)(
+  def setUpProjectNetworkAndFirewalls(params: SetUpProjectNetworkParams)(
     implicit ev: Ask[F, TraceId]
   ): F[(NetworkName, SubnetworkName)]
-
-  def setUpProjectFirewalls(params: SetUpProjectFirewallsParams)(implicit ev: Ask[F, TraceId]): F[Unit]
 
 }
 
 final case class VPCInterpreterConfig(vpcConfig: VPCConfig)
 final case class SetUpProjectNetworkParams(project: GoogleProject, region: RegionName)
-final case class SetUpProjectFirewallsParams(project: GoogleProject, networkName: NetworkName, region: RegionName)
+final case class SetUpProjectFirewallsParams(project: GoogleProject,
+                                             networkName: NetworkName,
+                                             region: RegionName,
+                                             projectLabels: Map[String, String])

@@ -13,6 +13,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, RegionName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReaderSpec
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -31,7 +32,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   new MockComputePollOperation)
 
     test
-      .setUpProjectNetwork(SetUpProjectNetworkParams(project, RegionName("us-central1")))
+      .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
       .unsafeRunSync() shouldBe (NetworkName("my_network"), SubnetworkName("my_subnet"))
   }
 
@@ -44,7 +45,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   new MockComputePollOperation)
 
     test
-      .setUpProjectNetwork(SetUpProjectNetworkParams(project, RegionName("us-central1")))
+      .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
       .attempt
       .unsafeRunSync() shouldBe Left(
       InvalidVPCSetupException(project)
@@ -58,7 +59,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                    new MockComputePollOperation)
 
     test2
-      .setUpProjectNetwork(SetUpProjectNetworkParams(project, RegionName("us-central1")))
+      .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
       .attempt
       .unsafeRunSync() shouldBe Left(
       InvalidVPCSetupException(project)
@@ -72,7 +73,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   new MockComputePollOperation)
 
     test
-      .setUpProjectNetwork(SetUpProjectNetworkParams(project, RegionName("us-central1")))
+      .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
       .unsafeRunSync() shouldBe (vpcConfig.networkName, vpcConfig.subnetworkName)
   }
 
@@ -84,7 +85,9 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   new MockComputePollOperation)
 
     test
-      .setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1")))
+      .setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1"), Map.empty)
+      )
       .unsafeRunSync()
     computeService.firewallMap.size shouldBe 3
     vpcConfig.firewallsToAdd.foreach { fwConfig =>
@@ -109,9 +112,24 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   computeService,
                                   new MockComputePollOperation)
     test
-      .setUpProjectFirewalls(SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1")))
+      .setUpProjectFirewalls(
+        SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1"), Map.empty)
+      )
       .unsafeRunSync()
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
+  }
+
+  it should "create only firewallrules if necessary" in {
+    val computeService = new MockGoogleComputeServiceWithFirewalls()
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
+                                  stubResourceService(Map.empty),
+                                  computeService,
+                                  new MockComputePollOperation)
+
+    test.firewallRulesToAdd(
+      Map("leonardo-allow-internal-firewall-name" -> "leonardo-allow-internal",
+          "leonardo-allow-https-firewall-name" -> "leonardo-ssl")
+    ) shouldBe List(ConfigReaderSpec.expectedSshFirewallRules)
   }
 
   private def stubResourceService(labels: Map[String, String]): FakeGoogleResourceService =
