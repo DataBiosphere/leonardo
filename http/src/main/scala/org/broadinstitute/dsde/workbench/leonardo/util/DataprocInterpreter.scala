@@ -9,20 +9,26 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
+import com.google.cloud.compute.v1.Tags
 import com.google.cloud.dataproc.v1._
 import com.typesafe.scalalogging.LazyLogging
+import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
 import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.google2.{
+  streamUntilDoneOrTimeout,
   CreateClusterConfig,
   DataprocClusterName,
+  DataprocRole,
+  DataprocRoleZonePreemptibility,
   DiskName,
   GoogleComputeService,
   GoogleDataprocService,
   GoogleDiskService,
   GoogleResourceService,
+  InstanceName,
   MachineTypeName,
   RegionName,
   ZoneName
@@ -289,6 +295,45 @@ class DataprocInterpreter[F[_]: Parallel](
             None
           )
         )
+
+        // If the cluster is configured with worker private access, then remove the private access
+        // network tag from the master node as soon as possible.
+        //
+        // We intentionally do this here instead of DataprocRuntimeMonitor to more quickly remove
+        // the tag because the init script may depend on public Internet access.
+        _ <- if (machineConfig.workerPrivateAccess) {
+          val op = for {
+            dataprocInstances <- googleDataprocService
+              .getClusterInstances(
+                params.runtimeProjectAndName.googleProject,
+                machineConfig.region,
+                DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString)
+              )
+            masterComputeInstanceAndZone <- dataprocInstances.find(_._1.role == DataprocRole.Master).flatTraverse {
+              case (DataprocRoleZonePreemptibility(_, z, _), instances) =>
+                instances.headOption
+                  .flatTraverse { i =>
+                    googleComputeService.getInstance(params.runtimeProjectAndName.googleProject, z, i)
+                  }
+                  .map(_.map(i => (i, z)))
+            }
+            op <- masterComputeInstanceAndZone.traverse {
+              case (instance, zone) =>
+                googleComputeService.setInstanceTags(
+                  params.runtimeProjectAndName.googleProject,
+                  zone,
+                  InstanceName(instance.getName),
+                  Tags
+                    .newBuilder()
+                    .addItems(config.vpcConfig.networkTag.value)
+                    .setFingerprint(instance.getTags.getFingerprint)
+                    .build()
+                )
+            }
+          } yield op
+
+          streamUntilDoneOrTimeout(op, 60, 1 second, "Could not retrieve Dataproc master instance after 1 minute")
+        } else F.unit
       } yield asyncRuntimeFields.map(s =>
         CreateGoogleRuntimeResponse(s, initBucketName, BootSource.VmImage(dataprocImage))
       )
@@ -756,4 +801,6 @@ class DataprocInterpreter[F[_]: Parallel](
       )
       .build()
   }
+
+  implicit private def optionDoneCheckable[A]: DoneCheckable[Option[A]] = (a: Option[A]) => a.isDefined
 }
