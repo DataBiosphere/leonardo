@@ -680,7 +680,7 @@ class LeoPubsubMessageSubscriberSpec
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
       galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(savedApp1.appResources.disk.get.id).transaction
-      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+      ipRange = ConfigReader.appConfig.vpc.subnetworkRegionIpRangeMap
         .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
@@ -696,8 +696,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp.cluster.asyncFields shouldBe Some(
         KubernetesClusterAsyncFields(IP("1.2.3.4"),
                                      IP("0.0.0.0"),
-                                     NetworkFields(Config.vpcConfig.networkName,
-                                                   Config.vpcConfig.subnetworkName,
+                                     NetworkFields(ConfigReader.appConfig.vpc.networkName,
+                                                   ConfigReader.appConfig.vpc.subnetworkName,
                                                    ipRange))
       )
       getDisk.status shouldBe DiskStatus.Ready
@@ -769,7 +769,7 @@ class LeoPubsubMessageSubscriberSpec
         .transaction
       getApp1 = getAppOpt1.get
       getApp2 = getAppOpt2.get
-      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+      ipRange = ConfigReader.appConfig.vpc.subnetworkRegionIpRangeMap
         .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getApp1.cluster.status shouldBe KubernetesClusterStatus.Running
@@ -784,8 +784,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp1.cluster.asyncFields shouldBe Some(
         KubernetesClusterAsyncFields(IP("1.2.3.4"),
                                      IP("0.0.0.0"),
-                                     NetworkFields(Config.vpcConfig.networkName,
-                                                   Config.vpcConfig.subnetworkName,
+                                     NetworkFields(ConfigReader.appConfig.vpc.networkName,
+                                                   ConfigReader.appConfig.vpc.subnetworkName,
                                                    ipRange))
       )
       getApp2.app.errors shouldBe List()
@@ -1417,7 +1417,7 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
-      ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
+      ipRange = ConfigReader.appConfig.vpc.subnetworkRegionIpRangeMap
         .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
       getCluster.status shouldBe KubernetesClusterStatus.Running
@@ -1433,8 +1433,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp.cluster.asyncFields shouldBe Some(
         KubernetesClusterAsyncFields(IP("1.2.3.4"),
                                      IP("0.0.0.0"),
-                                     NetworkFields(Config.vpcConfig.networkName,
-                                                   Config.vpcConfig.subnetworkName,
+                                     NetworkFields(ConfigReader.appConfig.vpc.networkName,
+                                                   ConfigReader.appConfig.vpc.subnetworkName,
                                                    ipRange))
       )
       getDisk.status shouldBe DiskStatus.Ready

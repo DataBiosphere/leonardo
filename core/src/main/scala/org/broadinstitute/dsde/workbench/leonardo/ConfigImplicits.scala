@@ -1,10 +1,11 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import pureconfig.ConfigReader
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.google2.{NetworkName, RegionName, SubnetworkName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, RegionName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
+import pureconfig.ConfigReader
 import pureconfig.error.ExceptionThrown
+import pureconfig.configurable._
 
 import java.nio.file.{Path, Paths}
 
@@ -41,4 +42,10 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.map(s => SubnetworkName(s))
   implicit val networkTagReader: ConfigReader[NetworkTag] =
     ConfigReader.stringConfigReader.map(s => NetworkTag(s))
+  implicit val firewallRuleNameReader: ConfigReader[FirewallRuleName] =
+    ConfigReader.stringConfigReader.map(s => FirewallRuleName(s))
+  implicit val sourceRangeMapReader: ConfigReader[Map[RegionName, IpRange]] =
+    genericMapReader[RegionName, IpRange](s => RegionName(s).asRight)
+  implicit val sourceRangeMap2Reader: ConfigReader[Map[RegionName, List[IpRange]]] =
+    genericMapReader[RegionName, List[IpRange]](s => RegionName(s).asRight)
 }

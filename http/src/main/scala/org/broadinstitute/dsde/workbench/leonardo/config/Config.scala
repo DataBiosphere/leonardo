@@ -8,7 +8,6 @@ import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
 import org.broadinstitute.dsde.workbench.google2.{
   DeviceName,
-  FirewallRuleName,
   KubernetesName,
   Location,
   MachineTypeName,
@@ -363,10 +362,6 @@ object Config {
   implicit private val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
 
-  implicit private val firewallRuleNameValueReader: ValueReader[FirewallRuleName] =
-    stringValueReader.map(FirewallRuleName)
-  implicit private val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
-  implicit private val subnetworkLabelValueReader: ValueReader[SubnetworkLabel] = stringValueReader.map(SubnetworkLabel)
   implicit private val diskSizeValueReader: ValueReader[DiskSize] = intValueReader.map(DiskSize)
   implicit private val diskTypeValueReader: ValueReader[DiskType] = stringValueReader.map(s =>
     DiskType.stringToObject.getOrElse(s, throw new RuntimeException(s"Unable to parse diskType from $s"))

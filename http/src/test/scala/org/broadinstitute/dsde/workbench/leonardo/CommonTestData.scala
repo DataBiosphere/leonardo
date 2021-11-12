@@ -40,6 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
+  ConfigReader,
   CreateRuntime2Request,
   RuntimeConfigRequest
 }
@@ -118,7 +119,7 @@ object CommonTestData {
   // Let's not use this pattern and directly use `Config.???` going forward :)
   // By using Config.xxx, we'll be actually testing our Config.scala code as well
   val dataprocConfig = Config.dataprocConfig
-  val vpcConfig = Config.vpcConfig
+  val vpcConfig = ConfigReader.appConfig.vpc
   val imageConfig = Config.imageConfig
   val welderConfig = Config.welderConfig
   val clusterFilesConfig = Config.securityFilesConfig
