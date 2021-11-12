@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import pureconfig.ConfigReader
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.google2.ZoneName
+import org.broadinstitute.dsde.workbench.google2.{NetworkName, RegionName, SubnetworkName, ZoneName}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import pureconfig.error.ExceptionThrown
 
@@ -23,4 +23,22 @@ object ConfigImplicits {
     ConfigReader.intConfigReader.map(s => DiskSize(s))
   implicit val blockSizeConfigReader: ConfigReader[BlockSize] =
     ConfigReader.intConfigReader.map(s => BlockSize(s))
+  implicit val ipRangeReader: ConfigReader[IpRange] =
+    ConfigReader.stringConfigReader.map(s => IpRange(s))
+  implicit val regionNameReader: ConfigReader[RegionName] =
+    ConfigReader.stringConfigReader.map(s => RegionName(s))
+  implicit val networkLabeleReader: ConfigReader[NetworkLabel] =
+    ConfigReader.stringConfigReader.map(s => NetworkLabel(s))
+  implicit val subnetworkLabelReader: ConfigReader[SubnetworkLabel] =
+    ConfigReader.stringConfigReader.map(s => SubnetworkLabel(s))
+  implicit val firewallAllowHttpsLabelKeyReader: ConfigReader[FirewallAllowHttpsLabelKey] =
+    ConfigReader.stringConfigReader.map(s => FirewallAllowHttpsLabelKey(s))
+  implicit val firewallAllowInternalLabelKeyReader: ConfigReader[FirewallAllowInternalLabelKey] =
+    ConfigReader.stringConfigReader.map(s => FirewallAllowInternalLabelKey(s))
+  implicit val networkNameReader: ConfigReader[NetworkName] =
+    ConfigReader.stringConfigReader.map(s => NetworkName(s))
+  implicit val subnetworkNameReader: ConfigReader[SubnetworkName] =
+    ConfigReader.stringConfigReader.map(s => SubnetworkName(s))
+  implicit val networkTagReader: ConfigReader[NetworkTag] =
+    ConfigReader.stringConfigReader.map(s => NetworkTag(s))
 }

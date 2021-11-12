@@ -13,10 +13,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   Location,
   MachineTypeName,
   MaxRetries,
-  NetworkName,
   PublisherConfig,
   RegionName,
-  SubnetworkName,
   SubscriberConfig,
   SubscriberDeadLetterPolicy,
   ZoneName
@@ -29,14 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  DateAccessedUpdaterConfig,
-  InterruptablePollMonitorConfig,
-  LeoPubsubMessageSubscriberConfig,
-  PersistentDiskMonitorConfig,
-  PollMonitorConfig
-}
-
+import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
@@ -371,42 +362,7 @@ object Config {
   implicit private val runtimeResourceValueReader: ValueReader[RuntimeResource] = stringValueReader.map(RuntimeResource)
   implicit private val memorySizeReader: ValueReader[MemorySize] = (config: TypeSafeConfig, path: String) =>
     MemorySize(config.getBytes(path))
-  implicit private val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
-  implicit private val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
-  implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
-  // TODO(wnojopra): Make these more FP-friendly
-  implicit private val subnetworkRegionIpRangeMapReader: ValueReader[Map[RegionName, IpRange]] =
-    mapValueReader[IpRange].map(mp => mp.map { case (k, v) => (RegionName(k) -> v) })
 
-  implicit private val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
-    VPCConfig(
-      config.as[NetworkLabel]("highSecurityProjectNetworkLabel"),
-      config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
-      config.as[NetworkName]("networkName"),
-      config.as[NetworkTag]("networkTag"),
-      config.as[NetworkTag]("privateAccessNetworkTag"),
-      config.as[Boolean]("autoCreateSubnetworks"),
-      config.as[SubnetworkName]("subnetworkName"),
-      config.as[Map[RegionName, IpRange]]("subnetworkRegionIpRangeMap"),
-      config.as[List[FirewallRuleConfig]]("firewallsToAdd"),
-      config.as[List[FirewallRuleName]]("firewallsToRemove"),
-      config.as[FiniteDuration]("pollPeriod"),
-      config.as[Int]("maxAttempts")
-    )
-  }
-
-  implicit private val sourceRangesReader: ValueReader[Map[RegionName, List[IpRange]]] =
-    mapValueReader[List[IpRange]].map(mp => mp.map { case (k, v) => (RegionName(k) -> v) })
-
-  implicit private val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
-    FirewallRuleConfig(
-      config.as[String]("name-prefix"),
-      config.as[Map[RegionName, List[IpRange]]]("sourceRanges"),
-      config.as[List[Allowed]]("allowed")
-    )
-  }
-
-  implicit private val networkTagValueReader: ValueReader[NetworkTag] = stringValueReader.map(NetworkTag)
   implicit private val firewallRuleNameValueReader: ValueReader[FirewallRuleName] =
     stringValueReader.map(FirewallRuleName)
   implicit private val networkLabelValueReader: ValueReader[NetworkLabel] = stringValueReader.map(NetworkLabel)
@@ -449,7 +405,6 @@ object Config {
   val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
   val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
   val refererConfig = config.as[RefererConfig]("refererConfig")
-  val vpcConfig = config.as[VPCConfig]("vpc")
 
   implicit private val zombieClusterConfigValueReader: ValueReader[ZombieRuntimeMonitorConfig] = ValueReader.relative {
     config =>
@@ -504,7 +459,7 @@ object Config {
         config.as[InterruptablePollMonitorConfig]("checkTools"),
         clusterBucketConfig,
         imageConfig,
-        vpcConfig
+        ConfigReader.appConfig.vpc
       )
   }
 
@@ -736,7 +691,7 @@ object Config {
     welderConfig,
     imageConfig,
     proxyConfig,
-    vpcConfig,
+    ConfigReader.appConfig.vpc,
     clusterResourcesConfig,
     securityFilesConfig,
     dataprocMonitorConfig.monitorStatusTimeouts
@@ -748,13 +703,13 @@ object Config {
     welderConfig,
     imageConfig,
     proxyConfig,
-    vpcConfig,
+    ConfigReader.appConfig.vpc,
     gceClusterResourcesConfig,
     securityFilesConfig,
     gceMonitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating,
                                                      throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
   )
-  val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
+  val vpcInterpreterConfig = VPCInterpreterConfig(ConfigReader.appConfig.vpc)
 
   val leoPubsubMessageSubscriberConfig = config.as[LeoPubsubMessageSubscriberConfig]("pubsub.subscriber")
   val asyncTaskProcessorConfig = config.as[AsyncTaskProcessor.Config]("async-task-processor")
@@ -778,7 +733,8 @@ object Config {
 
   val gkeInterpConfig =
     GKEInterpreterConfig(
-      org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader.appConfig.terraAppSetupChart,
+      ConfigReader.appConfig.terraAppSetupChart,
+      ConfigReader.appConfig.vpc,
       gkeIngressConfig,
       gkeGalaxyAppConfig,
       gkeCromwellAppConfig,

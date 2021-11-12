@@ -6,7 +6,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ImageConfig, RuntimeBucketConfig, VPCConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ImageConfig, RuntimeBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}

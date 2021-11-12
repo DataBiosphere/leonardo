@@ -1,8 +1,8 @@
-package org.broadinstitute.dsde.workbench.leonardo.util
+package org.broadinstitute.dsde.workbench.leonardo
+package util
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.google2.{NetworkName, RegionName, SubnetworkName}
-import org.broadinstitute.dsde.workbench.leonardo.config.VPCConfig
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 

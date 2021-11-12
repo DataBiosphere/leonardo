@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.util
+package org.broadinstitute.dsde.workbench.leonardo
+package util
 
 import _root_.org.typelevel.log4cats.StructuredLogger
 import cats.Parallel
@@ -17,8 +18,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
-import org.broadinstitute.dsde.workbench.leonardo.IpRange
-import org.broadinstitute.dsde.workbench.leonardo.config.FirewallRuleConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.TraceId

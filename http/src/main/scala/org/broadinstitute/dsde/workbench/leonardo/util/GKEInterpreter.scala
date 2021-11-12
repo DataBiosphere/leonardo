@@ -210,7 +210,7 @@ class GKEInterpreter[F[_]](
       // and users can no longer create apps in the cluster's project
       // helm install nginx
       loadBalancerIp <- installNginx(dbCluster, googleCluster)
-      ipRange <- F.fromOption(Config.vpcConfig.subnetworkRegionIpRangeMap.get(dbCluster.region),
+      ipRange <- F.fromOption(config.vpcConfig.subnetworkRegionIpRangeMap.get(dbCluster.region),
                               new RegionNotSupportedException(dbCluster.region, ctx.traceId))
 
       _ <- kubernetesClusterQuery
@@ -1500,6 +1500,7 @@ final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       getAppResult: GetAppResult)
 
 final case class GKEInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig,
+                                      vpcConfig: VPCConfig,
                                       ingressConfig: KubernetesIngressConfig,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       cromwellAppConfig: CromwellAppConfig,
