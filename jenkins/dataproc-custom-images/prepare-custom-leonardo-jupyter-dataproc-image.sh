@@ -17,7 +17,6 @@ set -e -x
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
-terra_jupyter_base="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.2"
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.2"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.0.2"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.0.2"
@@ -29,7 +28,6 @@ openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:3.14.0"
 
 # The _old variables are NOT replaced by the Jenkins job; they must be manually updated
-terra_jupyter_base_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.1"
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.1"
 
 # Not replaced by Jenkins. If you change this you must also change Leo reference.conf!
@@ -37,7 +35,7 @@ cryptomining_detector="us.gcr.io/broad-dsp-gcr-public/cryptomining-detector:0.0.
 
 # this array determines which of the above images are baked into the custom image
 # the entry must match the var name above, which must correspond to a valid docker URI
-docker_image_var_names="welder_server terra_jupyter_base terra_jupyter_base_old terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
+docker_image_var_names="welder_server terra_jupyter_python terra_jupyter_r terra_jupyter_bioconductor terra_jupyter_hail terra_jupyter_gatk terra_jupyter_aou terra_jupyter_aou_old openidc_proxy anvil_rstudio_bioconductor cryptomining_detector"
 
 # The version of python to install
 # Note: this should match the version of python in the terra-jupyter-hail image.
