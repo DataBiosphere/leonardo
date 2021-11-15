@@ -120,9 +120,10 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     createRuntime2Request: CreateRuntime2Request = defaultCreateRuntime2Request
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -147,7 +148,7 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     createRuntime2Request: CreateRuntime2Request
-  )(implicit client: Client[IO], authHeader: Authorization): IO[GetRuntimeResponseCopy] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
     for {
       _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
       res <- waitUntilRunning(googleProject, runtimeName)
@@ -156,9 +157,10 @@ object LeonardoApiClient {
   def startRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -181,7 +183,7 @@ object LeonardoApiClient {
   def startRuntimeWithWait(
     googleProject: GoogleProject,
     runtimeName: RuntimeName
-  )(implicit client: Client[IO], authHeader: Authorization): IO[GetRuntimeResponseCopy] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
     for {
       _ <- startRuntime(googleProject, runtimeName)
       res <- waitUntilRunning(googleProject, runtimeName)
@@ -191,9 +193,10 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     req: UpdateRuntimeRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -220,7 +223,7 @@ object LeonardoApiClient {
 
   def waitUntilRunning(googleProject: GoogleProject, runtimeName: RuntimeName, shouldError: Boolean = true)(
     implicit client: Client[IO],
-    authHeader: Authorization
+    authorization: IO[Authorization]
   ): IO[GetRuntimeResponseCopy] = {
     val ioa = getRuntime(googleProject, runtimeName)
     for {
@@ -245,7 +248,7 @@ object LeonardoApiClient {
 
   def waitUntilAppRunning(googleProject: GoogleProject, appName: AppName, shouldError: Boolean = true)(
     implicit client: Client[IO],
-    authHeader: Authorization,
+    authorization: IO[Authorization],
     logger: StructuredLogger[IO]
   ): IO[GetAppResponse] = {
     val ioa = getApp(googleProject, appName)
@@ -273,9 +276,10 @@ object LeonardoApiClient {
   def getRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName
-  )(implicit client: Client[IO], authHeader: Authorization): IO[GetRuntimeResponseCopy] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client.expectOr[GetRuntimeResponseCopy](
         Request[IO](
           method = Method.GET,
@@ -287,11 +291,13 @@ object LeonardoApiClient {
       )(onError(s"Failed to get runtime ${googleProject.value}/${runtimeName.asString}"))
     } yield r
 
-  def deleteRuntime(googleProject: GoogleProject,
-                    runtimeName: RuntimeName,
-                    deleteDisk: Boolean = true)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, deleteDisk: Boolean = true)(
+    implicit client: Client[IO],
+    authorization: IO[Authorization]
+  ): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -316,7 +322,7 @@ object LeonardoApiClient {
   def deleteRuntimeWithWait(googleProject: GoogleProject, runtimeName: RuntimeName, deleteDisk: Boolean = true)(
     implicit
     client: Client[IO],
-    authHeader: Authorization
+    authorization: IO[Authorization]
   ): IO[Unit] =
     for {
       _ <- deleteRuntime(googleProject, runtimeName, deleteDisk)
@@ -330,9 +336,10 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     diskName: DiskName,
     createDiskRequest: CreateDiskRequest = defaultCreateDiskRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -354,7 +361,7 @@ object LeonardoApiClient {
 
   def createDiskWithWait(googleProject: GoogleProject, diskName: DiskName, createDiskRequest: CreateDiskRequest)(
     implicit client: Client[IO],
-    authHeader: Authorization
+    authorization: IO[Authorization]
   ): IO[Unit] =
     for {
       _ <- createDisk(googleProject, diskName, createDiskRequest)
@@ -365,9 +372,10 @@ object LeonardoApiClient {
   def getDisk(
     googleProject: GoogleProject,
     diskName: DiskName
-  )(implicit client: Client[IO], authHeader: Authorization): IO[GetPersistentDiskResponse] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetPersistentDiskResponse] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -392,7 +400,7 @@ object LeonardoApiClient {
   def listDisk(
     googleProject: GoogleProject,
     includeDeleted: Boolean = false
-  )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListPersistentDiskResponse]] = {
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[List[ListPersistentDiskResponse]] = {
     val uriWithoutQueryParam = rootUri
       .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}"))
 
@@ -402,6 +410,7 @@ object LeonardoApiClient {
 
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client.expectOr[List[ListPersistentDiskResponse]](
         Request[IO](
           method = Method.GET,
@@ -413,9 +422,10 @@ object LeonardoApiClient {
   }
 
   def deleteDisk(googleProject: GoogleProject, diskName: DiskName)(implicit client: Client[IO],
-                                                                   authHeader: Authorization): IO[Unit] =
+                                                                   authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -436,7 +446,7 @@ object LeonardoApiClient {
 
   def deleteDiskWithWait(googleProject: GoogleProject, diskName: DiskName)(
     implicit client: Client[IO],
-    authHeader: Authorization
+    authorization: IO[Authorization]
   ): IO[Unit] =
     for {
       _ <- deleteDisk(googleProject, diskName)
@@ -455,9 +465,10 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     appName: AppName,
     createAppRequest: CreateAppRequest = defaultCreateAppRequest
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -480,7 +491,7 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     appName: AppName,
     createAppRequest: CreateAppRequest = defaultCreateAppRequest
-  )(implicit client: Client[IO], authHeader: Authorization, logger: StructuredLogger[IO]): IO[Unit] =
+  )(implicit client: Client[IO], authorization: IO[Authorization], logger: StructuredLogger[IO]): IO[Unit] =
     for {
       _ <- createApp(googleProject, appName, createAppRequest)
       _ <- waitUntilAppRunning(googleProject, appName, true)
@@ -488,9 +499,10 @@ object LeonardoApiClient {
 
   def deleteApp(googleProject: GoogleProject,
                 appName: AppName,
-                deleteDisk: Boolean = true)(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+                deleteDisk: Boolean = true)(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -512,7 +524,7 @@ object LeonardoApiClient {
 
   def deleteAppWithWait(googleProject: GoogleProject, appName: AppName, deleteDisk: Boolean = true)(
     implicit client: Client[IO],
-    authHeader: Authorization
+    authorization: IO[Authorization]
   ): IO[Unit] =
     for {
       _ <- deleteApp(googleProject, appName, deleteDisk)
@@ -523,9 +535,10 @@ object LeonardoApiClient {
     } yield ()
 
   def getApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
-                                                             authHeader: Authorization): IO[GetAppResponse] =
+                                                             authorization: IO[Authorization]): IO[GetAppResponse] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client.expectOr[GetAppResponse](
         Request[IO](
           method = Method.GET,
@@ -539,7 +552,7 @@ object LeonardoApiClient {
   def listApps(
     googleProject: GoogleProject,
     includeDeleted: Boolean = false
-  )(implicit client: Client[IO], authHeader: Authorization): IO[List[ListAppResponse]] = {
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[List[ListAppResponse]] = {
     val uriWithoutQueryParam = rootUri
       .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}"))
 
@@ -549,6 +562,7 @@ object LeonardoApiClient {
 
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client.expectOr[List[ListAppResponse]](
         Request[IO](
           method = Method.GET,
@@ -560,9 +574,10 @@ object LeonardoApiClient {
   }
 
   def stopApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
-                                                              authHeader: Authorization): IO[Unit] =
+                                                              authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -582,9 +597,10 @@ object LeonardoApiClient {
     } yield r
 
   def startApp(googleProject: GoogleProject, appName: AppName)(implicit client: Client[IO],
-                                                               authHeader: Authorization): IO[Unit] =
+                                                               authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
       r <- client
         .run(
           Request[IO](
@@ -607,10 +623,11 @@ object LeonardoApiClient {
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
     path: String
-  )(implicit client: Client[IO], authHeader: Authorization): IO[Unit] =
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
       refererHeader <- ProxyRedirectClient.genRefererHeader()
+      authHeader <- authorization
       _ <- client
         .run(
           Request[IO](

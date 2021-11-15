@@ -5,6 +5,7 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, Generators}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{ListAppResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.service.util.Tags
 import org.http4s.headers.Authorization
@@ -16,9 +17,7 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPAllocUtils with ParallelTestExecution {
-  // Using def instead of val to prevent test flakiness due to token expiration when tests take long
-  implicit def auth: Authorization =
-    Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
@@ -47,6 +46,9 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
       LeonardoApiClient.client.use { implicit client =>
         for {
           _ <- loggerIO.info(s"AppCreationSpec: About to create app ${googleProject.value}/${appName.value}")
+
+          rat <- Ron.authToken()
+          implicit0(auth: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
 
           // Create the app
           _ <- LeonardoApiClient.createApp(googleProject, appName, createAppRequest)
@@ -100,9 +102,11 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
               _ <- loggerIO.info(
                 s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
               )
-              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(client,
-                                                                                                        auth,
-                                                                                                        loggerIO)
+              _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(
+                client,
+                ronAuthorization,
+                loggerIO
+              )
               _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName)
             } yield ()
           }
@@ -192,7 +196,7 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
           )
           _ = monitorStartResult.status shouldBe AppStatus.Running
 
-          _ <- IO.sleep(1 minute)
+          _ <- IO.sleep(60 seconds)
 
           // Delete the app
           _ <- LeonardoApiClient.deleteApp(googleProject, appName, true)
@@ -213,7 +217,6 @@ class AppCreationSpec extends GPAllocFixtureSpec with LeonardoTestUtils with GPA
             loggerIO.warn(
               s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes. Result: $monitorDeleteResult"
             )
-            //IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
           } else {
             // verify disk is also deleted
             for {

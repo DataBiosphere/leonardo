@@ -8,16 +8,19 @@ import cats.mtl.Ask
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
+import com.google.cloud.compute.v1.Instance
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGoogleDataprocService,
-  FakeGoogleResourceService,
-  MockComputePollOperation,
-  MockGoogleDiskService
+import org.broadinstitute.dsde.workbench.google2.mock._
+import org.broadinstitute.dsde.workbench.google2.{
+  DataprocClusterName,
+  DataprocRole,
+  DataprocRoleZonePreemptibility,
+  InstanceName,
+  MachineTypeName,
+  RegionName,
+  ZoneName
 }
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -69,8 +72,8 @@ class DataprocInterpreterSpec
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
                                                    vpcInterp,
-                                                   FakeGoogleDataprocService,
-                                                   FakeGoogleComputeService,
+                                                   MockGoogleDataprocService,
+                                                   MockGoogleComputeService,
                                                    MockGoogleDiskService,
                                                    mockGoogleDirectoryDAO,
                                                    mockGoogleIamDAO,
@@ -188,6 +191,26 @@ class DataprocInterpreterSpec
   private object MockGoogleResourceService extends FakeGoogleResourceService {
     override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
       IO(Some(1234567890))
+  }
+
+  private object MockGoogleDataprocService extends BaseFakeGoogleDataprocService {
+    override def getClusterInstances(project: GoogleProject, region: RegionName, clusterName: DataprocClusterName)(
+      implicit ev: Ask[IO, TraceId]
+    ): IO[Map[DataprocRoleZonePreemptibility, Set[InstanceName]]] =
+      IO.pure(
+        Map(
+          DataprocRoleZonePreemptibility(DataprocRole.Master, ZoneName("us-central1-a"), false) -> Set(
+            InstanceName("masterInstance")
+          )
+        )
+      )
+  }
+
+  private object MockGoogleComputeService extends FakeGoogleComputeService {
+    override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+      implicit
+      ev: Ask[IO, TraceId]
+    ): IO[Option[Instance]] = IO.pure(Some(Instance.newBuilder().setFingerprint("abcd").build()))
   }
 
 }

@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName}
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   PersistentDiskRequest,
   RuntimeConfigRequest,
@@ -14,8 +15,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -27,8 +26,7 @@ class RuntimePatchSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit val ronToken: AuthToken = ronAuthToken
-  implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =
     if (isRetryable(test))
@@ -89,6 +87,7 @@ class RuntimePatchSpec
           startingDoneCheckable
         ).compile.lastOrError
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
+        implicit0(authToken: AuthToken) <- Ron.authToken()
         _ <- IO(
           withWebDriver { implicit driver =>
             withNewNotebook(clusterCopy, Python3) { notebookPage =>
@@ -164,6 +163,7 @@ class RuntimePatchSpec
             startingDoneCheckable
           ).compile.lastOrError
           clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
+          implicit0(authToken: AuthToken) <- Ron.authToken()
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(clusterCopy, Python3) { notebookPage =>
@@ -191,7 +191,7 @@ class RuntimePatchSpec
   "Patch endpoint should perform a stop/start transition for Dataproc cluster" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       val newMasterMachineType = MachineTypeName("n1-standard-2")
-      val newDiskSize = DiskSize(90)
+      val newDiskSize = DiskSize(110)
       val updateRuntimeRequest = UpdateRuntimeRequest(Some(
                                                         UpdateRuntimeConfigRequest.DataprocConfig(
                                                           Some(newMasterMachineType),
@@ -211,7 +211,7 @@ class RuntimePatchSpec
           RuntimeConfigRequest.DataprocConfig(
             None,
             Some(MachineTypeName("n1-standard-4")),
-            Some(DiskSize(80)),
+            Some(DiskSize(100)),
             None,
             None,
             None,
@@ -257,6 +257,7 @@ class RuntimePatchSpec
             startingDoneCheckable
           )
           clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
+          implicit0(authToken: AuthToken) <- Ron.authToken()
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(clusterCopy, Python3) { notebookPage =>
@@ -267,7 +268,7 @@ class RuntimePatchSpec
                     "! df -H |grep sda1"
                   )
                   .get
-                res should include("95G") //disk output is always a few more gb than what's specified
+                res should include("117G") //disk output is always a few more gb than what's specified
               }
             }
           )

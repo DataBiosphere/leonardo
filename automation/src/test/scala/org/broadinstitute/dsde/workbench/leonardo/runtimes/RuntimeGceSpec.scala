@@ -6,6 +6,7 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import com.google.cloud.Identity
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.Generators.genDiskName
 import org.broadinstitute.dsde.workbench.google2.{
   GcsBlobName,
@@ -15,14 +16,13 @@ import org.broadinstitute.dsde.workbench.google2.{
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient.{defaultCreateRuntime2Request, getRuntime}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.client.Client
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import java.nio.charset.{Charset, StandardCharsets}
@@ -34,8 +34,7 @@ class RuntimeGceSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
-  implicit val authTokenForOldApiClient = ronAuthToken
-  implicit val auth: Authorization = Authorization(Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value))
+  implicit val (authTokenForOldApiClient, auth) = getAuthTokenAndAuthorization(Ron)
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
   val dependencies = for {
@@ -109,6 +108,7 @@ class RuntimeGceSpec
       for {
         runtime <- LeonardoApiClient.createRuntimeWithWait(project, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
+        implicit0(authToken: AuthToken) <- Ron.authToken()
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val deviceNameOutput =
@@ -142,6 +142,7 @@ class RuntimeGceSpec
       implicit val client = deps.httpClient
       for {
         // Set up test bucket for startup script
+        implicit0(authToken: AuthToken) <- Ron.authToken()
         petSA <- IO(Sam.user.petServiceAccountEmail(project.value))
         bucketName <- IO(UUID.randomUUID()).map(u => GcsBucketName(s"leo-test-bucket-${u.toString}"))
         userScriptObjectName = GcsBlobName("test-user-script.sh")

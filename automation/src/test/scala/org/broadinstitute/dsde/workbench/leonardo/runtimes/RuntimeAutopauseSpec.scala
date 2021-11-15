@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo.runtimes
 
-import org.broadinstitute.dsde.workbench.auth.AuthToken
+import cats.effect.unsafe.implicits.global
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.{
   ClusterStatus,
   GPAllocFixtureSpec,
@@ -8,8 +9,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   LeonardoApiClient,
   LeonardoTestUtils
 }
-import org.http4s.AuthScheme
-import org.http4s.headers.Authorization
 import org.scalatest.time.{Minutes, Seconds, Span}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
@@ -17,11 +16,9 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
-
-  implicit val ronToken: AuthToken = ronAuthToken
-  implicit val auth: Authorization = Authorization(
-    org.http4s.Credentials.Token(AuthScheme.Bearer, ronCreds.makeAuthToken().value)
-  )
+  implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
+  implicit val rat = ronAuthToken.unsafeRunSync()
+  implicit val ra = ronAuthorization.unsafeRunSync()
 
   "autopause should work" in { billingProject =>
     val runtimeName = randomClusterName

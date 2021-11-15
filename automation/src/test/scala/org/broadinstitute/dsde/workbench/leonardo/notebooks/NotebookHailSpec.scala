@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo.notebooks
 
+import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
+import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.dao.Google.googleStorageDAO
 import org.broadinstitute.dsde.workbench.leonardo.{CloudService, LeonardoConfig, RuntimeFixtureSpec}
 import org.broadinstitute.dsde.workbench.model.google.{EmailGcsEntity, GcsEntityTypes, GcsObjectName, GcsRoles}
@@ -14,6 +16,7 @@ import scala.concurrent.duration._
  */
 @DoNotDiscover
 class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
+  implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
   val expectedHailVersion = "0.2.62"
@@ -83,7 +86,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       // Create a new bucket
       withNewGoogleBucket(clusterFixture.runtime.googleProject) { bucketName =>
         val ronPetServiceAccount =
-          Sam.user.petServiceAccountEmail(clusterFixture.runtime.googleProject.value)(ronAuthToken)
+          Sam.user.petServiceAccountEmail(clusterFixture.runtime.googleProject.value)(ronToken)
         googleStorageDAO.setBucketAccessControl(bucketName,
                                                 EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
                                                 GcsRoles.Owner)

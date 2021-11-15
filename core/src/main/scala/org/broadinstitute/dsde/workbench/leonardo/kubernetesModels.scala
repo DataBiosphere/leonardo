@@ -333,7 +333,7 @@ object Chart {
     if (separatorIndex > 0) {
       val name = s.substring(0, separatorIndex)
       val version = s.substring(separatorIndex + 1)
-      if (!name.isEmpty && !version.isEmpty) {
+      if (name.nonEmpty && version.nonEmpty) {
         Some(Chart(ChartName(name), ChartVersion(version)))
       } else None
     } else None

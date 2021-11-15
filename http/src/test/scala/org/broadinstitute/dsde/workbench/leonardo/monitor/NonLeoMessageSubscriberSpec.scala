@@ -5,6 +5,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import com.google.cloud.compute.v1.Instance
 import cats.effect.std.Queue
+import io.circe.{CursorOp, DecodingFailure}
 import io.circe.parser.decode
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher}
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GooglePublisher, InstanceName, ZoneName}
@@ -86,27 +87,211 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
     decode[NonLeoMessage](jsonStringDeleteNodepool) shouldBe Right(expectedResultDeleteNodepool)
   }
 
-  it should "handle cryptomining message" in {
-    for {
-      runtime <- IO(makeCluster(1).save())
-      computeService = new FakeGoogleComputeService {
-        override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-          implicit ev: Ask[IO, TraceId]
-        ): cats.effect.IO[scala.Option[com.google.cloud.compute.v1.Instance]] =
-          IO.pure(Some(Instance.newBuilder().setName(runtime.runtimeName.asString).build()))
+  it should "decode NonLeoMessage.CryptominingScc properly" in {
+    val jsonString =
+      """
+        |{
+        |  "notificationConfigName": "organizations/386193000800/notificationConfigs/leonardo-crypto-test",
+        |  "finding": {
+        |    "name": "organizations/386193000800/sources/6119898994322174789/findings/f3aec71664673d61db90d8efb99e7bac",
+        |    "parent": "organizations/386193000800/sources/6119898994322174789",
+        |    "resourceName": "//compute.googleapis.com/projects/terra-2d61a51b/zones/us-central1-a/instances/5289438569693667937",
+        |    "state": "ACTIVE",
+        |    "category": "Execution: Cryptocurrency Mining Combined Detection",
+        |    "sourceProperties": {
+        |      "threats": [{
+        |        "memory_hash_detector": {
+        |          "detections": [{
+        |            "percent_pages_matched": 0.23588924387646432,
+        |            "binary_name": "linux-x86-64_xmrig_6.15.1"
+        |          }, {
+        |            "binary_name": "linux-x86-64_xmrig_6.15.2",
+        |            "percent_pages_matched": 0.7875399361022364
+        |          }],
+        |          "binary": "XMRig"
+        |        }
+        |      }, {
+        |        "yara_rule_detector": {
+        |          "yara_rule_name": "YARA_RULE1"
+        |        }
+        |      }, {
+        |        "yara_rule_detector": {
+        |          "yara_rule_name": "YARA_RULE9"
+        |        }
+        |      }, {
+        |        "yara_rule_detector": {
+        |          "yara_rule_name": "YARA_RULE10"
+        |        }
+        |      }, {
+        |        "yara_rule_detector": {
+        |          "yara_rule_name": "DYNAMIC_YARA_RULE_BFGMINER_2"
+        |        }
+        |      }]
+        |    },
+        |    "securityMarks": {
+        |      "name": "organizations/386193000800/sources/6119898994322174789/findings/f3aec71664673d61db90d8efb99e7bac/securityMarks"
+        |    },
+        |    "eventTime": "2021-10-28T17:34:28.678071760Z",
+        |    "createTime": "2021-10-28T17:39:31.719Z",
+        |    "severity": "HIGH",
+        |    "canonicalName": "projects/1089695574439/sources/6119898994322174789/findings/f3aec71664673d61db90d8efb99e7bac",
+        |    "findingClass": "THREAT"
+        |  },
+        |  "resource": {
+        |    "name": "//compute.googleapis.com/projects/terra-2d61a51b/zones/us-central1-a/instances/5289438569693667937",
+        |    "project": "//cloudresourcemanager.googleapis.com/projects/1089695574439",
+        |    "projectDisplayName": "terra-2d61a51b",
+        |    "parent": "//cloudresourcemanager.googleapis.com/projects/1089695574439",
+        |    "parentDisplayName": "terra-2d61a51b",
+        |    "type": "google.compute.Instance",
+        |    "folders": [{
+        |      "resourceFolder": "//cloudresourcemanager.googleapis.com/folders/710468670182",
+        |      "resourceFolderDisplayName": "CommunityWorkbench"
+        |    }, {
+        |      "resourceFolder": "//cloudresourcemanager.googleapis.com/folders/617814117274",
+        |      "resourceFolderDisplayName": "prod"
+        |    }],
+        |    "displayName": "saturn-5434a6f7-6739-4843-9b5e-4fa03fe51d76"
+        |  }
+        |}
+        |""".stripMargin
+    val expectedResult = NonLeoMessage.CryptoMiningScc(
+      CryptoMiningSccResource(
+        GoogleProject("terra-2d61a51b"),
+        CloudService.GCE,
+        RuntimeName("saturn-5434a6f7-6739-4843-9b5e-4fa03fe51d76"),
+        ZoneName("us-central1-a")
+      ),
+      Finding(SccCategory("Execution: Cryptocurrency Mining Combined Detection"))
+    )
+    decode[NonLeoMessage](jsonString) shouldBe Right(expectedResult)
+  }
+
+  it should "ignore NonLeoMessage.CryptominingScc when category is not supported" in {
+    val jsonString =
+      """
+        |{
+        |  "notificationConfigName": "organizations/386193000800/notificationConfigs/leonardo-crypto-test",
+        |  "finding": {
+        |    "name": "organizations/386193000800/sources/6119898994322174789/findings/f3aec71664673d61db90d8efb99e7bac",
+        |    "parent": "organizations/386193000800/sources/6119898994322174789",
+        |    "resourceName": "//compute.googleapis.com/projects/terra-2d61a51b/zones/us-central1-a/instances/5289438569693667937",
+        |    "state": "ACTIVE",
+        |    "category": "Execution: wrong category",
+        |    "sourceProperties": {
+        |      "threats": [{
+        |        "memory_hash_detector": {
+        |          "detections": [{
+        |            "percent_pages_matched": 0.23588924387646432,
+        |            "binary_name": "linux-x86-64_xmrig_6.15.1"
+        |          }, {
+        |            "binary_name": "linux-x86-64_xmrig_6.15.2",
+        |            "percent_pages_matched": 0.7875399361022364
+        |          }],
+        |          "binary": "XMRig"
+        |        }
+        |      }, {
+        |        "yara_rule_detector": {
+        |          "yara_rule_name": "YARA_RULE1"
+        |        }
+        |      }, {
+        |        "yara_rule_detector": {
+        |          "yara_rule_name": "YARA_RULE9"
+        |        }
+        |      }, {
+        |        "yara_rule_detector": {
+        |          "yara_rule_name": "YARA_RULE10"
+        |        }
+        |      }, {
+        |        "yara_rule_detector": {
+        |          "yara_rule_name": "DYNAMIC_YARA_RULE_BFGMINER_2"
+        |        }
+        |      }]
+        |    },
+        |    "securityMarks": {
+        |      "name": "organizations/386193000800/sources/6119898994322174789/findings/f3aec71664673d61db90d8efb99e7bac/securityMarks"
+        |    },
+        |    "eventTime": "2021-10-28T17:34:28.678071760Z",
+        |    "createTime": "2021-10-28T17:39:31.719Z",
+        |    "severity": "HIGH",
+        |    "canonicalName": "projects/1089695574439/sources/6119898994322174789/findings/f3aec71664673d61db90d8efb99e7bac",
+        |    "findingClass": "THREAT"
+        |  },
+        |  "resource": {
+        |    "name": "//compute.googleapis.com/projects/terra-2d61a51b/zones/us-central1-a/instances/5289438569693667937",
+        |    "project": "//cloudresourcemanager.googleapis.com/projects/1089695574439",
+        |    "projectDisplayName": "terra-2d61a51b",
+        |    "parent": "//cloudresourcemanager.googleapis.com/projects/1089695574439",
+        |    "parentDisplayName": "terra-2d61a51b",
+        |    "type": "google.compute.Instance",
+        |    "folders": [{
+        |      "resourceFolder": "//cloudresourcemanager.googleapis.com/folders/710468670182",
+        |      "resourceFolderDisplayName": "CommunityWorkbench"
+        |    }, {
+        |      "resourceFolder": "//cloudresourcemanager.googleapis.com/folders/617814117274",
+        |      "resourceFolderDisplayName": "prod"
+        |    }],
+        |    "displayName": "saturn-5434a6f7-6739-4843-9b5e-4fa03fe51d76"
+        |  }
+        |}
+        |""".stripMargin
+    val expectedResult = Left(
+      DecodingFailure("Unsupported SCC category Execution: wrong category",
+                      List(CursorOp.DownField("category"), CursorOp.DownField("finding")))
+    )
+    decode[NonLeoMessage](jsonString) shouldBe expectedResult
+  }
+
+  it should "handle cryptomining message" in isolatedDbTest {
+    ioAssertion {
+      for {
+        runtime <- IO(makeCluster(1).save())
+        computeService = new FakeGoogleComputeService {
+          override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
+            implicit ev: Ask[IO, TraceId]
+          ): cats.effect.IO[scala.Option[com.google.cloud.compute.v1.Instance]] =
+            IO.pure(Some(Instance.newBuilder().setName(runtime.runtimeName.asString).build()))
+        }
+        subscriber = makeSubscribler(computeService = computeService)
+        _ <- subscriber.handleCryptoMiningMessage(
+          NonLeoMessage
+            .CryptoMining("CRYPTOMINING_DETECTED",
+                          GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
+                          runtime.googleProject)
+        )
+        statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
+        deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
+      } yield {
+        statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
+        deletedFrom.get shouldBe ("cryptomining: custom detector")
       }
-      subscriber = makeSubscribler(computeService = computeService)
-      _ <- subscriber.handleCryptoMiningMessage(
-        NonLeoMessage
-          .CryptoMining("CRYPTOMINING_DETECTED",
-                        GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
-                        runtime.googleProject)
-      )
-      statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
-      deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
-    } yield {
-      statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
-      deletedFrom.get shouldBe ("cryptomining")
+    }
+  }
+
+  it should "handle cryptomining-scc message" in isolatedDbTest {
+    ioAssertion {
+      for {
+        runtime <- IO(
+          makeCluster(1)
+            .copy(status = RuntimeStatus.Running)
+            .saveWithRuntimeConfig(CommonTestData.defaultGceRuntimeConfig)
+        )
+        subscriber = makeSubscribler()
+        _ <- subscriber.messageResponder(
+          NonLeoMessage.CryptoMiningScc(
+            CryptoMiningSccResource(runtime.googleProject,
+                                    CloudService.GCE,
+                                    runtime.runtimeName,
+                                    CommonTestData.defaultGceRuntimeConfig.zone),
+            Finding(SccCategory("Execution: Cryptocurrency Mining Combined Detection"))
+          )
+        )
+        statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
+        deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
+      } yield {
+        statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
+        deletedFrom.get shouldBe ("cryptomining: scc")
+      }
     }
   }
 
