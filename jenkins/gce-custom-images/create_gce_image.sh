@@ -41,7 +41,7 @@ DAISY_IMAGE_TAG="release"
 #    2. select the image of interest, say, `cos-89-16108-403-22`
 #    3. run `gcloud compute images describe cos-89-16108-403-22 --project cos-cloud | grep selfLink`
 #    4. extract the segments starting with 'projects'
-BASE_IMAGE="projects/cos-cloud/global/images/cos-89-16108-403-22"
+BASE_IMAGE="projects/cos-cloud/global/images/cos-93-16623-39-16"
 
 # Create the Daisy scratch bucket if it doesn't exist. The Daisy workflow will clean it up at the end.
 gsutil ls $DAISY_BUCKET_PATH || gsutil mb -b on -p $PROJECT -l $REGION $DAISY_BUCKET_PATH
