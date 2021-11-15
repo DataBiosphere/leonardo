@@ -36,7 +36,7 @@ object ProxyRedirectClient {
   def startServer(): IO[Int] =
     for {
       serverAndShutDown <- ProxyRedirectClient.server
-      port = serverAndShutDown._1.address.getPort //TODO: use this when upgraded to http4s 1.+ .port.value
+      port = serverAndShutDown._1.address.port.value
       _ <- serverRef.modify(mp => (mp, mp + (port -> serverAndShutDown)))
     } yield port
 
