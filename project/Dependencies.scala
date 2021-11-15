@@ -4,7 +4,7 @@ object Dependencies {
   val scalaV = "2.13"
 
   val akkaV = "2.6.17"
-  val akkaHttpV = "10.2.6"
+  val akkaHttpV = "10.2.7"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.4"
@@ -184,7 +184,7 @@ object Dependencies {
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.0" % "test",
-    "ch.qos.logback" % "logback-classic" % "1.2.6" % "test",
+    "ch.qos.logback" % "logback-classic" % "1.2.7" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",
