@@ -302,22 +302,20 @@ class DataprocInterpreter[F[_]: Parallel](
           val op = for {
             dataprocInstances <- googleDataprocService
               .getClusterInstances(
-                params.runtimeProjectAndName.googleProject,
+                googleProject,
                 machineConfig.region,
                 DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString)
               )
             masterComputeInstanceAndZone <- dataprocInstances.find(_._1.role == DataprocRole.Master).flatTraverse {
               case (DataprocRoleZonePreemptibility(_, z, _), instances) =>
                 instances.headOption
-                  .flatTraverse { i =>
-                    googleComputeService.getInstance(params.runtimeProjectAndName.googleProject, z, i)
-                  }
+                  .flatTraverse(i => googleComputeService.getInstance(googleProject, z, i))
                   .map(_.map(i => (i, z)))
             }
             op <- masterComputeInstanceAndZone.traverse {
               case (instance, zone) =>
                 googleComputeService.setInstanceTags(
-                  params.runtimeProjectAndName.googleProject,
+                  googleProject,
                   zone,
                   InstanceName(instance.getName),
                   Tags
