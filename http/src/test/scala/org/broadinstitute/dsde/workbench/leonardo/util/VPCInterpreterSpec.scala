@@ -12,7 +12,7 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
 }
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, RegionName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.config.{Allowed, Config, FirewallRuleConfig}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -116,6 +116,44 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       )
       .unsafeRunSync()
     vpcConfig.firewallsToRemove.foreach(fw => computeService.firewallMap should not contain key(fw))
+  }
+
+  it should "create only firewallrules if necessary" in {
+    val computeService = new MockGoogleComputeServiceWithFirewalls()
+    val expectedSshFirewallRules = FirewallRuleConfig(
+      "leonardo-allow-broad-ssh",
+      None,
+      allSupportedRegions
+        .map(r =>
+          r -> List(
+            IpRange("69.173.127.0/25"),
+            IpRange("69.173.124.0/23"),
+            IpRange("69.173.126.0/24"),
+            IpRange("69.173.127.230/31"),
+            IpRange("69.173.64.0/19"),
+            IpRange("69.173.127.224/30"),
+            IpRange("69.173.127.192/27"),
+            IpRange("69.173.120.0/22"),
+            IpRange("69.173.127.228/32"),
+            IpRange("69.173.127.232/29"),
+            IpRange("69.173.127.128/26"),
+            IpRange("69.173.96.0/20"),
+            IpRange("69.173.127.240/28"),
+            IpRange("69.173.112.0/21")
+          )
+        )
+        .toMap,
+      List(Allowed("tcp", Some("22")))
+    )
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
+                                  stubResourceService(Map.empty),
+                                  computeService,
+                                  new MockComputePollOperation)
+
+    test.firewallRulesToAdd(
+      Map("leonardo-allow-internal-firewall-name" -> "leonardo-allow-internal",
+          "leonardo-allow-https-firewall-name" -> "leonardo-ssl")
+    ) shouldBe List(expectedSshFirewallRules)
   }
 
   private def stubResourceService(labels: Map[String, String]): FakeGoogleResourceService =
