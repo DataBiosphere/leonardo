@@ -603,7 +603,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(80),
+                                                                              bootDiskSize = DiskSize(85),
                                                                               zone = ZoneName("us-central1-a"),
                                                                               None)
         )
