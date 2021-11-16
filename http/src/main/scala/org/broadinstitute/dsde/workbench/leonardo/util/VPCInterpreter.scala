@@ -150,10 +150,10 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
     } yield ()
 
   private[util] def firewallRulesToAdd(projectLabels: Map[String, String]): List[FirewallRuleConfig] = {
-    val rbsAllowHttpsFirewallruleName = projectLabels.get(config.vpcConfig.firewallAllowHttpsLabelKey.value)
+    val rbsAllowHttpsFirewallRuleName = projectLabels.get(config.vpcConfig.firewallAllowHttpsLabelKey.value)
     val rbsAllowInternalFirewallruleName =
       projectLabels.get(config.vpcConfig.firewallAllowInternalLabelKey.value)
-    val firewallRulesCreatedByRbs = List(rbsAllowHttpsFirewallruleName, rbsAllowInternalFirewallruleName).flatten
+    val firewallRulesCreatedByRbs = List(rbsAllowHttpsFirewallRuleName, rbsAllowInternalFirewallruleName).flatten
     config.vpcConfig.firewallsToAdd.filterNot(rule => rule.rbsName.exists(n => firewallRulesCreatedByRbs.contains(n)))
   }
   private def createIfAbsent[A](project: GoogleProject,
