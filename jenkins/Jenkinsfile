@@ -272,7 +272,7 @@ pipeline {
         }
 
         stage ('Detect Hash Changes') {
-            when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "false" } }
+            when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "false" && USE_DEFAULT_DOCKER_IMAGE_VERSIONS == "false" } }
                 steps {
                     script {
                         def shouldUpdate = hasHashChanges(images, configPaths)
