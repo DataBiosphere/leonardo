@@ -20,7 +20,7 @@ object Dependencies {
   val serviceTestV = s"0.21-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.22-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.23-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.2-$workbenchLibsHash"
   val workbenchErrorReportingV = s"0.2-$workbenchLibsHash"
 
