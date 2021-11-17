@@ -120,8 +120,11 @@ class DataprocInterpreter[F[_]: Parallel](
 
       createOp = for {
         // Set up VPC network and firewall
-        (network, subnetwork) <- vpcAlg.setUpProjectNetworkAndFirewalls(
+        (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
           SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject, machineConfig.region)
+        )
+        _ <- vpcAlg.setUpProjectFirewalls(
+          SetUpProjectFirewallsParams(params.runtimeProjectAndName.googleProject, network, machineConfig.region)
         )
 
         // Add member to the Google Group that has the IAM role to pull the Dataproc image
