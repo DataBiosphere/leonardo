@@ -373,10 +373,6 @@ object Config {
     MemorySize(config.getBytes(path))
   implicit private val networkNameValueReader: ValueReader[NetworkName] = stringValueReader.map(NetworkName)
   implicit private val subnetworkNameValueReader: ValueReader[SubnetworkName] = stringValueReader.map(SubnetworkName)
-  implicit private val firewallAllowHttpsLabelKeyReader: ValueReader[FirewallAllowHttpsLabelKey] =
-    stringValueReader.map(FirewallAllowHttpsLabelKey)
-  implicit private val firewallAllowInternalLabelKeyReader: ValueReader[FirewallAllowInternalLabelKey] =
-    stringValueReader.map(FirewallAllowInternalLabelKey)
   implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
   // TODO(wnojopra): Make these more FP-friendly
   implicit private val subnetworkRegionIpRangeMapReader: ValueReader[Map[RegionName, IpRange]] =
@@ -386,8 +382,6 @@ object Config {
     VPCConfig(
       config.as[NetworkLabel]("highSecurityProjectNetworkLabel"),
       config.as[SubnetworkLabel]("highSecurityProjectSubnetworkLabel"),
-      config.as[FirewallAllowHttpsLabelKey]("firewallAllowHttpsLabelKey"),
-      config.as[FirewallAllowInternalLabelKey]("firewallAllowInternalLabelKey"),
       config.as[NetworkName]("networkName"),
       config.as[NetworkTag]("networkTag"),
       config.as[NetworkTag]("privateAccessNetworkTag"),
@@ -407,7 +401,6 @@ object Config {
   implicit private val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
     FirewallRuleConfig(
       config.as[String]("name-prefix"),
-      config.as[Option[String]]("rbs-name"),
       config.as[Map[RegionName, List[IpRange]]]("sourceRanges"),
       config.as[List[Allowed]]("allowed")
     )
