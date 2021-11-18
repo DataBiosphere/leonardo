@@ -159,19 +159,19 @@ dpkg --configure -a
 # The message that is non-fatal is `Sub-process /usr/bin/dpkg returned an error code (1).`
 # NOTE: If it fails with another legitimate error, this `|| true` could mask it. It was used as a last resort after a lot of attempts to fix.
 apt-get install -y -q docker-ce || true
-
-log 'Installing Docker Compose...'
-
-# Install docker-compose
-# https://docs.docker.com/compose/install/#install-compose
-docker_compose_version_number="1.22.0"
-docker_compose_kernel_name="$(uname -s)"
-docker_compose_machine_hardware_name="$(uname -m)"
-docker_compose_binary_download_url="https://github.com/docker/compose/releases/download/${docker_compose_version_number:?}/docker-compose-${docker_compose_kernel_name:?}-${docker_compose_machine_hardware_name:?}"
-docker_compose_binary_download_target_filename="/usr/local/bin/docker-compose"
-
-retry 5 curl -L "${docker_compose_binary_download_url:?}" -o "${docker_compose_binary_download_target_filename:?}"
-chmod +x "${docker_compose_binary_download_target_filename:?}"
+#
+#log 'Installing Docker Compose...'
+#
+## Install docker-compose
+## https://docs.docker.com/compose/install/#install-compose
+#docker_compose_version_number="1.22.0"
+#docker_compose_kernel_name="$(uname -s)"
+#docker_compose_machine_hardware_name="$(uname -m)"
+#docker_compose_binary_download_url="https://github.com/docker/compose/releases/download/${docker_compose_version_number:?}/docker-compose-${docker_compose_kernel_name:?}-${docker_compose_machine_hardware_name:?}"
+#docker_compose_binary_download_target_filename="/usr/local/bin/docker-compose"
+#
+#retry 5 curl -L "${docker_compose_binary_download_url:?}" -o "${docker_compose_binary_download_target_filename:?}"
+#chmod +x "${docker_compose_binary_download_target_filename:?}"
 
 # Pull docker image versions as of the time this script ran; this caches them in the
 # dataproc custom instance image.
