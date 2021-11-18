@@ -158,7 +158,7 @@ pipeline {
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check only if you want to manually specify all of the custom image versions below.")
         booleanParam(name: "USE_DEFAULT_DOCKER_IMAGE_VERSIONS", defaultValue: false,
-            description: "When true, use docker image versions in scripts; when false, try to auto detects docker image versions, or use custom docker image versions from job input")
+            description: "When true, use docker image versions in 'prepare*image' scripts; when false, try to auto-detect docker image versions, or use custom docker image versions from job input")
         string(name: "terra_jupyter_hail")
         string(name: "terra_jupyter_r")
         string(name: "terra_jupyter_python")
