@@ -59,10 +59,11 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
     .parEvalMapUnordered(10)(messageHandler)
     .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
 
-  private[monitor] def messageHandler(event: Event[NonLeoMessage]): F[Unit] = {
-    val traceId = event.traceId.getOrElse(TraceId("None"))
+  private[monitor] def messageHandler(event: Event[NonLeoMessage]): F[Unit] =
     for {
       now <- F.realTimeInstant
+      uuid <- F.delay(java.util.UUID.randomUUID())
+      traceId = event.traceId.getOrElse(TraceId(uuid.toString))
       implicit0(ev: Ask[F, AppContext]) <- F.pure(Ask.const[F, AppContext](AppContext(traceId, now, "", None)))
       _ <- metrics.incrementCounter(s"NonLeoPubSub/${event.msg.messageType}")
       res <- messageResponder(event.msg).attempt
@@ -71,7 +72,6 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
         case Right(_) => F.delay(event.consumer.ack())
       }
     } yield ()
-  }
 
   private[monitor] def messageResponder(
     message: NonLeoMessage
@@ -150,7 +150,7 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
         .transaction
       _ <- runtimeInfo match {
         case None =>
-          logger.info(
+          logger.info(ctx.loggingCtx)(
             s"Detected ${message} activity for ${googleProject.value}/${runtimeName.asString};" +
               s"This might be because the runtime has already been deleted, or the runtime wasn't created by Leonardo"
           )
