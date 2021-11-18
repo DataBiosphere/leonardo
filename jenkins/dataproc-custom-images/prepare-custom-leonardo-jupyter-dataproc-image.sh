@@ -142,17 +142,19 @@ log 'Installing Docker...'
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 retry 5 apt-get update
 
-rm -rf /var/lib/docker
-mkdir -p /etc/docker
-touch /etc/docker/daemon.json
-cat > /etc/docker/daemon.json <<EOF
-{
-  "storage-driver": "devicemapper",
-  "storage-opts": [
-     "dm.basesize=60G"
-  ]
-}
-EOF
+#rm -rf /var/lib/docker
+#mkdir -p /etc/docker
+#touch /etc/docker/daemon.json
+#cat > /etc/docker/daemon.json <<EOF
+#{
+#  "storage-driver": "devicemapper",
+#  "storage-opts": [
+#     "dm.basesize=60G"
+#  ]
+#}
+#EOF
+
+echo "Checking docker version `docker --version`"
 
 dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
