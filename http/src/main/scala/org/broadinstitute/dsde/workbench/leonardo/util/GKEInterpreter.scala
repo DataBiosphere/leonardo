@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF,
   DiskName,
   GoogleDiskService,
+  GoogleComputeService,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
@@ -59,6 +60,7 @@ class GKEInterpreter[F[_]](
   credentials: GoogleCredentials,
   googleIamDAO: GoogleIamDAO,
   googleDiskService: GoogleDiskService[F],
+  googleComputeService: GoogleComputeService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId]
 )(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
@@ -372,6 +374,7 @@ class GKEInterpreter[F[_]](
             app.release,
             app.chart,
             dbCluster,
+            dbApp.nodepool.machineType,
             dbApp.nodepool.nodepoolName,
             namespaceName,
             app.auditInfo.creator,
@@ -891,6 +894,7 @@ class GKEInterpreter[F[_]](
                                   release: Release,
                                   chart: Chart,
                                   dbCluster: KubernetesCluster,
+                                  machineType: MachineTypeName,
                                   nodepoolName: NodepoolName,
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail,
@@ -919,6 +923,7 @@ class GKEInterpreter[F[_]](
         appName,
         release,
         dbCluster,
+        machineType,
         nodepoolName,
         userEmail,
         customEnvironmentVariables,
@@ -1263,6 +1268,7 @@ class GKEInterpreter[F[_]](
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
                                                          release: Release,
                                                          cluster: KubernetesCluster,
+                                                         machineType: MachineTypeName,
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail,
                                                          customEnvironmentVariables: Map[String, String],
@@ -1276,6 +1282,13 @@ class GKEInterpreter[F[_]](
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
     val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
     val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
+
+    // Machine type info
+    val mType = googleComputeService.getMachineType(cluster.googleProject, cluster.location, machineType)
+    val maxLimitMemory = mType.getMemoryMb
+    val maxLimitCpu = mType.getGuestCpus
+    val maxRequestMemory = maxLimitMemory - 5000
+    val maxRequestCpu = maxLimitCpu - 3
 
     // Custom EV configs
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap {
@@ -1324,18 +1337,13 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
       raw"""galaxy.terra.launch.workspace=${workspaceName}""",
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
-      // Note most of the below file_sources configs are specified in galaxykubeman,
-      // but helm can't update 1 item in a list if the value is an object.
-      // See https://github.com/helm/helm/issues/7569
-      raw"""galaxy.configs.file_sources_conf\.yml[0].api_url=${config.galaxyAppConfig.orchUrl.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].drs_url=${config.galaxyAppConfig.drsUrl.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].doc=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].id=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].workspace=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].namespace=${workspaceNamespace}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].on_anvil=True""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].writable=True""",
+      raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
+      raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+      // Set Machine Type specs
+      raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
+      raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
+      raw"""galaxy.jobs.maxRequests.memory=${maxRequestMemory}""",
+      raw"""galaxy.jobs.maxRequests.cpu=${maxRequestCpu}""",
       // RBAC configs
       raw"""galaxy.serviceAccount.create=false""",
       raw"""galaxy.serviceAccount.name=${ksa.value}""",
