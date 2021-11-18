@@ -1324,18 +1324,8 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
       raw"""galaxy.terra.launch.workspace=${workspaceName}""",
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
-      // Note most of the below file_sources configs are specified in galaxykubeman,
-      // but helm can't update 1 item in a list if the value is an object.
-      // See https://github.com/helm/helm/issues/7569
-      raw"""galaxy.configs.file_sources_conf\.yml[0].api_url=${config.galaxyAppConfig.orchUrl.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].drs_url=${config.galaxyAppConfig.drsUrl.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].doc=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].id=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].workspace=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].namespace=${workspaceNamespace}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].on_anvil=True""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].writable=True""",
+      raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
+      raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
       // RBAC configs
       raw"""galaxy.serviceAccount.create=false""",
       raw"""galaxy.serviceAccount.name=${ksa.value}""",
