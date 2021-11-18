@@ -27,6 +27,8 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF,
   DiskName,
   GoogleDiskService,
+  GoogleComputeService,
+  MachineTypeName,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
@@ -59,6 +61,7 @@ class GKEInterpreter[F[_]](
   credentials: GoogleCredentials,
   googleIamDAO: GoogleIamDAO,
   googleDiskService: GoogleDiskService[F],
+  googleComputeService: GoogleComputeService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId]
 )(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
@@ -372,6 +375,7 @@ class GKEInterpreter[F[_]](
             app.release,
             app.chart,
             dbCluster,
+            dbApp.nodepool.machineType,
             dbApp.nodepool.nodepoolName,
             namespaceName,
             app.auditInfo.creator,
@@ -891,6 +895,7 @@ class GKEInterpreter[F[_]](
                                   release: Release,
                                   chart: Chart,
                                   dbCluster: KubernetesCluster,
+                                  machineType: MachineTypeName,
                                   nodepoolName: NodepoolName,
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail,
@@ -919,6 +924,7 @@ class GKEInterpreter[F[_]](
         appName,
         release,
         dbCluster,
+        machineType,
         nodepoolName,
         userEmail,
         customEnvironmentVariables,
@@ -1263,6 +1269,7 @@ class GKEInterpreter[F[_]](
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
                                                          release: Release,
                                                          cluster: KubernetesCluster,
+                                                         machineType: MachineTypeName,
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail,
                                                          customEnvironmentVariables: Map[String, String],
@@ -1276,6 +1283,13 @@ class GKEInterpreter[F[_]](
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
     val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
     val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
+
+    // Machine type info
+    val mType = googleComputeService.getMachineType(cluster.googleProject, cluster.location, machineType)
+    val maxLimitMemory = mType.getMemoryMb
+    val maxLimitCpu = mType.getGuestCpus
+    val maxRequestMemory = maxLimitMemory - 5000
+    val maxRequestCpu = maxLimitCpu - 3
 
     // Custom EV configs
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap {
@@ -1326,6 +1340,11 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
       raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
       raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+      // Set Machine Type specs
+      raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
+      raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
+      raw"""galaxy.jobs.maxRequests.memory=${maxRequestMemory}""",
+      raw"""galaxy.jobs.maxRequests.cpu=${maxRequestCpu}""",
       // RBAC configs
       raw"""galaxy.serviceAccount.create=false""",
       raw"""galaxy.serviceAccount.name=${ksa.value}""",
