@@ -15,9 +15,22 @@ import org.broadinstitute.dsde.workbench.google.GoogleIamDAO
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google2.GKEModels._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels._
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceAccountName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  ServiceAccountName,
+  ServiceName
+}
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{DiskName, GoogleDiskService, KubernetesClusterNotFoundException, PvName, ZoneName, streamFUntilDone, streamUntilDoneOrTimeout, tracedRetryF}
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  streamUntilDoneOrTimeout,
+  tracedRetryF,
+  DiskName,
+  GoogleDiskService,
+  KubernetesClusterNotFoundException,
+  PvName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO, CustomAppService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -963,14 +976,16 @@ class GKEInterpreter[F[_]](
 
     } yield ()
 
-  private[util] def installCromwellApp(helmAuthContext: AuthContext,
-                                       appName: AppName,
-                                       release: Release,
-                                       cluster: KubernetesCluster,
-                                       nodepoolName: NodepoolName,
-                                       namespaceName: NamespaceName,
-                                       disk: PersistentDisk,
-                                       customEnvironmentVariables: Map[String, String])(implicit ev: Ask[F, AppContext]): F[Unit] = {
+  private[util] def installCromwellApp(
+    helmAuthContext: AuthContext,
+    appName: AppName,
+    release: Release,
+    cluster: KubernetesCluster,
+    nodepoolName: NodepoolName,
+    namespaceName: NamespaceName,
+    disk: PersistentDisk,
+    customEnvironmentVariables: Map[String, String]
+  )(implicit ev: Ask[F, AppContext]): F[Unit] = {
     // TODO: Use the chart from the database instead of re-looking it up in config:
     val chart = config.cromwellAppConfig.chart
 
@@ -981,7 +996,12 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
-      chartValues = buildCromwellAppChartOverrideValuesString(appName, cluster, nodepoolName, namespaceName, disk, customEnvironmentVariables)
+      chartValues = buildCromwellAppChartOverrideValuesString(appName,
+                                                              cluster,
+                                                              nodepoolName,
+                                                              namespaceName,
+                                                              disk,
+                                                              customEnvironmentVariables)
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
       // Invoke helm
@@ -1218,12 +1238,14 @@ class GKEInterpreter[F[_]](
     )
   }
 
-  private[util] def buildCromwellAppChartOverrideValuesString(appName: AppName,
-                                                              cluster: KubernetesCluster,
-                                                              nodepoolName: NodepoolName,
-                                                              namespaceName: NamespaceName,
-                                                              disk: PersistentDisk,
-                                                              customEnvironmentVariables: Map[String, String]): List[String] = {
+  private[util] def buildCromwellAppChartOverrideValuesString(
+    appName: AppName,
+    cluster: KubernetesCluster,
+    nodepoolName: NodepoolName,
+    namespaceName: NamespaceName,
+    disk: PersistentDisk,
+    customEnvironmentVariables: Map[String, String]
+  ): List[String] = {
     val proxyPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
