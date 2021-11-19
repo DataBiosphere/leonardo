@@ -28,6 +28,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   DiskName,
   GoogleDiskService,
   GoogleComputeService,
+  MachineTypeName,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
