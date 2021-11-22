@@ -98,11 +98,8 @@ class GKEInterpreter[F[_]](
       else F.unit
 
       // Set up VPC and firewall
-      (network, subnetwork) <- vpcAlg.setUpProjectNetwork(
+      (network, subnetwork) <- vpcAlg.setUpProjectNetworkAndFirewalls(
         SetUpProjectNetworkParams(params.googleProject, dbCluster.region)
-      )
-      _ <- vpcAlg.setUpProjectFirewalls(
-        SetUpProjectFirewallsParams(params.googleProject, network, dbCluster.region)
       )
 
       kubeNetwork = KubernetesNetwork(dbCluster.googleProject, network)
