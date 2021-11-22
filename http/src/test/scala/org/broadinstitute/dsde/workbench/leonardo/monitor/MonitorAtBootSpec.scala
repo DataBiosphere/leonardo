@@ -51,7 +51,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     )
 
   // See https://github.com/broadinstitute/workbench-libs/blob/develop/google2/src/test/scala/org/broadinstitute/dsde/workbench/google2/mock/FakeGoogleComputeService.scala#L69
-  val defaultFakeAppMachineType = AppMachineType(7, 0)
+  val defaultFakeAppMachineType = AppMachineType(7, 4)
 
   it should "recover RuntimeStatus.Stopping properly" in isolatedDbTest {
     val res = for {
