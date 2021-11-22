@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -27,13 +28,18 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
   ec: ExecutionContext,
   metrics: OpenTelemetryMetrics[F]
 ) {
-  implicit private val traceId = Ask.const[F, TraceId](TraceId("BootMonitoring"))
-
   val process: Stream[F, Unit] = processRuntimes ++ processApps
 
   private def processRuntimes: Stream[F, Unit] =
     monitoredRuntimes
-      .parEvalMapUnordered(10)(r => handleRuntime(r) >> handleRuntimePatchInProgress(r))
+      .parEvalMapUnordered(10) { r =>
+        for {
+          now <- F.realTimeInstant
+          implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitoring${now}"))
+          _ <- handleRuntime(r)
+          _ <- handleRuntimePatchInProgress(r)
+        } yield ()
+      }
       .handleErrorWith(e =>
         Stream
           .eval(logger.error(e)("MonitorAtBoot: Error retrieving runtimes that need to be monitored during startup"))
@@ -41,7 +47,14 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
 
   private def processApps: Stream[F, Unit] =
     monitoredApps
-      .parEvalMapUnordered(10) { case (a, n, c) => handleApp(a, n, c) }
+      .parEvalMapUnordered(10) {
+        case (a, n, c) =>
+          for {
+            now <- F.realTimeInstant
+            implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitoring${now}"))
+            _ <- handleApp(a, n, c)
+          } yield ()
+      }
       .handleErrorWith(e =>
         Stream.eval(logger.error(e)("MonitorAtBoot: Error retrieving apps that need to be monitored during startup"))
       )
@@ -105,8 +118,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
     implicit ev: Ask[F, TraceId]
   ): F[Unit] = {
     val res = for {
-      traceId <- ev.ask
-      msg <- appStatusToMessage(app, nodepool, cluster, traceId)
+      msg <- appStatusToMessage(app, nodepool, cluster)
       _ <- publisherQueue.offer(msg)
     } yield ()
     res.handleErrorWith { e =>
@@ -115,81 +127,78 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
     }
   }
 
-  private def appStatusToMessage(app: App,
-                                 nodepool: Nodepool,
-                                 cluster: KubernetesCluster,
-                                 traceId: TraceId): F[LeoPubsubMessage] =
-    app.status match {
-      case AppStatus.Provisioning =>
-        for {
-          action <- (cluster.status, nodepool.status) match {
-            case (KubernetesClusterStatus.Provisioning, _) =>
-              for {
-                dnpOpt <- nodepoolQuery.getDefaultNodepoolForCluster(cluster.id).transaction
-                dnp <- F.fromOption(dnpOpt,
-                                    MonitorAtBootException(
-                                      s"Default nodepool not found for cluster ${cluster.id} in Provisioning status",
-                                      traceId
-                                    ))
-              } yield Some(ClusterNodepoolAction.CreateClusterAndNodepool(cluster.id, dnp.id, nodepool.id)): Option[
-                ClusterNodepoolAction
-              ]
-            case (KubernetesClusterStatus.Running, NodepoolStatus.Provisioning) =>
-              F.pure[Option[ClusterNodepoolAction]](Some(ClusterNodepoolAction.CreateNodepool(nodepool.id)))
-            case (KubernetesClusterStatus.Running, NodepoolStatus.Running) =>
-              F.pure[Option[ClusterNodepoolAction]](None)
-            case (cs, ns) =>
-              F.raiseError[Option[ClusterNodepoolAction]](
-                MonitorAtBootException(
-                  s"Unexpected cluster status [${cs.toString} or nodepool status [${ns.toString}] for app ${app.id} in Provisioning status",
-                  traceId
+  private def appStatusToMessage(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(
+    implicit ev: Ask[F, TraceId]
+  ): F[LeoPubsubMessage] =
+    ev.ask.flatMap(traceId =>
+      app.status match {
+        case AppStatus.Provisioning =>
+          for {
+            action <- (cluster.status, nodepool.status) match {
+              case (KubernetesClusterStatus.Provisioning, _) =>
+                for {
+                  dnpOpt <- nodepoolQuery.getDefaultNodepoolForCluster(cluster.id).transaction
+                  dnp <- F.fromOption(dnpOpt,
+                                      MonitorAtBootException(
+                                        s"Default nodepool not found for cluster ${cluster.id} in Provisioning status",
+                                        traceId
+                                      ))
+                } yield Some(ClusterNodepoolAction.CreateClusterAndNodepool(cluster.id, dnp.id, nodepool.id)): Option[
+                  ClusterNodepoolAction
+                ]
+              case (KubernetesClusterStatus.Running, NodepoolStatus.Provisioning) =>
+                F.pure[Option[ClusterNodepoolAction]](Some(ClusterNodepoolAction.CreateNodepool(nodepool.id)))
+              case (KubernetesClusterStatus.Running, NodepoolStatus.Running) =>
+                F.pure[Option[ClusterNodepoolAction]](None)
+              case (cs, ns) =>
+                F.raiseError[Option[ClusterNodepoolAction]](
+                  MonitorAtBootException(
+                    s"Unexpected cluster status [${cs.toString} or nodepool status [${ns.toString}] for app ${app.id} in Provisioning status",
+                    traceId
+                  )
                 )
+            }
+            machineType <- computeService
+              .getMachineType(
+                cluster.googleProject,
+                ZoneName("us-central1-a"),
+                nodepool.machineType
+              ) //TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
+              .flatMap(opt =>
+                F.fromOption(opt,
+                             new LeoException(s"can't find machine config for ${app.appName.value}",
+                                              traceId = Some(traceId)))
               )
-          }
-          machineType <- computeService
-            .getMachineType(
+
+            diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
+            msg = CreateAppMessage(
               cluster.googleProject,
-              ZoneName("us-central1-a"),
-              machineTypeName
-            ) //TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
-            .flatMap(opt =>
-              F.fromOption(opt,
-                           new LeoException(s"can't find machine config for ${ctx.requestUri}",
-                                            traceId = Some(ctx.traceId)))
+              action,
+              app.id,
+              app.appName,
+              diskIdOpt,
+              app.customEnvironmentVariables,
+              app.appType,
+              app.appResources.namespace.name,
+              Some(AppMachineType(machineType.getMemoryMb / 1024, machineType.getGuestCpus)),
+              Some(traceId)
             )
-          machineType <- if (machineType.getMemoryMb < 5000)
-            F.raiseError(BadRequestException("Galaxy needs more memorary configuration", Some(ctx.traceId)))
-          else if (machineType.getGuestCpus < 3)
-            F.raiseError(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId)))
-          else F.pure(AppMachineType(machineType.getMemoryMb, machineType.getGuestCpus))
+          } yield msg
 
-          diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
-          msg = CreateAppMessage(
-            cluster.googleProject,
-            action,
-            app.id,
-            app.appName,
-            diskIdOpt,
-            app.customEnvironmentVariables,
-            app.appType,
-            app.appResources.namespace.name,
-            Some(traceId)
+        case AppStatus.Deleting =>
+          F.pure(
+            DeleteAppMessage(
+              app.id,
+              app.appName,
+              cluster.googleProject,
+              None, // Assume we do not want to delete the disk, since we don't currently persist that information
+              Some(traceId)
+            )
           )
-        } yield msg
 
-      case AppStatus.Deleting =>
-        F.pure(
-          DeleteAppMessage(
-            app.id,
-            app.appName,
-            cluster.googleProject,
-            None, // Assume we do not want to delete the disk, since we don't currently persist that information
-            Some(traceId)
-          )
-        )
-
-      case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", traceId))
-    }
+        case x => F.raiseError(MonitorAtBootException(s"Unexpected status for app ${app.id}: ${x}", traceId))
+      }
+    )
 
   private def runtimeStatusToMessage(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
     runtime.status match {

@@ -95,7 +95,8 @@ trait TestLeoRoutes {
     whitelistAuthProvider,
     serviceAccountProvider,
     Config.leoKubernetesConfig,
-    QueueFactory.makePublisherQueue()
+    QueueFactory.makePublisherQueue(),
+    FakeGoogleComputeService
   )
 
   val underlyingRuntimeDnsCache =

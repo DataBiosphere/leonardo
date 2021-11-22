@@ -231,17 +231,20 @@ object LeoPubsubMessage {
       )
   }
 
-  final case class CreateAppMessage(project: GoogleProject,
-                                    clusterNodepoolAction: Option[ClusterNodepoolAction],
-                                    appId: AppId,
-                                    appName: AppName,
-                                    createDisk: Option[DiskId],
-                                    customEnvironmentVariables: Map[String, String],
-                                    appType: AppType,
-                                    namespaceName: NamespaceName,
-                                    machineType: Option[AppMachineType],
-                                    traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+  final case class CreateAppMessage(
+    project: GoogleProject,
+    clusterNodepoolAction: Option[ClusterNodepoolAction],
+    appId: AppId,
+    appName: AppName,
+    createDisk: Option[DiskId],
+    customEnvironmentVariables: Map[String, String],
+    appType: AppType,
+    namespaceName: NamespaceName,
+    machineType: Option[
+      AppMachineType
+    ], //Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
+    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
 
