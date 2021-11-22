@@ -1246,7 +1246,7 @@ class GKEInterpreter[F[_]](
     val proxyPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
-    val gcsBucket = customEnvironmentVariables.getOrElse("WORKSPACE_BUCKET", "")
+    val gcsBucket = customEnvironmentVariables.getOrElse("WORKSPACE_BUCKET", "<no workspace bucket defined>")
 
     val rewriteTarget = "$2"
     val ingress = List(
