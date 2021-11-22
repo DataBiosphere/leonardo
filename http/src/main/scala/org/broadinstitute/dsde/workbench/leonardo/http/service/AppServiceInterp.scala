@@ -520,11 +520,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](
                        new LeoException(s"can't find machine config for ${ctx.requestUri}",
                                         traceId = Some(ctx.traceId)))
         )
-      machineType <- if (machineType.getMemoryMb < 5000)
+      memoryInGb = machineType.getMemoryMb / 1024
+      machineType <- if (memoryInGb < 5)
         F.raiseError(BadRequestException("Galaxy needs more memorary configuration", Some(ctx.traceId)))
       else if (machineType.getGuestCpus < 3)
         F.raiseError(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId)))
-      else F.pure(AppMachineType(machineType.getMemoryMb, machineType.getGuestCpus))
+      else F.pure(AppMachineType(memoryInGb, machineType.getGuestCpus))
     } yield machineType
 
   private[service] def getSavableApp(googleProject: GoogleProject,

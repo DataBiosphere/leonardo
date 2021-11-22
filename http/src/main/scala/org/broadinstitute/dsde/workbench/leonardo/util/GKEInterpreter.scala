@@ -370,7 +370,7 @@ class GKEInterpreter[F[_]](
             machineType <- F.fromOption(
               params.appMachineType,
               new LeoException(
-                s"can't find machine config for ${googleProject.value}/${app.appName}. This should never happen",
+                s"can't find machine config for ${googleProject.value}/${app.appName.value}. This should never happen",
                 traceId = Some(ctx.traceId)
               )
             )
@@ -1307,7 +1307,7 @@ class GKEInterpreter[F[_]](
     val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
 
     // Machine type info
-    val maxLimitMemory = machineType.memorySizeInMb
+    val maxLimitMemory = machineType.memorySizeInGb
     val maxLimitCpu = machineType.numOfCpus
     val maxRequestMemory = maxLimitMemory - 5000
     val maxRequestCpu = maxLimitCpu - 3

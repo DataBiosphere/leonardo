@@ -4,7 +4,9 @@ import cats.effect.IO
 import cats.Eq
 import cats.syntax.all._
 import cats.effect.std.Queue
+import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
 import org.broadinstitute.dsde.workbench.leonardo.{
+  AppMachineType,
   AppStatus,
   AppType,
   DiskStatus,
@@ -47,6 +49,9 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
           Assertions.fail(s"unexpected messages ${xx}, ${yy}", null)
       }
     )
+
+  // See https://github.com/broadinstitute/workbench-libs/blob/develop/google2/src/test/scala/org/broadinstitute/dsde/workbench/google2/mock/FakeGoogleComputeService.scala#L69
+  val defaultFakeAppMachineType = AppMachineType(7, 0)
 
   it should "recover RuntimeStatus.Stopping properly" in isolatedDbTest {
     val res = for {
@@ -130,6 +135,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Map.empty,
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
+        Some(defaultFakeAppMachineType),
         None
       )
       (msg eqv Some(expected)) shouldBe true
@@ -159,6 +165,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Map.empty,
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
+        Some(defaultFakeAppMachineType),
         None
       )
       (msg eqv Some(expected)) shouldBe true
@@ -188,6 +195,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
         Map.empty,
         AppType.Galaxy,
         savedApp.appResources.namespace.name,
+        Some(defaultFakeAppMachineType),
         None
       )
       (msg eqv Some(expected)) shouldBe true
@@ -229,7 +237,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       disk <- makePersistentDisk(None).copy(status = DiskStatus.Ready).save()
       app = makeApp(1, nodepool.id).copy(status = AppStatus.Running)
       appWithDisk = LeoLenses.appToDisk.set(Some(disk))(app)
-      savedApp <- IO(appWithDisk.save())
+      _ <- IO(appWithDisk.save())
       _ <- monitorAtBoot.process.take(1).compile.drain
       msg <- queue.tryTake
     } yield {
@@ -242,5 +250,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     queue: Queue[IO, LeoPubsubMessage] =
       Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): MonitorAtBoot[IO] =
-    new MonitorAtBoot[IO](queue, org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting)
+    new MonitorAtBoot[IO](queue,
+                          FakeGoogleComputeService,
+                          org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting)
 }

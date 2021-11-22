@@ -723,6 +723,60 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
+          Some(AppMachineType(5, 4)),
+          Some(tr)
+        )
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.handleCreateAppMessage(msg)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle create app message with no AppMachineType if for non galaxy app" in isolatedDbTest {
+    val savedCluster1 = makeKubeCluster(1).save()
+    val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
+    val disk = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Galaxy))
+      .save()
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val makeApp1 = makeApp(1, savedNodepool1.id).copy(appType = AppType.Cromwell)
+    val savedApp1 = makeApp1
+      .copy(appResources =
+        makeApp1.appResources.copy(
+          disk = Some(disk),
+          services = List(makeService(1), makeService(2))
+        )
+      )
+      .save()
+
+    val assertions = for {
+      getAppOpt <- KubernetesServiceDbQueries
+        .getActiveFullAppByName(savedCluster1.googleProject, savedApp1.appName)
+        .transaction
+      getApp = getAppOpt.get
+    } yield {
+      getApp.app.status shouldBe AppStatus.Running
+    }
+
+    val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    val leoSubscriber =
+      makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = makeGKEInterp(nodepoolLock, List(savedApp1.release)))
+
+    val res =
+      for {
+        tr <- traceId.ask[TraceId]
+        dummyNodepool = savedCluster1.nodepools.filter(_.isDefault).head
+        msg = CreateAppMessage(
+          savedCluster1.googleProject,
+          Some(ClusterNodepoolAction.CreateClusterAndNodepool(savedCluster1.id, dummyNodepool.id, savedNodepool1.id)),
+          savedApp1.id,
+          savedApp1.appName,
+          Some(disk.id),
+          Map.empty,
+          AppType.Galaxy,
+          savedApp1.appResources.namespace.name,
           None,
           Some(tr)
         )
@@ -814,7 +868,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
-          None,
+          Some(AppMachineType(5, 4)),
           Some(tr)
         )
         msg2 = CreateAppMessage(
@@ -826,7 +880,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp2.appResources.namespace.name,
-          None,
+          Some(AppMachineType(5, 4)),
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1070,7 +1124,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
-          None,
+          Some(AppMachineType(5, 4)),
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1465,7 +1519,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           savedApp1.appType,
           savedApp1.appResources.namespace.name,
-          None,
+          Some(AppMachineType(5, 4)),
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)

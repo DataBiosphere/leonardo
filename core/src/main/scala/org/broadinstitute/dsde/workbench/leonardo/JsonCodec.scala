@@ -84,7 +84,7 @@ object JsonCodec {
   )(x => GpuConfig.unapply(x).get)
 
   implicit val appMachineTypeEncoder: Encoder[AppMachineType] = Encoder.forProduct2(
-    "memorySizeInMb",
+    "memorySizeInGb",
     "numOfCpus"
   )(x => AppMachineType.unapply(x).get)
 
@@ -373,7 +373,7 @@ object JsonCodec {
   )(GpuConfig.apply)
 
   implicit val appMachineTypeDecoder: Decoder[AppMachineType] = Decoder.forProduct2(
-    "memorySizeInMb",
+    "memorySizeInGb",
     "numOfCpus"
   )(AppMachineType.apply)
 
