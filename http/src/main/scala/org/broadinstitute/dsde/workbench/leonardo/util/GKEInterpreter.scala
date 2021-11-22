@@ -1271,8 +1271,8 @@ class GKEInterpreter[F[_]](
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
       raw"""env.swaggerBasePath=$proxyPath""",
       // cromwellConfig
-      raw"""cromwellConfig.gcsProject=${cluster.googleProject.value}""",
-      raw"""cromwellConfig.gcsBucket=$gcsBucket"""
+      raw"""config.gcsProject=${cluster.googleProject.value}""",
+      raw"""config.gcsBucket=$gcsBucket/cromwell-execution"""
     ) ++ ingress
   }
 
