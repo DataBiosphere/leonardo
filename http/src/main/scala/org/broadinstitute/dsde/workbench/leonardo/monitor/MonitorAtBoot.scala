@@ -9,6 +9,7 @@ import fs2.Stream
 import org.typelevel.log4cats.Logger
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
@@ -17,7 +18,9 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import scala.concurrent.ExecutionContext
 
-class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], errorReporting: ErrorReporting[F])(
+class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
+                          computeService: GoogleComputeService[F],
+                          errorReporting: ErrorReporting[F])(
   implicit F: Async[F],
   dbRef: DbReference[F],
   logger: Logger[F],
@@ -143,6 +146,23 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], errorRepor
                 )
               )
           }
+          machineType <- computeService
+            .getMachineType(
+              cluster.googleProject,
+              ZoneName("us-central1-a"),
+              machineTypeName
+            ) //TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
+            .flatMap(opt =>
+              F.fromOption(opt,
+                           new LeoException(s"can't find machine config for ${ctx.requestUri}",
+                                            traceId = Some(ctx.traceId)))
+            )
+          machineType <- if (machineType.getMemoryMb < 5000)
+            F.raiseError(BadRequestException("Galaxy needs more memorary configuration", Some(ctx.traceId)))
+          else if (machineType.getGuestCpus < 3)
+            F.raiseError(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId)))
+          else F.pure(AppMachineType(machineType.getMemoryMb, machineType.getGuestCpus))
+
           diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
           msg = CreateAppMessage(
             cluster.googleProject,

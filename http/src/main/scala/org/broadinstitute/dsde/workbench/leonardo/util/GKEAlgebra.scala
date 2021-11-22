@@ -10,7 +10,14 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.{
 }
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.config.GalaxyDiskConfig
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppId, AppName, KubernetesClusterLeoId, NodepoolLeoId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  AppId,
+  AppMachineType,
+  AppName,
+  KubernetesClusterLeoId,
+  NodepoolLeoId
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait GKEAlgebra[F[_]] {
@@ -82,7 +89,10 @@ final case class PollClusterParams(clusterId: KubernetesClusterLeoId,
 
 final case class CreateNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
 
-final case class CreateAppParams(appId: AppId, googleProject: GoogleProject, appName: AppName)
+final case class CreateAppParams(appId: AppId,
+                                 googleProject: GoogleProject,
+                                 appName: AppName,
+                                 appMachineType: Option[AppMachineType])
 
 final case class DeleteClusterParams(clusterId: KubernetesClusterLeoId, googleProject: GoogleProject)
 

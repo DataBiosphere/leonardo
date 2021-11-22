@@ -11,7 +11,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import org.apache.commons.lang3.RandomStringUtils
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesName
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, KubernetesName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.leonardo.AppType.{Cromwell, Custom, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -30,16 +30,17 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsp.{ChartVersion, Release}
 import org.typelevel.log4cats.StructuredLogger
+
 import java.time.Instant
 import java.util.UUID
-
 import scala.concurrent.ExecutionContext
 
 final class LeoAppServiceInterp[F[_]: Parallel](
   protected val authProvider: LeoAuthProvider[F],
   protected val serviceAccountProvider: ServiceAccountProvider[F],
   protected val leoKubernetesConfig: LeoKubernetesConfig,
-  protected val publisherQueue: Queue[F, LeoPubsubMessage]
+  protected val publisherQueue: Queue[F, LeoPubsubMessage],
+  computeService: GoogleComputeService[F]
 )(
   implicit F: Async[F],
   log: StructuredLogger[F],
@@ -125,19 +126,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         runtimeServiceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
-      // Fail fast if the Galaxy disk is too small
-      _ <- if (req.appType == AppType.Galaxy) {
-        req.diskConfig.flatMap(_.size).traverse_ { size =>
-          if (size.gb < leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB.gb) {
-            F.raiseError[Unit](
-              BadRequestException(
-                s"Galaxy disk must be at least ${leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB}",
-                Some(ctx.traceId)
-              )
-            )
-          } else F.unit
-        }
-      } else F.unit
+      // Fail fast if the Galaxy disk, memory, number of CPUs is too small
+      appMachineType <- if (req.appType == AppType.Galaxy) {
+        validateGalaxy(googleProject, req.diskConfig.flatMap(_.size), machineConfig.machineType).map(_.some)
+      } else F.pure(None)
 
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
         RuntimeServiceInterp.processPersistentDiskRequest(
@@ -225,6 +217,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         req.customEnvironmentVariables,
         req.appType,
         app.appResources.namespace.name,
+        appMachineType,
         Some(ctx.traceId)
       )
       _ <- publisherQueue.offer(createAppMessage)
@@ -499,6 +492,40 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       false
     )
   }
+
+  private[service] def validateGalaxy(googleProject: GoogleProject,
+                                      diskSize: Option[DiskSize],
+                                      machineTypeName: MachineTypeName)(
+    implicit as: Ask[F, AppContext]
+  ): F[AppMachineType] =
+    for {
+      ctx <- as.ask
+      _ <- diskSize
+        .traverse_ { size =>
+          if (size.gb < leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB.gb) {
+            F.raiseError[Unit](
+              BadRequestException(
+                s"Galaxy disk must be at least ${leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB}",
+                Some(ctx.traceId)
+              )
+            )
+          } else F.unit
+        }
+      machineType <- computeService
+        .getMachineType(googleProject,
+                        ZoneName("us-central1-a"),
+                        machineTypeName) //TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
+        .flatMap(opt =>
+          F.fromOption(opt,
+                       new LeoException(s"can't find machine config for ${ctx.requestUri}",
+                                        traceId = Some(ctx.traceId)))
+        )
+      machineType <- if (machineType.getMemoryMb < 5000)
+        F.raiseError(BadRequestException("Galaxy needs more memorary configuration", Some(ctx.traceId)))
+      else if (machineType.getGuestCpus < 3)
+        F.raiseError(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId)))
+      else F.pure(AppMachineType(machineType.getMemoryMb, machineType.getGuestCpus))
+    } yield machineType
 
   private[service] def getSavableApp(googleProject: GoogleProject,
                                      appName: AppName,

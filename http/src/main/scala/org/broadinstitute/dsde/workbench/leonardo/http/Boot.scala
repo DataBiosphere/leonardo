@@ -167,6 +167,7 @@ object Boot extends IOApp {
         new LeoAppServiceInterp(appDependencies.authProvider,
                                 appDependencies.serviceAccountProvider,
                                 leoKubernetesConfig,
+                                appDependencies.googleDependencies.googleComputeService,
                                 appDependencies.publisherQueue)
 
       val httpRoutes = new HttpRoutes(
@@ -251,7 +252,6 @@ object Boot extends IOApp {
             googleDependencies.credentials,
             googleDependencies.googleIamDAO,
             googleDependencies.googleDiskService,
-            googleDependencies.googleComputeService,
             appDependencies.appDescriptorDAO,
             appDependencies.nodepoolLock
           )
