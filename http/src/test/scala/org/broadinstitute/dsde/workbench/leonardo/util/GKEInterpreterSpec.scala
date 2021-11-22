@@ -53,6 +53,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       credentials,
       googleIamDao,
       MockGoogleDiskService,
+      FakeGoogleComputeService,
       MockAppDescriptorDAO,
       nodepoolLock
     )
@@ -97,6 +98,12 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   it should "build Galaxy override values string" in {
     val savedCluster1 = makeKubeCluster(1)
     val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")), Some(FormattedBy.Galaxy))
+    val machineType =
+      com.google.cloud.compute.v1.MachineType
+        .newBuilder()
+        .setName("fake-machine-type")
+        .setMemoryMb(1024)
+        .setGuestCpus(3)
     val res = gkeInterp.buildGalaxyChartOverrideValuesString(
       AppName("app1"),
       Release("app1-galaxy-rls"),
@@ -212,6 +219,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         credentials,
         googleIamDao,
         MockGoogleDiskService,
+        FakeGoogleComputeService,
         MockAppDescriptorDAO,
         nodepoolLock
       )

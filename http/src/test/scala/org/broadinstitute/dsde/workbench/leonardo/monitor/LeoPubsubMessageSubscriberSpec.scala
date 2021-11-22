@@ -723,6 +723,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
+          None,
           Some(tr)
         )
 
@@ -813,6 +814,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
+          None,
           Some(tr)
         )
         msg2 = CreateAppMessage(
@@ -824,6 +826,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp2.appResources.namespace.name,
+          None,
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -865,6 +868,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
+          None,
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1066,6 +1070,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
+          None,
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1166,6 +1171,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
+          None,
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1230,6 +1236,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
+          None,
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
@@ -1304,6 +1311,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           AppType.Galaxy,
           savedApp1.appResources.namespace.name,
+          None,
           Some(tr)
         )
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
@@ -1457,6 +1465,7 @@ class LeoPubsubMessageSubscriberSpec
           Map.empty,
           savedApp1.appType,
           savedApp1.appResources.namespace.name,
+          None,
           Some(tr)
         )
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)

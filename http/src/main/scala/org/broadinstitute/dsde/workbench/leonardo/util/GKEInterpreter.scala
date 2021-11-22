@@ -27,8 +27,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF,
   DiskName,
   GoogleDiskService,
-  GoogleComputeService,
-  MachineTypeName,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
@@ -61,7 +59,6 @@ class GKEInterpreter[F[_]](
   credentials: GoogleCredentials,
   googleIamDAO: GoogleIamDAO,
   googleDiskService: GoogleDiskService[F],
-  googleComputeService: GoogleComputeService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId]
 )(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
@@ -369,21 +366,30 @@ class GKEInterpreter[F[_]](
       // helm install and wait
       _ <- app.appType match {
         case AppType.Galaxy =>
-          installGalaxy(
-            helmAuthContext,
-            app.appName,
-            app.release,
-            app.chart,
-            dbCluster,
-            dbApp.nodepool.machineType,
-            dbApp.nodepool.nodepoolName,
-            namespaceName,
-            app.auditInfo.creator,
-            app.customEnvironmentVariables,
-            ksaName,
-            nfsDisk,
-            galaxyRestore
-          )
+          for {
+            machineType <- F.fromOption(
+              params.appMachineType,
+              new LeoException(
+                s"can't find machine config for ${googleProject.value}/${app.appName}. This should never happen",
+                traceId = Some(ctx.traceId)
+              )
+            )
+            _ <- installGalaxy(
+              helmAuthContext,
+              app.appName,
+              app.release,
+              app.chart,
+              dbCluster,
+              dbApp.nodepool.nodepoolName,
+              namespaceName,
+              app.auditInfo.creator,
+              app.customEnvironmentVariables,
+              ksaName,
+              nfsDisk,
+              machineType,
+              galaxyRestore
+            )
+          } yield ()
         case AppType.Cromwell =>
           installCromwellApp(
             helmAuthContext,
@@ -896,13 +902,13 @@ class GKEInterpreter[F[_]](
                                   release: Release,
                                   chart: Chart,
                                   dbCluster: KubernetesCluster,
-                                  machineType: MachineTypeName,
                                   nodepoolName: NodepoolName,
                                   namespaceName: NamespaceName,
                                   userEmail: WorkbenchEmail,
                                   customEnvironmentVariables: Map[String, String],
                                   kubernetesServiceAccount: ServiceAccountName,
                                   nfsDisk: PersistentDisk,
+                                  machineType: AppMachineType,
                                   galaxyRestore: Option[GalaxyRestore])(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -925,7 +931,6 @@ class GKEInterpreter[F[_]](
         appName,
         release,
         dbCluster,
-        machineType,
         nodepoolName,
         userEmail,
         customEnvironmentVariables,
@@ -933,6 +938,7 @@ class GKEInterpreter[F[_]](
         namespaceName,
         nfsDisk,
         postgresDiskName,
+        machineType,
         galaxyRestore
       )
 
@@ -1285,7 +1291,6 @@ class GKEInterpreter[F[_]](
   private[util] def buildGalaxyChartOverrideValuesString(appName: AppName,
                                                          release: Release,
                                                          cluster: KubernetesCluster,
-                                                         machineType: MachineTypeName,
                                                          nodepoolName: NodepoolName,
                                                          userEmail: WorkbenchEmail,
                                                          customEnvironmentVariables: Map[String, String],
@@ -1293,6 +1298,7 @@ class GKEInterpreter[F[_]](
                                                          namespaceName: NamespaceName,
                                                          nfsDisk: PersistentDisk,
                                                          postgresDiskName: DiskName,
+                                                         machineType: AppMachineType,
                                                          galaxyRestore: Option[GalaxyRestore]): List[String] = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
@@ -1301,9 +1307,8 @@ class GKEInterpreter[F[_]](
     val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
 
     // Machine type info
-    val mType = googleComputeService.getMachineType(cluster.googleProject, cluster.location, machineType)
-    val maxLimitMemory = mType.getMemoryMb
-    val maxLimitCpu = mType.getGuestCpus
+    val maxLimitMemory = machineType.memorySizeInMb
+    val maxLimitCpu = machineType.numOfCpus
     val maxRequestMemory = maxLimitMemory - 5000
     val maxRequestCpu = maxLimitCpu - 3
 
