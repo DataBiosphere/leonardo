@@ -1289,11 +1289,10 @@ class GKEInterpreter[F[_]](
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
     val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
     val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
-
     // Machine type info
     val maxLimitMemory = machineType.memorySizeInGb
     val maxLimitCpu = machineType.numOfCpus
-    val maxRequestMemory = maxLimitMemory - 5000
+    val maxRequestMemory = maxLimitMemory - 5
     val maxRequestCpu = maxLimitCpu - 3
 
     // Custom EV configs
