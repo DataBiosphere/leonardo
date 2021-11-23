@@ -596,7 +596,9 @@ object Config {
       config.as[Boolean]("uninstallKeepHistory"),
       config.as[DbPassword]("postgres.password"),
       config.as[GalaxyOrchUrl]("orchUrl"),
-      config.as[GalaxyDrsUrl]("drsUrl")
+      config.as[GalaxyDrsUrl]("drsUrl"),
+      config.as[Int]("minMemoryGb"),
+      config.as[Int]("minNumOfCpus")
     )
   }
 

@@ -93,7 +93,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       error1 <- notEnoughMemoryAppService.validateGalaxy(project, None, MachineTypeName("fake")).attempt
       error2 <- notEnoughCpuAppService.validateGalaxy(project, None, MachineTypeName("fake")).attempt
     } yield {
-      error1 shouldBe (Left(BadRequestException("Galaxy needs more memorary configuration", Some(ctx.traceId))))
+      error1 shouldBe (Left(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId))))
       error2 shouldBe (Left(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId))))
     }
   }

@@ -517,13 +517,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](
                         machineTypeName) //TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
         .flatMap(opt =>
           F.fromOption(opt,
-                       new LeoException(s"can't find machine config for ${ctx.requestUri}",
+                       new LeoException(s"Unknown machine type for ${machineTypeName.value}",
                                         traceId = Some(ctx.traceId)))
         )
       memoryInGb = machineType.getMemoryMb / 1024
-      machineType <- if (memoryInGb < 5)
-        F.raiseError(BadRequestException("Galaxy needs more memorary configuration", Some(ctx.traceId)))
-      else if (machineType.getGuestCpus < 3)
+      machineType <- if (memoryInGb < leoKubernetesConfig.galaxyAppConfig.minMemoryGb)
+        F.raiseError(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId)))
+      else if (machineType.getGuestCpus < leoKubernetesConfig.galaxyAppConfig.minNumOfCpus)
         F.raiseError(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId)))
       else F.pure(AppMachineType(memoryInGb, machineType.getGuestCpus))
     } yield machineType
