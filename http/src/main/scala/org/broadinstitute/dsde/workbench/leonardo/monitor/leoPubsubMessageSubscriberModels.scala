@@ -231,16 +231,20 @@ object LeoPubsubMessage {
       )
   }
 
-  final case class CreateAppMessage(project: GoogleProject,
-                                    clusterNodepoolAction: Option[ClusterNodepoolAction],
-                                    appId: AppId,
-                                    appName: AppName,
-                                    createDisk: Option[DiskId],
-                                    customEnvironmentVariables: Map[String, String],
-                                    appType: AppType,
-                                    namespaceName: NamespaceName,
-                                    traceId: Option[TraceId])
-      extends LeoPubsubMessage {
+  final case class CreateAppMessage(
+    project: GoogleProject,
+    clusterNodepoolAction: Option[ClusterNodepoolAction],
+    appId: AppId,
+    appName: AppName,
+    createDisk: Option[DiskId],
+    customEnvironmentVariables: Map[String, String],
+    appType: AppType,
+    namespaceName: NamespaceName,
+    machineType: Option[
+      AppMachineType
+    ], //Currently only galaxy is using this info, but potentially other apps might take advantage of this info too
+    traceId: Option[TraceId]
+  ) extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateApp
   }
 
@@ -422,16 +426,17 @@ object LeoPubsubCodec {
     } yield value
   }
 
-  implicit val createAppDecoder: Decoder[CreateAppMessage] =
-    Decoder.forProduct9("project",
-                        "clusterNodepoolAction",
-                        "appId",
-                        "appName",
-                        "createDisk",
-                        "customEnvironmentVariables",
-                        "appType",
-                        "namespaceName",
-                        "traceId")(CreateAppMessage.apply)
+  implicit val createAppMessageDecoder: Decoder[CreateAppMessage] =
+    Decoder.forProduct10("project",
+                         "clusterNodepoolAction",
+                         "appId",
+                         "appName",
+                         "createDisk",
+                         "customEnvironmentVariables",
+                         "appType",
+                         "namespaceName",
+                         "machineType",
+                         "traceId")(CreateAppMessage.apply)
 
   implicit val deleteAppDecoder: Decoder[DeleteAppMessage] =
     Decoder.forProduct5("appId", "appName", "project", "diskId", "traceId")(DeleteAppMessage.apply)
@@ -719,7 +724,7 @@ object LeoPubsubCodec {
     }
 
   implicit val createAppMessageEncoder: Encoder[CreateAppMessage] =
-    Encoder.forProduct10(
+    Encoder.forProduct11(
       "messageType",
       "project",
       "clusterNodepoolAction",
@@ -729,6 +734,7 @@ object LeoPubsubCodec {
       "customEnvironmentVariables",
       "appType",
       "namespaceName",
+      "machineType",
       "traceId"
     )(x =>
       (x.messageType,
@@ -740,6 +746,7 @@ object LeoPubsubCodec {
        x.customEnvironmentVariables,
        x.appType,
        x.namespaceName,
+       x.machineType,
        x.traceId)
     )
 

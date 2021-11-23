@@ -366,20 +366,30 @@ class GKEInterpreter[F[_]](
       // helm install and wait
       _ <- app.appType match {
         case AppType.Galaxy =>
-          installGalaxy(
-            helmAuthContext,
-            app.appName,
-            app.release,
-            app.chart,
-            dbCluster,
-            dbApp.nodepool.nodepoolName,
-            namespaceName,
-            app.auditInfo.creator,
-            app.customEnvironmentVariables,
-            ksaName,
-            nfsDisk,
-            galaxyRestore
-          )
+          for {
+            machineType <- F.fromOption(
+              params.appMachineType,
+              new LeoException(
+                s"can't find machine config for ${googleProject.value}/${app.appName.value}. This should never happen",
+                traceId = Some(ctx.traceId)
+              )
+            )
+            _ <- installGalaxy(
+              helmAuthContext,
+              app.appName,
+              app.release,
+              app.chart,
+              dbCluster,
+              dbApp.nodepool.nodepoolName,
+              namespaceName,
+              app.auditInfo.creator,
+              app.customEnvironmentVariables,
+              ksaName,
+              nfsDisk,
+              machineType,
+              galaxyRestore
+            )
+          } yield ()
         case AppType.Cromwell =>
           installCromwellApp(
             helmAuthContext,
@@ -898,6 +908,7 @@ class GKEInterpreter[F[_]](
                                   customEnvironmentVariables: Map[String, String],
                                   kubernetesServiceAccount: ServiceAccountName,
                                   nfsDisk: PersistentDisk,
+                                  machineType: AppMachineType,
                                   galaxyRestore: Option[GalaxyRestore])(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
@@ -927,6 +938,7 @@ class GKEInterpreter[F[_]](
         namespaceName,
         nfsDisk,
         postgresDiskName,
+        machineType,
         galaxyRestore
       )
 
@@ -1286,12 +1298,18 @@ class GKEInterpreter[F[_]](
                                                          namespaceName: NamespaceName,
                                                          nfsDisk: PersistentDisk,
                                                          postgresDiskName: DiskName,
+                                                         machineType: AppMachineType,
                                                          galaxyRestore: Option[GalaxyRestore]): List[String] = {
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
     val ingressPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/galaxy"
     val workspaceName = customEnvironmentVariables.getOrElse("WORKSPACE_NAME", "")
     val workspaceNamespace = customEnvironmentVariables.getOrElse("WORKSPACE_NAMESPACE", "")
+    // Machine type info
+    val maxLimitMemory = machineType.memorySizeInGb
+    val maxLimitCpu = machineType.numOfCpus
+    val maxRequestMemory = maxLimitMemory - 5
+    val maxRequestCpu = maxLimitCpu - 3
 
     // Custom EV configs
     val configs = customEnvironmentVariables.toList.zipWithIndex.flatMap {
@@ -1340,18 +1358,13 @@ class GKEInterpreter[F[_]](
       raw"""galaxy.configs.galaxy\.yml.galaxy.admin_users=${userEmail.value}""",
       raw"""galaxy.terra.launch.workspace=${workspaceName}""",
       raw"""galaxy.terra.launch.namespace=${workspaceNamespace}""",
-      // Note most of the below file_sources configs are specified in galaxykubeman,
-      // but helm can't update 1 item in a list if the value is an object.
-      // See https://github.com/helm/helm/issues/7569
-      raw"""galaxy.configs.file_sources_conf\.yml[0].api_url=${config.galaxyAppConfig.orchUrl.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].drs_url=${config.galaxyAppConfig.drsUrl.value}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].doc=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].id=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].workspace=${workspaceName}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].namespace=${workspaceNamespace}""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].type=anvil""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].on_anvil=True""",
-      raw"""galaxy.configs.file_sources_conf\.yml[0].writable=True""",
+      raw"""galaxy.terra.launch.apiURL=${config.galaxyAppConfig.orchUrl.value}""",
+      raw"""galaxy.terra.launch.drsURL=${config.galaxyAppConfig.drsUrl.value}""",
+      // Set Machine Type specs
+      raw"""galaxy.jobs.maxLimits.memory=${maxLimitMemory}""",
+      raw"""galaxy.jobs.maxLimits.cpu=${maxLimitCpu}""",
+      raw"""galaxy.jobs.maxRequests.memory=${maxRequestMemory}""",
+      raw"""galaxy.jobs.maxRequests.cpu=${maxRequestCpu}""",
       // RBAC configs
       raw"""galaxy.serviceAccount.create=false""",
       raw"""galaxy.serviceAccount.name=${ksa.value}""",

@@ -167,7 +167,8 @@ object Boot extends IOApp {
         new LeoAppServiceInterp(appDependencies.authProvider,
                                 appDependencies.serviceAccountProvider,
                                 leoKubernetesConfig,
-                                appDependencies.publisherQueue)
+                                appDependencies.publisherQueue,
+                                appDependencies.googleDependencies.googleComputeService)
 
       val httpRoutes = new HttpRoutes(
         swaggerConfig,
@@ -234,7 +235,9 @@ object Boot extends IOApp {
           implicit val cloudServiceRuntimeMonitor: RuntimeMonitor[IO, CloudService] =
             new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
 
-          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.errorReporting)
+          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue,
+                                                    googleDependencies.googleComputeService,
+                                                    googleDependencies.errorReporting)
 
           val googleDiskService = googleDependencies.googleDiskService
 

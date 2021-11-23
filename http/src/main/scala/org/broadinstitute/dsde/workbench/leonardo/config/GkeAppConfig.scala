@@ -33,7 +33,9 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  uninstallKeepHistory: Boolean,
                                  postgresPassword: DbPassword,
                                  orchUrl: GalaxyOrchUrl,
-                                 drsUrl: GalaxyDrsUrl)
+                                 drsUrl: GalaxyDrsUrl,
+                                 minMemoryGb: Int,
+                                 minNumOfCpus: Int)
     extends GkeAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }

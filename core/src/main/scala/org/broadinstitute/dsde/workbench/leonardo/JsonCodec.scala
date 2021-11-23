@@ -83,6 +83,11 @@ object JsonCodec {
     "numOfGpus"
   )(x => GpuConfig.unapply(x).get)
 
+  implicit val appMachineTypeEncoder: Encoder[AppMachineType] = Encoder.forProduct2(
+    "memorySizeInGb",
+    "numOfCpus"
+  )(x => AppMachineType.unapply(x).get)
+
   implicit val dataprocConfigEncoder: Encoder[RuntimeConfig.DataprocConfig] = Encoder.forProduct11(
     "numberOfWorkers",
     "masterMachineType",
@@ -366,6 +371,11 @@ object JsonCodec {
     "gpuType",
     "numOfGpus"
   )(GpuConfig.apply)
+
+  implicit val appMachineTypeDecoder: Decoder[AppMachineType] = Decoder.forProduct2(
+    "memorySizeInGb",
+    "numOfCpus"
+  )(AppMachineType.apply)
 
   implicit val gceWithPdConfigDecoder: Decoder[RuntimeConfig.GceWithPdConfig] = Decoder.forProduct5(
     "machineType",
