@@ -388,7 +388,8 @@ class GKEInterpreter[F[_]](
             dbCluster,
             dbApp.nodepool.nodepoolName,
             namespaceName,
-            nfsDisk
+            nfsDisk,
+            app.customEnvironmentVariables
           )
         case AppType.Custom =>
           installCustomApp(
@@ -972,13 +973,16 @@ class GKEInterpreter[F[_]](
 
     } yield ()
 
-  private[util] def installCromwellApp(helmAuthContext: AuthContext,
-                                       appName: AppName,
-                                       release: Release,
-                                       cluster: KubernetesCluster,
-                                       nodepoolName: NodepoolName,
-                                       namespaceName: NamespaceName,
-                                       disk: PersistentDisk)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+  private[util] def installCromwellApp(
+    helmAuthContext: AuthContext,
+    appName: AppName,
+    release: Release,
+    cluster: KubernetesCluster,
+    nodepoolName: NodepoolName,
+    namespaceName: NamespaceName,
+    disk: PersistentDisk,
+    customEnvironmentVariables: Map[String, String]
+  )(implicit ev: Ask[F, AppContext]): F[Unit] = {
     // TODO: Use the chart from the database instead of re-looking it up in config:
     val chart = config.cromwellAppConfig.chart
 
@@ -989,7 +993,12 @@ class GKEInterpreter[F[_]](
         s"Installing helm chart for Cromwell app ${appName.value} in cluster ${cluster.getGkeClusterId.toString}"
       )
 
-      chartValues = buildCromwellAppChartOverrideValuesString(appName, cluster, nodepoolName, namespaceName, disk)
+      chartValues = buildCromwellAppChartOverrideValuesString(appName,
+                                                              cluster,
+                                                              nodepoolName,
+                                                              namespaceName,
+                                                              disk,
+                                                              customEnvironmentVariables)
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
       // Invoke helm
@@ -1226,14 +1235,18 @@ class GKEInterpreter[F[_]](
     )
   }
 
-  private[util] def buildCromwellAppChartOverrideValuesString(appName: AppName,
-                                                              cluster: KubernetesCluster,
-                                                              nodepoolName: NodepoolName,
-                                                              namespaceName: NamespaceName,
-                                                              disk: PersistentDisk): List[String] = {
+  private[util] def buildCromwellAppChartOverrideValuesString(
+    appName: AppName,
+    cluster: KubernetesCluster,
+    nodepoolName: NodepoolName,
+    namespaceName: NamespaceName,
+    disk: PersistentDisk,
+    customEnvironmentVariables: Map[String, String]
+  ): List[String] = {
     val proxyPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
     val k8sProxyHost = kubernetesProxyHost(cluster, config.proxyConfig.proxyDomain).address
     val leoProxyhost = config.proxyConfig.getProxyServerHostName
+    val gcsBucket = customEnvironmentVariables.getOrElse("WORKSPACE_BUCKET", "<no workspace bucket defined>")
 
     val rewriteTarget = "$2"
     val ingress = List(
@@ -1256,7 +1269,10 @@ class GKEInterpreter[F[_]](
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      raw"""env.swaggerBasePath=$proxyPath"""
+      raw"""env.swaggerBasePath=$proxyPath""",
+      // cromwellConfig
+      raw"""config.gcsProject=${cluster.googleProject.value}""",
+      raw"""config.gcsBucket=$gcsBucket/cromwell-execution"""
     ) ++ ingress
   }
 
