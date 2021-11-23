@@ -10,15 +10,9 @@ import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
 import fs2.io.file.Files
-import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthy
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
 import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  InvalidMonitorRequest,
-  MonitorAtBootException,
-  RuntimeConfigInCreateRuntimeMessage,
-  RuntimeMonitor
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimeConfigInCreateRuntimeMessage, RuntimeMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.util.CloudServiceOps
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
@@ -106,15 +100,6 @@ package object http {
     from: RuntimeConfigInCreateRuntimeMessage.DataprocConfig
   ): RuntimeConfig.DataprocConfig =
     genericDataprocRuntimeConfig.from(genericDataprocRuntimeConfigInCreateRuntimeMessage.to(from))
-
-  implicit val throwableReportWorthy: ReportWorthy[Throwable] = e =>
-    e match {
-      case _: SQLDataException             => true
-      case _: InvalidMonitorRequest        => true
-      case _: MonitorAtBootException       => true
-      case _: model.LeoInternalServerError => true
-      case _                               => false
-    }
 }
 
 final case class CloudServiceMonitorOps[F[_], A](a: A)(

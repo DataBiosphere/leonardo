@@ -22,7 +22,6 @@ object Dependencies {
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.23-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.2-$workbenchLibsHash"
-  val workbenchErrorReportingV = s"0.2-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.4"
 
@@ -110,8 +109,6 @@ object Dependencies {
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
-  val workbenchErrorReporting: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV
-  val workbenchErrorReportingTest: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV % Test classifier "tests"
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
   val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
@@ -170,8 +167,6 @@ object Dependencies {
     hikariCP,
     workbenchGoogle,
     workbenchGoogleTest,
-    workbenchErrorReporting,
-    workbenchErrorReportingTest,
     "com.rms.miu" %% "slick-cats" % "0.10.4",
     googleCloudNio,
     mysql,

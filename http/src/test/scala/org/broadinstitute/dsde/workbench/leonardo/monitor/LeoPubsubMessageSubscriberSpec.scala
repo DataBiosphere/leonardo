@@ -1640,8 +1640,7 @@ class LeoPubsubMessageSubscriberSpec
       diskInterp,
       computePollOperation,
       MockAuthProvider,
-      gkeAlgebra,
-      org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting
+      gkeAlgebra
     )
   }
 
