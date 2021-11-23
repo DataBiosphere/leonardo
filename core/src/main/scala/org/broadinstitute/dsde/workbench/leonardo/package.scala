@@ -4,6 +4,7 @@ import cats.Applicative
 import cats.effect.Sync
 import cats.mtl.Ask
 import cats.syntax.all._
+import org.broadinstitute.dsde.workbench.google2.RegionName
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.typelevel.ci._
 
@@ -39,4 +40,33 @@ package object leonardo {
           s"Invalid name ${nameString}. Only lowercase alphanumeric characters, numbers and dashes are allowed in leo names"
         )
     }
+
+  val allSupportedRegions = List(
+    RegionName("us-central1"),
+    RegionName("northamerica-northeast1"),
+    RegionName("southamerica-east1"),
+    RegionName("us-east1"),
+    RegionName("us-east4"),
+    RegionName("us-west1"),
+    RegionName("us-west2"),
+    RegionName("us-west3"),
+    RegionName("us-west4"),
+    RegionName("europe-central2"),
+    RegionName("europe-north1"),
+    RegionName("europe-west1"),
+    RegionName("europe-west2"),
+    RegionName("europe-west3"),
+    RegionName("europe-west4"),
+    RegionName("europe-west6"),
+    RegionName("asia-east1"),
+    RegionName("asia-east2"),
+    RegionName("asia-northeast1"),
+    RegionName("asia-northeast2"),
+    RegionName("asia-northeast3"),
+    RegionName("asia-south1"),
+    RegionName("asia-southeast1"),
+    RegionName("asia-southeast2"),
+    RegionName("australia-southeast1"),
+    RegionName("northamerica-northeast2")
+  )
 }
