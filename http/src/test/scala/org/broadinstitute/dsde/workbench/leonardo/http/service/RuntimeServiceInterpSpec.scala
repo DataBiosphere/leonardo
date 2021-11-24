@@ -41,6 +41,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, Wo
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 import java.nio.file.Paths
 import scala.concurrent.duration._
@@ -77,10 +78,6 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     None,
     Set.empty,
     Map.empty
-  )
-
-  implicit val ctx: Ask[IO, AppContext] = Ask.const[IO, AppContext](
-    AppContext(model.TraceId("traceId"), Instant.now())
   )
 
   it should "fail with AuthorizationError if user doesn't have project level permission" in {
@@ -172,7 +169,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       r <- runtimeService
         .createRuntime(
           userInfo,
@@ -300,7 +297,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
     val res = for {
       _ <- publisherQueue.tryTake
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       _ <- runtimeService
         .createRuntime(
           userInfo,
@@ -373,7 +370,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
     val res = for {
       _ <- publisherQueue.tryTake
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       _ <- runtimeService
         .createRuntime(
           userInfo,
@@ -548,7 +545,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
 
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       r <- runtimeService
         .createRuntime(
           userInfo,
@@ -1615,7 +1612,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   "RuntimeServiceInterp.processDiskConfigRequest" should "process a create disk request" in isolatedDbTest {
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       diskResult <- RuntimeServiceInterp.processPersistentDiskRequest(
         req,
         zone,
@@ -1658,7 +1655,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   it should "reject a request if requested PD's zone is different from target zone" in isolatedDbTest {
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
     val res = for {
-      context <- ctx.ask[AppContext]
+      context <- appContext.ask[AppContext]
       _ <- makePersistentDisk(Some(req.name), Some(FormattedBy.GCE), None, Some(zone), Some(project)).save()
       // save a PD with default zone
       targetZone = ZoneName("europe-west2-c")
@@ -1714,7 +1711,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "return existing disk if a disk with the same name already exists" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       disk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, Map("foo" -> "bar"))
       returnedDisk <- RuntimeServiceInterp
@@ -1760,7 +1757,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       savedDisk <- makePersistentDisk(None).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
@@ -1793,7 +1790,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "fail to process a disk reference when the disk is already formatted by another app" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       gceDisk <- makePersistentDisk(Some(DiskName("gceDisk")), Some(FormattedBy.GCE)).save()
       req = PersistentDiskRequest(gceDisk.name, Some(gceDisk.size), Some(gceDisk.diskType), gceDisk.labels)
       formatGceDiskError <- RuntimeServiceInterp

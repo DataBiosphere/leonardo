@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpec
-
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {

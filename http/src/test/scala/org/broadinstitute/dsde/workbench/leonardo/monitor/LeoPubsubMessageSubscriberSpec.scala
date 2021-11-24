@@ -69,6 +69,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Left, Random}
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))

@@ -10,7 +10,7 @@ import org.scalatest.matchers.should.Matchers
 import org.http4s.client.Client
 import org.http4s._
 import org.http4s.blaze.client.BlazeClientBuilder
-
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import scala.concurrent.ExecutionContext.global
 
 class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
