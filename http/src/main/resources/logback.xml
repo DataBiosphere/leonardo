@@ -5,6 +5,7 @@
             <fieldNames>
                 <level>severity</level>
             </fieldNames>
+            <includeMdcKeyName>serviceContext</includeMdcKeyName>
         </encoder>
     </appender>
 
