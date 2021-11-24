@@ -20,7 +20,7 @@ set -e -x
 terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.2"
 terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.0.2"
 terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.0.2"
-terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.3"
+terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.2"
 terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.0.4"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.3"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:76263d2"
@@ -142,7 +142,17 @@ log 'Installing Docker...'
 retry 5 add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable"
 retry 5 apt-get update
 
-echo "Checking docker version `docker --version`"
+rm -rf /var/lib/docker
+mkdir -p /etc/docker
+touch /etc/docker/daemon.json
+cat > /etc/docker/daemon.json <<EOF
+{
+  "storage-driver": "devicemapper",
+  "storage-opts": [
+     "dm.basesize=60G"
+  ]
+}
+EOF
 
 dpkg --configure -a
 # This line fails consistently, but it does not fail in a fatal way so we add `|| true` to prevent the script from halting execution
