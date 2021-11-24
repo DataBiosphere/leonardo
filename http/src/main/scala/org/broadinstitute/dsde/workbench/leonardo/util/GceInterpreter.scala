@@ -27,7 +27,7 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
-
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 

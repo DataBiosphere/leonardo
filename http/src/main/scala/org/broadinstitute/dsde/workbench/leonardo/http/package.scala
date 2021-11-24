@@ -1,9 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import akka.http.scaladsl.model.Uri.Host
+import cats.Applicative
 import cats.effect.{Resource, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
+import io.circe.syntax._
+import io.circe.Encoder
 import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
@@ -25,6 +28,8 @@ import slick.dbio.DBIO
 
 import java.nio.file.Path
 import java.sql.SQLDataException
+import java.time.Instant
+import java.util.UUID
 
 package object http {
   val includeDeletedKey = "includeDeleted"
@@ -35,6 +40,19 @@ package object http {
   implicit val errorReportSource = ErrorReportSource("leonardo")
   implicit def dbioToIO[A](dbio: DBIO[A]): DBIOOps[A] = new DBIOOps(dbio)
   implicit def cloudServiceOps(cloudService: CloudService): CloudServiceOps = new CloudServiceOps(cloudService)
+  implicit val serviceDataEncoder: Encoder[ServiceData] = Encoder.forProduct2(
+    "service",
+    "version"
+  )(x => (x.name, x.version))
+  // converts an Ask[F, RuntimeServiceContext] to an  Ask[F, TraceId]
+  // (you'd think Ask would have a `map` function)
+  implicit def ctxConversion[F[_]: Applicative](
+    implicit as: Ask[F, AppContext]
+  ): Ask[F, TraceId] =
+    new Ask[F, TraceId] {
+      override def applicative: Applicative[F] = as.applicative
+      override def ask[E2 >: TraceId]: F[E2] = as.ask.map(_.traceId)
+    }
 
   val serviceData = ServiceData(Some("leonardo"), BuildTimeVersion.version)
   def readFileToString[F[_]: Sync: Files](path: Path): F[String] =
@@ -112,4 +130,30 @@ final case class CloudServiceMonitorOps[F[_], A](a: A)(
                 operation: com.google.cloud.compute.v1.Operation,
                 action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
     monitor.pollCheck(a)(googleProject, runtimeAndRuntimeConfig, operation, action)
+}
+
+final case class AppContext(traceId: TraceId, now: Instant, requestUri: String = "", span: Option[Span] = None) {
+  override def toString: String = s"${traceId.asString}"
+
+  import org.broadinstitute.dsde.workbench.leonardo.http.serviceDataEncoder
+  val loggingCtx = Map("traceId" -> traceId.asString,
+                       "serviceContext" -> org.broadinstitute.dsde.workbench.leonardo.http.serviceData.asJson.noSpaces)
+}
+
+object AppContext {
+  def generate[F[_]: Sync](span: Option[Span] = None, requestUri: String): F[AppContext] =
+    for {
+      traceId <- span.fold(Sync[F].delay(UUID.randomUUID().toString))(s =>
+        Sync[F].pure(s.getContext.getTraceId.toLowerBase16())
+      )
+      now <- Sync[F].realTimeInstant
+    } yield AppContext(TraceId(traceId), now, requestUri, span)
+
+  def lift[F[_]: Sync](span: Option[Span] = None, requestUri: String): F[Ask[F, AppContext]] =
+    for {
+      context <- AppContext.generate[F](span, requestUri)
+    } yield Ask.const[F, AppContext](
+      context
+    )
+
 }

@@ -20,7 +20,9 @@ import scala.concurrent.duration._
 trait LeonardoTestSuite extends Matchers {
   implicit val metrics = FakeOpenTelemetryMetricsInterpreter
   implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
-  implicit val appContext = AppContext.lift[IO](None, "").unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  implicit val appContext = AppContext
+    .lift[IO](None, "")
+    .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   def ioAssertion(test: => IO[Assertion]): Assertion = test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 

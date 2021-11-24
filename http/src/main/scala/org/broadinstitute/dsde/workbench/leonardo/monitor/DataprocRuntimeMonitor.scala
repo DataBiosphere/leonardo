@@ -32,6 +32,7 @@ import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
 class DataprocRuntimeMonitor[F[_]: Parallel](
   config: DataprocMonitorConfig,

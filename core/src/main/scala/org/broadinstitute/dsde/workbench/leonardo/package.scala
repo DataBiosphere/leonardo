@@ -1,11 +1,7 @@
 package org.broadinstitute.dsde.workbench
 
-import cats.Applicative
 import cats.effect.Sync
-import cats.mtl.Ask
-import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.RegionName
-import org.broadinstitute.dsde.workbench.model.TraceId
 import org.typelevel.ci._
 
 import java.time.Instant
@@ -19,16 +15,6 @@ package object leonardo {
   // convenience to get now as a F[Instant] using a Timer
   def nowInstant[F[_]: Sync]: F[Instant] =
     Sync[F].realTimeInstant
-
-  // converts an Ask[F, RuntimeServiceContext] to an  Ask[F, TraceId]
-  // (you'd think Ask would have a `map` function)
-  implicit def ctxConversion[F[_]: Applicative](
-    implicit as: Ask[F, AppContext]
-  ): Ask[F, TraceId] =
-    new Ask[F, TraceId] {
-      override def applicative: Applicative[F] = as.applicative
-      override def ask[E2 >: TraceId]: F[E2] = as.ask.map(_.traceId)
-    }
 
   private val leoNameReg = "([a-z|0-9|-])*".r
 
