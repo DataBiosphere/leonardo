@@ -4,29 +4,25 @@ package api
 import akka.actor.ActorSystem
 import akka.event.Logging.LogLevel
 import akka.event.{Logging, LoggingAdapter}
-import akka.http.scaladsl.model.{HttpCharsets, HttpEntity, HttpRequest, HttpResponse, StatusCode, StatusCodes}
+import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult.Complete
 import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
-import akka.http.scaladsl.server.{Directive0, ExceptionHandler, RejectionHandler, Route, ValidationRejection}
+import akka.http.scaladsl.server._
 import akka.stream.scaladsl.Sink
 import cats.effect.IO
-import com.typesafe.scalalogging.LazyLogging
-import io.circe.Encoder
-import org.broadinstitute.dsde.workbench.leonardo.config.{RefererConfig, SwaggerConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AppService,
-  DiskService,
-  ProxyService,
-  RuntimeService,
-  StatusService
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
+import cats.effect.unsafe.implicits.global
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import io.circe.Encoder
+import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
+import org.broadinstitute.dsde.workbench.leonardo.config.{RefererConfig, SwaggerConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes.errorReportEncoder
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
+import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
+import org.typelevel.log4cats.StructuredLogger
+import io.circe.syntax._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -40,8 +36,7 @@ class HttpRoutes(
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String,
   refererConfig: RefererConfig
-)(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO])
-    extends LazyLogging {
+)(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)
@@ -76,12 +71,16 @@ class HttpRoutes(
   }
 
   implicit val myExceptionHandler = {
+    val loggingCtx = Map(
+      "serviceContext" -> org.broadinstitute.dsde.workbench.leonardo.http.serviceData.asJson.noSpaces
+    )
+
     ExceptionHandler {
       case leoException: LeoException =>
-        logger.error(s"request failed due to: ${leoException.getMessage}", leoException)
+        logger.error(loggingCtx, leoException)(s"request failed due to: ${leoException.getMessage}").unsafeToFuture()
         complete(leoException.statusCode, leoException.toErrorReport)
       case e: Throwable =>
-        logger.error(s"Unexpected error occurred processing route: ${e.getMessage}", e)
+        logger.error(loggingCtx, e)(s"Unexpected error occurred processing route: ${e.getMessage}").unsafeToFuture()
         complete(
           StatusCodes.InternalServerError -> ErrorReport(e.getMessage,
                                                          Some(StatusCodes.InternalServerError),
