@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{Config, LiquibaseConfi
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.{
   App,
+  AppContext,
   CommonTestData,
   DefaultNodepool,
   GcsPathUtils,

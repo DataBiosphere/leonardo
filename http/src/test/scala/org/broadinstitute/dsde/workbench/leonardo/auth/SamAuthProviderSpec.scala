@@ -20,6 +20,8 @@ import scalacache.caffeine.CaffeineCache
 
 import scala.jdk.CollectionConverters._
 import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter {
   val samAuthProviderConfigWithoutCache: SamAuthProviderConfig = SamAuthProviderConfig(false)

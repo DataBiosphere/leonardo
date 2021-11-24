@@ -29,7 +29,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 

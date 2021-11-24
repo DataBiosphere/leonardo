@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
-
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 

@@ -16,7 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{Allowed, Config, Firew
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpecLike
-
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import scala.jdk.CollectionConverters._
 
 class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {

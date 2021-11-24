@@ -19,6 +19,8 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine.CaffeineCache
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 import java.nio.file.Paths
 import scala.concurrent.duration._

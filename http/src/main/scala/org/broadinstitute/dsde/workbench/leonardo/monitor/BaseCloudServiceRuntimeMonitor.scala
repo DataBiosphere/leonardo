@@ -24,7 +24,7 @@ import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
-
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 

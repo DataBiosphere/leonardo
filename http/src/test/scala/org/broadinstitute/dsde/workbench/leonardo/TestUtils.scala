@@ -10,6 +10,10 @@ import org.scalactic.Equality
 import org.scalatest.matchers.should.Matchers
 
 object TestUtils extends Matchers {
+  implicit val appContext = AppContext
+    .lift[IO](None, "")
+    .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
   // When in scope, Equality instances override Scalatest's default equality ignoring the id field
   // while comparing clusters as we typically don't care about the database assigned id field
   // http://www.scalactic.org/user_guide/CustomEquality
