@@ -1,11 +1,33 @@
 <configuration>
 
     <appender name="console" class="ch.qos.logback.core.ConsoleAppender">
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <fieldNames>
-                <level>severity</level>
-            </fieldNames>
-            <includeMdcKeyName>serviceContext</includeMdcKeyName>
+        <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+            <providers>
+                <omitEmptyFields>true</omitEmptyFields>
+
+                <fieldNames>
+                    <level>severity</level>
+                </fieldNames>
+
+                <timestamp/>
+                <version/>
+                <loggerName/>
+                <logLevel/>
+                <mdc>
+                    <excludeMdcKeyName>serviceContext</excludeMdcKeyName>
+                </mdc>
+                <threadName/>
+                <stackTrace/>
+
+                <pattern>
+                    <pattern>
+                        {
+                            "serviceContext": "#tryJson{%mdc{serviceContext}}",
+                            "message": "#tryJson{%message}"
+                        }
+                    </pattern>
+                </pattern>
+            </providers>
         </encoder>
     </appender>
 
@@ -25,22 +47,14 @@
         </encoder>
     </appender>
 
-    <appender name="SYSLOG" class="ch.qos.logback.classic.net.SyslogAppender">
-        <syslogHost>127.0.0.1</syslogHost>
-        <facility>AUDIT</facility>
-        <suffixPattern>[%level] [%d{HH:mm:ss.SSS}] [%thread] %logger{36} - %msg%n</suffixPattern>
-    </appender>
-
     <logger name="org.broadinstitute.dsde" level="info" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
-        <appender-ref ref="SYSLOG"/>
     </logger>
 
     <logger name="akka" level="info" additivity="false">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
-        <appender-ref ref="SYSLOG"/>
     </logger>
 
     <!-- see https://github.com/slick/slick/blob/master/common-test-resources/logback.xml for more Slick logging -->
@@ -58,7 +72,6 @@
     <root level="info">
         <appender-ref ref="file"/>
         <appender-ref ref="console"/>
-        <appender-ref ref="SYSLOG"/>
     </root>
 
 </configuration>
