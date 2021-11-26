@@ -3,13 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{
-  streamFUntilDone,
-  streamUntilDoneOrTimeout,
-  DiskName,
-  MachineTypeName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName, streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -26,7 +20,7 @@ import org.http4s.headers._
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import java.util.UUID
+import java.util.{Random, UUID}
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
@@ -646,8 +640,13 @@ object LeonardoApiClient {
         }
     } yield ()
 
-  private def genTraceIdHeader(): IO[Header.Raw] =
-    IO(UUID.randomUUID().toString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
+  //replace the dashes in UUID to get just a string of characters.
+  //Add a slash to mimic this format: f4c5f1a44adf79f54c18c96ccf4f12f3/3939911508519804487"
+  private def genTraceIdHeader(): IO[Header.Raw] = {
+    val uuid = UUID.randomUUID().toString.replaceAll("\\-","")
+    val numid = new Random().nextInt(999999999).toString + new Random().nextInt(9999999).toString + new Random().nextInt(999)
+    IO(traceIdValue).map(uuid => Header.Raw(traceIdHeaderString, uuid))
+  }
 }
 
 final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {

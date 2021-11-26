@@ -42,7 +42,7 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
 
                 nbExt.get should include("jupyter-iframe-extension/main  enabled")
 
-                nbExt.get should include("translate_nbextension/main  enabled")
+                nbExt.get should include("translate_nbextension/main  enable  d")
                 // should be installed by default
                 nbExt.get should include("toc2/main  enabled")
 
