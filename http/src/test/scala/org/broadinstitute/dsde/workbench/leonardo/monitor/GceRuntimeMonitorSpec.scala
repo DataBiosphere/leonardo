@@ -31,6 +31,8 @@ import org.scalatest.matchers.should.Matchers
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 class GceRuntimeMonitorSpec
     extends AnyFlatSpec

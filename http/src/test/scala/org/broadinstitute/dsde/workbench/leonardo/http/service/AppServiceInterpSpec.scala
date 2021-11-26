@@ -4,8 +4,10 @@ package service
 
 import cats.effect.IO
 import cats.effect.std.Queue
-import org.broadinstitute.dsde.workbench.google2.mock.FakeGooglePublisher
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName}
+import cats.mtl.Ask
+import com.google.cloud.compute.v1.MachineType
+import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, FakeGooglePublisher}
+import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{
@@ -24,12 +26,12 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   LeoPubsubMessageType
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
-
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -37,11 +39,64 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   //used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
-    new LeoAppServiceInterp[IO](whitelistAuthProvider, serviceAccountProvider, leoKubernetesConfig, queue)
-  val kubeServiceInterp = new LeoAppServiceInterp[IO](whitelistAuthProvider,
-                                                      serviceAccountProvider,
-                                                      leoKubernetesConfig,
-                                                      QueueFactory.makePublisherQueue())
+    new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                serviceAccountProvider,
+                                leoKubernetesConfig,
+                                queue,
+                                FakeGoogleComputeService)
+  val appServiceInterp = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                     serviceAccountProvider,
+                                                     leoKubernetesConfig,
+                                                     QueueFactory.makePublisherQueue(),
+                                                     FakeGoogleComputeService)
+
+  it should "validate galaxy runtime requirements correctly" in ioAssertion {
+    val project = GoogleProject("project1")
+    val passComputeService = new FakeGoogleComputeService {
+      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[MachineType]] =
+        IO.pure(Some(MachineType.newBuilder().setName("pass").setMemoryMb(6 * 1024).setGuestCpus(4).build()))
+    }
+    val notEnoughMemoryComputeService = new FakeGoogleComputeService {
+      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[MachineType]] =
+        IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(3 * 1024).setGuestCpus(4).build()))
+    }
+    val notEnoughCpuComputeService = new FakeGoogleComputeService {
+      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[MachineType]] =
+        IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(6 * 1024).setGuestCpus(2).build()))
+    }
+
+    val passAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                     serviceAccountProvider,
+                                                     leoKubernetesConfig,
+                                                     QueueFactory.makePublisherQueue(),
+                                                     passComputeService)
+    val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                                serviceAccountProvider,
+                                                                leoKubernetesConfig,
+                                                                QueueFactory.makePublisherQueue(),
+                                                                notEnoughMemoryComputeService)
+    val notEnoughCpuAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                             serviceAccountProvider,
+                                                             leoKubernetesConfig,
+                                                             QueueFactory.makePublisherQueue(),
+                                                             notEnoughCpuComputeService)
+
+    for {
+      ctx <- appContext.ask[AppContext]
+      _ <- passAppService.validateGalaxy(project, None, MachineTypeName("fake"))
+      error1 <- notEnoughMemoryAppService.validateGalaxy(project, None, MachineTypeName("fake")).attempt
+      error2 <- notEnoughCpuAppService.validateGalaxy(project, None, MachineTypeName("fake")).attempt
+    } yield {
+      error1 shouldBe (Left(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId))))
+      error2 shouldBe (Left(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId))))
+    }
+  }
 
   it should "determine patch version bump correctly" in isolatedDbTest {
     val first = ChartVersion("0.8.0")
@@ -55,7 +110,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
-    kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    appServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val clusters = dbFutureValue {
       KubernetesServiceDbQueries.listFullApps(Some(project))
@@ -90,7 +145,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig), customEnvironmentVariables = customEnvVars)
 
-    kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    appServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val appResult = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
     }
@@ -100,7 +155,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig2 = PersistentDiskRequest(DiskName("disk2"), None, None, Map.empty)
     val appReq2 =
       createAppRequest.copy(diskConfig = Some(createDiskConfig2), customEnvironmentVariables = customEnvVars)
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName2, appReq2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -158,7 +213,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithAutoscalingDisabled),
                          diskConfig = Some(diskConfig4))
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName1, defaultAppReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val appResult = dbFutureValue {
@@ -166,13 +221,13 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName2, appReqWithMoreNodes)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName3, appReqWithMoreCpuAndMem)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName4, appReqWithAutoscalingDisabled)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -335,7 +390,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appReq = createAppRequest.copy(diskConfig = None, appType = AppType.Galaxy)
 
     an[AppRequiresDiskException] should be thrownBy {
-      kubeServiceInterp
+      appServiceInterp
         .createApp(userInfo, project, appName, appReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -358,7 +413,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName1, appReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val appResult = dbFutureValue {
@@ -371,7 +426,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
 
     a[DiskAlreadyAttachedException] should be thrownBy {
-      kubeServiceInterp
+      appServiceInterp
         .createApp(userInfo, project, appName2, appReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -382,10 +437,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
-    kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    appServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     an[AppAlreadyExistsException] should be thrownBy {
-      kubeServiceInterp
+      appServiceInterp
         .createApp(userInfo, project, appName, appReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -397,7 +452,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
     a[BadRequestException] should be thrownBy {
-      kubeServiceInterp
+      appServiceInterp
         .createApp(userInfo, project, appName, appReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -454,7 +509,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig))
 
-    kubeServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    appServiceInterp.createApp(userInfo, project, appName, appReq).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val appResultPreDelete = dbFutureValue {
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
@@ -466,7 +521,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val params = DeleteAppRequest(userInfo, project, appName, false)
     an[AppCannotBeDeletedException] should be thrownBy {
-      kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
   }
 
@@ -536,7 +591,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
     val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName1, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -545,15 +600,15 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName2, appReq2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project2, appName3, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val listAllApps =
-      kubeServiceInterp
+      appServiceInterp
         .listApp(userInfo, None, Map("includeLabels" -> "key1,key2,key4"))
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listAllApps.length shouldEqual 3
@@ -565,18 +620,18 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .sortBy(_.get.value)
 
     val listProject1Apps =
-      kubeServiceInterp.listApp(userInfo, Some(project), Map()).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.listApp(userInfo, Some(project), Map()).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listProject1Apps.length shouldBe 2
     listProject1Apps.map(_.appName) should contain(appName1)
     listProject1Apps.map(_.appName) should contain(appName2)
 
     val listProject2Apps =
-      kubeServiceInterp.listApp(userInfo, Some(project2), Map()).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.listApp(userInfo, Some(project2), Map()).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listProject2Apps.length shouldBe 1
     listProject2Apps.map(_.appName) should contain(appName3)
 
     val listProject3Apps =
-      kubeServiceInterp
+      appServiceInterp
         .listApp(userInfo, Some(GoogleProject("fakeProject")), Map())
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listProject3Apps.length shouldBe 0
@@ -595,7 +650,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
     val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2), labels = labels)
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName1, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -605,7 +660,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     dbFutureValue(kubernetesClusterQuery.updateStatus(app1Result.get.cluster.id, KubernetesClusterStatus.Running))
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName2, appReq2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -615,22 +670,22 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     app2Result.map(_.app.labels).get.toList should contain(label1)
     app2Result.map(_.app.labels).get.toList should contain(label2)
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project2, appName3, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val listLabelApp =
-      kubeServiceInterp.listApp(userInfo, None, labels).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.listApp(userInfo, None, labels).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listLabelApp.length shouldEqual 1
     listLabelApp.map(_.appName) should contain(appName2)
 
     val listPartialLabelApp1 =
-      kubeServiceInterp.listApp(userInfo, None, Map(label1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.listApp(userInfo, None, Map(label1)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listPartialLabelApp1.length shouldEqual 1
     listPartialLabelApp1.map(_.appName) should contain(appName2)
 
     val listPartialLabelApp2 =
-      kubeServiceInterp.listApp(userInfo, None, Map(label2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.listApp(userInfo, None, Map(label2)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     listPartialLabelApp2.length shouldEqual 1
     listPartialLabelApp2.map(_.appName) should contain(appName2)
   }
@@ -647,7 +702,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       app2 = LeoLenses.appToCreator.set(WorkbenchEmail("a_different_user2@example.com"))(makeApp(2, savedNodepool2.id))
       _ <- IO(app2.save())
 
-      listResponse <- kubeServiceInterp.listApp(userInfo, None, Map.empty)
+      listResponse <- appServiceInterp.listApp(userInfo, None, Map.empty)
     } yield {
       // Since the calling user is whitelisted in the auth provider, it should return
       // the apps belonging to other users.
@@ -667,7 +722,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
     val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName1, appReq1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -676,32 +731,32 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
 
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project, appName2, appReq2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val diskName3 = DiskName("newDiskName2")
     val createDiskConfig3 = PersistentDiskRequest(diskName3, None, None, Map.empty)
-    kubeServiceInterp
+    appServiceInterp
       .createApp(userInfo, project2, appName3, appReq1.copy(diskConfig = Some(createDiskConfig3)))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val getApp1 =
-      kubeServiceInterp.getApp(userInfo, project, appName1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.getApp(userInfo, project, appName1).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp1.diskName shouldBe Some(diskName)
 
     val getApp2 =
-      kubeServiceInterp.getApp(userInfo, project, appName2).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.getApp(userInfo, project, appName2).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp2.diskName shouldBe Some(diskName2)
 
     val getApp3 =
-      kubeServiceInterp.getApp(userInfo, project2, appName3).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      appServiceInterp.getApp(userInfo, project2, appName3).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     getApp3.diskName shouldBe Some(diskName3)
   }
 
   it should "error on get app if an app does not exist" in isolatedDbTest {
     an[AppNotFoundException] should be thrownBy {
-      kubeServiceInterp
+      appServiceInterp
         .getApp(userInfo, project, AppName("schrodingersApp"))
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }

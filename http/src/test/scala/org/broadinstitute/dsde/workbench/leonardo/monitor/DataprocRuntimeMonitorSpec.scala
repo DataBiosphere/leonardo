@@ -31,7 +31,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
-
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._

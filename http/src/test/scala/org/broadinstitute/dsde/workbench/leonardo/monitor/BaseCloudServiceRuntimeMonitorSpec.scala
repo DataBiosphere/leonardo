@@ -20,6 +20,8 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._

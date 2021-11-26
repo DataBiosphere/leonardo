@@ -157,6 +157,8 @@ pipeline {
             description: "The branch that will be used to run the job")
         booleanParam(name: "USE_CUSTOM_DOCKER_IMAGE_VERSIONS", defaultValue: false,
             description: "Check only if you want to manually specify all of the custom image versions below.")
+        booleanParam(name: "USE_DEFAULT_DOCKER_IMAGE_VERSIONS", defaultValue: false,
+            description: "When true, use docker image versions in 'prepare*image' scripts; when false, try to auto-detect docker image versions, or use custom docker image versions from job input")
         string(name: "terra_jupyter_hail")
         string(name: "terra_jupyter_r")
         string(name: "terra_jupyter_python")
@@ -248,8 +250,29 @@ pipeline {
             }
         }
 
+        stage ('Use default docker image versions from scripts') {
+            when { expression { USE_DEFAULT_DOCKER_IMAGE_VERSIONS == "true" } }
+                steps {
+                    script {
+                        if (GENERATE_DATAPROC_IMAGE == "true") {
+                            println("Printing any changed versions in prepare-custom-leonardo-jupyter-dataproc-image.sh:\n")
+                            sh """
+                                git diff jenkins/dataproc-custom-images/prepare-custom-leonardo-jupyter-dataproc-image.sh
+                            """
+                        }
+
+                        if (GENERATE_GCE_IMAGE == "true") {
+                            println("Printing any changed versions in prepare_gce_image.sh:\n")
+                            sh """
+                                git diff jenkins/gce-custom-images/prepare_gce_image.sh
+                            """
+                        }
+                    }
+                }
+        }
+
         stage ('Detect Hash Changes') {
-            when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "false" } }
+            when { expression { USE_CUSTOM_DOCKER_IMAGE_VERSIONS == "false" && USE_DEFAULT_DOCKER_IMAGE_VERSIONS == "false" } }
                 steps {
                     script {
                         def shouldUpdate = hasHashChanges(images, configPaths)

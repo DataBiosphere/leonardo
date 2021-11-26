@@ -7,6 +7,7 @@ import fs2.Stream
 import cats.effect.std.Queue
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.{Config, Task}
+import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.duration._
 import org.scalatest.flatspec.AnyFlatSpec
@@ -23,7 +24,7 @@ class AsyncTaskProcessorSpec extends AnyFlatSpec with Matchers with LeonardoTest
   ignore should "execute tasks concurrently" in {
     val start = Instant.now()
     val res = Stream.eval(Deferred[IO, Unit]).flatMap { signalToStop =>
-      val traceId = appContext.ask.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).traceId
+      val traceId = TraceId(java.util.UUID.randomUUID())
 
       def io(x: Int): IO[Unit] =
         for {

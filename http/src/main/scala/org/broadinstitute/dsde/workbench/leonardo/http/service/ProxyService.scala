@@ -172,10 +172,8 @@ class ProxyService(
       res <- resourceId match {
         case Some(samResource) => IO.pure(samResource)
         case None =>
-          IO(
-            logger.error(
-              s"${ctx.traceId} | Unable to look up sam resource for ${key.toString}"
-            )
+          loggerIO.error(ctx.loggingCtx)(
+            s"Unable to look up sam resource for ${key.toString}"
           ) >> IO.raiseError(
             AppNotFoundException(
               key.googleProject,

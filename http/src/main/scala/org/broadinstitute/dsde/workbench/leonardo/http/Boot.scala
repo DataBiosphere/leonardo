@@ -167,7 +167,8 @@ object Boot extends IOApp {
         new LeoAppServiceInterp(appDependencies.authProvider,
                                 appDependencies.serviceAccountProvider,
                                 leoKubernetesConfig,
-                                appDependencies.publisherQueue)
+                                appDependencies.publisherQueue,
+                                appDependencies.googleDependencies.googleComputeService)
 
       val httpRoutes = new HttpRoutes(
         swaggerConfig,
@@ -234,7 +235,9 @@ object Boot extends IOApp {
           implicit val cloudServiceRuntimeMonitor: RuntimeMonitor[IO, CloudService] =
             new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
 
-          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.errorReporting)
+          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue,
+                                                    googleDependencies.googleComputeService,
+                                                    googleDependencies.errorReporting)
 
           val googleDiskService = googleDependencies.googleDiskService
 
@@ -392,6 +395,9 @@ object Boot extends IOApp {
       credential <- credentialResource(pathToCredentialJson)
       scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
       kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
+      cloudPlatformScopedCredential = credential.createScoped(
+        "https://www.googleapis.com/auth/cloud-platform"
+      ) // See https://developers.google.com/identity/protocols/oauth2/scopes
       credentialJson <- Resource.eval(
         readFileToString(applicationConfig.leoServiceAccountJsonFile)
       )
@@ -437,7 +443,7 @@ object Boot extends IOApp {
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson))
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, semaphore)
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, semaphore)
-      errorReporting <- ErrorReporting.fromCredential(scopedCredential,
+      errorReporting <- ErrorReporting.fromCredential(cloudPlatformScopedCredential,
                                                       applicationConfig.applicationName,
                                                       ProjectName.of(applicationConfig.leoGoogleProject.value))
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
