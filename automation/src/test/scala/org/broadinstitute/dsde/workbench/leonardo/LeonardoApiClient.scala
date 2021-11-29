@@ -640,12 +640,10 @@ object LeonardoApiClient {
         }
     } yield ()
 
-  //replace the dashes in UUID to get just a string of characters.
-  //Add a slash to mimic this format: f4c5f1a44adf79f54c18c96ccf4f12f3/3939911508519804487"
   private def genTraceIdHeader(): IO[Header.Raw] = {
     val uuid = UUID.randomUUID().toString.replaceAll("\\-","")
-    val numid = new Random().nextInt(999999999).toString + new Random().nextInt(9999999).toString + new Random().nextInt(999)
-    IO(traceIdValue).map(uuid => Header.Raw(traceIdHeaderString, uuid))
+    val digitString = "3939911508519804487"
+    IO(uuid+"/"+digitString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
   }
 }
 
