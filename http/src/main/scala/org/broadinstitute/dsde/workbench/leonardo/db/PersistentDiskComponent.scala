@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.{dummyDate, unma
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
+import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
@@ -90,7 +91,10 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             case CloudProvider.Gcp =>
               CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
             case CloudProvider.Azure =>
-              CloudContext.Azure(ManagedResourceGroup(cloudContextDb.value)): CloudContext
+              val context =
+                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
+
+              CloudContext.Azure(context): CloudContext
           },
           zone,
           name,
@@ -114,7 +118,7 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           case CloudContext.Gcp(value) =>
             (CloudProvider.Gcp, CloudContextDb(value.value))
           case CloudContext.Azure(value) =>
-            (CloudProvider.Azure, CloudContextDb(value.value))
+            (CloudProvider.Azure, CloudContextDb(value.asString))
         },
         record.zone,
         record.name,

@@ -251,8 +251,8 @@ object JsonCodec {
   implicit val gceInstanceStatusDecoder: Decoder[GceInstanceStatus] =
     Decoder.decodeString.emap(s => GceInstanceStatus.withNameInsensitiveOption(s).toRight(s"invalid gce status ${s}"))
   implicit val operationNameDecoder: Decoder[OperationName] = Decoder.decodeString.map(OperationName)
-  implicit val managedResourceGroupDecoder: Decoder[ManagedResourceGroup] =
-    Decoder.decodeString.map(ManagedResourceGroup)
+  implicit val managedResourceGroupDecoder: Decoder[AzureCloudContext] =
+    Decoder.decodeString.emap(s => AzureCloudContext.fromString(s))
   implicit val cloudProviderDecoder: Decoder[CloudProvider] =
     Decoder.decodeString.emap(s => CloudProvider.stringToCloudProvider.get(s).toRight(s"invalid cloud provider ${s}"))
   implicit val googleIdDecoder: Decoder[ProxyHostName] = Decoder.decodeString.map(ProxyHostName)
@@ -293,7 +293,7 @@ object JsonCodec {
         case CloudProvider.Gcp =>
           x.downField("cloudResource").as[GoogleProject].map(p => CloudContext.Gcp(p))
         case CloudProvider.Azure =>
-          x.downField("cloudResource").as[ManagedResourceGroup].map(p => CloudContext.Azure(p))
+          x.downField("cloudResource").as[AzureCloudContext].map(p => CloudContext.Azure(p))
       }
     } yield context
   }
@@ -385,7 +385,7 @@ object JsonCodec {
               case CloudProvider.Gcp =>
                 x.downField("cloudContext").as[GoogleProject].map(p => CloudContext.Gcp(p))
               case CloudProvider.Azure =>
-                x.downField("cloudContext").as[ManagedResourceGroup].map(mrg => CloudContext.Azure(mrg))
+                x.downField("cloudContext").as[AzureCloudContext].map(mrg => CloudContext.Azure(mrg))
             }
           case None =>
             x.downField("googleProject")

@@ -45,10 +45,10 @@ object LeoLenses {
         case _: CloudContext.Azure => none[GoogleProject]
       }
     }(googleProjectOpt => cloudContext => googleProjectOpt.fold(cloudContext)(p => CloudContext.Gcp(p)))
-  val cloudContextToManagedResourceGroup: Lens[CloudContext, Option[ManagedResourceGroup]] =
-    Lens[CloudContext, Option[ManagedResourceGroup]] { x =>
+  val cloudContextToManagedResourceGroup: Lens[CloudContext, Option[AzureCloudContext]] =
+    Lens[CloudContext, Option[AzureCloudContext]] { x =>
       x match {
-        case _: CloudContext.Gcp   => none[ManagedResourceGroup]
+        case _: CloudContext.Gcp   => none[AzureCloudContext]
         case p: CloudContext.Azure => p.value.some
       }
     }(mrg => cloudContext => mrg.fold(cloudContext)(p => CloudContext.Azure(p)))

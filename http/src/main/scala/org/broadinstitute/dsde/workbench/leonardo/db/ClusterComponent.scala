@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.model.google.{
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 
+import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
@@ -135,7 +136,9 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             case CloudProvider.Gcp =>
               CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
             case CloudProvider.Azure =>
-              CloudContext.Azure(ManagedResourceGroup(cloudContextDb.value)): CloudContext
+              val context =
+                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
+              CloudContext.Azure(context): CloudContext
           },
           operationName,
           status,
@@ -176,7 +179,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             case CloudContext.Gcp(value) =>
               (CloudProvider.Gcp, CloudContextDb(value.value))
             case CloudContext.Azure(value) =>
-              (CloudProvider.Azure, CloudContextDb(value.value))
+              (CloudProvider.Azure, CloudContextDb(value.asString))
           },
           c.operationName,
           c.status,

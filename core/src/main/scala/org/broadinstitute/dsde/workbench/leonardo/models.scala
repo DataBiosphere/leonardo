@@ -19,9 +19,9 @@ object CloudContext {
     override val asStringWithProvider = s"Gcp/${value.value}"
     override def cloudProvider: CloudProvider = CloudProvider.Gcp
   }
-  final case class Azure(value: ManagedResourceGroup) extends CloudContext {
-    override val asString = value.value
-    override val asStringWithProvider = s"Azure/${value.value}"
+  final case class Azure(value: AzureCloudContext) extends CloudContext {
+    override val asString = value.asString
+    override val asStringWithProvider = s"Azure/${value.asString}"
     override def cloudProvider: CloudProvider = CloudProvider.Azure
   }
 }

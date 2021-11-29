@@ -63,9 +63,14 @@ object Runtime {
       .headOption
       .getOrElse(JupyterService)
 
-    new URL(
-      urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
-    )
+    cloudContext match {
+      case _: CloudContext.Gcp =>
+        new URL(
+          urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
+        )
+      case _: CloudContext.Azure =>
+        throw new NotImplementedError("Proxying Azure runtime is not supported yet")
+    }
   }
 }
 
