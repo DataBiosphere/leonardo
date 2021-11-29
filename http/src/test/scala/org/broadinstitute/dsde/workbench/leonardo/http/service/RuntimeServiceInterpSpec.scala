@@ -1717,7 +1717,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "return existing disk if a disk with the same name already exists" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       disk <- makePersistentDisk(None).save()
       req = PersistentDiskRequest(disk.name, Some(DiskSize(50)), None, Map("foo" -> "bar"))
       returnedDisk <- RuntimeServiceInterp
@@ -1763,7 +1763,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "fail to process a disk reference when the disk is already attached" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       savedDisk <- makePersistentDisk(None).save()
       _ <- IO(
         makeCluster(1).saveWithRuntimeConfig(
@@ -1796,7 +1796,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "fail to process a disk reference when the disk is already formatted by another app" in isolatedDbTest {
     val res = for {
-      t <- ctx.ask[AppContext]
+      t <- appContext.ask[AppContext]
       gceDisk <- makePersistentDisk(Some(DiskName("gceDisk")), Some(FormattedBy.GCE)).save()
       req = PersistentDiskRequest(gceDisk.name, Some(gceDisk.size), Some(gceDisk.diskType), gceDisk.labels)
       formatGceDiskError <- RuntimeServiceInterp
