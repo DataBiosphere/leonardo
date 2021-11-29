@@ -5,7 +5,6 @@ import cats.Applicative
 import cats.effect.{Resource, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.circe.syntax._
 import io.circe.Encoder
 import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
@@ -134,10 +133,7 @@ final case class CloudServiceMonitorOps[F[_], A](a: A)(
 
 final case class AppContext(traceId: TraceId, now: Instant, requestUri: String = "", span: Option[Span] = None) {
   override def toString: String = s"${traceId.asString}"
-
-  import org.broadinstitute.dsde.workbench.leonardo.http.serviceDataEncoder
-  val loggingCtx = Map("traceId" -> traceId.asString,
-                       "serviceContext" -> org.broadinstitute.dsde.workbench.leonardo.http.serviceData.asJson.noSpaces)
+  val loggingCtx = Map("traceId" -> traceId.asString)
 }
 
 object AppContext {

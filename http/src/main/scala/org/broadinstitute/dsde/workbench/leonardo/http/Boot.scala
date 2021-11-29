@@ -15,6 +15,7 @@ import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.devtools.clouderrorreporting.v1beta1.ProjectName
 import fs2.Stream
+import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
@@ -42,7 +43,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{HttpRoutes, StandardUserInfoDirectives}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoAppServiceInterp, _}
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -75,7 +76,14 @@ object Boot extends IOApp {
     implicit val system = ActorSystem(applicationConfig.applicationName)
     import system.dispatcher
 
-    implicit val logger = Slf4jLogger.getLogger[IO]
+    import org.broadinstitute.dsde.workbench.leonardo.http.serviceDataEncoder
+    implicit val logger =
+      StructuredLogger.withContext[IO](Slf4jLogger.getLogger[IO])(
+        Map(
+          "serviceContext" -> org.broadinstitute.dsde.workbench.leonardo.http.serviceData.asJson.toString,
+          "version" -> BuildTimeVersion.version.getOrElse("unknown")
+        )
+      )
 
     createDependencies[IO](applicationConfig.leoServiceAccountJsonFile.toString).use { appDependencies =>
       val googleDependencies = appDependencies.googleDependencies

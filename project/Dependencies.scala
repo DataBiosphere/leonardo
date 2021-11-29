@@ -41,8 +41,6 @@ object Dependencies {
   val excludeJacksonCore = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-core")
   val excludeJacksonAnnotation = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-annotations")
   val excludeSlf4j = ExclusionRule(organization = "org.slf4j", name = "slf4j-api")
-  val excludeLogbackCore = ExclusionRule(organization = "ch.qos.logback", name = "logback-core")
-  val excludeLogbackClassic = ExclusionRule(organization = "ch.qos.logback", name = "logback-classic")
   val excludeTypesafeConfig = ExclusionRule(organization = "com.typesafe", name = "config")
   val excludeTypesafeSslConfig = ExclusionRule(organization = "com.typesafe", name = "ssl-config-core")
   val excludeGoogleError = ExclusionRule(organization = "com.google.errorprone", name = "error_prone_annotations")
@@ -59,7 +57,7 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.6"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.7"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.5"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
@@ -141,7 +139,7 @@ object Dependencies {
     workbenchOpenTelemetryTest,
     helmScalaSdk,
     helmScalaSdkTest,
-    "net.logstash.logback" % "logstash-logback-encoder" % "6.6", // for structured logging in logback
+    "net.logstash.logback" % "logstash-logback-encoder" % "7.0.1", // for structured logging in logback
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`

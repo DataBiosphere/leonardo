@@ -2,15 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.net.URL
-import java.time.Instant
-import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
-import cats.mtl.Ask
 import cats.effect.std.Queue
-import scala.concurrent.ExecutionContext.Implicits.global
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGooglePublisher,
@@ -18,10 +13,10 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   MockComputePollOperation
 }
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, leonardoExceptionEq}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -35,15 +30,16 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   RuntimeConfigInCreateRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
+import java.net.URL
 import java.nio.file.Paths
+import java.util.UUID
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
