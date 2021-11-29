@@ -5,14 +5,9 @@
             <providers>
                 <omitEmptyFields>true</omitEmptyFields>
 
-                <fieldNames>
-                    <level>severity</level>
-                </fieldNames>
-
                 <timestamp/>
                 <version/>
                 <loggerName/>
-                <logLevel/>
                 <mdc>
                     <excludeMdcKeyName>serviceContext</excludeMdcKeyName>
                 </mdc>
@@ -22,6 +17,7 @@
                 <pattern>
                     <pattern>
                         {
+                            "severity": "%level",
                             "serviceContext": "#tryJson{%mdc{serviceContext}}",
                             "message": "#tryJson{%message}"
                         }
