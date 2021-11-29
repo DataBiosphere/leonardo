@@ -10,7 +10,15 @@ import cats.syntax.all._
 import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
 import com.google.cloud.compute.v1.Tags
-import com.google.cloud.dataproc.v1._
+import com.google.cloud.dataproc.v1.{
+  Component,
+  DiskConfig,
+  EndpointConfig,
+  GceClusterConfig,
+  InstanceGroupConfig,
+  NodeInitializationAction,
+  SoftwareConfig
+}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
@@ -816,6 +824,7 @@ class DataprocInterpreter[F[_]: Parallel](
       .putAllProperties(
         (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ knoxProps ++ machineConfig.properties).asJava
       )
+      .addOptionalComponents(Component.DOCKER)
       .build()
   }
 
