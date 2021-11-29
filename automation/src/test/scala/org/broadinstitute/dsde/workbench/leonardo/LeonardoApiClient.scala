@@ -3,7 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo
 import cats.effect.{IO, Resource}
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName, streamFUntilDone, streamUntilDoneOrTimeout}
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  streamUntilDoneOrTimeout,
+  DiskName,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -641,9 +647,9 @@ object LeonardoApiClient {
     } yield ()
 
   private def genTraceIdHeader(): IO[Header.Raw] = {
-    val uuid = UUID.randomUUID().toString.replaceAll("\\-","")
+    val uuid = UUID.randomUUID().toString.replaceAll("\\-", "")
     val digitString = "3939911508519804487"
-    IO(uuid+"/"+digitString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
+    IO(uuid + "/" + digitString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
   }
 }
 
