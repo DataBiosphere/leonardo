@@ -20,7 +20,7 @@ import org.http4s.headers._
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 
-import java.util.{Random, UUID}
+import java.util.UUID
 import java.util.concurrent.TimeoutException
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
