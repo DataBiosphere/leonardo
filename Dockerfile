@@ -43,7 +43,7 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/master
 
 # Add the repos containing nginx and galaxy charts
 RUN helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx && \
-    helm repo add galaxy https://raw.githubusercontent.com/cloudve/helm-charts/anvil/ && \
+    helm repo add galaxy https://storage.cloud.google.com/galaxy-anvil/helm && \
     helm repo add terra-app-setup-charts https://storage.googleapis.com/terra-app-setup-chart && \
     helm repo add terra https://terra-app-charts.storage.googleapis.com && \
     helm repo add cromwell-helm https://broadinstitute.github.io/cromwhelm/charts/ && \
