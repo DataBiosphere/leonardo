@@ -175,7 +175,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](
             case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
               getAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.toString, ctx.traceId)
             case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
-              getAlreadyFormattedError(diskResult.disk.formattedBy.get, s"${FormattedBy.Cromwell.toString} or ${FormattedBy.Galaxy.toString}", ctx.traceId)
+              getAlreadyFormattedError(diskResult.disk.formattedBy.get,
+                                       s"${FormattedBy.Cromwell.toString} or ${FormattedBy.Galaxy.toString}",
+                                       ctx.traceId)
             case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
