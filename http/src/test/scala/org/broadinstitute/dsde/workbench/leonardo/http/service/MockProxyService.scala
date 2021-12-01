@@ -51,7 +51,7 @@ class MockProxyService(
                          googleTokenCache,
                          samResourceCache) {
 
-  override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
+  override def getRuntimeTargetHost(cloudContext: CloudContext, clusterName: RuntimeName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost")))
 
   override def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =

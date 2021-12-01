@@ -16,16 +16,15 @@ object MockDiskServiceInterp extends DiskService[IO] {
     implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
-  def getDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
+  def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(
     implicit as: Ask[IO, AppContext]
   ): IO[GetPersistentDiskResponse] =
     IO.pure(
       GetPersistentDiskResponse(
         DiskId(-1),
-        CommonTestData.project,
+        CommonTestData.cloudContext,
         CommonTestData.zone,
         CommonTestData.diskName,
-        Some(CommonTestData.googleId),
         CommonTestData.serviceAccount,
         CommonTestData.diskSamResource,
         DiskStatus.Ready,
@@ -37,14 +36,14 @@ object MockDiskServiceInterp extends DiskService[IO] {
       )
     )
 
-  def listDisks(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
+  def listDisks(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
     implicit as: Ask[IO, AppContext]
   ): IO[Vector[ListPersistentDiskResponse]] =
     IO.pure(
       Vector(
         ListPersistentDiskResponse(
           DiskId(-1),
-          CommonTestData.project,
+          CommonTestData.cloudContext,
           CommonTestData.zone,
           CommonTestData.diskName,
           DiskStatus.Ready,

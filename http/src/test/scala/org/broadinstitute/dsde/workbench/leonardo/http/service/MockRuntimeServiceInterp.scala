@@ -11,20 +11,20 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
   override def createRuntime(
     userInfo: UserInfo,
-    googleProject: GoogleProject,
+    cloudContext: CloudContext,
     runtimeName: RuntimeName,
     req: CreateRuntime2Request
   )(implicit as: Ask[IO, AppContext]): IO[Unit] =
     IO.unit
 
-  override def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  override def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
     implicit as: Ask[IO, AppContext]
   ): IO[GetRuntimeResponse] =
     IO.pure(
       GetRuntimeResponse.fromRuntime(CommonTestData.testCluster, CommonTestData.defaultDataprocRuntimeConfig, None)
     )
 
-  override def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
+  override def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
     implicit as: Ask[IO, AppContext]
   ): IO[Vector[ListRuntimeResponse2]] =
     IO.pure(
@@ -33,7 +33,7 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
           CommonTestData.testCluster.id,
           CommonTestData.testCluster.samResource,
           CommonTestData.testCluster.runtimeName,
-          CommonTestData.testCluster.googleProject,
+          CommonTestData.testCluster.cloudContext,
           CommonTestData.testCluster.auditInfo,
           CommonTestData.defaultGceRuntimeConfig,
           CommonTestData.testCluster.proxyUrl,
@@ -49,7 +49,7 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
   ): IO[Unit] =
     IO.unit
 
-  override def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  override def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
     implicit as: Ask[IO, AppContext]
   ): IO[Unit] =
     IO.unit

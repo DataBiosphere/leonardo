@@ -70,6 +70,18 @@ private[leonardo] object LeoProfile extends MySQLProfile {
               .getOrElse(throw ColumnDecodingException(s"unexpected runtime status ${s} from database"))
         )
 
+    implicit val cloudContextDbMappedColumnType: BaseColumnType[CloudContextDb] =
+      MappedColumnType
+        .base[CloudContextDb, String](_.value, CloudContextDb.apply)
+    implicit val cloudProviderMappedColumnType: BaseColumnType[CloudProvider] =
+      MappedColumnType
+        .base[CloudProvider, String](
+          _.asString,
+          s =>
+            CloudProvider.stringToCloudProvider
+              .get(s)
+              .getOrElse(throw ColumnDecodingException(s"unexpected CloudProvider ${s} from database"))
+        )
     implicit val googleProjectMappedColumnType: BaseColumnType[GoogleProject] =
       MappedColumnType
         .base[GoogleProject, String](_.value, GoogleProject.apply)
@@ -118,8 +130,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     )
     implicit val runtimeConfigIdMappedColumnType: BaseColumnType[RuntimeConfigId] =
       MappedColumnType.base[RuntimeConfigId, Long](_.id, RuntimeConfigId.apply)
-    implicit val googleIdMappedColumnType: BaseColumnType[GoogleId] =
-      MappedColumnType.base[GoogleId, String](_.value, GoogleId.apply)
+    implicit val googleIdMappedColumnType: BaseColumnType[ProxyHostName] =
+      MappedColumnType.base[ProxyHostName, String](_.value, ProxyHostName.apply)
     implicit val diskIdMappedColumnType: BaseColumnType[DiskId] =
       MappedColumnType.base[DiskId, Long](_.value, DiskId.apply)
     implicit val diskSizeMappedColumnType: BaseColumnType[DiskSize] =

@@ -43,13 +43,16 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
               }
             } ~
               pathPrefix(googleProjectSegment) { googleProject =>
+                //TODO: use cloudContextSegment directly once cloudContext is used in all handlers
+                val cloudContext = CloudContext.Gcp(googleProject)
+
                 pathEndOrSingleSlash {
                   parameterMap { params =>
                     get {
                       complete(
                         listDisksHandler(
                           userInfo,
-                          Some(googleProject),
+                          Some(cloudContext),
                           params
                         )
                       )
@@ -75,7 +78,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
                             complete(
                               getDiskHandler(
                                 userInfo,
-                                googleProject,
+                                cloudContext,
                                 diskName
                               )
                             )
@@ -124,24 +127,24 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createDisk").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
-  private[api] def getDiskHandler(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
+  private[api] def getDiskHandler(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(
     implicit ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = diskService.getDisk(userInfo, googleProject, diskName)
+      apiCall = diskService.getDisk(userInfo, cloudContext, diskName)
       _ <- metrics.incrementCounter("getDisk")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "getDisk").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
 
   private[api] def listDisksHandler(
     userInfo: UserInfo,
-    googleProject: Option[GoogleProject],
+    cloudContext: Option[CloudContext],
     params: Map[String, String]
   )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = diskService.listDisks(userInfo, googleProject, params)
+      apiCall = diskService.listDisks(userInfo, cloudContext, params)
       _ <- metrics.incrementCounter("listDisks")
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "listDisks").use(_ => apiCall))
     } yield StatusCodes.OK -> resp
@@ -194,12 +197,12 @@ object DiskRoutes {
     } yield UpdateDiskRequest(l.getOrElse(Map.empty), us)
   }
 
-  implicit val getDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
+  implicit val getPersistentDiskResponseEncoder: Encoder[GetPersistentDiskResponse] = Encoder.forProduct12(
     "id",
     "googleProject",
+    "cloudContext",
     "zone",
     "name",
-    "googleId",
     "serviceAccount",
     "status",
     "auditInfo",
@@ -210,10 +213,10 @@ object DiskRoutes {
   )(x =>
     (
       x.id,
-      x.googleProject,
+      x.cloudContext.asString,
+      x.cloudContext,
       x.zone,
       x.name,
-      x.googleId,
       x.serviceAccount,
       x.status,
       x.auditInfo,
@@ -224,9 +227,10 @@ object DiskRoutes {
     )
   )
 
-  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct10(
+  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct11(
     "id",
     "googleProject",
+    "cloudContext",
     "zone",
     "name",
     "status",
@@ -238,7 +242,8 @@ object DiskRoutes {
   )(x =>
     (
       x.id,
-      x.googleProject,
+      x.cloudContext.asString,
+      x.cloudContext,
       x.zone,
       x.name,
       x.status,
