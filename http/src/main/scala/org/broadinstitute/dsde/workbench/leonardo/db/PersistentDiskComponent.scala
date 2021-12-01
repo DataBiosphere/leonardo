@@ -174,11 +174,11 @@ object persistentDiskQuery {
       }
     } yield (disk, label)
 
-  def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyRestore, lastUsedBy: AppId): DBIO[Int] =
+  def updateGalaxyDiskRestore(id: DiskId, galaxyDiskRestore: GalaxyRestore): DBIO[Int] =
     findByIdQuery(id)
       .map(x => (x.galaxyPvcId, x.cvmfsPvcId, x.lastUsedBy))
       .update(
-        (Some(galaxyDiskRestore.galaxyPvcId), Some(galaxyDiskRestore.cvmfsPvcId), Some(lastUsedBy))
+        (Some(galaxyDiskRestore.galaxyPvcId), Some(galaxyDiskRestore.cvmfsPvcId), Some(galaxyDiskRestore.lastUsedBy))
       )
 
   def updateLastUsedBy(id: DiskId, lastUsedBy: AppId): DBIO[Int] =

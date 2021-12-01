@@ -460,7 +460,7 @@ class GKEInterpreter[F[_]](
                       app.id
                     )
                     persistentDiskQuery
-                      .updateGalaxyDiskRestore(diskId, galaxyDiskRestore, app.id)
+                      .updateGalaxyDiskRestore(diskId, galaxyDiskRestore)
                       .transaction
                       .void
                 }
