@@ -401,7 +401,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "error creating Cromwell app with an existing disk if no restore info found" in isolatedDbTest {
     val disk = makePersistentDisk(None, formattedBy = Some(FormattedBy.Cromwell))
-      .copy(googleProject = project)
+      .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
