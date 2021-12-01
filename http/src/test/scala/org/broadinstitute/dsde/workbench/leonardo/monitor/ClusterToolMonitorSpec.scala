@@ -36,16 +36,16 @@ class ClusterToolMonitorSpec
   }
 
   val welderEnabledCluster = makeCluster(1).copy(status = RuntimeStatus.Running,
-                                                 welderEnabled = true,
-                                                 runtimeImages = Set(jupyterImage, welderImage))
+                                                 runtimeImages = Set(jupyterImage, welderImage),
+                                                 welderEnabled = true)
   val welderDisabledCluster =
-    makeCluster(2).copy(status = RuntimeStatus.Running, welderEnabled = false, runtimeImages = Set(jupyterImage))
+    makeCluster(2).copy(status = RuntimeStatus.Running, runtimeImages = Set(jupyterImage), welderEnabled = false)
   val notRunningCluster = makeCluster(3).copy(status = RuntimeStatus.Deleted,
-                                              welderEnabled = true,
-                                              runtimeImages = Set(jupyterImage, welderImage))
+                                              runtimeImages = Set(jupyterImage, welderImage),
+                                              welderEnabled = true)
   val rstudioCluster = makeCluster(4).copy(status = RuntimeStatus.Running,
-                                           welderEnabled = true,
-                                           runtimeImages = Set(rstudioImage, welderImage))
+                                           runtimeImages = Set(rstudioImage, welderImage),
+                                           welderEnabled = true)
 
   it should "report all services are up normally" in isolatedDbTest {
     welderEnabledCluster.save()

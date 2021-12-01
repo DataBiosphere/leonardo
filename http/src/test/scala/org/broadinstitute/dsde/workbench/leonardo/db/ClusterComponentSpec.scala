@@ -22,26 +22,23 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     dbFutureValue(clusterQuery.listWithLabels) shouldEqual Seq()
 
     lazy val err1 = RuntimeError("some failure", Some(10), Instant.now().truncatedTo(ChronoUnit.SECONDS))
-    lazy val cluster1UUID = GoogleId(UUID.randomUUID().toString)
+    lazy val cluster1UUID = ProxyHostName(UUID.randomUUID().toString)
     val cluster1 = makeCluster(1).copy(
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(googleId = cluster1UUID)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(proxyHostName = cluster1UUID)),
       dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
     )
 
     val cluster1WithErr = makeCluster(1).copy(
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(googleId = cluster1UUID)),
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(proxyHostName = cluster1UUID)),
       errors = List(err1),
       dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
     )
 
     val cluster2 = makeCluster(2).copy(status = RuntimeStatus.Creating)
 
-    val cluster3 = makeCluster(3).copy(
-      serviceAccount = serviceAccountEmail,
-      status = RuntimeStatus.Running
-    )
+    val cluster3 = makeCluster(3).copy(serviceAccount = serviceAccountEmail, status = RuntimeStatus.Running)
 
-    val cluster4 = makeCluster(4).copy(runtimeName = cluster1.runtimeName, googleProject = cluster1.googleProject)
+    val cluster4 = makeCluster(4).copy(runtimeName = cluster1.runtimeName, cloudContext = cluster1.cloudContext)
 
     val savedCluster1 = cluster1.save(None)
     savedCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster1
@@ -74,13 +71,13 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     )
 
     // instances are returned by get* methods
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster1.googleProject, cluster1.runtimeName)) shouldEqual Some(
+    dbFutureValue(clusterQuery.getActiveClusterByName(cluster1.cloudContext, cluster1.runtimeName)) shouldEqual Some(
       savedCluster1
     )
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster2.googleProject, cluster2.runtimeName)) shouldEqual Some(
+    dbFutureValue(clusterQuery.getActiveClusterByName(cluster2.cloudContext, cluster2.runtimeName)) shouldEqual Some(
       savedCluster2
     )
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster3.googleProject, cluster3.runtimeName)) shouldEqual Some(
+    dbFutureValue(clusterQuery.getActiveClusterByName(cluster3.cloudContext, cluster3.runtimeName)) shouldEqual Some(
       savedCluster3
     )
 
@@ -93,7 +90,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     dbFutureValue(clusterQuery.getClusterById(savedCluster3.id)) shouldEqual Some(savedCluster3)
 
     dbFutureValue(clusterQuery.countActiveByClusterServiceAccount(serviceAccount)) shouldEqual 2
-    dbFutureValue(clusterQuery.countActiveByProject(project)) shouldEqual 3
+    dbFutureValue(clusterQuery.countActiveByProject(cloudContext)) shouldEqual 3
 
     // (project, name) unique key test
     val saveCluster = SaveCluster(cluster4,
@@ -175,9 +172,9 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     dbFutureValue(clusterQuery.mergeInstances(updatedCluster1)) shouldEqual updatedCluster1
     dbFutureValue(clusterQuery.getClusterById(savedCluster1.id)).get shouldEqual updatedCluster1
 
-    val updatedCluster1Again = savedCluster1.copy(
-      dataprocInstances = Set(masterInstance.copy(status = GceInstanceStatus.Terminated),
-                              workerInstance1.copy(status = GceInstanceStatus.Terminated))
+    val updatedCluster1Again = savedCluster1.copy(dataprocInstances =
+      Set(masterInstance.copy(status = GceInstanceStatus.Terminated),
+          workerInstance1.copy(status = GceInstanceStatus.Terminated))
     )
 
     dbFutureValue(clusterQuery.mergeInstances(updatedCluster1Again)) shouldEqual updatedCluster1Again
@@ -218,7 +215,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
 
     // Result should not include labels or instances
     dbFutureValue {
-      clusterQuery.getActiveClusterByNameMinimal(savedCluster1.googleProject, savedCluster1.runtimeName)
+      clusterQuery.getActiveClusterByNameMinimal(savedCluster1.cloudContext, savedCluster1.runtimeName)
     } shouldEqual
       Some(stripFieldsForListCluster(savedCluster1).copy(labels = Map.empty))
   }

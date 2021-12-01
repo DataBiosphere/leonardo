@@ -66,7 +66,7 @@ class ClusterToolMonitor(
       val toolName = status.tool.toString
       IO(
         logger.warn(
-          s"The tool ${toolName} is down on runtime ${status.runtime.googleProject.value}/${status.runtime.runtimeName.asString}"
+          s"The tool ${toolName} is down on runtime ${status.runtime.cloudContext.asStringWithProvider}/${status.runtime.runtimeName.asString}"
         )
       ) >> metrics.incrementCounter(toolName + "Down", 1)
     } else IO.unit
@@ -79,7 +79,7 @@ class ClusterToolMonitor(
   def checkClusterStatus(runtime: RunningRuntime): IO[List[ToolStatus]] =
     runtime.containers.traverse { tool =>
       tool
-        .isProxyAvailable(runtime.googleProject, runtime.runtimeName)
+        .isProxyAvailable(runtime.cloudContext, runtime.runtimeName)
         .map(status => ToolStatus(status, tool, runtime))
     }
 }

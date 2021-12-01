@@ -6,6 +6,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
   AuditInfo,
+  CloudContext,
   LabelMap,
   RuntimeConfig,
   RuntimeError,
@@ -17,9 +18,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import java.net.URL
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 object RuntimeRoutesTestJsonCodec {
@@ -150,7 +151,10 @@ object RuntimeRoutesTestJsonCodec {
     for {
       id <- x.downField("id").as[Long]
       clusterName <- x.downField("runtimeName").as[RuntimeName]
-      googleProject <- x.downField("googleProject").as[GoogleProject]
+      _ <- x
+        .downField("googleProject")
+        .as[GoogleProject] //this is only here for backwards-compatibility test. Once the API move away from googleProject, we can remove this as well
+      cloudContext <- x.downField("cloudContext").as[CloudContext]
       serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
       asyncRuntimeFields <- x.downField("asyncRuntimeFields").as[Option[AsyncRuntimeFields]]
       auditInfo <- x.downField("auditInfo").as[AuditInfo]
@@ -171,7 +175,7 @@ object RuntimeRoutesTestJsonCodec {
       id,
       RuntimeSamResourceId(""),
       clusterName,
-      googleProject,
+      cloudContext,
       serviceAccount,
       asyncRuntimeFields,
       auditInfo,

@@ -40,7 +40,7 @@ class AutopauseMonitor[F[_]](
       clusters <- clusterQuery.getClustersReadyToAutoFreeze.transaction
       now <- F.realTimeInstant
       pauseableClusters <- clusters.toList.filterA { cluster =>
-        jupyterDAO.isAllKernelsIdle(cluster.googleProject, cluster.runtimeName).attempt.flatMap {
+        jupyterDAO.isAllKernelsIdle(cluster.cloudContext, cluster.runtimeName).attempt.flatMap {
           case Left(t) =>
             logger.error(s"Fail to get kernel status for ${cluster.projectNameString} due to $t").as(true)
           case Right(isIdle) =>
@@ -61,13 +61,13 @@ class AutopauseMonitor[F[_]](
                 metrics.incrementCounter("autoPause/maxKernelActiveTimeExceeded") >>
                   logger
                     .info(
-                      s"Auto pausing ${cluster.googleProject}/${cluster.runtimeName} due to exceeded max kernel active time"
+                      s"Auto pausing ${cluster.cloudContext}/${cluster.runtimeName} due to exceeded max kernel active time"
                     )
                     .as(true),
                 metrics.incrementCounter("autoPause/activeKernelClusters") >>
                   logger
                     .info(
-                      s"Not going to auto pause cluster ${cluster.googleProject}/${cluster.runtimeName} due to active kernels"
+                      s"Not going to auto pause cluster ${cluster.cloudContext}/${cluster.runtimeName} due to active kernels"
                     )
                     .as(false)
               )

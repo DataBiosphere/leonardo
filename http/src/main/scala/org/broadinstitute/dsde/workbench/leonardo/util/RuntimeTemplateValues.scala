@@ -150,7 +150,7 @@ object RuntimeTemplateValuesConfig {
                   useGceStartupScript: Boolean): RuntimeTemplateValuesConfig = {
     val runtime = runtimeAndRuntimeConfig.runtime
     RuntimeTemplateValuesConfig(
-      RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
+      RuntimeProjectAndName(runtime.cloudContext, runtime.runtimeName),
       runtimeAndRuntimeConfig.runtimeConfig match {
         case gce: RuntimeConfig.GceConfig       => gce.gpuConfig.isDefined
         case gce: RuntimeConfig.GceWithPdConfig => gce.gpuConfig.isDefined
@@ -191,7 +191,7 @@ object RuntimeTemplateValues {
         .flatMap(_.homeDirectory.map(_.toString))
         .getOrElse("/home/jupyter")
     RuntimeTemplateValues(
-      config.runtimeProjectAndName.googleProject.value,
+      config.runtimeProjectAndName.cloudContext.asString,
       config.gpuEnabled.toString,
       config.runtimeProjectAndName.runtimeName.asString,
       config.initBucketName.map(_.value).getOrElse(""),

@@ -13,7 +13,6 @@ class NotebookAouSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.aouImageUrl)
-  override val welderRegistry: Option[ContainerRegistry] = Some(ContainerRegistry.DockerHub)
 
   "NotebookAoUSpec" - {
     "should have wondershaper installed" in { runtimeFixture =>

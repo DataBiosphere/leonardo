@@ -288,7 +288,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "not able to create an app with an existing non-used disk" in isolatedDbTest {
     val disk = makePersistentDisk(None)
-      .copy(googleProject = project)
+      .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -314,7 +314,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Galaxy),
                                   galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
-      .copy(googleProject = project)
+      .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -340,7 +340,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val disk = makePersistentDisk(None,
                                   galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)),
                                   formattedBy = Some(FormattedBy.Galaxy))
-      .copy(googleProject = project)
+      .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -367,7 +367,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "error creating an app with an existing disk if no restore info found" in isolatedDbTest {
     val disk = makePersistentDisk(None, formattedBy = Some(FormattedBy.Galaxy))
-      .copy(googleProject = project)
+      .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
@@ -404,7 +404,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Galaxy),
                                   galaxyRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
-      .copy(googleProject = project)
+      .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val appName1 = AppName("app1")

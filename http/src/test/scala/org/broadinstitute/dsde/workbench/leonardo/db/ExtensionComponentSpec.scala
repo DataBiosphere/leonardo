@@ -12,7 +12,7 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 class ExtensionComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils {
   "ExtensionComponent" should "save, get,and delete" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
-      .copy(userJupyterExtensionConfig = Some(userExtConfig), userScriptUri = Some(userScriptUri))
+      .copy(userScriptUri = Some(userScriptUri), userJupyterExtensionConfig = Some(userExtConfig))
       .save()
 
     val savedCluster2 = makeCluster(2).save()

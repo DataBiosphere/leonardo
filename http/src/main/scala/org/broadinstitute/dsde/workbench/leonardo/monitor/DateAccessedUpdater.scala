@@ -5,11 +5,10 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.syntax.all._
 import fs2.Stream
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 
@@ -47,9 +46,9 @@ class DateAccessedUpdater[F[_]](
   private def updateDateAccessed(msg: UpdateDateAccessMessage): F[Unit] =
     metrics.incrementCounter("jupyterAccessCount") >>
       clusterQuery
-        .clearKernelFoundBusyDateByProjectAndName(msg.googleProject, msg.runtimeName, msg.dateAccessd)
+        .clearKernelFoundBusyDateByProjectAndName(msg.cloudContext, msg.runtimeName, msg.dateAccessd)
         .flatMap(_ =>
-          clusterQuery.updateDateAccessedByProjectAndName(msg.googleProject, msg.runtimeName, msg.dateAccessd)
+          clusterQuery.updateDateAccessedByProjectAndName(msg.cloudContext, msg.runtimeName, msg.dateAccessd)
         )
         .transaction
         .void
@@ -58,15 +57,15 @@ class DateAccessedUpdater[F[_]](
 object DateAccessedUpdater {
   implicit val updateDateAccessMessageOrder: Ordering[UpdateDateAccessMessage] =
     Ordering.fromLessThan[UpdateDateAccessMessage] { (msg1, msg2) =>
-      if (msg1.googleProject == msg2.googleProject && msg1.runtimeName == msg2.runtimeName)
+      if (msg1.cloudContext == msg2.cloudContext && msg1.runtimeName == msg2.runtimeName)
         msg1.dateAccessd.toEpochMilli < msg2.dateAccessd.toEpochMilli
       else
         false //we don't really care about order if they're not the same runtime, but we just need an Order if they're the same
     }
 
-  // group all messages by googleProject and runtimeName, and discard all older messages for the same runtime
+  // group all messages by cloudContext and runtimeName, and discard all older messages for the same runtime
   def messagesToUpdate(messages: Chain[UpdateDateAccessMessage]): List[UpdateDateAccessMessage] = {
-    messages.groupBy(m => s"${m.runtimeName.asString}/${m.googleProject.value}").toList.traverse {
+    messages.groupBy(m => s"${m.runtimeName.asString}/${m.cloudContext.asStringWithProvider}").toList.traverse {
       case (_, messages) =>
         messages.toChain.toList.sorted.lastOption
     }
@@ -74,7 +73,7 @@ object DateAccessedUpdater {
 }
 
 final case class DateAccessedUpdaterConfig(interval: FiniteDuration, maxUpdate: Int, queueSize: Int)
-final case class UpdateDateAccessMessage(runtimeName: RuntimeName, googleProject: GoogleProject, dateAccessd: Instant) {
+final case class UpdateDateAccessMessage(runtimeName: RuntimeName, cloudContext: CloudContext, dateAccessd: Instant) {
   override def toString: String =
-    s"Message: ${googleProject.value}/${runtimeName.asString}, ${dateAccessd.toEpochMilli}"
+    s"Message: ${cloudContext.asStringWithProvider}/${runtimeName.asString}, ${dateAccessd.toEpochMilli}"
 }

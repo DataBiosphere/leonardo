@@ -257,7 +257,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
           NonLeoMessage
             .CryptoMining("CRYPTOMINING_DETECTED",
                           GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
-                          runtime.googleProject)
+                          GoogleProject(runtime.cloudContext.asString))
         )
         statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
         deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
@@ -279,7 +279,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
         subscriber = makeSubscribler()
         _ <- subscriber.messageResponder(
           NonLeoMessage.CryptoMiningScc(
-            CryptoMiningSccResource(runtime.googleProject,
+            CryptoMiningSccResource(GoogleProject(runtime.cloudContext.asString),
                                     CloudService.GCE,
                                     runtime.runtimeName,
                                     CommonTestData.defaultGceRuntimeConfig.zone),

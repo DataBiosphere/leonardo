@@ -161,9 +161,12 @@ class GceRuntimeMonitor[F[_]: Parallel](
           "GceRuntimeMonitor shouldn't get a dataproc runtime creation request. Something is very wrong"
         )
       )
-
+      project <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
+      )
       instance <- googleComputeService.getInstance(
-        runtimeAndRuntimeConfig.runtime.googleProject,
+        project,
         zoneParam,
         InstanceName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
       )
@@ -396,8 +399,12 @@ class GceRuntimeMonitor[F[_]: Parallel](
         s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
       )
 
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
+      )
       // delete the init bucket so we don't continue to accrue costs after cluster is deleted
-      _ <- deleteInitBucket(runtimeAndRuntimeConfig.runtime.googleProject, runtimeAndRuntimeConfig.runtime.runtimeName)
+      _ <- deleteInitBucket(googleProject, runtimeAndRuntimeConfig.runtime.runtimeName)
 
       // set the staging bucket to be deleted in ten days so that logs are still accessible until then
       _ <- setStagingBucketLifecycle(runtimeAndRuntimeConfig.runtime,
@@ -407,11 +414,12 @@ class GceRuntimeMonitor[F[_]: Parallel](
         clusterQuery.completeDeletion(runtimeAndRuntimeConfig.runtime.id, ctx.now)
       }
 
+      //TODO: this call is only needed for non-WSM resources
       _ <- authProvider
         .notifyResourceDeleted(
           runtimeAndRuntimeConfig.runtime.samResource,
           runtimeAndRuntimeConfig.runtime.auditInfo.creator,
-          runtimeAndRuntimeConfig.runtime.googleProject
+          googleProject
         )
 
       // Record metrics in NewRelic

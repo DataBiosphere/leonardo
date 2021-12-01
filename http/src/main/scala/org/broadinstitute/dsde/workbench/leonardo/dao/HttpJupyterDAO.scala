@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import cats.effect.Async
 import cats.syntax.all._
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeName
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
@@ -19,15 +19,15 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
   implicit F: Async[F],
   logger: Logger[F]
 ) extends JupyterDAO[F] {
-  def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
-    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
+  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
+    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName) flatMap {
       case HostReady(targetHost) =>
         client
           .successful(
             Request[F](
               method = Method.GET,
               uri = Uri.unsafeFromString(
-                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/status"
+                s"https://${targetHost.address}/notebooks/${cloudContext.asString}/${runtimeName.asString}/api/status"
               )
             )
           )
@@ -35,9 +35,9 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
       case _ => F.pure(false)
     }
 
-  def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean] =
+  def isAllKernelsIdle(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
-      hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName)
+      hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
       resp <- hostStatus match {
         case HostReady(targetHost) =>
           for {
@@ -45,7 +45,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
               Request[F](
                 method = Method.GET,
                 uri = Uri.unsafeFromString(
-                  s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/sessions"
+                  s"https://${targetHost.address}/notebooks/${cloudContext.asString}/${runtimeName.asString}/api/sessions"
                 )
               )
             )
@@ -55,7 +55,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
     } yield resp
 
   override def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit] =
-    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
+    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, CloudContext.Gcp(googleProject), runtimeName) flatMap {
       case HostReady(targetHost) =>
         client
           .successful(
@@ -73,7 +73,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
   override def terminalExists(googleProject: GoogleProject,
                               runtimeName: RuntimeName,
                               terminalName: TerminalName): F[Boolean] =
-    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, googleProject, runtimeName) flatMap {
+    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, CloudContext.Gcp(googleProject), runtimeName) flatMap {
       case HostReady(targetHost) =>
         client
           .successful(
@@ -97,8 +97,8 @@ object HttpJupyterDAO {
 }
 
 trait JupyterDAO[F[_]] {
-  def isAllKernelsIdle(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
-  def isProxyAvailable(googleProject: GoogleProject, runtimeName: RuntimeName): F[Boolean]
+  def isAllKernelsIdle(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
+  def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean]
   def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit]
   def terminalExists(googleProject: GoogleProject, runtimeName: RuntimeName, terminalName: TerminalName): F[Boolean]
 }

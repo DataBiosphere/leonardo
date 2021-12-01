@@ -646,8 +646,11 @@ object LeonardoApiClient {
         }
     } yield ()
 
-  private def genTraceIdHeader(): IO[Header.Raw] =
-    IO(UUID.randomUUID().toString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
+  private def genTraceIdHeader(): IO[Header.Raw] = {
+    val uuid = UUID.randomUUID().toString.replaceAll("\\-", "")
+    val digitString = "3939911508519804487"
+    IO(uuid + "/" + digitString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
+  }
 }
 
 final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {
