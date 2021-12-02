@@ -466,7 +466,7 @@ class GKEInterpreter[F[_]](
                 }
             } yield ()
         case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
-        case _                => F.unit
+        case AppType.Custom   => F.unit
       }
 
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction

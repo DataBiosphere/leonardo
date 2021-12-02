@@ -950,8 +950,9 @@ object RuntimeServiceInterp {
               case Some(formattedBy) =>
                 if (willBeUsedBy == formattedBy) {
                   formattedBy match {
-                    case FormattedBy.Galaxy | FormattedBy.Cromwell => appQuery.isDiskAttached(pd.id).transaction
-                    case FormattedBy.GCE | FormattedBy.Custom      => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom =>
+                      appQuery.isDiskAttached(pd.id).transaction
+                    case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
                   }
                 } else
                   F.raiseError[Boolean](
