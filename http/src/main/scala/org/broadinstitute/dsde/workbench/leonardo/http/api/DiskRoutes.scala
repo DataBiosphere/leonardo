@@ -227,7 +227,7 @@ object DiskRoutes {
     )
   )
 
-  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct12(
+  implicit val listDiskResponseEncoder: Encoder[ListPersistentDiskResponse] = Encoder.forProduct11(
     "id",
     "googleProject",
     "cloudContext",
@@ -238,7 +238,6 @@ object DiskRoutes {
     "size",
     "diskType",
     "blockSize",
-    "formattedBy",
     "labels"
   )(x =>
     (
@@ -252,7 +251,6 @@ object DiskRoutes {
       x.size,
       x.diskType,
       x.blockSize,
-      x.formattedBy,
       x.labels
     )
   )

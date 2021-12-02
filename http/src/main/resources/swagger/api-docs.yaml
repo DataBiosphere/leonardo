@@ -2010,13 +2010,6 @@ components:
       enum:
         - pd-standard
         - pd-ssd
-    FormattedBy:
-      type: string
-      enum:
-        - CROMWELL
-        - CUSTOM
-        - GALAXY
-        - GCE
     ClusterStatus:
       type: string
       enum:
@@ -2250,7 +2243,6 @@ components:
         - size
         - diskType
         - blockSize
-        - formattedBy
         - labels
       properties:
         id:
@@ -2277,9 +2269,6 @@ components:
         blockSize:
           type: integer
           description: Block size of persistent disk in bytes
-        formattedBy:
-          type: "#/components/schemas/FormattedBy"
-          description: App/environment that formatted the disk
         labels:
           type: object
           description: The labels of each persistent disk in the response whose key is in includeLabels in the request. Of type Map[String,String]

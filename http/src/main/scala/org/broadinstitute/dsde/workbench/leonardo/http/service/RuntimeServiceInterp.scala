@@ -1059,7 +1059,7 @@ final case class DiskAlreadyFormattedByOtherApp(googleProject: GoogleProject,
                                                 traceId: TraceId,
                                                 formattedBy: FormattedBy)
     extends LeoException(
-      s"Persistent disk ${googleProject.value}/${name.value} is already formatted by ${formattedBy.toString}",
+      s"Persistent disk ${googleProject.value}/${name.value} is already formatted by ${formattedBy.asString}",
       StatusCodes.Conflict,
       traceId = Some(traceId)
     )

@@ -171,12 +171,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](
                 }
               } yield lastUsed.some
             case (Some(FormattedBy.Galaxy), Some(CromwellRestore(_))) =>
-              getAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.toString, ctx.traceId)
+              getAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
             case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
-              getAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.toString, ctx.traceId)
+              getAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
             case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
               getAlreadyFormattedError(diskResult.disk.formattedBy.get,
-                                       s"${FormattedBy.Cromwell.toString} or ${FormattedBy.Galaxy.toString}",
+                                       s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
                                        ctx.traceId)
             case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
               F.raiseError[Option[LastUsedApp]](

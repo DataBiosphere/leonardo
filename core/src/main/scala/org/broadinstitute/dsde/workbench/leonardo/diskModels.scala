@@ -95,27 +95,26 @@ object DiskType extends Enum[DiskType] {
   }
 }
 
-sealed trait FormattedBy extends EnumEntry with Product with Serializable
-
+sealed trait FormattedBy extends EnumEntry with Product with Serializable {
+  def asString: String
+}
 object FormattedBy extends Enum[FormattedBy] {
   val values = findValues
 
   final case object GCE extends FormattedBy {
-    override def toString: String = "GCE"
+    override def asString: String = "GCE"
   }
   final case object Galaxy extends FormattedBy {
-    override def toString: String = "GALAXY"
+    override def asString: String = "GALAXY"
   }
 
   final case object Custom extends FormattedBy {
-    override def toString: String = "CUSTOM"
+    override def asString: String = "CUSTOM"
   }
 
   final case object Cromwell extends FormattedBy {
-    override def toString: String = "CROMWELL"
+    override def asString: String = "CROMWELL"
   }
-
-  def stringToObject: Map[String, FormattedBy] = values.map(v => v.toString -> v).toMap
 }
 
 final case class PvcId(asString: String) extends AnyVal
