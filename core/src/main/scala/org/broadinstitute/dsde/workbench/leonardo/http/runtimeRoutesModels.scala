@@ -1,30 +1,12 @@
-package org.broadinstitute.dsde.workbench.leonardo.http
+package org.broadinstitute.dsde.workbench.leonardo
+package http
 
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AsyncRuntimeFields,
-  AuditInfo,
-  CloudService,
-  ContainerImage,
-  ContainerRegistry,
-  DiskSize,
-  GpuConfig,
-  LabelMap,
-  Runtime,
-  RuntimeConfig,
-  RuntimeError,
-  RuntimeImage,
-  RuntimeName,
-  RuntimeStatus,
-  UserJupyterExtensionConfig,
-  UserScriptPath
-}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+
 import java.net.URL
 import java.time.Instant
-
 import scala.concurrent.duration.FiniteDuration
 
 sealed trait RuntimeConfigRequest extends Product with Serializable {
@@ -108,7 +90,7 @@ final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntime
 final case class GetRuntimeResponse(id: Long,
                                     samResource: RuntimeSamResourceId,
                                     clusterName: RuntimeName,
-                                    googleProject: GoogleProject,
+                                    cloudContext: CloudContext,
                                     serviceAccountInfo: WorkbenchEmail,
                                     asyncRuntimeFields: Option[AsyncRuntimeFields],
                                     auditInfo: AuditInfo,
@@ -135,7 +117,7 @@ object GetRuntimeResponse {
     runtime.id,
     runtime.samResource,
     runtime.runtimeName,
-    runtime.googleProject,
+    runtime.cloudContext,
     runtime.serviceAccount,
     runtime.asyncRuntimeFields,
     runtime.auditInfo,

@@ -51,8 +51,8 @@ class DataprocInterpreterSpec
   val mockGoogleStorageDAO = new MockGoogleStorageDAO
 
   val testCluster = makeCluster(1)
-    .copy(status = Creating, asyncRuntimeFields = None)
-  val testClusterClusterProjectAndName = RuntimeProjectAndName(testCluster.googleProject, testCluster.runtimeName)
+    .copy(asyncRuntimeFields = None, status = Creating)
+  val testClusterClusterProjectAndName = RuntimeProjectAndName(testCluster.cloudContext, testCluster.runtimeName)
 
   val bucketHelperConfig =
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
@@ -107,7 +107,7 @@ class DataprocInterpreterSpec
     // verify the returned cluster
     val dpInfo = clusterCreationRes.get.asyncRuntimeFields
     dpInfo.operationName.value shouldBe "opName"
-    dpInfo.googleId.value shouldBe "clusterUuid"
+    dpInfo.proxyHostName.value shouldBe "clusterUuid"
     dpInfo.hostIp shouldBe None
     dpInfo.stagingBucket.value should startWith("leostaging")
 

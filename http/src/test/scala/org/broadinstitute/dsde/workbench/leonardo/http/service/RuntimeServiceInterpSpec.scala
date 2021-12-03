@@ -2,15 +2,10 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.net.URL
-import java.time.Instant
-import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
-import cats.mtl.Ask
 import cats.effect.std.Queue
-import scala.concurrent.ExecutionContext.Implicits.global
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGooglePublisher,
@@ -18,10 +13,10 @@ import org.broadinstitute.dsde.workbench.google2.mock.{
   MockComputePollOperation
 }
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName, ZoneName}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{gceRuntimeConfig, testCluster, userInfo, _}
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.leonardoExceptionEq
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{appContext, leonardoExceptionEq}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockDockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -35,15 +30,16 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   RuntimeConfigInCreateRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.model
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
+import java.net.URL
 import java.nio.file.Paths
+import java.util.UUID
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 
 class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
@@ -88,7 +84,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           RuntimeName("clusterName1"),
           emptyCreateRuntimeReq
         )
@@ -108,10 +104,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "throw ClusterAlreadyExistsException when creating a cluster with same name and project as an existing cluster" in isolatedDbTest {
     runtimeService
-      .createRuntime(userInfo, project, name0, emptyCreateRuntimeReq)
+      .createRuntime(userInfo, cloudContext, name0, emptyCreateRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val exc = runtimeService
-      .createRuntime(userInfo, project, name0, emptyCreateRuntimeReq)
+      .createRuntime(userInfo, cloudContext, name0, emptyCreateRuntimeReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -131,7 +127,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
     val response =
       runtimeService
-        .createRuntime(userInfo, project, name0, clusterRequest)
+        .createRuntime(userInfo, cloudContext, name0, clusterRequest)
         .attempt
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
         .swap
@@ -147,7 +143,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeService
         .createRuntime(
           userInfo,
-          project,
+          cloudContext,
           name0,
           emptyCreateRuntimeReq.copy(userJupyterExtensionConfig =
             Some(UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://bogus/object.tar.gz")))
@@ -164,7 +160,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "successfully create a GCE runtime when no runtime is specified" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val googleProject = GoogleProject("googleProject")
+    val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
 
     val res = for {
@@ -173,13 +169,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName,
           emptyCreateRuntimeReq
         )
         .attempt
       clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(googleProject, runtimeName)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
         .transaction
       cluster = clusterOpt.get
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
@@ -189,7 +185,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       r shouldBe Right(())
       runtimeConfig shouldBe (Config.gceConfig.runtimeConfigDefaults)
-      cluster.googleProject shouldBe (googleProject)
+      cluster.cloudContext shouldBe (cloudContext)
       cluster.runtimeName shouldBe (runtimeName)
       val expectedMessage = CreateRuntimeMessage
         .fromRuntime(cluster, gceRuntimeConfigRequest, Some(context.traceId))
@@ -215,7 +211,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "successfully accept https as user script and user startup script" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val googleProject = GoogleProject("googleProject")
+    val cloudContext = CloudContext.Gcp(GoogleProject("project1"))
     val runtimeName = RuntimeName("clusterName2")
     val request = emptyCreateRuntimeReq.copy(
       userScriptUri = Some(
@@ -234,7 +230,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName,
           request
         )
@@ -248,7 +244,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "successfully create a cluster with an rstudio image" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val googleProject = GoogleProject("googleProject")
+    val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName2")
     val rstudioImage = ContainerImage("some-rstudio-image", ContainerRegistry.GCR)
     val request = emptyCreateRuntimeReq.copy(
@@ -259,12 +255,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName,
           request
         )
         .attempt
-      runtime <- clusterQuery.getActiveClusterByName(googleProject, runtimeName).transaction
+      runtime <- clusterQuery.getActiveClusterByName(cloudContext, runtimeName).transaction
       _ <- publisherQueue.take //dequeue the message so that it doesn't affect other tests
     } yield {
       r shouldBe Right(())
@@ -275,7 +271,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "successfully create a dataproc runtime when explicitly told so when numberOfWorkers is 0" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val googleProject = GoogleProject("googleProject")
+    val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
     val req = emptyCreateRuntimeReq.copy(
       runtimeConfig = Some(
@@ -301,13 +297,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName,
           req
         )
         .attempt
       clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(googleProject, runtimeName)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
         .transaction
       cluster = clusterOpt.get
       runtimeConfig <- RuntimeConfigQueries
@@ -348,7 +344,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "successfully create a dataproc runtime when explicitly told so when numberOfWorkers is more than 0" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val googleProject = GoogleProject("googleProject")
+    val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName = RuntimeName("clusterName1")
     val req = emptyCreateRuntimeReq.copy(
       runtimeConfig = Some(
@@ -374,13 +370,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName,
           req
         )
         .attempt
       clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(googleProject, runtimeName)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
         .transaction
       cluster = clusterOpt.get
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
@@ -412,7 +408,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "create a runtime with the latest welder from welderRegistry" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val googleProject = GoogleProject("googleProject")
+    val cloudContext = CloudContext.Gcp(GoogleProject("cloudContext"))
     val runtimeName1 = RuntimeName("runtimeName1")
     val runtimeName2 = RuntimeName("runtimeName2")
     val runtimeName3 = RuntimeName("runtimeName3")
@@ -421,7 +417,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r1 <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName1,
           emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.DockerHub))
         )
@@ -429,7 +425,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r2 <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName2,
           emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.GCR))
         )
@@ -437,25 +433,25 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r3 <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName3,
           emptyCreateRuntimeReq
         )
         .attempt
 
       runtimeOpt1 <- clusterQuery
-        .getActiveClusterByName(googleProject, runtimeName1)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByName(cloudContext, runtimeName1)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime1 = runtimeOpt1.get
       welder1 = runtime1.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
 
-      runtimeOpt2 <- clusterQuery.getActiveClusterByName(googleProject, runtimeName2).transaction
+      runtimeOpt2 <- clusterQuery.getActiveClusterByName(cloudContext, runtimeName2).transaction
       runtime2 = runtimeOpt2.get
       welder2 = runtime2.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
 
-      runtimeOpt3 <- clusterQuery.getActiveClusterByName(googleProject, runtimeName3).transaction
+      runtimeOpt3 <- clusterQuery.getActiveClusterByName(cloudContext, runtimeName3).transaction
       runtime3 = runtimeOpt3.get
       welder3 = runtime3.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
@@ -480,7 +476,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "create a runtime with the crypto-detector image" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-    val googleProject = GoogleProject("googleProject")
+    val cloudContext = CloudContext.Gcp(GoogleProject("googleProject"))
     val runtimeName1 = RuntimeName("runtimeName1")
     val runtimeName2 = RuntimeName("runtimeName2")
 
@@ -488,7 +484,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r1 <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName1,
           emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.DockerHub))
         )
@@ -497,20 +493,20 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r2 <- runtimeService
         .createRuntime(
           userInfo,
-          googleProject,
+          cloudContext,
           runtimeName2,
           emptyCreateRuntimeReq.copy(welderRegistry = Some(ContainerRegistry.GCR))
         )
         .attempt
 
       runtimeOpt1 <- clusterQuery
-        .getActiveClusterByName(googleProject, runtimeName1)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByName(cloudContext, runtimeName1)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime1 = runtimeOpt1.get
       _ <- publisherQueue.take
 
       runtimeOpt2 <- clusterQuery
-        .getActiveClusterByName(googleProject, runtimeName2)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByName(cloudContext, runtimeName2)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime2 = runtimeOpt2.get
       _ <- publisherQueue.take
@@ -549,17 +545,17 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          project,
+          cloudContext,
           name0,
           req
         )
         .attempt
       runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(project, name0)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, name0)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime = runtimeOpt.get
       diskOpt <- persistentDiskQuery
-        .getActiveByName(project, diskName)(scala.concurrent.ExecutionContext.global)
+        .getActiveByName(cloudContext, diskName)(scala.concurrent.ExecutionContext.global)
         .transaction
       disk = diskOpt.get
       runtimeConfig <- RuntimeConfigQueries
@@ -569,10 +565,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       message <- publisherQueue.take
     } yield {
       r shouldBe Right(())
-      runtime.googleProject shouldBe project
+      runtime.cloudContext shouldBe cloudContext
       runtime.runtimeName shouldBe name0
       runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe Some(disk.id)
-      disk.googleProject shouldBe project
+      disk.cloudContext shouldBe cloudContext
       disk.name shouldBe diskName
       disk.size shouldBe DiskSize(500)
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
@@ -617,11 +613,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       _ <- runtimeService
         .createRuntime(
           userInfo,
-          project,
+          cloudContext,
           name0,
           emptyCreateRuntimeReq
         )
-      r <- runtimeService.deleteRuntime(DeleteRuntimeRequest(userInfo, project, name0, false)).attempt
+      r <- runtimeService
+        .deleteRuntime(DeleteRuntimeRequest(userInfo, GoogleProject(cloudContext.asString), name0, false))
+        .attempt
     } yield {
       r.swap.toOption.get.isInstanceOf[RuntimeCannotBeDeletedException] shouldBe true
     }
@@ -647,13 +645,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       r <- runtimeService
         .createRuntime(
           userInfo,
-          project,
+          cloudContext,
           name0,
           req
         )
         .attempt
       runtimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(project, name0)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, name0)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime = runtimeOpt.get
       runtimeConfig <- RuntimeConfigQueries
@@ -662,7 +660,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       message <- publisherQueue.take
     } yield {
       r shouldBe Right(())
-      runtime.googleProject shouldBe project
+      runtime.cloudContext shouldBe cloudContext
       runtime.runtimeName shouldBe name0
       runtimeConfig.asInstanceOf[RuntimeConfig.GceConfig].gpuConfig shouldBe gpuConfig
       message
@@ -681,7 +679,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
-      getResponse <- runtimeService.getRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      getResponse <- runtimeService.getRuntime(userInfo, testRuntime.cloudContext, testRuntime.runtimeName)
     } yield {
       getResponse.samResource shouldBe testRuntime.samResource
     }
@@ -690,7 +688,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
   it should "throw ClusterNotFoundException for nonexistent clusters" in isolatedDbTest {
     val exc = runtimeService
-      .getRuntime(userInfo, GoogleProject("nonexistent"), RuntimeName("cluster"))
+      .getRuntime(userInfo, CloudContext.Gcp(GoogleProject("nonexistent")), RuntimeName("cluster"))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -723,7 +721,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       samResource2 <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       _ <- IO(makeCluster(1).copy(samResource = samResource1).save())
       _ <- IO(makeCluster(2).copy(samResource = samResource2).save())
-      listResponse <- runtimeService.listRuntimes(userInfo, Some(project), Map.empty)
+      listResponse <- runtimeService.listRuntimes(userInfo, Some(cloudContext), Map.empty)
     } yield {
       listResponse.map(_.samResource).toSet shouldBe Set(samResource1, samResource2)
     }
@@ -787,16 +785,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       autopauseThreshold = Some(30 minutes)
     )
     runtimeService
-      .createRuntime(userInfo, project, clusterName1, req)
+      .createRuntime(userInfo, cloudContext, clusterName1, req)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime1 = runtimeService
-      .getRuntime(userInfo, project, clusterName1)
+      .getRuntime(userInfo, cloudContext, clusterName1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse1 = ListRuntimeResponse2(
       runtime1.id,
       runtime1.samResource,
       runtime1.clusterName,
-      runtime1.googleProject,
+      runtime1.cloudContext,
       runtime1.auditInfo,
       runtime1.runtimeConfig,
       runtime1.clusterUrl,
@@ -807,16 +805,16 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
     val clusterName2 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     runtimeService
-      .createRuntime(userInfo, project, clusterName2, req.copy(labels = Map("a" -> "b", "foo" -> "bar")))
+      .createRuntime(userInfo, cloudContext, clusterName2, req.copy(labels = Map("a" -> "b", "foo" -> "bar")))
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime2 = runtimeService
-      .getRuntime(userInfo, project, clusterName2)
+      .getRuntime(userInfo, cloudContext, clusterName2)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val listRuntimeResponse2 = ListRuntimeResponse2(
       runtime2.id,
       runtime2.samResource,
       runtime2.clusterName,
-      runtime2.googleProject,
+      runtime2.cloudContext,
       runtime2.auditInfo,
       runtime2.runtimeConfig,
       runtime2.clusterUrl,
@@ -913,12 +911,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
 
       _ <- service.deleteRuntime(
-        DeleteRuntimeRequest(userInfo, testRuntime.googleProject, testRuntime.runtimeName, false)
+        DeleteRuntimeRequest(userInfo, GoogleProject(testRuntime.cloudContext.asString), testRuntime.runtimeName, false)
       )
       res <- withLeoPublisher(publisherQueue) {
         for {
           dbRuntimeOpt <- clusterQuery
-            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .getActiveClusterByNameMinimal(testRuntime.cloudContext, testRuntime.runtimeName)
             .transaction
           message <- publisherQueue.tryTake
         } yield {
@@ -950,14 +948,14 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
 
       _ <- service.deleteRuntime(
-        DeleteRuntimeRequest(userInfo, testRuntime.googleProject, testRuntime.runtimeName, true)
+        DeleteRuntimeRequest(userInfo, GoogleProject(testRuntime.cloudContext.asString), testRuntime.runtimeName, true)
       )
       diskStatus <- persistentDiskQuery.getStatus(pd.id)(scala.concurrent.ExecutionContext.global).transaction
       _ = diskStatus shouldBe Some(DiskStatus.Deleting)
       res <- withLeoPublisher(publisherQueue) {
         for {
           dbRuntimeOpt <- clusterQuery
-            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .getActiveClusterByNameMinimal(testRuntime.cloudContext, testRuntime.runtimeName)
             .transaction
           message <- publisherQueue.tryTake
         } yield {
@@ -979,11 +977,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource).save())
 
-      _ <- service.stopRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      _ <- service.stopRuntime(userInfo, testRuntime.cloudContext, testRuntime.runtimeName)
       res <- withLeoPublisher(publisherQueue) {
         for {
           dbRuntimeOpt <- clusterQuery
-            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .getActiveClusterByNameMinimal(testRuntime.cloudContext, testRuntime.runtimeName)
             .transaction
           message <- publisherQueue.tryTake
         } yield {
@@ -1005,11 +1003,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.PreStopping).save())
 
-      _ <- service.stopRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      _ <- service.stopRuntime(userInfo, testRuntime.cloudContext, testRuntime.runtimeName)
       res <- withLeoPublisher(publisherQueue) {
         for {
           dbRuntimeOpt <- clusterQuery
-            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .getActiveClusterByNameMinimal(testRuntime.cloudContext, testRuntime.runtimeName)
             .transaction
           message <- publisherQueue.tryTake
         } yield {
@@ -1031,11 +1029,11 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Stopped).save())
 
-      _ <- service.startRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName)
+      _ <- service.startRuntime(userInfo, GoogleProject(testRuntime.cloudContext.asString), testRuntime.runtimeName)
       res <- withLeoPublisher(publisherQueue) {
         for {
           dbRuntimeOpt <- clusterQuery
-            .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+            .getActiveClusterByNameMinimal(testRuntime.cloudContext, testRuntime.runtimeName)
             .transaction
           message <- publisherQueue.tryTake
         } yield {
@@ -1059,9 +1057,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
       req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)
 
-      _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
+      _ <- runtimeService.updateRuntime(userInfo,
+                                        GoogleProject(testRuntime.cloudContext.asString),
+                                        testRuntime.runtimeName,
+                                        req)
       dbRuntimeOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(testRuntime.googleProject, testRuntime.runtimeName)
+        .getActiveClusterByNameMinimal(testRuntime.cloudContext, testRuntime.runtimeName)
         .transaction
       dbRuntime = dbRuntimeOpt.get
       messageOpt <- publisherQueue.tryTake
@@ -1099,7 +1100,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .save()
         )
         req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), upsertLabels, Set.empty)
-        _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
+        _ <- runtimeService.updateRuntime(userInfo,
+                                          GoogleProject(testRuntime.cloudContext.asString),
+                                          testRuntime.runtimeName,
+                                          req)
         dbLabelMap <- labelQuery
           .getAllForResource(testRuntime.id, LabelResourceType.runtime)(scala.concurrent.ExecutionContext.global)
           .transaction
@@ -1137,7 +1141,10 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
             .save()
         )
         req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, deleteLabelSet)
-        _ <- runtimeService.updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
+        _ <- runtimeService.updateRuntime(userInfo,
+                                          GoogleProject(testRuntime.cloudContext.asString),
+                                          testRuntime.runtimeName,
+                                          req)
         dbLabelMap <- labelQuery.getAllForResource(testRuntime.id, LabelResourceType.runtime).transaction
         _ <- publisherQueue.tryTake
       } yield {
@@ -1156,7 +1163,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = status).save())
           req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)
           fail <- runtimeService
-            .updateRuntime(userInfo, testRuntime.googleProject, testRuntime.runtimeName, req)
+            .updateRuntime(userInfo, GoogleProject(testRuntime.cloudContext.asString), testRuntime.runtimeName, req)
             .attempt
         } yield {
           fail shouldBe Left(RuntimeCannotBeUpdatedException(testRuntime.projectNameString, testRuntime.status))
@@ -1197,7 +1204,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       ctx <- appContext.ask[AppContext]
       savedRuntime <- IO(runtime.save())
       clusterRecordOpt <- clusterQuery
-        .getActiveClusterRecordByName(runtime.googleProject, runtime.runtimeName)
+        .getActiveClusterRecordByName(runtime.cloudContext, runtime.runtimeName)
         .transaction
       _ <- runtimeService.processUpdateRuntimeConfigRequest(
         req,
@@ -1355,7 +1362,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
+            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1366,7 +1373,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
-        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)(
+        .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -1409,21 +1416,21 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       ctx <- appContext.ask[AppContext]
       cluster = testCluster.copy(
+        status = RuntimeStatus.Running,
         dataprocInstances = Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
+            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
             DataprocRole.Master,
             ctx.now
           )
-        ),
-        status = RuntimeStatus.Running
+        )
       )
       _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
-        .getActiveClusterRecordByName(cluster.googleProject, cluster.runtimeName)
+        .getActiveClusterRecordByName(cluster.cloudContext, cluster.runtimeName)
         .transaction
       _ <- runtimeService.processUpdateDataprocConfigRequest(req,
                                                              false,
@@ -1449,7 +1456,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
+            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1460,7 +1467,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
-        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)(
+        .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -1488,7 +1495,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
+            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1499,7 +1506,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
-        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)(
+        .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -1548,7 +1555,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       ctx <- appContext.ask[AppContext]
       masterInstance = DataprocInstance(
-        DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
+        DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
         1,
         GceInstanceStatus.Running,
         Some(IP("")),
@@ -1562,7 +1569,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
-        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)(
+        .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -1587,7 +1594,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       cluster = testCluster.copy(dataprocInstances =
         Set(
           DataprocInstance(
-            DataprocInstanceKey(testCluster.googleProject, zone, InstanceName("instance-0")),
+            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
             1,
             GceInstanceStatus.Running,
             Some(IP("")),
@@ -1598,7 +1605,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       )
       _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
-        .getActiveClusterRecordByName(testCluster.googleProject, testCluster.runtimeName)(
+        .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -1629,10 +1636,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .transaction
     } yield {
       diskResult.creationNeeded shouldBe true
-      disk.googleProject shouldBe project
+      disk.cloudContext shouldBe cloudContext
       disk.zone shouldBe ConfigReader.appConfig.persistentDisk.defaultZone
       disk.name shouldBe diskName
-      disk.googleId shouldBe None
       disk.status shouldBe DiskStatus.Creating
       disk.auditInfo.creator shouldBe userInfo.userEmail
       disk.auditInfo.createdDate shouldBe context.now
@@ -1641,7 +1647,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       disk.size shouldBe DiskSize(500)
       disk.diskType shouldBe ConfigReader.appConfig.persistentDisk.defaultDiskType
       disk.blockSize shouldBe ConfigReader.appConfig.persistentDisk.defaultBlockSizeBytes
-      disk.labels shouldBe DefaultDiskLabels(diskName, project, userInfo.userEmail, serviceAccount).toMap ++ Map(
+      disk.labels shouldBe DefaultDiskLabels(diskName, cloudContext, userInfo.userEmail, serviceAccount).toMap ++ Map(
         "foo" -> "bar"
       )
 
@@ -1656,7 +1662,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = PersistentDiskRequest(diskName, Some(DiskSize(500)), None, Map("foo" -> "bar"))
     val res = for {
       context <- appContext.ask[AppContext]
-      _ <- makePersistentDisk(Some(req.name), Some(FormattedBy.GCE), None, Some(zone), Some(project)).save()
+      _ <- makePersistentDisk(Some(req.name), Some(FormattedBy.GCE), None, Some(zone), Some(cloudContext)).save()
       // save a PD with default zone
       targetZone = ZoneName("europe-west2-c")
       diskResult <- RuntimeServiceInterp
@@ -1674,7 +1680,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     } yield {
       diskResult shouldBe (Left(
         BadRequestException(
-          s"existing disk ${project.value}/${req.name.value} is in zone ${zone.value}, and cannot be attached to a runtime in zone ${targetZone.value}. Please create your runtime in zone us-central1-a if you'd like to use this disk; or opt to use a new disk",
+          s"existing disk Gcp/${project.value}/${req.name.value} is in zone ${zone.value}, and cannot be attached to a runtime in zone ${targetZone.value}. Please create your runtime in zone us-central1-a if you'd like to use this disk; or opt to use a new disk",
           Some(context.traceId)
         )
       ))

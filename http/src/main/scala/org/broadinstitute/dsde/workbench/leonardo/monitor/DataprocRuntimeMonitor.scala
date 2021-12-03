@@ -75,8 +75,12 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             new LeoException("DataprocRuntimeMonitor should not get a GCE request", traceId = Some(ctx.traceId))
           )
       }
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+      )
       cluster <- googleDataprocService.getCluster(
-        runtimeAndRuntimeConfig.runtime.googleProject,
+        googleProject,
         dataprocConfig.region,
         DataprocClusterName(runtimeAndRuntimeConfig.runtime.runtimeName.asString)
       )
@@ -111,11 +115,17 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       case None =>
         checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(s"Can't retrieve cluster yet"))
       case Some(c) =>
-        val fetchInstances =
-          getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject).map(x => x.map(_._1))
-
         for {
           ctx <- ev.ask
+
+          googleProject <- F.fromOption(
+            LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+            new RuntimeException(
+              "this should never happen. Dataproc runtime's cloud context should be a google project"
+            )
+          )
+          fetchInstances = getDataprocInstances(c, googleProject).map(x => x.map(_._1))
+
           runtimeStatus = DataprocClusterStatus
             .withNameInsensitiveOption(c.getStatus.getState.name())
             .getOrElse(DataprocClusterStatus.Unknown) //TODO: this needs to be verified
@@ -127,7 +137,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                          Some(s"Cluster is still in creating"))
             case DataprocClusterStatus.Running =>
               for {
-                dataprocAndComputeInstances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+                dataprocAndComputeInstances <- getDataprocInstances(c, googleProject)
                 instances = dataprocAndComputeInstances.map(_._1)
                 r <- if (instances.exists(_.status != GceInstanceStatus.Running))
                   checkAgain(monitorContext,
@@ -165,7 +175,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
 
             case DataprocClusterStatus.Error =>
               for {
-                dataprocAndComputeInstances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+                dataprocAndComputeInstances <- getDataprocInstances(c, googleProject)
                 instances = dataprocAndComputeInstances.map(_._1)
 
                 userScriptOutputFile = runtime.asyncRuntimeFields
@@ -239,10 +249,16 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         )
         .as(((), None)) //TODO: shall we delete runtime in this case?
     case Some(c) =>
-      val fetchInstances = getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject).map(x => x.map(_._1))
-
       for {
-        dataprocAndComputeInstances <- getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject)
+        googleProject <- F.fromOption(
+          LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+          new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
+        )
+        fetchInstances = getDataprocInstances(c, googleProject).map(x => x.map(_._1))
+        dataprocAndComputeInstances <- getDataprocInstances(
+          c,
+          googleProject
+        )
         instances = dataprocAndComputeInstances.map(_._1)
         clusterStatus = DataprocClusterStatus
           .withNameInsensitiveOption(c.getStatus.getState.name())
@@ -324,9 +340,12 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         Set.empty
       ) >> F.raiseError[CheckResult](e)
     case Some(c) =>
-      val fetchInstances = getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject).map(x => x.map(_._1))
-
       for {
+        googleProject <- F.fromOption(
+          LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+          new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+        )
+        fetchInstances = getDataprocInstances(c, googleProject).map(x => x.map(_._1))
         res <- if (c.getStatus.getState == com.google.cloud.dataproc.v1.ClusterStatus.State.STOPPED) {
           stopRuntime(runtimeAndRuntimeConfig, Some(fetchInstances), monitorContext)
         } else {
@@ -363,9 +382,12 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         Set.empty
       ) >> F.raiseError[CheckResult](e)
     case Some(c) =>
-      val fetchInstances = getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject).map(x => x.map(_._1))
-
       for {
+        project <- F.fromOption(
+          LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+          new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+        )
+        fetchInstances = getDataprocInstances(c, project).map(x => x.map(_._1))
         instances <- fetchInstances
         clusterStatus = DataprocClusterStatus
           .withNameInsensitiveOption(c.getStatus.getState.name())
@@ -417,9 +439,14 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   ): F[CheckResult] =
     cluster match {
       case Some(c) =>
-        val fetchInstances =
-          getDataprocInstances(c, runtimeAndRuntimeConfig.runtime.googleProject).map(x => x.map(_._1))
         for {
+          googleProject <- F.fromOption(
+            LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+            new RuntimeException(
+              "this should never happen. Dataproc runtime's cloud context should be a google project"
+            )
+          )
+          fetchInstances = getDataprocInstances(c, googleProject).map(x => x.map(_._1))
           r <- checkAgain(monitorContext,
                           runtimeAndRuntimeConfig,
                           Some(fetchInstances),
@@ -432,10 +459,14 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
           _ <- logger.info(monitorContext.loggingContext)(
             s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
           )
-
+          googleProject <- F.fromOption(
+            LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
+            new RuntimeException(
+              "this should never happen. Dataproc runtime's cloud context should be a google project"
+            )
+          )
           // delete the init bucket so we don't continue to accrue costs after cluster is deleted
-          _ <- deleteInitBucket(runtimeAndRuntimeConfig.runtime.googleProject,
-                                runtimeAndRuntimeConfig.runtime.runtimeName)
+          _ <- deleteInitBucket(googleProject, runtimeAndRuntimeConfig.runtime.runtimeName)
 
           // set the staging bucket to be deleted in ten days so that logs are still accessible until then
           _ <- setStagingBucketLifecycle(runtimeAndRuntimeConfig.runtime,
@@ -453,7 +484,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             .notifyResourceDeleted(
               runtimeAndRuntimeConfig.runtime.samResource,
               runtimeAndRuntimeConfig.runtime.auditInfo.creator,
-              runtimeAndRuntimeConfig.runtime.googleProject
+              googleProject
             )
 
           // Record metrics in NewRelic

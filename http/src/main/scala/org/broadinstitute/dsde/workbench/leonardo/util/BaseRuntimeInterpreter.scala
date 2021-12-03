@@ -50,7 +50,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       // Flush the welder cache to disk
       _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
         welderDao
-          .flushCache(params.runtimeAndRuntimeConfig.runtime.googleProject,
+          .flushCache(params.runtimeAndRuntimeConfig.runtime.cloudContext,
                       params.runtimeAndRuntimeConfig.runtime.runtimeName)
           .handleErrorWith(e =>
             logger.error(ctx.loggingCtx, e)(
@@ -144,8 +144,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
         clusterQuery.updateWelder(runtime.id, RuntimeImage(Welder, newWelderImageUrl, None, now), now)
       }
 
-      newRuntime = runtime.copy(welderEnabled = true,
-                                runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage)
+      newRuntime = runtime.copy(runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage,
+                                welderEnabled = true)
     } yield newRuntime
 
   override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =

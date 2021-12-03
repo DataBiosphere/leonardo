@@ -63,7 +63,8 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         serviceAccountOpt.toRight(new Exception(s"user ${userInfo.userEmail.value} doesn't have a PET SA"))
       )
 
-      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
+      cloudContext = CloudContext.Gcp(googleProject)
+      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
 
       _ <- diskOpt match {
         case Some(c) =>
@@ -72,7 +73,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           for {
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             disk <- F.fromEither(
-              convertToDisk(userInfo, petSA, googleProject, diskName, samResource, config, req, ctx.now)
+              convertToDisk(userInfo, petSA, cloudContext, diskName, samResource, config, req, ctx.now)
             )
             _ <- authProvider
               .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
@@ -88,29 +89,31 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       }
     } yield ()
 
-  override def getDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
+  override def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(
     implicit as: Ask[F, AppContext]
   ): F[GetPersistentDiskResponse] =
     for {
       ctx <- as.ask
-      resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(googleProject, diskName, ctx.traceId).transaction
-      hasPermission <- authProvider.hasPermissionWithProjectFallback(resp.samResource,
-                                                                     PersistentDiskAction.ReadPersistentDisk,
-                                                                     ProjectAction.ReadPersistentDisk,
-                                                                     userInfo,
-                                                                     googleProject)
+      resp <- DiskServiceDbQueries.getGetPersistentDiskResponse(cloudContext, diskName, ctx.traceId).transaction
+      hasPermission <- authProvider.hasPermissionWithProjectFallback(
+        resp.samResource,
+        PersistentDiskAction.ReadPersistentDisk,
+        ProjectAction.ReadPersistentDisk,
+        userInfo,
+        GoogleProject(cloudContext.asString)
+      ) //TODO: update this to support azure
       _ <- if (hasPermission) F.unit
-      else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
+      else F.raiseError[Unit](DiskNotFoundException(cloudContext, diskName, ctx.traceId))
 
     } yield resp
 
-  override def listDisks(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
+  override def listDisks(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
     implicit as: Ask[F, AppContext]
   ): F[Vector[ListPersistentDiskResponse]] =
     for {
       paramMap <- F.fromEither(processListParameters(params))
-      disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, googleProject).transaction
-      diskAndProjects = disks.map(d => (d.googleProject, d.samResource))
+      disks <- DiskServiceDbQueries.listDisks(paramMap._1, paramMap._2, cloudContext).transaction
+      diskAndProjects = disks.map(d => (GoogleProject(d.cloudContext.asString), d.samResource)) //TODO: update this to support Azure
       samVisibleDisksOpt <- NonEmptyList.fromList(diskAndProjects).traverse { ds =>
         authProvider
           .filterUserVisibleWithProjectFallback(ds, userInfo)
@@ -122,11 +125,13 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           // Making the assumption that users will always be able to access disks that they create
           disks
             .filter(d =>
-              d.auditInfo.creator == userInfo.userEmail || samVisibleDisksSet.contains((d.googleProject, d.samResource))
+              d.auditInfo.creator == userInfo.userEmail || samVisibleDisksSet.contains(
+                (GoogleProject(d.cloudContext.asString), d.samResource)
+              )
             )
             .map(d =>
               ListPersistentDiskResponse(d.id,
-                                         d.googleProject,
+                                         d.cloudContext,
                                          d.zone,
                                          d.name,
                                          d.status,
@@ -145,9 +150,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   ): F[Unit] =
     for {
       ctx <- as.ask
+      cloudContext = CloudContext.Gcp(googleProject)
       // throw 404 if not existent
-      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
-      disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(googleProject, diskName, ctx.traceId)))(
+      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
+      disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(cloudContext, diskName, ctx.traceId)))(
         F.pure
       )
       // throw 404 if no ReadPersistentDisk permission
@@ -158,7 +164,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
         .contains(PersistentDiskAction.ReadPersistentDisk) || listOfPermissions._2.toSet
         .contains(ProjectAction.ReadPersistentDisk)
       _ <- if (hasReadPermission) F.unit
-      else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
+      else F.raiseError[Unit](DiskNotFoundException(cloudContext, diskName, ctx.traceId))
       // throw 403 if no DeleteDisk permission
       hasDeletePermission = listOfPermissions._1.toSet
         .contains(PersistentDiskAction.DeletePersistentDisk) || listOfPermissions._2.toSet
@@ -166,7 +172,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
       _ <- if (hasDeletePermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
       // throw 409 if the disk is not deletable
       _ <- if (disk.status.isDeletable) F.unit
-      else F.raiseError[Unit](DiskCannotBeDeletedException(disk.googleProject, disk.name, disk.status, ctx.traceId))
+      else F.raiseError[Unit](DiskCannotBeDeletedException(googleProject, disk.name, disk.status, ctx.traceId))
       // throw 409 if the disk is attached to a runtime
       attached <- persistentDiskQuery.isDiskAttached(disk.id).transaction
       _ <- if (attached) F.raiseError[Unit](DiskAlreadyAttachedException(googleProject, diskName, ctx.traceId))
@@ -186,9 +192,10 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
   )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
+      cloudContext = CloudContext.Gcp(googleProject)
       // throw 404 if not existent
-      diskOpt <- persistentDiskQuery.getActiveByName(googleProject, diskName).transaction
-      disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(googleProject, diskName, ctx.traceId)))(
+      diskOpt <- persistentDiskQuery.getActiveByName(cloudContext, diskName).transaction
+      disk <- diskOpt.fold(F.raiseError[PersistentDisk](DiskNotFoundException(cloudContext, diskName, ctx.traceId)))(
         F.pure
       )
       // throw 400 if UpdateDiskRequest new size is smaller than disk's current size
@@ -201,7 +208,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           .contains(PersistentDiskAction.ReadPersistentDisk) || listOfPermissions._2.toSet
           .contains(ProjectAction.ReadPersistentDisk)
         _ <- if (hasReadPermission) F.unit
-        else F.raiseError[Unit](DiskNotFoundException(googleProject, diskName, ctx.traceId))
+        else F.raiseError[Unit](DiskNotFoundException(cloudContext, diskName, ctx.traceId))
         // throw 403 if no ModifyPersistentDisk permission
         hasModifyPermission = listOfPermissions._1.contains(PersistentDiskAction.ModifyPersistentDisk)
         _ <- if (hasModifyPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
@@ -222,17 +229,17 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 object DiskServiceInterp {
   private[service] def convertToDisk(userInfo: UserInfo,
                                      serviceAccount: WorkbenchEmail,
-                                     googleProject: GoogleProject,
+                                     cloudContext: CloudContext,
                                      diskName: DiskName,
                                      samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant): Either[Throwable, PersistentDisk] =
-    convertToDisk(userInfo, serviceAccount, googleProject, diskName, samResource, config, req, now, false)
+    convertToDisk(userInfo, serviceAccount, cloudContext, diskName, samResource, config, req, now, false)
 
   private[service] def convertToDisk(userInfo: UserInfo,
                                      serviceAccount: WorkbenchEmail,
-                                     googleProject: GoogleProject,
+                                     cloudContext: CloudContext,
                                      diskName: DiskName,
                                      samResource: PersistentDiskSamResourceId,
                                      config: PersistentDiskConfig,
@@ -242,7 +249,7 @@ object DiskServiceInterp {
     // create a LabelMap of default labels
     val defaultLabels = DefaultDiskLabels(
       diskName,
-      googleProject,
+      cloudContext,
       userInfo.userEmail,
       serviceAccount
     ).toMap
@@ -258,10 +265,9 @@ object DiskServiceInterp {
         Right(allLabels)
     } yield PersistentDisk(
       DiskId(0),
-      googleProject,
+      cloudContext,
       req.zone.getOrElse(config.defaultZone),
       diskName,
-      None,
       serviceAccount,
       samResource,
       DiskStatus.Creating,
@@ -297,8 +303,8 @@ case class DiskCannotBeDeletedException(googleProject: GoogleProject,
       traceId = Some(traceId)
     )
 
-case class DiskNotFoundException(googleProject: GoogleProject, diskName: DiskName, traceId: TraceId)
-    extends LeoException(s"Persistent disk ${googleProject.value}/${diskName.value} not found",
+case class DiskNotFoundException(cloudContext: CloudContext, diskName: DiskName, traceId: TraceId)
+    extends LeoException(s"Persistent disk ${cloudContext.asStringWithProvider}/${diskName.value} not found",
                          StatusCodes.NotFound,
                          traceId = Some(traceId))
 

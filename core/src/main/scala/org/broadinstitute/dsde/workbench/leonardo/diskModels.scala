@@ -7,10 +7,9 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class PersistentDisk(id: DiskId,
-                                googleProject: GoogleProject,
+                                cloudContext: CloudContext,
                                 zone: ZoneName,
                                 name: DiskName,
-                                googleId: Option[GoogleId],
                                 serviceAccount: WorkbenchEmail,
                                 samResource: PersistentDiskSamResourceId,
                                 status: DiskStatus,
@@ -21,20 +20,21 @@ final case class PersistentDisk(id: DiskId,
                                 formattedBy: Option[FormattedBy],
                                 galaxyRestore: Option[GalaxyRestore],
                                 labels: LabelMap) {
-  def projectNameString: String = s"${googleProject.value}/${name.value}"
+  def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }
 
 final case class DiskId(value: Long) extends AnyVal
 
 /** Default persistent disk labels */
 case class DefaultDiskLabels(diskName: DiskName,
-                             googleProject: GoogleProject,
+                             cloudContext: CloudContext,
                              creator: WorkbenchEmail,
                              serviceAccount: WorkbenchEmail) {
   def toMap: LabelMap =
     Map(
       "diskName" -> diskName.value,
-      "googleProject" -> googleProject.value,
+      "googleProject" -> cloudContext.asString, //TODO: remove googleProject in the future.
+      "cloudContext" -> cloudContext.asString,
       "creator" -> creator.value,
       "serviceAccount" -> serviceAccount.value
     ).filterNot(_._2 == null)

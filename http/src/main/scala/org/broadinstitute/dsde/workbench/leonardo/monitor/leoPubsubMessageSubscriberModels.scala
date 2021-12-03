@@ -188,7 +188,7 @@ object LeoPubsubMessage {
                     traceId: Option[TraceId]): CreateRuntimeMessage =
       CreateRuntimeMessage(
         runtime.id,
-        RuntimeProjectAndName(runtime.googleProject, runtime.runtimeName),
+        RuntimeProjectAndName(runtime.cloudContext, runtime.runtimeName),
         runtime.serviceAccount,
         runtime.asyncRuntimeFields,
         runtime.auditInfo,
@@ -221,7 +221,9 @@ object LeoPubsubMessage {
     def fromDisk(disk: PersistentDisk, traceId: Option[TraceId]): CreateDiskMessage =
       CreateDiskMessage(
         disk.id,
-        disk.googleProject,
+        GoogleProject(
+          disk.cloudContext.asString
+        ), //TODO: we might think about use cloudContext in CreateDiskMessage to support Azure
         disk.name,
         disk.zone,
         disk.size,

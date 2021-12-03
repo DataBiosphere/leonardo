@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
 import java.util.UUID
-
 import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
@@ -15,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppId,
   AppName,
   AuditInfo,
+  CloudContext,
   DiskId,
   DiskSize,
   KubernetesClusterLeoId,
@@ -32,7 +32,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     val now = Instant.now()
     val originalMessage = CreateRuntimeMessage(
       1,
-      RuntimeProjectAndName(GoogleProject("project1"), RuntimeName("runtimeName1")),
+      RuntimeProjectAndName(CloudContext.Gcp(GoogleProject("project1")), RuntimeName("runtimeName1")),
       WorkbenchEmail("email1"),
       None,
       AuditInfo(WorkbenchEmail("email1"), now, None, now),
@@ -61,7 +61,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     val now = Instant.now()
     val originalMessage = CreateRuntimeMessage(
       1,
-      RuntimeProjectAndName(GoogleProject("project1"), RuntimeName("runtimeName1")),
+      RuntimeProjectAndName(CloudContext.Gcp(GoogleProject("project1")), RuntimeName("runtimeName1")),
       WorkbenchEmail("email1"),
       None,
       AuditInfo(WorkbenchEmail("email1"), now, None, now),

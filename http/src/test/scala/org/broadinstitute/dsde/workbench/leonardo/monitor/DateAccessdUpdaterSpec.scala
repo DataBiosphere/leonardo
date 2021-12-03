@@ -1,30 +1,37 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
-import cats.syntax.all._
 import cats.data.Chain
-import cats.effect.IO
-import cats.effect.Deferred
+import cats.effect.{Deferred, IO}
 import cats.effect.std.Queue
+import cats.syntax.all._
+import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent}
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.DateAccessedUpdater._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import fs2.Stream
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
-
-import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.flatspec.AnyFlatSpec
+
+import java.time.Instant
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.duration._
 
 class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   it should "sort UpdateDateAccessMessage properly" in {
-    val msg1 = UpdateDateAccessMessage(RuntimeName("r1"), GoogleProject("p1"), Instant.ofEpochMilli(1588264615480L))
-    val msg2 = UpdateDateAccessMessage(RuntimeName("r1"), GoogleProject("p1"), Instant.ofEpochMilli(1588264615490L))
-    val msg3 = UpdateDateAccessMessage(RuntimeName("r2"), GoogleProject("p1"), Instant.ofEpochMilli(1588264615480L))
-    val msg4 = UpdateDateAccessMessage(RuntimeName("r1"), GoogleProject("p2"), Instant.ofEpochMilli(1588264615480L))
+    val msg1 = UpdateDateAccessMessage(RuntimeName("r1"),
+                                       CloudContext.Gcp(GoogleProject("p1")),
+                                       Instant.ofEpochMilli(1588264615480L))
+    val msg2 = UpdateDateAccessMessage(RuntimeName("r1"),
+                                       CloudContext.Gcp(GoogleProject("p1")),
+                                       Instant.ofEpochMilli(1588264615490L))
+    val msg3 = UpdateDateAccessMessage(RuntimeName("r2"),
+                                       CloudContext.Gcp(GoogleProject("p1")),
+                                       Instant.ofEpochMilli(1588264615480L))
+    val msg4 = UpdateDateAccessMessage(RuntimeName("r1"),
+                                       CloudContext.Gcp(GoogleProject("p2")),
+                                       Instant.ofEpochMilli(1588264615480L))
 
     val messages = Chain(
       msg1,
@@ -47,9 +54,9 @@ class DateAccessedUpdaterSpec extends AnyFlatSpec with LeonardoTestSuite with Te
     val runtime2 = makeCluster(2).save()
 
     val messagesToEnqueue = Stream(
-      UpdateDateAccessMessage(runtime1.runtimeName, runtime1.googleProject, Instant.ofEpochMilli(1588264615480L)),
-      UpdateDateAccessMessage(runtime1.runtimeName, runtime1.googleProject, Instant.ofEpochMilli(1588264615490L)),
-      UpdateDateAccessMessage(runtime2.runtimeName, runtime2.googleProject, Instant.ofEpochMilli(1588264615480L))
+      UpdateDateAccessMessage(runtime1.runtimeName, runtime1.cloudContext, Instant.ofEpochMilli(1588264615480L)),
+      UpdateDateAccessMessage(runtime1.runtimeName, runtime1.cloudContext, Instant.ofEpochMilli(1588264615490L)),
+      UpdateDateAccessMessage(runtime2.runtimeName, runtime2.cloudContext, Instant.ofEpochMilli(1588264615480L))
     ).covary[IO]
 
     for {

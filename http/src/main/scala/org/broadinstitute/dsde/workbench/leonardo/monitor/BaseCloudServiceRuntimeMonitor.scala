@@ -295,7 +295,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     // Get the staging bucket path for this cluster, then set the age for it to be deleted the specified number of days after the deletion of the cluster.
-    clusterQuery.getStagingBucket(runtime.googleProject, runtime.runtimeName).transaction.flatMap {
+    clusterQuery.getStagingBucket(runtime.cloudContext, runtime.runtimeName).transaction.flatMap {
       case None =>
         logger.warn(s"Could not lookup staging bucket for cluster ${runtime.projectNameString}: cluster not in db")
       case Some(bucketPath) =>
@@ -466,7 +466,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType
           .get(imageType)
           .traverse(
-            _.isProxyAvailable(runtimeAndRuntimeConfig.runtime.googleProject,
+            _.isProxyAvailable(runtimeAndRuntimeConfig.runtime.cloudContext,
                                runtimeAndRuntimeConfig.runtime.runtimeName).map(b => (imageType, b))
           )
       }
@@ -529,7 +529,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                                  runtimeName: RuntimeName)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      bucketPathOpt <- clusterQuery.getInitBucket(googleProject, runtimeName).transaction
+      cloudContext = CloudContext.Gcp(googleProject)
+      bucketPathOpt <- clusterQuery.getInitBucket(cloudContext, runtimeName).transaction
       _ <- bucketPathOpt match {
         case None =>
           logger.warn(ctx.loggingCtx)(

@@ -45,13 +45,15 @@ final case class LeoInternalServerError(msg: String, traceId: Option[TraceId])
       traceId = traceId
     )
 
-case class RuntimeNotFoundException(googleProject: GoogleProject,
+case class RuntimeNotFoundException(cloudContext: CloudContext,
                                     runtimeName: RuntimeName,
                                     msg: String,
                                     traceId: Option[TraceId] = None)
-    extends LeoException(s"Runtime ${googleProject.value}/${runtimeName.asString} not found. Details: ${msg}",
-                         StatusCodes.NotFound,
-                         traceId = traceId)
+    extends LeoException(
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} not found. Details: ${msg}",
+      StatusCodes.NotFound,
+      traceId = traceId
+    )
 
 case class RuntimeNotFoundByIdException(id: Long, msg: String)
     extends LeoException(s"Runtime with id ${id} not found. Details: ${msg}", StatusCodes.NotFound, traceId = None)

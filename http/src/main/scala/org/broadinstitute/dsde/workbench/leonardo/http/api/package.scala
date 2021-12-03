@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.http
+package org.broadinstitute.dsde.workbench.leonardo
+package http
 
 import akka.http.scaladsl.marshalling.Marshaller
 import akka.http.scaladsl.server.Directive1
@@ -9,7 +10,6 @@ import cats.mtl.Ask
 import io.opencensus.trace.Span
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
-import org.broadinstitute.dsde.workbench.leonardo.{traceIdHeaderString, AppContext, AppName, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -23,6 +23,7 @@ package object api {
 
   val googleProjectSegment = Segment.map(GoogleProject)
   val runtimeNameSegment = Segment.map(RuntimeName)
+  val workspaceIdSegment = Segment.map(WorkspaceId)
   val appNameSegment = Segment.map(AppName)
   val serviceNameSegment = Segment.map(ServiceName)
   val terminalNameSegment = Segment.map(TerminalName)

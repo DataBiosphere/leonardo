@@ -7,8 +7,8 @@ import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.RouteResult.Complete
-import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.http.scaladsl.server._
+import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry, LoggingMagnet}
 import akka.stream.scaladsl.Sink
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
@@ -22,7 +22,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.ErrorReport
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
-import io.circe.syntax._
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -71,16 +70,12 @@ class HttpRoutes(
   }
 
   implicit val myExceptionHandler = {
-    val loggingCtx = Map(
-      "serviceContext" -> org.broadinstitute.dsde.workbench.leonardo.http.serviceData.asJson.noSpaces
-    )
-
     ExceptionHandler {
       case leoException: LeoException =>
-        logger.error(loggingCtx, leoException)(s"request failed due to: ${leoException.getMessage}").unsafeToFuture()
+        logger.error(leoException)(s"request failed due to: ${leoException.getMessage}").unsafeToFuture()
         complete(leoException.statusCode, leoException.toErrorReport)
       case e: Throwable =>
-        logger.error(loggingCtx, e)(s"Unexpected error occurred processing route: ${e.getMessage}").unsafeToFuture()
+        logger.error(e)(s"Unexpected error occurred processing route: ${e.getMessage}").unsafeToFuture()
         complete(
           StatusCodes.InternalServerError -> ErrorReport(e.getMessage,
                                                          Some(StatusCodes.InternalServerError),

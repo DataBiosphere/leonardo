@@ -21,9 +21,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService
 import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
-import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName, RuntimeContainerServiceType, RuntimeName}
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
@@ -51,6 +50,12 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                           }
                         }
                       }
+                  }
+                } ~ pathPrefix("v2" / "runtimes") {
+                  pathPrefix(workspaceIdSegment / "azure" / runtimeNameSegment) { (workspaceId, runtimeName) =>
+                    path("jupyterlab") {
+                      failWith(new NotImplementedError)
+                    }
                   }
                 } ~
                   // "runtimes" proxy routes
@@ -87,7 +92,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                           // Proxy logic handled by the ProxyService class
                           // Note ProxyService calls the LeoAuthProvider internally
                           complete {
-                            proxyRuntimeHandler(userInfo, googleProject, runtimeName, request)
+                            proxyRuntimeHandler(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
                           }
                         }
                       }
@@ -256,13 +261,13 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
 
   private[api] def proxyRuntimeHandler(
     userInfo: UserInfo,
-    googleProject: GoogleProject,
+    cloudContext: CloudContext,
     runtimeName: RuntimeName,
     request: HttpRequest
   )(implicit ev: Ask[IO, AppContext]): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = proxyService.proxyRequest(userInfo, googleProject, runtimeName, request)
+      apiCall = proxyService.proxyRequest(userInfo, cloudContext, runtimeName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
 
       tool = RuntimeContainerServiceType.values
