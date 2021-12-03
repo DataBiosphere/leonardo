@@ -171,13 +171,19 @@ final class LeoAppServiceInterp[F[_]: Parallel](
                 }
               } yield lastUsed.some
             case (Some(FormattedBy.Galaxy), Some(CromwellRestore(_))) =>
-              getAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
+              F.raiseError[Option[LastUsedApp]](
+                DiskAlreadyFormattedError(FormattedBy.Galaxy, FormattedBy.Cromwell.asString, ctx.traceId)
+              )
             case (Some(FormattedBy.Cromwell), Some(GalaxyRestore(_, _, _))) =>
-              getAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
+              F.raiseError[Option[LastUsedApp]](
+                DiskAlreadyFormattedError(FormattedBy.Cromwell, FormattedBy.Galaxy.asString, ctx.traceId)
+              )
             case (Some(FormattedBy.GCE), _) | (Some(FormattedBy.Custom), _) =>
-              getAlreadyFormattedError(diskResult.disk.formattedBy.get,
-                                       s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
-                                       ctx.traceId)
+              F.raiseError[Option[LastUsedApp]](
+                DiskAlreadyFormattedError(diskResult.disk.formattedBy.get,
+                                          s"${FormattedBy.Cromwell.asString} or ${FormattedBy.Galaxy.asString}",
+                                          ctx.traceId)
+              )
             case (Some(FormattedBy.Galaxy), None) | (Some(FormattedBy.Cromwell), None) =>
               F.raiseError[Option[LastUsedApp]](
                 new LeoException("Existing disk found, but no restore info found in DB", traceId = Some(ctx.traceId))
@@ -416,16 +422,6 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       )
       _ <- publisherQueue.offer(message)
     } yield ()
-
-  private def getAlreadyFormattedError(formattedBy: FormattedBy,
-                                       appName: String,
-                                       traceId: TraceId): F[Option[LastUsedApp]] =
-    F.raiseError[Option[LastUsedApp]](
-      new LeoException(
-        s"Disk is formatted by $formattedBy already, cannot be used for $appName app",
-        traceId = Some(traceId)
-      )
-    )
 
   private[service] def getSavableCluster(
     userInfo: UserInfo,
