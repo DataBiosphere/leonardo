@@ -312,6 +312,13 @@ object AppType {
 
   def values: Set[AppType] = sealerate.values[AppType]
   def stringToObject: Map[String, AppType] = values.map(v => v.toString -> v).toMap
+
+  def appTypeToFormattedByType(appType: AppType): FormattedBy =
+    appType match {
+      case Galaxy   => FormattedBy.Galaxy
+      case Cromwell => FormattedBy.Cromwell
+      case Custom   => FormattedBy.Custom
+    }
 }
 
 final case class AppId(id: Long) extends AnyVal

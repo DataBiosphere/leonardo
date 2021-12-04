@@ -18,7 +18,7 @@ final case class PersistentDisk(id: DiskId,
                                 diskType: DiskType,
                                 blockSize: BlockSize,
                                 formattedBy: Option[FormattedBy],
-                                galaxyRestore: Option[GalaxyRestore],
+                                appRestore: Option[AppRestore],
                                 labels: LabelMap) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }
@@ -111,8 +111,22 @@ object FormattedBy extends Enum[FormattedBy] {
   final case object Custom extends FormattedBy {
     override def asString: String = "CUSTOM"
   }
+
+  final case object Cromwell extends FormattedBy {
+    override def asString: String = "CROMWELL"
+  }
 }
 
 final case class PvcId(asString: String) extends AnyVal
-// information needed for restoring a galaxy app
-final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId)
+
+sealed trait AppRestore extends Product with Serializable {
+  def lastUsedBy: AppId
+}
+
+object AppRestore {
+  // information needed for restoring a Galaxy app
+  final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
+
+  // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
+  final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore
+}

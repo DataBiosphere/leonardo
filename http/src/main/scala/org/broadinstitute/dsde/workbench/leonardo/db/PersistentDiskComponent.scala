@@ -3,6 +3,7 @@ package db
 
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.PersistentDiskSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
@@ -29,7 +30,7 @@ final case class PersistentDiskRecord(id: DiskId,
                                       diskType: DiskType,
                                       blockSize: BlockSize,
                                       formattedBy: Option[FormattedBy],
-                                      galaxyRestore: Option[GalaxyRestore])
+                                      appRestore: Option[AppRestore])
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
   def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
@@ -109,7 +110,12 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
           diskType,
           blockSize,
           formattedBy,
-          (galaxyPvcId, cvmfsPvcId, lastUsedBy).mapN((gp, cp, l) => GalaxyRestore(gp, cp, l))
+          formattedBy.flatMap {
+            case FormattedBy.Galaxy =>
+              (galaxyPvcId, cvmfsPvcId, lastUsedBy).mapN((gp, cp, lb) => GalaxyRestore(gp, cp, lb))
+            case FormattedBy.Cromwell                 => lastUsedBy.map(CromwellRestore)
+            case FormattedBy.GCE | FormattedBy.Custom => None
+          }
         )
     }, { record: PersistentDiskRecord =>
       Some(
@@ -133,9 +139,11 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
         record.diskType,
         record.blockSize,
         record.formattedBy,
-        (record.galaxyRestore.map(_.galaxyPvcId),
-         record.galaxyRestore.map(_.cvmfsPvcId),
-         record.galaxyRestore.map(_.lastUsedBy))
+        record.appRestore match {
+          case None                       => (None, None, None)
+          case Some(app: CromwellRestore) => (None, None, Some(app.lastUsedBy))
+          case Some(app: GalaxyRestore)   => (Some(app.galaxyPvcId), Some(app.cvmfsPvcId), Some(app.lastUsedBy))
+        }
       )
     })
 }
@@ -180,9 +188,9 @@ object persistentDiskQuery {
         (Some(lastUsedBy))
       )
 
-  def getGalaxyDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[GalaxyRestore]] =
+  def getAppDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[AppRestore]] =
     findByIdQuery(id).result
-      .map(_.headOption.flatMap(_.galaxyRestore))
+      .map(_.headOption.flatMap(_.appRestore))
 
   def save(disk: PersistentDisk)(implicit ec: ExecutionContext): DBIO[PersistentDisk] =
     for {
@@ -238,7 +246,7 @@ object persistentDiskQuery {
             isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(diskId)
             isAttached <- if (isAttachedToRuntime) DBIO.successful(true) else appQuery.isDiskAttached(diskId)
           } yield isAttached
-        case Some(FormattedBy.Galaxy | FormattedBy.Custom) =>
+        case Some(FormattedBy.Galaxy | FormattedBy.Custom | FormattedBy.Cromwell) =>
           appQuery.isDiskAttached(diskId)
         case Some(FormattedBy.GCE) =>
           RuntimeConfigQueries.isDiskAttached(diskId)
@@ -262,7 +270,7 @@ object persistentDiskQuery {
       disk.diskType,
       disk.blockSize,
       disk.formattedBy,
-      disk.galaxyRestore
+      disk.appRestore
     )
 
   private[db] def aggregateLabels(
@@ -300,7 +308,7 @@ object persistentDiskQuery {
       rec.diskType,
       rec.blockSize,
       rec.formattedBy,
-      rec.galaxyRestore,
+      rec.appRestore,
       labels
     )
 }
