@@ -27,7 +27,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   "NotebookHailSpec" - {
     "should install the right Hail version" in { clusterFixture =>
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
+        withNewNotebook(clusterFixture.runtime, Python3, 10.minutes) { notebookPage =>
           // Verify we have the right hail version
           val importHail =
             """import hail as hl
