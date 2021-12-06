@@ -14,7 +14,7 @@ import scala.concurrent.duration._
 /**
  * This spec verifies Hail and Spark functionality.
  */
-@DoNotDiscover
+//@DoNotDiscover
 class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
@@ -124,7 +124,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               importResult.get should include("Finished type imputation")
 
               // Verify the Hail table
-              val tableResult = notebookPage.executeCell("table.count()")
+              val tableResult = notebookPage.executeCellWithCellOutput("table.count()").map(_.output.tail.last)
               tableResult shouldBe Some("4")
             }
           }
@@ -169,7 +169,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             result.get should include("Coerced sorted dataset")
 
             // Verify the Hail table
-            val tableResult = notebookPage.executeCell("samples.count()")
+            val tableResult = notebookPage.executeCellWithCellOutput("samples.count()").map(_.output.tail.last)
             tableResult shouldBe Some("2504") // rows
           }
         }
