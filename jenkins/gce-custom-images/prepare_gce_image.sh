@@ -27,7 +27,7 @@ openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:3.14.0"
 
 # The _old variables are NOT replaced by the Jenkins job; they must be manually updated
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.3"
+terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.1"
 
 # Not replaced by Jenkins
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.3"
