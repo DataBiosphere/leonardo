@@ -14,7 +14,7 @@ import scala.concurrent.duration._
 /**
  * This spec verifies Hail and Spark functionality.
  */
-//@DoNotDiscover
+@DoNotDiscover
 class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
