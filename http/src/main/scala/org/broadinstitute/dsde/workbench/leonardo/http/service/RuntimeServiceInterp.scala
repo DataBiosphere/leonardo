@@ -328,7 +328,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       disk.zone,
                       OperationName(op.getName),
                       1 seconds,
-                      30,
+                      60,
                       None
                     )(
                       F.unit,
@@ -941,36 +941,22 @@ object RuntimeServiceInterp {
                 )
               )
             isAttached <- pd.formattedBy match {
-              // TODO: it seems like this can be refactored to follow the below format
-              //case Some(x) => if x is willBeUsedBy, check if its attached
-              //                  else already formatted exception
-              // case None => isAttached
               case None =>
                 for {
                   isAttachedToRuntime <- RuntimeConfigQueries.isDiskAttached(pd.id).transaction
                   isAttached <- if (isAttachedToRuntime) F.pure(true)
                   else appQuery.isDiskAttached(pd.id).transaction
                 } yield isAttached
-              case Some(FormattedBy.Galaxy) =>
-                if (willBeUsedBy == FormattedBy.Galaxy) //TODO: If we support more apps, we need to update this check
-                  appQuery.isDiskAttached(pd.id).transaction
-                else
+              case Some(formattedBy) =>
+                if (willBeUsedBy == formattedBy) {
+                  formattedBy match {
+                    case FormattedBy.Galaxy | FormattedBy.Cromwell | FormattedBy.Custom =>
+                      appQuery.isDiskAttached(pd.id).transaction
+                    case FormattedBy.GCE => RuntimeConfigQueries.isDiskAttached(pd.id).transaction
+                  }
+                } else
                   F.raiseError[Boolean](
-                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.Galaxy)
-                  )
-              case Some(FormattedBy.GCE) =>
-                if (willBeUsedBy == FormattedBy.GCE)
-                  RuntimeConfigQueries.isDiskAttached(pd.id).transaction
-                else
-                  F.raiseError[Boolean](
-                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.GCE)
-                  )
-              case Some(FormattedBy.Custom) =>
-                if (willBeUsedBy == FormattedBy.Custom)
-                  RuntimeConfigQueries.isDiskAttached(pd.id).transaction
-                else
-                  F.raiseError[Boolean](
-                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, FormattedBy.GCE)
+                    DiskAlreadyFormattedByOtherApp(googleProject, req.name, ctx.traceId, formattedBy)
                   )
             }
             // throw 409 if the disk is attached to a runtime

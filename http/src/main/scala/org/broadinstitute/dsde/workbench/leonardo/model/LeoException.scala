@@ -158,3 +158,9 @@ final case class CloudServiceNotSupportedException(cloudService: CloudService)
       StatusCodes.Conflict,
       traceId = None
     )
+
+final case class DiskAlreadyFormattedError(alreadyFormattedBy: FormattedBy, targetAppName: String, traceId: TraceId)
+    extends LeoException(
+      message = s"Disk is formatted by $alreadyFormattedBy already, cannot be used for $targetAppName app",
+      traceId = Some(traceId)
+    )

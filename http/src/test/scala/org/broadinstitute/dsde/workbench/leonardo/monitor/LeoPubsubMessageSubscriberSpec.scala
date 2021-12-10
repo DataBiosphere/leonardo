@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.Kleisli
@@ -38,6 +39,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
@@ -677,7 +679,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
-      galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(savedApp1.appResources.disk.get.id).transaction
+      appRestore <- persistentDiskQuery.getAppDiskRestore(savedApp1.appResources.disk.get.id).transaction
+      galaxyRestore = appRestore.map(_.asInstanceOf[GalaxyRestore])
       ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
         .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {

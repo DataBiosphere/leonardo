@@ -45,6 +45,9 @@ import org.broadinstitute.dsp._
 import org.http4s.Uri
 
 import java.util.Base64
+
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -361,7 +364,11 @@ class GKEInterpreter[F[_]](
       ).compile.lastOrError
 
       //TODO: validate app release is the same as restore release
-      galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(diskId).transaction
+      appRestore: Option[AppRestore] <- persistentDiskQuery.getAppDiskRestore(diskId).transaction
+      galaxyRestore: Option[GalaxyRestore] = appRestore.flatMap {
+        case a: GalaxyRestore   => Some(a)
+        case _: CromwellRestore => None
+      }
 
       // helm install and wait
       _ <- app.appType match {
@@ -421,46 +428,46 @@ class GKEInterpreter[F[_]](
         s"Finished app creation for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
-      _ <- if (galaxyRestore.isDefined)
-        persistentDiskQuery
-          .updateLastUsedBy(diskId, app.id)
-          .transaction
-          .void
-      else if (app.appType == AppType.Galaxy)
-        for {
-          pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId,
-                                                         KubernetesNamespace(app.appResources.namespace.name))
+      _ <- app.appType match {
+        case AppType.Galaxy =>
+          if (galaxyRestore.isDefined) persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction.void
+          else
+            for {
+              pvcs <- kubeService.listPersistentVolumeClaims(gkeClusterId,
+                                                             KubernetesNamespace(app.appResources.namespace.name))
 
-          galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
-          cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
-          _ <- (galaxyPvc, cvmfsPvc).tupled
-            .fold(
-              F.raiseError[Unit](
-                PubsubKubernetesError(AppError("Fail to retrieve pvc ids",
-                                               ctx.now,
-                                               ErrorAction.CreateApp,
-                                               ErrorSource.App,
-                                               None,
-                                               Some(ctx.traceId)),
-                                      Some(app.id),
-                                      false,
-                                      None,
-                                      None)
-              )
-            ) {
-              case (gp, cp) =>
-                val galaxyDiskRestore = GalaxyRestore(
-                  PvcId(gp.getMetadata.getUid),
-                  PvcId(cp.getMetadata.getUid),
-                  app.id
-                )
-                persistentDiskQuery
-                  .updateGalaxyDiskRestore(diskId, galaxyDiskRestore)
-                  .transaction
-                  .void
-            }
-        } yield ()
-      else F.unit
+              galaxyPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-galaxy-pvc")
+              cvmfsPvc = pvcs.find(pvc => pvc.getMetadata.getName == s"${app.release.asString}-cvmfs-alien-cache-pvc")
+              _ <- (galaxyPvc, cvmfsPvc).tupled
+                .fold(
+                  F.raiseError[Unit](
+                    PubsubKubernetesError(AppError("Fail to retrieve pvc ids",
+                                                   ctx.now,
+                                                   ErrorAction.CreateApp,
+                                                   ErrorSource.App,
+                                                   None,
+                                                   Some(ctx.traceId)),
+                                          Some(app.id),
+                                          false,
+                                          None,
+                                          None)
+                  )
+                ) {
+                  case (gp, cp) =>
+                    val galaxyDiskRestore = GalaxyRestore(
+                      PvcId(gp.getMetadata.getUid),
+                      PvcId(cp.getMetadata.getUid),
+                      app.id
+                    )
+                    persistentDiskQuery
+                      .updateGalaxyDiskRestore(diskId, galaxyDiskRestore)
+                      .transaction
+                      .void
+                }
+            } yield ()
+        case AppType.Cromwell => persistentDiskQuery.updateLastUsedBy(diskId, app.id).transaction
+        case AppType.Custom   => F.unit
+      }
 
       _ <- appQuery.updateStatus(params.appId, AppStatus.Running).transaction
     } yield ()
@@ -628,7 +635,11 @@ class GKEInterpreter[F[_]](
         s"Delete app operation has finished for app ${app.appName.value} in cluster ${gkeClusterId.toString}"
       )
 
-      _ <- dbApp.app.appResources.disk.flatMap(_.galaxyRestore).traverse { restore =>
+      appRestore: Option[GalaxyRestore] = dbApp.app.appResources.disk.flatMap(_.appRestore).flatMap {
+        case a: GalaxyRestore   => Some(a)
+        case _: CromwellRestore => None
+      }
+      _ <- appRestore.traverse { restore =>
         for {
           _ <- kubeService.deletePv(dbCluster.getGkeClusterId, PvName(s"pvc-${restore.galaxyPvcId.asString}"))
           _ <- kubeService.deletePv(dbCluster.getGkeClusterId, PvName(s"pvc-${restore.cvmfsPvcId.asString}"))
