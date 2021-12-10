@@ -227,7 +227,7 @@ object LeonardoApiClient {
   ): IO[GetRuntimeResponseCopy] = {
     val ioa = getRuntime(googleProject, runtimeName)
     for {
-      res <- IO.sleep(80 seconds) >> streamFUntilDone(ioa, 120, 10 seconds).compile.lastOrError
+      res <- IO.sleep(80 seconds) >> streamFUntilDone(ioa, 300, 10 seconds).compile.lastOrError
       _ <- res.status match {
         case ClusterStatus.Error =>
           if (shouldError)
