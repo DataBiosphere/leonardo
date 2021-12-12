@@ -25,61 +25,61 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   override val cloudService: Option[CloudService] = Some(CloudService.Dataproc)
 
   "NotebookHailSpec" - {
-    "should install the right Hail version" in { clusterFixture =>
-      Thread.sleep(30000) //Sleep 30 seconds to make tests more reliable hopefully
-      withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.runtime, Python3, 10.minutes) { notebookPage =>
-          // Verify we have the right hail version
-          val importHail =
-            """import hail as hl
-              |hl.init()
-            """.stripMargin
-
-          val importHailOutput =
-            s"""Welcome to
-               |     __  __     <>__
-               |    / /_/ /__  __/ /
-               |   / __  / _ `/ / /
-               |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
-
-          // Note: hl.init() displays several cell outputs. The 'Welcome to Hail' string should be the last output.
-          notebookPage
-            .executeCellWithCellOutput(importHail, timeout = 2.minutes, cellNumberOpt = Some(1))
-            .map(_.output.tail.last)
-            .get should include(importHailOutput)
-
-          // Run the Hail tutorial and verify
-          // https://hail.is/docs/0.2/tutorials-landing.html
-          val tutorialToRun =
-            """
-              |hl.utils.get_movie_lens('data/')
-              |users = hl.read_table('data/users.ht')
-              |users.aggregate(hl.agg.count())""".stripMargin
-          val tutorialCellResult =
-            notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).map(_.output.tail.last).get
-          tutorialCellResult.toInt shouldBe (943)
-
-          // Verify spark job is run in non local mode
-          val getSparkContext =
-            """
-              |hl.spark_context()""".stripMargin
-          val getSparkContextCellResult =
-            notebookPage.executeCell(getSparkContext, cellNumberOpt = Some(3)).get
-          getSparkContextCellResult.contains("yarn") shouldBe true
-
-          // Verify spark job works
-          val sparkJobToSucceed =
-            """import random
-              |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
-          val sparkJobToSucceedcellResult =
-            notebookPage
-              .executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4))
-              .map(_.output.tail.last)
-              .get
-          sparkJobToSucceedcellResult.toInt shouldBe (1000)
-        }
-      }
-    }
+//    "should install the right Hail version" in { clusterFixture =>
+//      Thread.sleep(30000) //Sleep 30 seconds to make tests more reliable hopefully
+//      withWebDriver { implicit driver =>
+//        withNewNotebook(clusterFixture.runtime, Python3, 10.minutes) { notebookPage =>
+//          // Verify we have the right hail version
+//          val importHail =
+//            """import hail as hl
+//              |hl.init()
+//            """.stripMargin
+//
+//          val importHailOutput =
+//            s"""Welcome to
+//               |     __  __     <>__
+//               |    / /_/ /__  __/ /
+//               |   / __  / _ `/ / /
+//               |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
+//
+//          // Note: hl.init() displays several cell outputs. The 'Welcome to Hail' string should be the last output.
+//          notebookPage
+//            .executeCellWithCellOutput(importHail, timeout = 2.minutes, cellNumberOpt = Some(1))
+//            .map(_.output.tail.last)
+//            .get should include(importHailOutput)
+//
+//          // Run the Hail tutorial and verify
+//          // https://hail.is/docs/0.2/tutorials-landing.html
+//          val tutorialToRun =
+//            """
+//              |hl.utils.get_movie_lens('data/')
+//              |users = hl.read_table('data/users.ht')
+//              |users.aggregate(hl.agg.count())""".stripMargin
+//          val tutorialCellResult =
+//            notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).map(_.output.tail.last).get
+//          tutorialCellResult.toInt shouldBe (943)
+//
+//          // Verify spark job is run in non local mode
+//          val getSparkContext =
+//            """
+//              |hl.spark_context()""".stripMargin
+//          val getSparkContextCellResult =
+//            notebookPage.executeCell(getSparkContext, cellNumberOpt = Some(3)).get
+//          getSparkContextCellResult.contains("yarn") shouldBe true
+//
+//          // Verify spark job works
+//          val sparkJobToSucceed =
+//            """import random
+//              |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
+//          val sparkJobToSucceedcellResult =
+//            notebookPage
+//              .executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4))
+//              .map(_.output.tail.last)
+//              .get
+//          sparkJobToSucceedcellResult.toInt shouldBe (1000)
+//        }
+//      }
+//    }
 
     // Make sure we can import data from GCS into Hail.
     // See https://broadworkbench.atlassian.net/browse/IA-1558
