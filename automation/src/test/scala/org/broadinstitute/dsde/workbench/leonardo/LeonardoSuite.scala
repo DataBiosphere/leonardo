@@ -95,11 +95,10 @@ trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
   protected def unclaimProject(workspaceName: WorkspaceName): IO[Unit] =
     for {
       hermioneAuthToken <- Hermione.authToken()
-//    Not deleting workspace so that the project is still left around
-//      ronAuthToken <- Ron.authToken()
-//      _ <- IO(
-//        Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronAuthToken)
-//      ).attempt
+      ronAuthToken <- Ron.authToken()
+      _ <- IO(
+        Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronAuthToken)
+      ).attempt
       _ <- IO(
         Orchestration.billing.removeUserFromBillingProject(workspaceName.namespace,
                                                            Ron.email,
