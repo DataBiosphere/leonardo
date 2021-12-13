@@ -250,7 +250,5 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     queue: Queue[IO, LeoPubsubMessage] =
       Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): MonitorAtBoot[IO] =
-    new MonitorAtBoot[IO](queue,
-                          FakeGoogleComputeService,
-                          org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting)
+    new MonitorAtBoot[IO](queue, FakeGoogleComputeService)
 }

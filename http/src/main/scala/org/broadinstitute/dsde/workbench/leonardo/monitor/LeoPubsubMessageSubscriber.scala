@@ -10,8 +10,6 @@ import cats.syntax.all._
 import com.google.cloud.compute.v1.{Disk, Operation}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
-import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
@@ -53,8 +51,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   googleDiskService: GoogleDiskService[F],
   computePollOperation: ComputePollOperation[F],
   authProvider: LeoAuthProvider[F],
-  gkeAlg: GKEAlgebra[F],
-  errorReporting: ErrorReporting[F]
+  gkeAlg: GKEAlgebra[F]
 )(implicit executionContext: ExecutionContext,
   F: Async[F],
   logger: StructuredLogger[F],
@@ -1223,9 +1220,6 @@ class LeoPubsubMessageSubscriber[F[_]](
         (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, None, now)) >>
           clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
-      _ <- if (e.isReportWorthy)
-        errorReporting.reportError(e)
-      else F.unit
     } yield ()
 
   private def handleRuntimeMessageError(runtimeId: Long, now: Instant, msg: String)(
@@ -1236,9 +1230,6 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- clusterErrorQuery.save(runtimeId, RuntimeError(m, None, now)).transaction
       _ <- logger.error(ctx.loggingCtx, e)(m)
-      _ <- if (e.isReportWorthy)
-        errorReporting.reportError(e)
-      else F.unit
     } yield ()
   }
 
