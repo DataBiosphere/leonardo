@@ -19,67 +19,67 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
-  val expectedHailVersion = "0.2.62"
+  val expectedHailVersion = "0.2.74"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
   override val cloudService: Option[CloudService] = Some(CloudService.Dataproc)
 
   "NotebookHailSpec" - {
-//    "should install the right Hail version" in { clusterFixture =>
-//      Thread.sleep(30000) //Sleep 30 seconds to make tests more reliable hopefully
-//      withWebDriver { implicit driver =>
-//        withNewNotebook(clusterFixture.runtime, Python3, 10.minutes) { notebookPage =>
-//          // Verify we have the right hail version
-//          val importHail =
-//            """import hail as hl
-//              |hl.init()
-//            """.stripMargin
-//
-//          val importHailOutput =
-//            s"""Welcome to
-//               |     __  __     <>__
-//               |    / /_/ /__  __/ /
-//               |   / __  / _ `/ / /
-//               |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
-//
-//          // Note: hl.init() displays several cell outputs. The 'Welcome to Hail' string should be the last output.
-//          notebookPage
-//            .executeCellWithCellOutput(importHail, timeout = 2.minutes, cellNumberOpt = Some(1))
-//            .map(_.output.tail.last)
-//            .get should include(importHailOutput)
-//
-//          // Run the Hail tutorial and verify
-//          // https://hail.is/docs/0.2/tutorials-landing.html
-//          val tutorialToRun =
-//            """
-//              |hl.utils.get_movie_lens('data/')
-//              |users = hl.read_table('data/users.ht')
-//              |users.aggregate(hl.agg.count())""".stripMargin
-//          val tutorialCellResult =
-//            notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).map(_.output.tail.last).get
-//          tutorialCellResult.toInt shouldBe (943)
-//
-//          // Verify spark job is run in non local mode
-//          val getSparkContext =
-//            """
-//              |hl.spark_context()""".stripMargin
-//          val getSparkContextCellResult =
-//            notebookPage.executeCell(getSparkContext, cellNumberOpt = Some(3)).get
-//          getSparkContextCellResult.contains("yarn") shouldBe true
-//
-//          // Verify spark job works
-//          val sparkJobToSucceed =
-//            """import random
-//              |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
-//          val sparkJobToSucceedcellResult =
-//            notebookPage
-//              .executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4))
-//              .map(_.output.tail.last)
-//              .get
-//          sparkJobToSucceedcellResult.toInt shouldBe (1000)
-//        }
-//      }
-//    }
+    "should install the right Hail version" in { clusterFixture =>
+      Thread.sleep(30000) //Sleep 30 seconds to make tests more reliable hopefully
+      withWebDriver { implicit driver =>
+        withNewNotebook(clusterFixture.runtime, Python3, 10.minutes) { notebookPage =>
+          // Verify we have the right hail version
+          val importHail =
+            """import hail as hl
+              |hl.init()
+            """.stripMargin
+
+          val importHailOutput =
+            s"""Welcome to
+               |     __  __     <>__
+               |    / /_/ /__  __/ /
+               |   / __  / _ `/ / /
+               |  /_/ /_/\\_,_/_/_/   version $expectedHailVersion""".stripMargin
+
+          // Note: hl.init() displays several cell outputs. The 'Welcome to Hail' string should be the last output.
+          notebookPage
+            .executeCellWithCellOutput(importHail, timeout = 2.minutes, cellNumberOpt = Some(1))
+            .map(_.output.tail.last)
+            .get should include(importHailOutput)
+
+          // Run the Hail tutorial and verify
+          // https://hail.is/docs/0.2/tutorials-landing.html
+          val tutorialToRun =
+            """
+              |hl.utils.get_movie_lens('data/')
+              |users = hl.read_table('data/users.ht')
+              |users.aggregate(hl.agg.count())""".stripMargin
+          val tutorialCellResult =
+            notebookPage.executeCellWithCellOutput(tutorialToRun, cellNumberOpt = Some(2)).map(_.output.tail.last).get
+          tutorialCellResult.toInt shouldBe (943)
+
+          // Verify spark job is run in non local mode
+          val getSparkContext =
+            """
+              |hl.spark_context()""".stripMargin
+          val getSparkContextCellResult =
+            notebookPage.executeCell(getSparkContext, cellNumberOpt = Some(3)).get
+          getSparkContextCellResult.contains("yarn") shouldBe true
+
+          // Verify spark job works
+          val sparkJobToSucceed =
+            """import random
+              |hl.balding_nichols_model(3, 1000, 1000)._force_count_rows()""".stripMargin
+          val sparkJobToSucceedcellResult =
+            notebookPage
+              .executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(4))
+              .map(_.output.tail.last)
+              .get
+          sparkJobToSucceedcellResult.toInt shouldBe (1000)
+        }
+      }
+    }
 
     // Make sure we can import data from GCS into Hail.
     // See https://broadworkbench.atlassian.net/browse/IA-1558
@@ -124,7 +124,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               importResult.get should include("Finished type imputation")
 
               // Verify the Hail table
-              val tableResult = notebookPage.executeCell("table.count()")
+              val tableResult = notebookPage.executeCellWithCellOutput("table.count()").map(_.output.last)
               tableResult shouldBe Some("4")
             }
           }
@@ -169,7 +169,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             result.get should include("Coerced sorted dataset")
 
             // Verify the Hail table
-            val tableResult = notebookPage.executeCell("samples.count()")
+            val tableResult = notebookPage.executeCellWithCellOutput("samples.count()").map(_.output.last)
             tableResult shouldBe Some("2504") // rows
           }
         }
