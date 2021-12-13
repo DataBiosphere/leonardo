@@ -20,7 +20,6 @@ import shapeless._
 import slick.dbio.DBIO
 
 import java.nio.file.Path
-import java.sql.SQLDataException
 import java.time.Instant
 import java.util.UUID
 
