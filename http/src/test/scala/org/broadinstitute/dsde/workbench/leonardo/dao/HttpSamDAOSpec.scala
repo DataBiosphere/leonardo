@@ -36,8 +36,8 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
   val underlyingPetTokenCache = Caffeine
     .newBuilder()
     .maximumSize(httpSamDaoConfig.petCacheMaxSize)
-    .build[String, scalacache.Entry[Option[String]]]()
-  val petTokenCache = CaffeineCache[IO, Option[String]](underlyingPetTokenCache)
+    .build[UserEmailAndProject, scalacache.Entry[Option[String]]]()
+  val petTokenCache = CaffeineCache[IO, UserEmailAndProject, Option[String]](underlyingPetTokenCache)
 
   "HttpSamDAO" should "get Sam ok status" in {
     val okResponse =

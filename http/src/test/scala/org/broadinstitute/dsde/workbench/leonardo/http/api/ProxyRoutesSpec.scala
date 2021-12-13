@@ -130,8 +130,9 @@ class ProxyRoutesSpec
     // should still 404 even if a cache entry is present
     samResourceCache
       .put(
-        proxyService
-          .getSamResourceFromDb(RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(newName)))
+        RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(newName))
+//        proxyService
+//          .getSamResourceFromDb(RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(newName)))
       )(Some(runtimeSamResource.resourceId), None)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     Get(s"/proxy/$googleProject/$newName")
@@ -188,9 +189,9 @@ class ProxyRoutesSpec
                            MockGoogleOAuth2Service,
                            queue = Some(queue))
     samResourceCache.put(
-      proxyService.getSamResourceFromDb(
-        RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(clusterName))
-      )
+//      proxyService.getSamResourceFromDb(
+      RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(clusterName))
+//      )
     )(Some(runtimeSamResource.resourceId), None)
     val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
     Get(s"/proxy/$googleProject/$clusterName")

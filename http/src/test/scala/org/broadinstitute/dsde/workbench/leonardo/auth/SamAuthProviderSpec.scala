@@ -41,8 +41,10 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
   val projectOwnerAuthHeader = MockSamDAO.userEmailToAuthorization(MockSamDAO.projectOwnerEmail)
   val authHeader = MockSamDAO.userEmailToAuthorization(userInfo.userEmail)
 
-  val underlyingCaffeineCache = Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[Boolean]]()
-  implicit val authCache: Cache[IO, Boolean] = CaffeineCache[IO, Boolean](underlyingCaffeineCache)
+  val underlyingCaffeineCache =
+    Caffeine.newBuilder().maximumSize(10000L).build[AuthCacheKey, scalacache.Entry[Boolean]]()
+  implicit val authCache: Cache[IO, AuthCacheKey, Boolean] =
+    CaffeineCache[IO, AuthCacheKey, Boolean](underlyingCaffeineCache)
   var mockSam: MockSamDAO = _
   var samAuthProvider: SamAuthProvider[IO] = _
   var samAuthProviderWithCache: SamAuthProvider[IO] = _
