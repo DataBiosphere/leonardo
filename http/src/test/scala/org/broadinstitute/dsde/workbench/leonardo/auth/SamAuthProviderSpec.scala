@@ -281,31 +281,32 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     // check cache
     val cacheMap = underlyingCaffeineCache.asMap()
     cacheMap.size shouldBe 7
-    cacheMap.asScala.keySet.toSet should contain theSameElementsAs
-      Set(
-        AuthCacheKey(SamResourceType.Project,
-                     project.value,
-                     projectOwnerAuthHeader,
-                     ProjectAction.GetRuntimeStatus.asString),
-        AuthCacheKey(SamResourceType.Project,
-                     project.value,
-                     projectOwnerAuthHeader,
-                     ProjectAction.ReadPersistentDisk.asString),
-        AuthCacheKey(SamResourceType.Runtime,
-                     runtimeSamResource.resourceId,
-                     authHeader,
-                     RuntimeAction.ConnectToRuntime.asString),
-        AuthCacheKey(SamResourceType.Runtime,
-                     runtimeSamResource.resourceId,
-                     authHeader,
-                     RuntimeAction.GetRuntimeStatus.asString),
-        AuthCacheKey(SamResourceType.PersistentDisk,
-                     diskSamResource.resourceId,
-                     authHeader,
-                     PersistentDiskAction.ReadPersistentDisk.asString),
-        AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.GetAppStatus.asString),
-        AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.ConnectToApp.asString)
-      ).map(_.toString)
+    val expectedCache = Set(
+      AuthCacheKey(SamResourceType.Project,
+                   project.value,
+                   projectOwnerAuthHeader,
+                   ProjectAction.GetRuntimeStatus.asString),
+      AuthCacheKey(SamResourceType.Project,
+                   project.value,
+                   projectOwnerAuthHeader,
+                   ProjectAction.ReadPersistentDisk.asString),
+      AuthCacheKey(SamResourceType.Runtime,
+                   runtimeSamResource.resourceId,
+                   authHeader,
+                   RuntimeAction.ConnectToRuntime.asString),
+      AuthCacheKey(SamResourceType.Runtime,
+                   runtimeSamResource.resourceId,
+                   authHeader,
+                   RuntimeAction.GetRuntimeStatus.asString),
+      AuthCacheKey(SamResourceType.PersistentDisk,
+                   diskSamResource.resourceId,
+                   authHeader,
+                   PersistentDiskAction.ReadPersistentDisk.asString),
+      AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.GetAppStatus.asString),
+      AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.ConnectToApp.asString)
+    )
+
+    cacheMap.asScala.keySet.toSet should contain theSameElementsAs expectedCache
     cacheMap.asScala.values.map(_.value).toSet shouldBe Set(true)
   }
 
