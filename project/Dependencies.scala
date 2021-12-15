@@ -15,7 +15,7 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "87051bd3-SNAP"
+  private val workbenchLibsHash = "d341c24d-SNAP"
   val serviceTestV = s"0.21-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
@@ -69,6 +69,8 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.42.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val grpcContext: ModuleID =                 "io.grpc"         % "grpc-context"                       % "1.42.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val grpcNettyShaded: ModuleID =                 "io.grpc"         % "grpc-netty-shaded"                       % "1.42.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -133,6 +135,8 @@ object Dependencies {
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
     workbenchOpenTelemetryTest,
+    grpcContext,
+    grpcNettyShaded,
     helmScalaSdk,
     helmScalaSdkTest,
     "net.logstash.logback" % "logstash-logback-encoder" % "7.0.1", // for structured logging in logback
@@ -172,8 +176,6 @@ object Dependencies {
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
 
-    // Dependent on the trace exporters you want to use add one or more of the following
-    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito
