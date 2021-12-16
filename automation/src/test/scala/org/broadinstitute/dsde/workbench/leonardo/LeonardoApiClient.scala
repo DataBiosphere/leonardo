@@ -227,7 +227,7 @@ object LeonardoApiClient {
   ): IO[GetRuntimeResponseCopy] = {
     val ioa = getRuntime(googleProject, runtimeName)
     for {
-      res <- IO.sleep(80 seconds) >> streamFUntilDone(ioa, 120, 10 seconds).compile.lastOrError
+      res <- IO.sleep(80 seconds) >> streamFUntilDone(ioa, 300, 10 seconds).compile.lastOrError
       _ <- res.status match {
         case ClusterStatus.Error =>
           if (shouldError)
@@ -646,8 +646,11 @@ object LeonardoApiClient {
         }
     } yield ()
 
-  private def genTraceIdHeader(): IO[Header.Raw] =
-    IO(UUID.randomUUID().toString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
+  private def genTraceIdHeader(): IO[Header.Raw] = {
+    val uuid = UUID.randomUUID().toString.replaceAll("\\-", "")
+    val digitString = "3939911508519804487"
+    IO(uuid + "/" + digitString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
+  }
 }
 
 final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {

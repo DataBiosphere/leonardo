@@ -1,11 +1,16 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package db
 
-import java.time.Instant
-
 import cats.data.Chain
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.google2.OperationName
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeToMonitor
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -14,22 +19,17 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject,
   ServiceAccountKeyId
 }
-import LeoProfile.api._
-import LeoProfile.mappedColumnImplicits._
-import LeoProfile.dummyDate
-import org.broadinstitute.dsde.workbench.google2.OperationName
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
-import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeToMonitor
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 
+import java.sql.SQLDataException
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
                                internalId: String,
                                runtimeName: RuntimeName,
-                               googleId: Option[GoogleId],
-                               googleProject: GoogleProject,
+                               googleId: Option[ProxyHostName],
+                               cloudContext: CloudContext,
                                operationName: Option[String],
                                status: RuntimeStatus,
                                hostIp: Option[String],
@@ -46,15 +46,18 @@ final case class ClusterRecord(id: Long,
                                customClusterEnvironmentVariables: Map[String, String],
                                runtimeConfigId: RuntimeConfigId,
                                deletedFrom: Option[String]) {
-  def projectNameString: String = s"${googleProject.value}/${runtimeName.asString}"
+  def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
 }
 
 class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
   def internalId = column[String]("internalId", O.Length(254))
-  def clusterName = column[RuntimeName]("clusterName", O.Length(254))
-  def googleId = column[Option[GoogleId]]("googleId")
-  def googleProject = column[GoogleProject]("googleProject", O.Length(254))
+  def runtimeName = column[RuntimeName]("runtimeName", O.Length(254))
+  def proxyHostName = column[Option[ProxyHostName]]("proxyHostName")
+  // For Google resources, cloudContext is google project;
+  // For Azure resources, cloudContext is managed resource group
+  def cloudContextDb = column[CloudContextDb]("cloudContext", O.Length(254))
+  def cloudProvider = column[CloudProvider]("cloudProvider", O.Length(50))
   def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
   def operationName = column[Option[String]]("operationName", O.Length(254))
   def status = column[RuntimeStatus]("status", O.Length(254))
@@ -75,8 +78,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
   def deletedFrom = column[Option[String]]("deletedFrom")
 
-  def uniqueKey = index("IDX_CLUSTER_UNIQUE", (googleProject, clusterName, destroyedDate), unique = true)
-
   // Can't use the shorthand
   //   def * = (...) <> (ClusterRecord.tupled, ClusterRecord.unapply)
   // because CLUSTER has more than 22 columns.
@@ -85,9 +86,9 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
     (
       id,
       internalId,
-      clusterName,
-      googleId,
-      googleProject,
+      runtimeName,
+      proxyHostName,
+      (cloudProvider, cloudContextDb),
       operationName,
       status,
       hostIp,
@@ -108,8 +109,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       case (id,
             internalId,
             clusterName,
-            googleId,
-            googleProject,
+            proxyHostname,
+            (cloudProvider, cloudContextDb),
             operationName,
             status,
             hostIp,
@@ -130,8 +131,15 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           id,
           internalId,
           clusterName,
-          googleId,
-          googleProject,
+          proxyHostname,
+          cloudProvider match {
+            case CloudProvider.Gcp =>
+              CloudContext.Gcp(GoogleProject(cloudContextDb.value)): CloudContext
+            case CloudProvider.Azure =>
+              val context =
+                AzureCloudContext.fromString(cloudContextDb.value).fold(s => throw new SQLDataException(s), identity)
+              CloudContext.Azure(context): CloudContext
+          },
           operationName,
           status,
           hostIp,
@@ -167,7 +175,12 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.internalId,
           c.runtimeName,
           c.googleId,
-          c.googleProject,
+          c.cloudContext match {
+            case CloudContext.Gcp(value) =>
+              (CloudProvider.Gcp, CloudContextDb(value.value))
+            case CloudContext.Azure(value) =>
+              (CloudProvider.Azure, CloudContextDb(value.asString))
+          },
           c.operationName,
           c.status,
           c.hostIp,
@@ -221,25 +234,25 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield (cluster, image)
   }
 
-  def fullClusterQueryByUniqueKey(googleProject: GoogleProject,
+  def fullClusterQueryByUniqueKey(cloudContext: CloudContext,
                                   clusterName: RuntimeName,
                                   destroyedDateOpt: Option[Instant]) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery
-      .filter(_.googleProject === googleProject)
-      .filter(_.clusterName === clusterName)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === clusterName)
       .filter(_.destroyedDate === destroyedDate)
 
     fullClusterQuery(baseQuery)
   }
 
-  def getRuntimeQueryByUniqueKey(googleProject: GoogleProject,
+  def getRuntimeQueryByUniqueKey(cloudContext: CloudContext,
                                  clusterName: RuntimeName,
                                  destroyedDateOpt: Option[Instant]) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery
-      .filter(_.googleProject === googleProject)
-      .filter(_.clusterName === clusterName)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === clusterName)
       .filter(_.destroyedDate === destroyedDate)
 
     for {
@@ -255,13 +268,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield (cluster, error, label, extension, image, scopes, patch)
   }
 
-  def clusterRecordQueryByUniqueKey(googleProject: GoogleProject,
+  def clusterRecordQueryByUniqueKey(cloudContext: CloudContext,
                                     clusterName: RuntimeName,
                                     destroyedDateOpt: Option[Instant]) = {
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     clusterQuery
-      .filter(_.googleProject === googleProject)
-      .filter(_.clusterName === clusterName)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === clusterName)
       .filter(_.destroyedDate === destroyedDate)
   }
 
@@ -362,32 +375,32 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .length
       .result
 
-  def countActiveByProject(googleProject: GoogleProject) =
+  def countActiveByProject(cloudContext: CloudContext) =
     clusterQuery
-      .filter(_.googleProject === googleProject)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.status inSetBind RuntimeStatus.activeStatuses)
       .length
       .result
 
   // find* and get* methods do query the INSTANCE table
 
-  def getActiveClusterByName(project: GoogleProject,
+  def getActiveClusterByName(cloudContext: CloudContext,
                              name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
-    fullClusterQueryByUniqueKey(project, name, Some(dummyDate)).result map { recs =>
+    fullClusterQueryByUniqueKey(cloudContext, name, Some(dummyDate)).result map { recs =>
       unmarshalFullCluster(recs).headOption
     }
 
-  def getDeletingClusterByName(project: GoogleProject,
+  def getDeletingClusterByName(cloudContext: CloudContext,
                                name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
-    fullClusterQueryByUniqueKey(project, name, Some(dummyDate)).filter {
+    fullClusterQueryByUniqueKey(cloudContext, name, Some(dummyDate)).filter {
       _._1.status === (RuntimeStatus.Deleting: RuntimeStatus)
     }.result map { recs => unmarshalFullCluster(recs).headOption }
 
-  def getActiveClusterByNameMinimal(project: GoogleProject,
+  def getActiveClusterByNameMinimal(cloudContext: CloudContext,
                                     name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] = {
     val res = clusterQuery
-      .filter(_.googleProject === project)
-      .filter(_.clusterName === name)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
       .result
 
@@ -398,11 +411,11 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     }
   }
 
-  def getActiveClusterRecordByName(project: GoogleProject,
+  def getActiveClusterRecordByName(cloudContext: CloudContext,
                                    name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[ClusterRecord]] =
     clusterQuery
-      .filter(_.googleProject === project)
-      .filter(_.clusterName === name)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
       .result
       .map(recs => recs.headOption)
@@ -410,55 +423,56 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def getClusterById(id: Long)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
     fullClusterQueryById(id).result map { recs => unmarshalFullCluster(recs).headOption }
 
-  def getActiveClusterInternalIdByName(project: GoogleProject, name: RuntimeName)(
+  def getActiveClusterInternalIdByName(cloudContext: CloudContext, name: RuntimeName)(
     implicit ec: ExecutionContext
   ): DBIO[Option[RuntimeSamResourceId]] =
     clusterQuery
-      .filter(_.googleProject === project)
-      .filter(_.clusterName === name)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
       .result
       .map(recs => recs.headOption.map(clusterRec => RuntimeSamResourceId(clusterRec.internalId)))
 
   private[leonardo] def getIdByUniqueKey(cluster: Runtime)(implicit ec: ExecutionContext): DBIO[Option[Long]] =
-    getIdByUniqueKey(cluster.googleProject, cluster.runtimeName, cluster.auditInfo.destroyedDate)
+    getIdByUniqueKey(cluster.cloudContext, cluster.runtimeName, cluster.auditInfo.destroyedDate)
 
   private[leonardo] def getIdByUniqueKey(
-    googleProject: GoogleProject,
+    cloudContext: CloudContext,
     clusterName: RuntimeName,
     destroyedDateOpt: Option[Instant]
   )(implicit ec: ExecutionContext): DBIO[Option[Long]] =
-    getClusterByUniqueKey(googleProject, clusterName, destroyedDateOpt).map(_.map(_.id))
+    getClusterByUniqueKey(cloudContext, clusterName, destroyedDateOpt).map(_.map(_.id))
 
   // Convenience method for tests, in several of which we define a cluster and later on need
   // to retrieve its updated status, etc. but don't know its id to look up
   private[leonardo] def getClusterByUniqueKey(
     getClusterId: GetClusterKey
   )(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
-    getClusterByUniqueKey(getClusterId.googleProject, getClusterId.clusterName, getClusterId.destroyedDate)
+    getClusterByUniqueKey(getClusterId.cloudContext, getClusterId.clusterName, getClusterId.destroyedDate)
 
   private[leonardo] def getClusterByUniqueKey(
-    googleProject: GoogleProject,
+    cloudContext: CloudContext,
     clusterName: RuntimeName,
     destroyedDateOpt: Option[Instant]
   )(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
-    fullClusterQueryByUniqueKey(googleProject, clusterName, destroyedDateOpt).result map { recs =>
+    fullClusterQueryByUniqueKey(cloudContext, clusterName, destroyedDateOpt).result map { recs =>
       unmarshalFullCluster(recs).headOption
     }
 
-  def getInitBucket(project: GoogleProject, name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
+  def getInitBucket(cloudContext: CloudContext,
+                    name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
     clusterQuery
-      .filter(_.googleProject === project)
-      .filter(_.clusterName === name)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === name)
       .map(_.initBucket)
       .result
       .map(recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption))
 
-  def getStagingBucket(project: GoogleProject,
+  def getStagingBucket(cloudContext: CloudContext,
                        name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =
     clusterQuery
-      .filter(_.googleProject === project)
-      .filter(_.clusterName === name)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === name)
       .map(_.stagingBucket)
       .result
       // staging bucket is saved as a bucket name rather than a path
@@ -501,13 +515,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       _ <- RuntimeConfigQueries.updatePersistentDiskId(rid, None, destroyedDate): DBIO[Int]
     } yield ()
 
-  def markDeleted(googleProject: GoogleProject,
+  def markDeleted(cloudContext: CloudContext,
                   runtimeName: RuntimeName,
                   destroyedDate: Instant,
                   deletedFrom: Option[String])(
     implicit ec: ExecutionContext
   ): DBIO[Unit] =
-    clusterRecordQueryByUniqueKey(googleProject, runtimeName, Some(dummyDate))
+    clusterRecordQueryByUniqueKey(cloudContext, runtimeName, Some(dummyDate))
       .map(c => (c.destroyedDate, c.status, c.hostIp, c.dateAccessed, c.deletedFrom))
       .update((destroyedDate, RuntimeStatus.Deleted, None, destroyedDate, deletedFrom))
       .map(_ => ())
@@ -540,11 +554,11 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def updateAsyncClusterCreationFields(updateAsyncClusterCreationFields: UpdateAsyncClusterCreationFields): DBIO[Int] =
     findByIdQuery(updateAsyncClusterCreationFields.clusterId)
-      .map(c => (c.initBucket, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
+      .map(c => (c.initBucket, c.proxyHostName, c.operationName, c.stagingBucket, c.dateAccessed))
       .update(
         (
           updateAsyncClusterCreationFields.initBucket.map(_.toUri),
-          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.googleId),
+          updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.proxyHostName),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.operationName.value),
           updateAsyncClusterCreationFields.asyncRuntimeFields.map(_.stagingBucket.value),
           updateAsyncClusterCreationFields.dateAccessed
@@ -553,7 +567,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def clearAsyncClusterCreationFields(cluster: Runtime, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(cluster.id)
-      .map(c => (c.initBucket, c.googleId, c.operationName, c.stagingBucket, c.dateAccessed))
+      .map(c => (c.initBucket, c.proxyHostName, c.operationName, c.stagingBucket, c.dateAccessed))
       .update((None, None, None, None, dateAccessed))
 
   def updateClusterStatus(id: Long, newStatus: RuntimeStatus, dateAccessed: Instant): DBIO[Int] =
@@ -569,10 +583,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(_.dateAccessed)
       .update(dateAccessed)
 
-  def updateDateAccessedByProjectAndName(googleProject: GoogleProject, clusterName: RuntimeName, dateAccessed: Instant)(
+  def updateDateAccessedByProjectAndName(cloudContext: CloudContext, clusterName: RuntimeName, dateAccessed: Instant)(
     implicit ec: ExecutionContext
   ): DBIO[Int] =
-    clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
+    clusterQuery.getActiveClusterByNameMinimal(cloudContext, clusterName) flatMap {
       case Some(c) => clusterQuery.updateDateAccessed(c.id, dateAccessed)
       case None    => DBIO.successful(0)
     }
@@ -585,10 +599,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(c => (c.kernelFoundBusyDate, c.dateAccessed))
       .update((Some(kernelFoundBusyDate), dateAccessed))
 
-  def clearKernelFoundBusyDateByProjectAndName(googleProject: GoogleProject,
+  def clearKernelFoundBusyDateByProjectAndName(cloudContext: CloudContext,
                                                clusterName: RuntimeName,
                                                dateAccessed: Instant)(implicit ec: ExecutionContext): DBIO[Int] =
-    clusterQuery.getActiveClusterByNameMinimal(googleProject, clusterName) flatMap {
+    clusterQuery.getActiveClusterByNameMinimal(cloudContext, clusterName) flatMap {
       case Some(c) => clusterQuery.clearKernelFoundBusyDate(c.id, dateAccessed)
       case None    => DBIO.successful(0)
     }
@@ -620,8 +634,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       id = 0, // DB AutoInc
       runtime.samResource.resourceId,
       runtime.runtimeName,
-      runtime.asyncRuntimeFields.map(_.googleId),
-      runtime.googleProject,
+      runtime.asyncRuntimeFields.map(_.proxyHostName),
+      runtime.cloudContext,
       runtime.asyncRuntimeFields.map(_.operationName.value),
       runtime.status,
       runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.asString)),
@@ -674,7 +688,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         val containers = Chain.fromSeq(
           RuntimeContainerServiceType.imageTypeToRuntimeContainerServiceType.get(clusterImageRec.imageType).toSeq
         )
-        Map(RunningRuntime(clusterRec.googleProject, clusterRec.runtimeName, List.empty) -> containers)
+        Map(RunningRuntime(clusterRec.cloudContext, clusterRec.runtimeName, List.empty) -> containers)
     }
 
     clusterContainerMap.toSeq.map {
@@ -751,7 +765,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                scopes: List[ScopeRecord],
                                patch: List[PatchRecord]): Runtime = {
     val name = clusterRecord.runtimeName
-    val project = clusterRecord.googleProject
+    val cloudContext = clusterRecord.cloudContext
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
         AsyncRuntimeFields(googleId,
@@ -769,33 +783,33 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterRecord.id,
       RuntimeSamResourceId(clusterRecord.internalId),
       name,
-      project,
-      clusterRecord.serviceAccountInfo,
-      dataprocInfo,
-      clusterRecord.auditInfo,
-      clusterRecord.kernelFoundBusyDate,
-      Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labels),
-      clusterRecord.status,
-      labels,
-      clusterRecord.userScriptUri,
-      clusterRecord.startUserScriptUri,
-      errors map clusterErrorQuery.unmarshallClusterErrorRecord,
-      instanceRecords map instanceQuery.unmarshalInstance toSet,
-      extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
-      clusterRecord.autopauseThreshold,
-      clusterRecord.defaultClientId,
-      false,
-      clusterImages,
-      scopeQuery.unmarshallScopes(scopes),
-      clusterRecord.welderEnabled,
-      clusterRecord.customClusterEnvironmentVariables,
-      clusterRecord.runtimeConfigId.value,
-      patchInProgress
+      serviceAccount = clusterRecord.serviceAccountInfo,
+      asyncRuntimeFields = dataprocInfo,
+      auditInfo = clusterRecord.auditInfo,
+      kernelFoundBusyDate = clusterRecord.kernelFoundBusyDate,
+      proxyUrl = Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, cloudContext, name, clusterImages, labels),
+      status = clusterRecord.status,
+      labels = labels,
+      userScriptUri = clusterRecord.userScriptUri,
+      startUserScriptUri = clusterRecord.startUserScriptUri,
+      errors = errors map clusterErrorQuery.unmarshallClusterErrorRecord,
+      dataprocInstances = instanceRecords map instanceQuery.unmarshalInstance toSet,
+      userJupyterExtensionConfig = extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
+      autopauseThreshold = clusterRecord.autopauseThreshold,
+      defaultClientId = clusterRecord.defaultClientId,
+      allowStop = false,
+      runtimeImages = clusterImages,
+      scopes = scopeQuery.unmarshallScopes(scopes),
+      welderEnabled = clusterRecord.welderEnabled,
+      customEnvironmentVariables = clusterRecord.customClusterEnvironmentVariables,
+      runtimeConfigId = clusterRecord.runtimeConfigId.value,
+      patchInProgress = patchInProgress,
+      cloudContext = clusterRecord.cloudContext
     )
   }
 }
 
-final case class GetClusterKey(googleProject: GoogleProject, clusterName: RuntimeName, destroyedDate: Option[Instant])
+final case class GetClusterKey(cloudContext: CloudContext, clusterName: RuntimeName, destroyedDate: Option[Instant])
 
 final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                                   clusterId: Long,

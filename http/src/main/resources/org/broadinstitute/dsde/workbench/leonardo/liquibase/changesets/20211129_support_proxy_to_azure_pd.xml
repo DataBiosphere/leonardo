@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<databaseChangeLog logicalFilePath="leonardo" xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
+
+<changeSet logicalFilePath="leonardo" author="qi" id="support_proxy_to_azure_pd">
+    <addColumn tableName="PERSISTENT_DISK">
+        <column name="cloudProvider" type="ENUM('GCP', 'AZURE')" defaultValue="GCP">
+            <constraints nullable="false"/>
+        </column>
+    </addColumn>
+
+    <renameColumn newColumnName="cloudContext"
+                  columnDataType="varchar(254)"
+                  oldColumnName="googleProject"
+                  tableName="PERSISTENT_DISK"/>
+
+    <createTable tableName="RUNTIME_CONTROLLED_RESOURCE">
+        <column name="runtimeId" type="BIGINT">
+            <constraints nullable="false"/>
+        </column>
+        <column name="workspaceId" type="VARCHAR(254)">
+            <constraints nullable="false"/>
+        </column>
+        <column name="resourceId" type="VARCHAR(254)">
+            <constraints nullable="false"/>
+        </column>
+        <column name="resourceType" type="VARCHAR(254)">
+            <constraints nullable="false"/>
+        </column>
+    </createTable>
+
+    <createIndex indexName="FK_RUNTIME_CONTROLLED_RESOURCE" tableName="RUNTIME_CONTROLLED_RESOURCE">
+        <column name="runtimeId"/>
+    </createIndex>
+    <addForeignKeyConstraint baseColumnNames="runtimeId" baseTableName="RUNTIME_CONTROLLED_RESOURCE" constraintName="FK_RUNTIME_CONTROLLED_RESOURCE" deferrable="false" initiallyDeferred="false" onDelete="NO ACTION" onUpdate="NO ACTION" referencedColumnNames="id" referencedTableName="CLUSTER"/>
+    <addUniqueConstraint columnNames="runtimeId, workspaceId, resourceId, resourceType" constraintName="IDX_RUNTIME_CONTROLLED_RESOURCE_UNIQUE" tableName="RUNTIME_CONTROLLED_RESOURCE"/>
+</changeSet>
+
+</databaseChangeLog>

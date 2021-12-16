@@ -10,8 +10,6 @@ import cats.syntax.all._
 import com.google.cloud.compute.v1.{Disk, Operation}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
-import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
@@ -24,7 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   OperationName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.leonardo.AppType.{appTypeToFormattedByType, Galaxy}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AppNotFoundException
@@ -53,8 +51,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   googleDiskService: GoogleDiskService[F],
   computePollOperation: ComputePollOperation[F],
   authProvider: LeoAuthProvider[F],
-  gkeAlg: GKEAlgebra[F],
-  errorReporting: ErrorReporting[F]
+  gkeAlg: GKEAlgebra[F]
 )(implicit executionContext: ExecutionContext,
   F: Async[F],
   logger: StructuredLogger[F],
@@ -204,9 +201,13 @@ class LeoPubsubMessageSubscriber[F[_]](
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
         DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig))
       )
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
+        new RuntimeException("Azure runtime is not supported yet")
+      )
       poll = op match {
         case Some(o) =>
-          runtimeConfig.cloudService.pollCheck(runtime.googleProject,
+          runtimeConfig.cloudService.pollCheck(googleProject,
                                                RuntimeAndRuntimeConfig(runtime, runtimeConfig),
                                                o,
                                                RuntimeStatus.Deleting)
@@ -219,12 +220,12 @@ class LeoPubsubMessageSubscriber[F[_]](
           now <- nowInstant
           diskOpt <- persistentDiskQuery.getPersistentDiskRecord(id).transaction
           disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
-          deleteDiskOp <- googleDiskService.deleteDisk(runtime.googleProject, disk.zone, disk.name)
+          deleteDiskOp <- googleDiskService.deleteDisk(googleProject, disk.zone, disk.name)
           whenDone = persistentDiskQuery.delete(id, now).transaction.void >> authProvider
             .notifyResourceDeleted(
               disk.samResource,
               disk.creator,
-              disk.googleProject
+              googleProject
             )
           whenTimeout = F.raiseError[Unit](
             new RuntimeException(s"Fail to delete ${disk.name} in a timely manner")
@@ -233,7 +234,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           _ <- deleteDiskOp match {
             case Some(op) =>
               computePollOperation
-                .pollZoneOperation(runtime.googleProject, disk.zone, OperationName(op.getName), 2 seconds, 10, None)(
+                .pollZoneOperation(googleProject, disk.zone, OperationName(op.getName), 2 seconds, 10, None)(
                   whenDone,
                   whenTimeout,
                   whenInterrupted
@@ -278,9 +279,13 @@ class LeoPubsubMessageSubscriber[F[_]](
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
         StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, true)
       )
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
+        new RuntimeException("Azure runtime is not supported yet")
+      )
       poll = op match {
         case Some(o) =>
-          runtimeConfig.cloudService.pollCheck(runtime.googleProject,
+          runtimeConfig.cloudService.pollCheck(googleProject,
                                                RuntimeAndRuntimeConfig(runtime, runtimeConfig),
                                                o,
                                                RuntimeStatus.Stopping)
@@ -363,6 +368,10 @@ class LeoPubsubMessageSubscriber[F[_]](
         } yield true
       } else F.pure(false)
 
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
+        new RuntimeException("non google project cloud context is not supported yet")
+      )
       // Update the disk size
       _ <- msg.diskUpdate
         .traverse { d =>
@@ -372,13 +381,13 @@ class LeoPubsubMessageSubscriber[F[_]](
                 for {
                   zone <- F.fromOption(LeoLenses.gceZone.getOption(runtimeConfig),
                                        new RuntimeException("GCE runtime must have a zone"))
-                } yield UpdateDiskSizeParams.Gce(runtime.googleProject, diskName, targetSize, zone)
+                } yield UpdateDiskSizeParams.Gce(googleProject, diskName, targetSize, zone)
               case DiskUpdate.NoPdSizeUpdate(targetSize) =>
                 for {
                   zone <- F.fromOption(LeoLenses.gceZone.getOption(runtimeConfig),
                                        new RuntimeException("GCE runtime must have a zone"))
                 } yield UpdateDiskSizeParams.Gce(
-                  runtime.googleProject,
+                  googleProject,
                   DiskName(
                     s"${runtime.runtimeName.asString}-1"
                   ), // user disk's diskname is always postfixed with -1 for non-pd runtimes
@@ -413,7 +422,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           task = for {
             _ <- operation match {
               case Some(op) =>
-                runtimeConfig.cloudService.pollCheck(runtime.googleProject,
+                runtimeConfig.cloudService.pollCheck(googleProject,
                                                      RuntimeAndRuntimeConfig(runtime, runtimeConfig),
                                                      op,
                                                      RuntimeStatus.Stopping)
@@ -510,9 +519,6 @@ class LeoPubsubMessageSubscriber[F[_]](
             .putAllLabels(Map("leonardo" -> "true").asJava)
             .build()
         )
-      _ <- operationOpt.traverse(operation =>
-        persistentDiskQuery.updateGoogleId(msg.diskId, GoogleId(operation.getTargetId.toString), ctx.now).transaction[F]
-      )
       task = operationOpt.traverse_(operation =>
         computePollOperation
           .pollZoneOperation(
@@ -626,11 +632,15 @@ class LeoPubsubMessageSubscriber[F[_]](
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(diskId))
       )(F.pure)
-      operation <- googleDiskService.deleteDisk(disk.googleProject, disk.zone, disk.name)
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
+        new RuntimeException("non google project cloud context is not supported yet")
+      )
+      operation <- googleDiskService.deleteDisk(googleProject, disk.zone, disk.name)
       whenDone = persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider.notifyResourceDeleted(
         disk.samResource,
         disk.auditInfo.creator,
-        disk.googleProject
+        googleProject
       ) >> logger.info(ctx.loggingCtx)(s"Completed disk deletion for ${diskId}")
       whenTimeout = F.raiseError[Unit](
         new TimeoutException(s"Fail to delete disk ${disk.name.value} in a timely manner")
@@ -640,7 +650,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         case Some(op) =>
           computePollOperation
             .pollZoneOperation(
-              disk.googleProject,
+              googleProject,
               disk.zone,
               OperationName(op.getName),
               config.persistentDiskMonitorConfig.create.interval,
@@ -708,10 +718,14 @@ class LeoPubsubMessageSubscriber[F[_]](
       disk <- diskOpt.fold(
         F.raiseError[PersistentDisk](PubsubHandleMessageError.DiskNotFound(msg.diskId))
       )(F.pure)
-      operation <- googleDiskService.resizeDisk(disk.googleProject, disk.zone, disk.name, msg.newSize.gb)
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
+        new RuntimeException("Azure disk is not supported yet")
+      )
+      operation <- googleDiskService.resizeDisk(googleProject, disk.zone, disk.name, msg.newSize.gb)
       task = computePollOperation
         .pollZoneOperation(
-          disk.googleProject,
+          googleProject,
           disk.zone,
           OperationName(operation.getName),
           config.persistentDiskMonitorConfig.create.interval,
@@ -851,7 +865,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       // create disk asynchronously
       createDiskOp = disk
         .traverse(d =>
-          createDisk(CreateDiskMessage.fromDisk(d, Some(ctx.traceId)), Some(FormattedBy.Galaxy), true).adaptError {
+          createDisk(CreateDiskMessage.fromDisk(d, Some(ctx.traceId)),
+                     Some(appTypeToFormattedByType(msg.appType)),
+                     true).adaptError {
             case e =>
               PubsubKubernetesError(
                 AppError(e.getMessage, ctx.now, ErrorAction.CreateApp, ErrorSource.Disk, None, Some(ctx.traceId)),
@@ -1204,9 +1220,6 @@ class LeoPubsubMessageSubscriber[F[_]](
         (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, None, now)) >>
           clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
-      _ <- if (e.isReportWorthy)
-        errorReporting.reportError(e)
-      else F.unit
     } yield ()
 
   private def handleRuntimeMessageError(runtimeId: Long, now: Instant, msg: String)(
@@ -1217,9 +1230,6 @@ class LeoPubsubMessageSubscriber[F[_]](
       ctx <- ev.ask
       _ <- clusterErrorQuery.save(runtimeId, RuntimeError(m, None, now)).transaction
       _ <- logger.error(ctx.loggingCtx, e)(m)
-      _ <- if (e.isReportWorthy)
-        errorReporting.reportError(e)
-      else F.unit
     } yield ()
   }
 

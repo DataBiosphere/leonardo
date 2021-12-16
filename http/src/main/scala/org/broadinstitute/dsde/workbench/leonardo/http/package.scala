@@ -5,21 +5,14 @@ import cats.Applicative
 import cats.effect.{Resource, Sync}
 import cats.mtl.Ask
 import cats.syntax.all._
-import io.circe.syntax._
 import io.circe.Encoder
 import io.opencensus.scala.http.ServiceData
 import io.opencensus.trace.{AttributeValue, Span}
 import fs2._
 import fs2.io.file.Files
-import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthy
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
 import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  InvalidMonitorRequest,
-  MonitorAtBootException,
-  RuntimeConfigInCreateRuntimeMessage,
-  RuntimeMonitor
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimeConfigInCreateRuntimeMessage, RuntimeMonitor}
 import org.broadinstitute.dsde.workbench.leonardo.util.CloudServiceOps
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
@@ -27,7 +20,6 @@ import shapeless._
 import slick.dbio.DBIO
 
 import java.nio.file.Path
-import java.sql.SQLDataException
 import java.time.Instant
 import java.util.UUID
 
@@ -107,15 +99,6 @@ package object http {
     from: RuntimeConfigInCreateRuntimeMessage.DataprocConfig
   ): RuntimeConfig.DataprocConfig =
     genericDataprocRuntimeConfig.from(genericDataprocRuntimeConfigInCreateRuntimeMessage.to(from))
-
-  implicit val throwableReportWorthy: ReportWorthy[Throwable] = e =>
-    e match {
-      case _: SQLDataException             => true
-      case _: InvalidMonitorRequest        => true
-      case _: MonitorAtBootException       => true
-      case _: model.LeoInternalServerError => true
-      case _                               => false
-    }
 }
 
 final case class CloudServiceMonitorOps[F[_], A](a: A)(
@@ -134,10 +117,7 @@ final case class CloudServiceMonitorOps[F[_], A](a: A)(
 
 final case class AppContext(traceId: TraceId, now: Instant, requestUri: String = "", span: Option[Span] = None) {
   override def toString: String = s"${traceId.asString}"
-
-  import org.broadinstitute.dsde.workbench.leonardo.http.serviceDataEncoder
-  val loggingCtx = Map("traceId" -> traceId.asString,
-                       "serviceContext" -> org.broadinstitute.dsde.workbench.leonardo.http.serviceData.asJson.noSpaces)
+  val loggingCtx = Map("traceId" -> traceId.asString)
 }
 
 object AppContext {

@@ -7,10 +7,9 @@ import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 final case class PersistentDisk(id: DiskId,
-                                googleProject: GoogleProject,
+                                cloudContext: CloudContext,
                                 zone: ZoneName,
                                 name: DiskName,
-                                googleId: Option[GoogleId],
                                 serviceAccount: WorkbenchEmail,
                                 samResource: PersistentDiskSamResourceId,
                                 status: DiskStatus,
@@ -19,22 +18,23 @@ final case class PersistentDisk(id: DiskId,
                                 diskType: DiskType,
                                 blockSize: BlockSize,
                                 formattedBy: Option[FormattedBy],
-                                galaxyRestore: Option[GalaxyRestore],
+                                appRestore: Option[AppRestore],
                                 labels: LabelMap) {
-  def projectNameString: String = s"${googleProject.value}/${name.value}"
+  def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }
 
 final case class DiskId(value: Long) extends AnyVal
 
 /** Default persistent disk labels */
 case class DefaultDiskLabels(diskName: DiskName,
-                             googleProject: GoogleProject,
+                             cloudContext: CloudContext,
                              creator: WorkbenchEmail,
                              serviceAccount: WorkbenchEmail) {
   def toMap: LabelMap =
     Map(
       "diskName" -> diskName.value,
-      "googleProject" -> googleProject.value,
+      "googleProject" -> cloudContext.asString, //TODO: remove googleProject in the future.
+      "cloudContext" -> cloudContext.asString,
       "creator" -> creator.value,
       "serviceAccount" -> serviceAccount.value
     ).filterNot(_._2 == null)
@@ -111,8 +111,22 @@ object FormattedBy extends Enum[FormattedBy] {
   final case object Custom extends FormattedBy {
     override def asString: String = "CUSTOM"
   }
+
+  final case object Cromwell extends FormattedBy {
+    override def asString: String = "CROMWELL"
+  }
 }
 
 final case class PvcId(asString: String) extends AnyVal
-// information needed for restoring a galaxy app
-final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId)
+
+sealed trait AppRestore extends Product with Serializable {
+  def lastUsedBy: AppId
+}
+
+object AppRestore {
+  // information needed for restoring a Galaxy app
+  final case class GalaxyRestore(galaxyPvcId: PvcId, cvmfsPvcId: PvcId, lastUsedBy: AppId) extends AppRestore
+
+  // information needed for reconnecting a disk used previously by Cromwell app to another Cromwell app
+  final case class CromwellRestore(lastUsedBy: AppId) extends AppRestore
+}

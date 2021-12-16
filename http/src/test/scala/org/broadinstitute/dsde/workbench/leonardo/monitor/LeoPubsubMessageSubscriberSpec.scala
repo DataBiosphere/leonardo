@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.Kleisli
@@ -38,6 +39,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
@@ -142,11 +144,9 @@ class LeoPubsubMessageSubscriberSpec
     dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
   )
 
-  val stoppedCluster = makeCluster(2).copy(
-    serviceAccount = serviceAccount,
-    asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
-    status = RuntimeStatus.Stopped
-  )
+  val stoppedCluster = makeCluster(2).copy(serviceAccount = serviceAccount,
+                                           asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
+                                           status = RuntimeStatus.Stopped)
 
   it should "handle CreateRuntimeMessage and create cluster" in isolatedDbTest {
     val leoSubscriber = makeLeoSubscriber()
@@ -154,7 +154,7 @@ class LeoPubsubMessageSubscriberSpec
       for {
         runtime <- IO(
           makeCluster(1)
-            .copy(asyncRuntimeFields = None, status = RuntimeStatus.Creating, serviceAccount = serviceAccount)
+            .copy(serviceAccount = serviceAccount, asyncRuntimeFields = None, status = RuntimeStatus.Creating)
             .save()
         )
         tr <- traceId.ask[TraceId]
@@ -169,7 +169,7 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.asyncRuntimeFields.get.stagingBucket.value should startWith("leostaging")
         updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
         updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
-        updatedRuntime.get.asyncRuntimeFields.get.googleId.value shouldBe "258165385"
+        updatedRuntime.get.asyncRuntimeFields.get.proxyHostName.value shouldBe "258165385"
         updatedRuntime.get.runtimeImages.map(_.imageType) should contain(BootSource)
       }
 
@@ -195,9 +195,9 @@ class LeoPubsubMessageSubscriberSpec
       for {
         runtime <- IO(
           makeCluster(1)
-            .copy(status = RuntimeStatus.Creating,
-                  serviceAccount = serviceAccount,
-                  asyncRuntimeFields = Some(asyncFields))
+            .copy(serviceAccount = serviceAccount,
+                  asyncRuntimeFields = Some(asyncFields),
+                  status = RuntimeStatus.Creating)
             .save()
         )
         tr <- traceId.ask[TraceId]
@@ -598,7 +598,6 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
       } yield {
         updatedDisk shouldBe defined
-        updatedDisk.get.googleId.get.value shouldBe "258165385"
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -680,7 +679,8 @@ class LeoPubsubMessageSubscriberSpec
       getApp = getAppOpt.get
       getDiskOpt <- persistentDiskQuery.getById(savedApp1.appResources.disk.get.id).transaction
       getDisk = getDiskOpt.get
-      galaxyRestore <- persistentDiskQuery.getGalaxyDiskRestore(savedApp1.appResources.disk.get.id).transaction
+      appRestore <- persistentDiskQuery.getAppDiskRestore(savedApp1.appResources.disk.get.id).transaction
+      galaxyRestore = appRestore.map(_.asInstanceOf[GalaxyRestore])
       ipRange = Config.vpcConfig.subnetworkRegionIpRangeMap
         .getOrElse(RegionName("us-central1"), throw new Exception(s"Unsupported Region us-central1"))
     } yield {
@@ -1576,7 +1576,6 @@ class LeoPubsubMessageSubscriberSpec
         updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
       } yield {
         updatedDisk shouldBe defined
-        updatedDisk.get.googleId.get.value shouldBe "258165385"
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -1641,8 +1640,7 @@ class LeoPubsubMessageSubscriberSpec
       diskInterp,
       computePollOperation,
       MockAuthProvider,
-      gkeAlgebra,
-      org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting
+      gkeAlgebra
     )
   }
 

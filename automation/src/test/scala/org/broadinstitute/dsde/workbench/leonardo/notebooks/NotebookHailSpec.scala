@@ -19,15 +19,16 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 
   // Should match the HAILHASH env var in the Jupyter Dockerfile
-  val expectedHailVersion = "0.2.62"
+  val expectedHailVersion = "0.2.74"
   val hailTutorialUploadFile = ResourceFile(s"diff-tests/hail-tutorial.ipynb")
   override val toolDockerImage: Option[String] = Some(LeonardoConfig.Leonardo.hailImageUrl)
   override val cloudService: Option[CloudService] = Some(CloudService.Dataproc)
 
   "NotebookHailSpec" - {
     "should install the right Hail version" in { clusterFixture =>
+      Thread.sleep(30000) //Sleep 30 seconds to make tests more reliable hopefully
       withWebDriver { implicit driver =>
-        withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
+        withNewNotebook(clusterFixture.runtime, Python3, 10.minutes) { notebookPage =>
           // Verify we have the right hail version
           val importHail =
             """import hail as hl
@@ -123,7 +124,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               importResult.get should include("Finished type imputation")
 
               // Verify the Hail table
-              val tableResult = notebookPage.executeCell("table.count()")
+              val tableResult = notebookPage.executeCellWithCellOutput("table.count()").map(_.output.last)
               tableResult shouldBe Some("4")
             }
           }
@@ -168,7 +169,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             result.get should include("Coerced sorted dataset")
 
             // Verify the Hail table
-            val tableResult = notebookPage.executeCell("samples.count()")
+            val tableResult = notebookPage.executeCellWithCellOutput("samples.count()").map(_.output.last)
             tableResult shouldBe Some("2504") // rows
           }
         }

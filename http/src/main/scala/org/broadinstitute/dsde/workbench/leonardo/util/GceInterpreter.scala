@@ -71,19 +71,20 @@ class GceInterpreter[F[_]](
             )
           )
       }
-
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtimeProjectAndName.cloudContext),
+        new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
+      )
       // We get region by removing the last two characters of zone
       regionParam = RegionName(zoneParam.value.substring(0, zoneParam.value.length - 2))
 
       // Set up VPC and firewall
       (_, subnetwork) <- vpcAlg.setUpProjectNetworkAndFirewalls(
-        SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject, regionParam)
+        SetUpProjectNetworkParams(googleProject, regionParam)
       )
 
       // Get resource (e.g. memory) constraints for the instance
-      resourceConstraints <- getResourceConstraints(params.runtimeProjectAndName.googleProject,
-                                                    zoneParam,
-                                                    params.runtimeConfig.machineType)
+      resourceConstraints <- getResourceConstraints(googleProject, zoneParam, params.runtimeConfig.machineType)
 
       // Create the bucket in the cluster's google project and populate with initialization files.
       // ACLs are granted so the cluster service account can access the files at initialization time.
@@ -91,15 +92,12 @@ class GceInterpreter[F[_]](
       stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
 
       _ <- bucketHelper
-        .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
+        .createInitBucket(googleProject, initBucketName, params.serviceAccountInfo)
         .compile
         .drain
 
       _ <- bucketHelper
-        .createStagingBucket(params.auditInfo.creator,
-                             params.runtimeProjectAndName.googleProject,
-                             stagingBucketName,
-                             params.serviceAccountInfo)
+        .createStagingBucket(params.auditInfo.creator, googleProject, stagingBucketName, params.serviceAccountInfo)
         .compile
         .drain
 
@@ -150,7 +148,7 @@ class GceInterpreter[F[_]](
               )
             )
             isFormatted <- persistentDisk.formattedBy match {
-              case Some(FormattedBy.Galaxy) | Some(FormattedBy.Custom) =>
+              case Some(FormattedBy.Galaxy) | Some(FormattedBy.Custom) | Some(FormattedBy.Cromwell) =>
                 F.raiseError[Boolean](
                   new RuntimeException(
                     s"Trying to use an app formatted disk for creating GCE runtime. This should never happen. Disk Id: ${x.persistentDiskId}."
@@ -170,8 +168,7 @@ class GceInterpreter[F[_]](
                   .setDiskSizeGb(persistentDisk.size.gb)
                   .putAllLabels(Map("leonardo" -> "true").asJava)
                   .setDiskType(
-                    persistentDisk.diskType.googleString(params.runtimeProjectAndName.googleProject,
-                                                         persistentDisk.zone)
+                    persistentDisk.diskType.googleString(googleProject, persistentDisk.zone)
                   )
                   .build()
               )
@@ -229,7 +226,9 @@ class GceInterpreter[F[_]](
         .setDescription("Leonardo Managed VM")
         .setTags(Tags.newBuilder().addItems(config.vpcConfig.networkTag.value).build())
         .setMachineType(buildMachineTypeUri(zoneParam, params.runtimeConfig.machineType))
-        .addNetworkInterfaces(buildNetworkInterfaces(params.runtimeProjectAndName, subnetwork, zoneParam))
+        .addNetworkInterfaces(
+          buildNetworkInterfaces(params.runtimeProjectAndName, subnetwork, zoneParam, googleProject)
+        )
         .addAllDisks(
           List(bootDisk, userDisk).asJava
         )
@@ -282,7 +281,7 @@ class GceInterpreter[F[_]](
       instance = gpuConfig match {
         case Some(gc) =>
           val acceleratorType =
-            s"projects/${params.runtimeProjectAndName.googleProject.value}/zones/${zoneParam.value}/acceleratorTypes/${gc.gpuType.asString}"
+            s"projects/${googleProject.value}/zones/${zoneParam.value}/acceleratorTypes/${gc.gpuType.asString}"
           instanceBuilder
             .addGuestAccelerators(
               AcceleratorConfig
@@ -303,11 +302,11 @@ class GceInterpreter[F[_]](
 
       }
 
-      operation <- googleComputeService.createInstance(params.runtimeProjectAndName.googleProject, zoneParam, instance)
+      operation <- googleComputeService.createInstance(googleProject, zoneParam, instance)
 
       res = operation.map(o =>
         CreateGoogleRuntimeResponse(
-          AsyncRuntimeFields(GoogleId(o.getTargetId.toString), OperationName(o.getName), stagingBucketName, None),
+          AsyncRuntimeFields(ProxyHostName(o.getTargetId.toString), OperationName(o.getName), stagingBucketName, None),
           initBucketName,
           BootSource.VmImage(config.gceConfig.sourceImage)
         )
@@ -324,14 +323,18 @@ class GceInterpreter[F[_]](
           "GceInterpreter shouldn't get a stop dataproc runtime request. Something is very wrong"
         )
       )
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
+      )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
       _ <- googleComputeService.addInstanceMetadata(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        googleProject,
         zoneParam,
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadata
       )
-      r <- googleComputeService.stopInstance(params.runtimeAndRuntimeConfig.runtime.googleProject,
+      r <- googleComputeService.stopInstance(googleProject,
                                              zoneParam,
                                              InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
     } yield Some(r)
@@ -341,13 +344,17 @@ class GceInterpreter[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
+      )
       zoneParam <- F.fromOption(
         LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException(
           "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
         )
       )
-      resourceConstraints <- getResourceConstraints(params.runtimeAndRuntimeConfig.runtime.googleProject,
+      resourceConstraints <- getResourceConstraints(googleProject,
                                                     zoneParam,
                                                     params.runtimeAndRuntimeConfig.runtimeConfig.machineType)
       metadata <- getStartupScript(params.runtimeAndRuntimeConfig,
@@ -357,13 +364,13 @@ class GceInterpreter[F[_]](
                                    true)
       // remove the startup-script-url metadata entry if present which is only used at creation time
       _ <- googleComputeService.modifyInstanceMetadata(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        googleProject,
         zoneParam,
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
-      _ <- googleComputeService.startInstance(params.runtimeAndRuntimeConfig.runtime.googleProject,
+      _ <- googleComputeService.startInstance(googleProject,
                                               zoneParam,
                                               InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
     } yield ()
@@ -378,8 +385,12 @@ class GceInterpreter[F[_]](
           "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
         )
       )
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
+      )
       _ <- googleComputeService.setMachineType(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        googleProject,
         zoneParam,
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         params.machineType
@@ -398,9 +409,13 @@ class GceInterpreter[F[_]](
           )
         )
         metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
+        googleProject <- F.fromOption(
+          LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+          new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
+        )
         _ <- googleComputeService
           .addInstanceMetadata(
-            params.runtimeAndRuntimeConfig.runtime.googleProject,
+            googleProject,
             zoneParam,
             InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
             metadata
@@ -412,7 +427,7 @@ class GceInterpreter[F[_]](
             case e => F.raiseError[Unit](e)
           }
         op <- googleComputeService
-          .deleteInstance(params.runtimeAndRuntimeConfig.runtime.googleProject,
+          .deleteInstance(googleProject,
                           zoneParam,
                           InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
       } yield op
@@ -466,14 +481,13 @@ class GceInterpreter[F[_]](
 
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
                                      subnetwork: SubnetworkName,
-                                     zone: ZoneName): NetworkInterface =
+                                     zone: ZoneName,
+                                     googleProject: GoogleProject): NetworkInterface =
     // We get region by removing the last two characters of zone
     NetworkInterface
       .newBuilder()
       .setSubnetwork(
-        buildSubnetworkUri(runtimeProjectAndName.googleProject,
-                           RegionName(zone.value.substring(0, zone.value.length - 2)),
-                           subnetwork)
+        buildSubnetworkUri(googleProject, RegionName(zone.value.substring(0, zone.value.length - 2)), subnetwork)
       )
       .addAccessConfigs(AccessConfig.newBuilder().setName("Leonardo VM external IP").build)
       .build

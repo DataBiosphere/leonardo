@@ -29,8 +29,8 @@ class MockProxyService(
   authProvider: LeoAuthProvider[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
-  googleTokenCache: Cache[IO, (UserInfo, Instant)],
-  samResourceCache: Cache[IO, Option[String]],
+  googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
+  samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]],
   googleOauth2Service: GoogleOAuth2Service[IO],
   samDAO: Option[SamDAO[IO]] = None,
   queue: Option[Queue[IO, UpdateDateAccessMessage]] = None
@@ -51,7 +51,7 @@ class MockProxyService(
                          googleTokenCache,
                          samResourceCache) {
 
-  override def getRuntimeTargetHost(googleProject: GoogleProject, clusterName: RuntimeName): IO[HostStatus] =
+  override def getRuntimeTargetHost(cloudContext: CloudContext, clusterName: RuntimeName): IO[HostStatus] =
     IO.pure(HostReady(Host("localhost")))
 
   override def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =

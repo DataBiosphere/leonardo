@@ -329,7 +329,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       -1,
       runtimeSamResource,
       name1,
-      project,
+      cloudContext,
       auditInfo.copy(createdDate = date, dateAccessed = date),
       gceRuntimeConfigWithGpu,
       new URL("https://leo.org/proxy"),
@@ -344,6 +344,10 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "id" : -1,
         |  "runtimeName" : "clustername1",
         |  "googleProject" : "dsp-leo-test",
+        |  "cloudContext" : {
+        |    "cloudProvider" : "GCP",
+        |    "cloudResource" : "dsp-leo-test"
+        |  },
         |  "auditInfo" : {
         |    "creator" : "user1@example.com",
         |    "createdDate" : "2020-11-20T17:23:24.650Z",
@@ -377,9 +381,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       -1,
       runtimeSamResource,
       name1,
-      project,
+      cloudContext,
       serviceAccountEmail,
-      Some(makeAsyncRuntimeFields(1).copy(googleId = GoogleId(uuid.toString))),
+      Some(makeAsyncRuntimeFields(1).copy(proxyHostName = ProxyHostName(uuid.toString))),
       auditInfo.copy(createdDate = date, dateAccessed = date),
       Some(date),
       defaultGceRuntimeConfig,
@@ -406,6 +410,10 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "id" : -1,
         |  "runtimeName" : "clustername1",
         |  "googleProject" : "dsp-leo-test",
+        |  "cloudContext" : {
+        |    "cloudProvider" : "GCP",
+        |    "cloudResource" : "dsp-leo-test"
+        |  },
         |  "serviceAccount" : "pet-1234567890@test-project.iam.gserviceaccount.com",
         |  "asyncRuntimeFields" : {
         |    "googleId" : "65bc3f6d-a413-4cbe-88f8-b15ed9694543",

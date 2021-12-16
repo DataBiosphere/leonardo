@@ -19,7 +19,7 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
   "PersistentDiskComponent" should "save and get records" in isolatedDbTest {
     val disk1 = makePersistentDisk(Some(DiskName("d1")))
     val disk2 =
-      makePersistentDisk(Some(DiskName("d2"))).copy(size = DiskSize(1000), blockSize = BlockSize(16384), diskType = SSD)
+      makePersistentDisk(Some(DiskName("d2"))).copy(size = DiskSize(1000), diskType = SSD, blockSize = BlockSize(16384))
 
     val res = for {
       savedDisk1 <- disk1.save()
@@ -43,8 +43,8 @@ class PersistentDiskComponentSpec extends AnyFlatSpecLike with TestComponent {
     val res = for {
       disk <- makePersistentDisk(Some(DiskName("d1"))).save()
       _ <- deletedDisk.save()
-      d1 <- persistentDiskQuery.getActiveByName(disk.googleProject, disk.name).transaction
-      d2 <- persistentDiskQuery.getActiveByName(deletedDisk.googleProject, deletedDisk.name).transaction
+      d1 <- persistentDiskQuery.getActiveByName(disk.cloudContext, disk.name).transaction
+      d2 <- persistentDiskQuery.getActiveByName(deletedDisk.cloudContext, deletedDisk.name).transaction
     } yield {
       d1.get shouldEqual disk
       d2 shouldEqual None

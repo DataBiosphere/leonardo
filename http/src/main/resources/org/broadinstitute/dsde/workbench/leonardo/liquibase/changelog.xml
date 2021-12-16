@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- If you modify CLUSTER table, please make sure to notify @dspfieldeng on slack if there's updates to any of the fields in https://github.com/broadinstitute/workbench-analytics/blob/master/dbconfig.py#L136-L154 -->
 <databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog" xmlns:ext="http://www.liquibase.org/xml/ns/dbchangelog-ext" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog-ext http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-ext.xsd http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
     <include file="changesets/20170811_cluster.xml" relativeToChangelogFile="true"/>
     <include file="changesets/20170811_label.xml" relativeToChangelogFile="true"/>
@@ -79,4 +80,7 @@
     <include file="changesets/20210517_add_gpu_config.xml" relativeToChangelogFile="true" />
     <include file="changesets/20210723_add_component_gateway_enabled_flag.xml" relativeToChangelogFile="true" />
     <include file="changesets/20211103_add_worker_private_access.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20211115_support_proxy_to_azure_vm.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20211116_update_persistent_disk_formattedBy_enum.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20211129_support_proxy_to_azure_pd.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

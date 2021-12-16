@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.Idle
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO.sessionDecoder
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.dns.{RuntimeDnsCache, RuntimeDnsCacheKey}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -19,8 +19,9 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class HttpJupyterDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite with TestComponent {
   val underlyingRuntimeDnsCache =
-    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[HostStatus]]()
-  val runtimeDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingRuntimeDnsCache)
+    Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
+  val runtimeDnsCaffeineCache: Cache[IO, RuntimeDnsCacheKey, HostStatus] =
+    CaffeineCache[IO, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache)
 
   override def beforeAll(): Unit = {
     super.beforeAll()
@@ -69,7 +70,7 @@ class HttpJupyterDAOSpec extends AnyFlatSpec with Matchers with LeonardoTestSuit
       new RuntimeDnsCache(proxyConfig, testDbRef, hostToIpMapping, runtimeDnsCaffeineCache)
 
     val jupyterDAO = new HttpJupyterDAO(clusterDnsCache, FakeHttpClient.client)
-    val res = jupyterDAO.isAllKernelsIdle(GoogleProject("project1"), RuntimeName("rt"))
+    val res = jupyterDAO.isAllKernelsIdle(CloudContext.Gcp(GoogleProject("project1")), RuntimeName("rt"))
     res.map(r => r shouldBe true).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

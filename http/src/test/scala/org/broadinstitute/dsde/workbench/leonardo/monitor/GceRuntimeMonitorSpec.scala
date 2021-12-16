@@ -166,9 +166,9 @@ class GceRuntimeMonitorSpec
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("failure"))),
+      status = RuntimeStatus.Creating,
       userScriptUri =
-        Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("failure"), GcsObjectName("userscript_output.txt")))),
-      status = RuntimeStatus.Creating
+        Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("failure"), GcsObjectName("userscript_output.txt"))))
     )
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
@@ -199,11 +199,11 @@ class GceRuntimeMonitorSpec
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
+      status = RuntimeStatus.Creating,
       startUserScriptUri = Some(
         UserScriptPath
           .Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))
-      ),
-      status = RuntimeStatus.Creating
+      )
     )
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
@@ -249,11 +249,9 @@ class GceRuntimeMonitorSpec
 
   // process, Creating
   it should "will check again if instance still exists when trying to Creating one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Creating
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Creating)
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
@@ -288,11 +286,9 @@ class GceRuntimeMonitorSpec
 
   // process, Starting
   it should "will check again if instance still exists when trying to Starting one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Starting
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Starting)
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
@@ -355,11 +351,9 @@ class GceRuntimeMonitorSpec
   }
 
   it should "terminate if instance is terminated after 5 seconds when trying to Starting one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Starting
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Starting)
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
@@ -398,11 +392,11 @@ class GceRuntimeMonitorSpec
     val runtime = makeCluster(1).copy(
       serviceAccount = clusterServiceAccountFromProject(project).get,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(stagingBucket = GcsBucketName("staging_bucket"))),
+      status = RuntimeStatus.Starting,
       startUserScriptUri = Some(
         UserScriptPath
           .Gcs(GcsPath(GcsBucketName("staging_bucket"), GcsObjectName("failed_userstartupscript_output.txt")))
-      ),
-      status = RuntimeStatus.Starting
+      )
     )
 
     val computeService: GoogleComputeService[IO] = new FakeGoogleComputeService {
@@ -448,11 +442,9 @@ class GceRuntimeMonitorSpec
 
   // process
   it should "exit monitor if status is not monitored" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Stopped
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Stopped)
 
     val monitor = gceRuntimeMonitor()
     val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
@@ -471,11 +463,9 @@ class GceRuntimeMonitorSpec
 
   // process, Stopping
   it should "error when trying to Stop an instance that doesn't exist in GCP" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Stopping
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Stopping)
 
     val monitor = gceRuntimeMonitor()
     val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
@@ -494,11 +484,9 @@ class GceRuntimeMonitorSpec
 
   // process, Stopping
   it should "update runtime status appropriately when successfully stopped an instance" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Stopping
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Stopping)
 
     val computeService = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
@@ -525,11 +513,9 @@ class GceRuntimeMonitorSpec
 
   // process, Stopping
   it should "will check again if instance is not terminated yet when trying to stop one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Stopping
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Stopping)
 
     val res = for {
       start <- IO.realTimeInstant
@@ -551,11 +537,9 @@ class GceRuntimeMonitorSpec
 
   // process, Deleting
   it should "delete runtime successfully when instance doesn't exist in GCP" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Deleting
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Deleting)
 
     val monitor = gceRuntimeMonitor()
     val savedRuntime = runtime.saveWithRuntimeConfig(gceRuntimeConfig)
@@ -574,11 +558,9 @@ class GceRuntimeMonitorSpec
 
   // process, Deleting
   it should "will check again if instance still exists when trying to delete one" in isolatedDbTest {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Deleting
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Deleting)
 
     def computeService(start: Long): GoogleComputeService[IO] = new FakeGoogleComputeService {
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
@@ -613,11 +595,9 @@ class GceRuntimeMonitorSpec
 
   //pollCheck, Deleting
   "pollCheck" should "raise error if we get invalid monitoring status" in {
-    val runtime = makeCluster(1).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
-      status = RuntimeStatus.Deleted
-    )
+    val runtime = makeCluster(1).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1)),
+                                      status = RuntimeStatus.Deleted)
 
     val op = com.google.cloud.compute.v1.Operation.newBuilder().build()
     val monitor = gceRuntimeMonitor()
@@ -625,7 +605,7 @@ class GceRuntimeMonitorSpec
       _ <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       r <- monitor
         .pollCheck(
-          runtime.googleProject,
+          GoogleProject(runtime.cloudContext.asString),
           RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig),
           op,
           RuntimeStatus.Deleted
@@ -661,7 +641,7 @@ class GceRuntimeMonitorSpec
       }
       monitor = gceRuntimeMonitor(computePollOperation = pollOperation)
 
-      _ <- monitor.pollCheck(runtime.googleProject,
+      _ <- monitor.pollCheck(GoogleProject(runtime.cloudContext.asString),
                              RuntimeAndRuntimeConfig(runtime, gceRuntimeConfig),
                              op,
                              RuntimeStatus.Stopping)
@@ -674,11 +654,9 @@ class GceRuntimeMonitorSpec
   }
 
   it should "monitor Deleting successfully" in {
-    val runtime = makeCluster(2).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(2)),
-      status = RuntimeStatus.Deleting
-    )
+    val runtime = makeCluster(2).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(2)),
+                                      status = RuntimeStatus.Deleting)
 
     val initialOp = com.google.cloud.compute.v1.Operation.newBuilder().setStatus(Operation.Status.PENDING).build()
 
@@ -703,7 +681,7 @@ class GceRuntimeMonitorSpec
       monitor = gceRuntimeMonitor(computePollOperation = computePollOperation(start.toEpochMilli))
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.pollCheck(
-        savedRuntime.googleProject,
+        GoogleProject(savedRuntime.cloudContext.asString),
         RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig),
         initialOp,
         RuntimeStatus.Deleting
@@ -720,11 +698,9 @@ class GceRuntimeMonitorSpec
 
   //pollCheck Deleting
   it should "fail if reaches pollCheckMaxAttempts" in isolatedDbTest {
-    val runtime = makeCluster(2).copy(
-      serviceAccount = clusterServiceAccountFromProject(project).get,
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(2)),
-      status = RuntimeStatus.Deleting
-    )
+    val runtime = makeCluster(2).copy(serviceAccount = clusterServiceAccountFromProject(project).get,
+                                      asyncRuntimeFields = Some(makeAsyncRuntimeFields(2)),
+                                      status = RuntimeStatus.Deleting)
 
     val op = com.google.cloud.compute.v1.Operation.newBuilder().setStatus(Operation.Status.PENDING).build()
 
@@ -739,7 +715,7 @@ class GceRuntimeMonitorSpec
       monitor = gceRuntimeMonitor(computePollOperation = pollOperation)
       savedRuntime <- IO(runtime.saveWithRuntimeConfig(gceRuntimeConfig))
       _ <- monitor.pollCheck(
-        runtime.googleProject,
+        GoogleProject(runtime.cloudContext.asString),
         RuntimeAndRuntimeConfig(savedRuntime, CommonTestData.defaultDataprocRuntimeConfig),
         op,
         RuntimeStatus.Deleting
@@ -750,7 +726,7 @@ class GceRuntimeMonitorSpec
     } yield {
       (afterMonitor.toEpochMilli - start.toEpochMilli > 6000) shouldBe true // max 5 retries, and each poll interval is 1 second
       status shouldBe Some(RuntimeStatus.Error)
-      error.head.errorMessage shouldBe s"Deleting dsp-leo-test/clustername2 fail to complete in a timely manner"
+      error.head.errorMessage shouldBe s"Deleting Gcp/dsp-leo-test/clustername2 fail to complete in a timely manner"
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

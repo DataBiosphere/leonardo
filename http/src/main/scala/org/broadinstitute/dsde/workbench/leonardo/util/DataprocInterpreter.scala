@@ -10,7 +10,15 @@ import cats.syntax.all._
 import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
 import com.google.cloud.compute.v1.Tags
-import com.google.cloud.dataproc.v1._
+import com.google.cloud.dataproc.v1.{
+  Component,
+  DiskConfig,
+  EndpointConfig,
+  GceClusterConfig,
+  InstanceGroupConfig,
+  NodeInitializationAction,
+  SoftwareConfig
+}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
@@ -67,7 +75,7 @@ final case class ClusterResourceConstraintsException(clusterProjectAndName: Runt
                                                      machineType: MachineTypeName,
                                                      region: RegionName)
     extends LeoException(
-      s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.googleProject}/${clusterProjectAndName.runtimeName} with master machine type ${machineType} in region ${region}",
+      s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.cloudContext}/${clusterProjectAndName.runtimeName} with master machine type ${machineType} in region ${region}",
       traceId = None
     )
 
@@ -116,34 +124,35 @@ class DataprocInterpreter[F[_]: Parallel](
             new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
           )
       }
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtimeProjectAndName.cloudContext),
+        new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+      )
       initBucketName = generateUniqueBucketName("leoinit-" + params.runtimeProjectAndName.runtimeName.asString)
       stagingBucketName = generateUniqueBucketName("leostaging-" + params.runtimeProjectAndName.runtimeName.asString)
 
       createOp = for {
         // Set up VPC network and firewall
-        (network, subnetwork) <- vpcAlg.setUpProjectNetworkAndFirewalls(
-          SetUpProjectNetworkParams(params.runtimeProjectAndName.googleProject, machineConfig.region)
+        (_, subnetwork) <- vpcAlg.setUpProjectNetworkAndFirewalls(
+          SetUpProjectNetworkParams(googleProject, machineConfig.region)
         )
 
         // Add member to the Google Group that has the IAM role to pull the Dataproc image
-        _ <- updateDataprocImageGroupMembership(params.runtimeProjectAndName.googleProject, createCluster = true)
+        _ <- updateDataprocImageGroupMembership(googleProject, createCluster = true)
 
         // Set up IAM roles for the pet service account necessary to create a cluster.
-        _ <- createClusterIamRoles(params.runtimeProjectAndName.googleProject, params.serviceAccountInfo)
+        _ <- createClusterIamRoles(googleProject, params.serviceAccountInfo)
 
         // Create the bucket in the cluster's google project and populate with initialization files.
         // ACLs are granted so the cluster service account can access the files at initialization time.
         _ <- bucketHelper
-          .createInitBucket(params.runtimeProjectAndName.googleProject, initBucketName, params.serviceAccountInfo)
+          .createInitBucket(googleProject, initBucketName, params.serviceAccountInfo)
           .compile
           .drain
 
         // Create the cluster staging bucket. ACLs are granted so the user/pet can access it.
         _ <- bucketHelper
-          .createStagingBucket(params.auditInfo.creator,
-                               params.runtimeProjectAndName.googleProject,
-                               stagingBucketName,
-                               params.serviceAccountInfo)
+          .createStagingBucket(params.auditInfo.creator, googleProject, stagingBucketName, params.serviceAccountInfo)
           .compile
           .drain
 
@@ -256,9 +265,7 @@ class DataprocInterpreter[F[_]: Parallel](
             .getOrElse((None, None))
         } else (None, None)
 
-        softwareConfig = getSoftwareConfig(params.runtimeProjectAndName.googleProject,
-                                           params.runtimeProjectAndName.runtimeName,
-                                           machineConfig)
+        softwareConfig = getSoftwareConfig(googleProject, params.runtimeProjectAndName.runtimeName, machineConfig)
 
         // Enables Dataproc Component Gateway. Used for enabling cluster web UIs.
         // See https://cloud.google.com/dataproc/docs/concepts/accessing/dataproc-gateways
@@ -279,7 +286,7 @@ class DataprocInterpreter[F[_]: Parallel](
         )
 
         op <- googleDataprocService.createCluster(
-          params.runtimeProjectAndName.googleProject,
+          googleProject,
           machineConfig.region,
           DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString),
           Some(createClusterConfig)
@@ -287,7 +294,7 @@ class DataprocInterpreter[F[_]: Parallel](
 
         asyncRuntimeFields = op.map(o =>
           AsyncRuntimeFields(
-            GoogleId(o.metadata.getClusterUuid),
+            ProxyHostName(o.metadata.getClusterUuid),
             o.name,
             stagingBucketName,
             None
@@ -303,22 +310,20 @@ class DataprocInterpreter[F[_]: Parallel](
           val op = for {
             dataprocInstances <- googleDataprocService
               .getClusterInstances(
-                params.runtimeProjectAndName.googleProject,
+                googleProject,
                 machineConfig.region,
                 DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString)
               )
             masterComputeInstanceAndZone <- dataprocInstances.find(_._1.role == DataprocRole.Master).flatTraverse {
               case (DataprocRoleZonePreemptibility(_, z, _), instances) =>
                 instances.headOption
-                  .flatTraverse { i =>
-                    googleComputeService.getInstance(params.runtimeProjectAndName.googleProject, z, i)
-                  }
+                  .flatTraverse(i => googleComputeService.getInstance(googleProject, z, i))
                   .map(_.map(i => (i, z)))
             }
             op <- masterComputeInstanceAndZone.traverse {
               case (instance, zone) =>
                 googleComputeService.setInstanceTags(
-                  params.runtimeProjectAndName.googleProject,
+                  googleProject,
                   zone,
                   InstanceName(instance.getName),
                   Tags
@@ -338,7 +343,7 @@ class DataprocInterpreter[F[_]: Parallel](
 
       res <- createOp.handleErrorWith { throwable =>
         cleanUpGoogleResourcesOnError(
-          params.runtimeProjectAndName.googleProject,
+          googleProject,
           params.runtimeProjectAndName.runtimeName,
           initBucketName,
           params.serviceAccountInfo,
@@ -364,9 +369,12 @@ class DataprocInterpreter[F[_]: Parallel](
             googleComputeService
               .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
         }
-
+        googleProject <- F.fromOption(
+          LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+          new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+        )
         _ <- googleDataprocService.deleteCluster(
-          params.runtimeAndRuntimeConfig.runtime.googleProject,
+          googleProject,
           region,
           DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
         )
@@ -375,8 +383,12 @@ class DataprocInterpreter[F[_]: Parallel](
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
-      _ <- removeClusterIamRoles(params.runtime.googleProject, params.runtime.serviceAccount)
-      _ <- updateDataprocImageGroupMembership(params.runtime.googleProject, createCluster = false)
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtime.cloudContext),
+        new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+      )
+      _ <- removeClusterIamRoles(googleProject, params.runtime.serviceAccount)
+      _ <- updateDataprocImageGroupMembership(googleProject, createCluster = false)
     } yield ()
 
   override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
@@ -388,8 +400,12 @@ class DataprocInterpreter[F[_]: Parallel](
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
       )
       metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+      )
       _ <- googleDataprocService.stopCluster(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        googleProject,
         region,
         DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         Some(metadata),
@@ -405,8 +421,12 @@ class DataprocInterpreter[F[_]: Parallel](
         LeoLenses.dataprocPrism.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
       )
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+      )
       resourceConstraints <- getClusterResourceContraints(
-        RuntimeProjectAndName(params.runtimeAndRuntimeConfig.runtime.googleProject,
+        RuntimeProjectAndName(params.runtimeAndRuntimeConfig.runtime.cloudContext,
                               params.runtimeAndRuntimeConfig.runtime.runtimeName),
         params.runtimeAndRuntimeConfig.runtimeConfig.machineType,
         dataprocConfig.region
@@ -418,7 +438,7 @@ class DataprocInterpreter[F[_]: Parallel](
                                    false)
 
       _ <- googleDataprocService.startCluster(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        googleProject,
         dataprocConfig.region,
         DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         dataprocConfig.numberOfPreemptibleWorkers,
@@ -428,21 +448,22 @@ class DataprocInterpreter[F[_]: Parallel](
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     (for {
-      ctx <- ev.ask
       region <- F.fromOption(
         LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
       )
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+        new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+      )
       // IAM roles should already exist for a non-deleted cluster; this method is a no-op if the roles already exist.
-      _ <- createClusterIamRoles(params.runtimeAndRuntimeConfig.runtime.googleProject,
-                                 params.runtimeAndRuntimeConfig.runtime.serviceAccount)
+      _ <- createClusterIamRoles(googleProject, params.runtimeAndRuntimeConfig.runtime.serviceAccount)
 
-      _ <- updateDataprocImageGroupMembership(params.runtimeAndRuntimeConfig.runtime.googleProject,
-                                              createCluster = true)
+      _ <- updateDataprocImageGroupMembership(googleProject, createCluster = true)
 
       // Resize the cluster in Google
       _ <- googleDataprocService.resizeCluster(
-        params.runtimeAndRuntimeConfig.runtime.googleProject,
+        googleProject,
         region,
         DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         params.numWorkers,
@@ -454,11 +475,15 @@ class DataprocInterpreter[F[_]: Parallel](
         // resize the cluster we need to revoke it manually here
         for {
           ctx <- ev.ask
-          _ <- removeClusterIamRoles(params.runtimeAndRuntimeConfig.runtime.googleProject,
-                                     params.runtimeAndRuntimeConfig.runtime.serviceAccount)
+          googleProject <- F.fromOption(
+            LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+            new RuntimeException(
+              "this should never happen. Dataproc runtime's cloud context should be a google project"
+            )
+          )
+          _ <- removeClusterIamRoles(googleProject, params.runtimeAndRuntimeConfig.runtime.serviceAccount)
           // Remove member from the Google Group that has the IAM role to pull the Dataproc image
-          _ <- updateDataprocImageGroupMembership(params.runtimeAndRuntimeConfig.runtime.googleProject,
-                                                  createCluster = false)
+          _ <- updateDataprocImageGroupMembership(googleProject, createCluster = false)
           _ <- logger.error(ctx.loggingCtx, e)(
             s"Could not successfully update cluster ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
           )
@@ -565,7 +590,7 @@ class DataprocInterpreter[F[_]: Parallel](
                                          createCluster: Boolean)(implicit ev: Ask[F, AppContext]): F[Unit] =
     parseImageProject(config.dataprocConfig.customDataprocImage).traverse_ { imageProject =>
       for {
-        count <- inTransaction(clusterQuery.countActiveByProject(googleProject))
+        count <- inTransaction(clusterQuery.countActiveByProject(CloudContext.Gcp(googleProject)))
         // Note: Don't remove the account if there are existing active clusters in the same project,
         // because it could potentially break other clusters. We only check this for the 'remove' case.
         _ <- if (count > 0 && !createCluster) {
@@ -658,16 +683,18 @@ class DataprocInterpreter[F[_]: Parallel](
   ): F[RuntimeResourceConstraints] =
     for {
       ctx <- ev.ask
+      googleProject <- F.fromOption(
+        LeoLenses.cloudContextToGoogleProject.get(runtimeProjectAndName.cloudContext),
+        new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
+      )
       // Find an arbitrary zone in the configured region in which to query the machine type
-      zones <- googleComputeService.getZones(runtimeProjectAndName.googleProject, region)
+      zones <- googleComputeService.getZones(googleProject, region)
       zoneUri <- F.fromOption(zones.headOption.map(z => ZoneName(z.getName)),
                               ClusterResourceConstraintsException(runtimeProjectAndName, machineType, region))
       _ <- logger.debug(ctx.loggingCtx)(s"Using zone ${zoneUri} to resolve machine type")
 
       // Resolve the master machine type in Google to get the total memory.
-      resolvedMachineTypeOpt <- googleComputeService.getMachineType(runtimeProjectAndName.googleProject,
-                                                                    zoneUri,
-                                                                    machineType)
+      resolvedMachineTypeOpt <- googleComputeService.getMachineType(googleProject, zoneUri, machineType)
       resolvedMachineType <- F.fromOption(
         resolvedMachineTypeOpt,
         ClusterResourceConstraintsException(runtimeProjectAndName, machineType, region)
@@ -797,6 +824,7 @@ class DataprocInterpreter[F[_]: Parallel](
       .putAllProperties(
         (dataprocProps ++ yarnProps ++ stackdriverProps ++ requesterPaysProps ++ knoxProps ++ machineConfig.properties).asJava
       )
+      .addOptionalComponents(Component.DOCKER)
       .build()
   }
 

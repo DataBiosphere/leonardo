@@ -44,7 +44,10 @@ sealed trait SamResourceCacheKey extends Product with Serializable {
   def googleProject: GoogleProject
 }
 object SamResourceCacheKey {
-  final case class RuntimeCacheKey(googleProject: GoogleProject, name: RuntimeName) extends SamResourceCacheKey
+  final case class RuntimeCacheKey(cloudContext: CloudContext, name: RuntimeName) extends SamResourceCacheKey {
+    override val googleProject
+      : GoogleProject = GoogleProject(cloudContext.asString) //TODO: remove this once AppCacheKey is also moved to use cloudContext
+  }
   final case class AppCacheKey(googleProject: GoogleProject, name: AppName) extends SamResourceCacheKey
 }
 
@@ -86,8 +89,8 @@ class ProxyService(
   googleOauth2Service: GoogleOAuth2Service[IO],
   proxyResolver: ProxyResolver[IO],
   samDAO: SamDAO[IO],
-  googleTokenCache: Cache[IO, (UserInfo, Instant)],
-  samResourceCache: Cache[IO, Option[String]]
+  googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
+  samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]]
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
@@ -152,7 +155,7 @@ class ProxyService(
         case None =>
           IO.raiseError(
             RuntimeNotFoundException(
-              key.googleProject,
+              key.cloudContext,
               key.name,
               s"${ctx.traceId} | Unable to look up sam resource for runtime ${key.googleProject.value} / ${key.name.asString}. Request: ${ctx.requestUri}"
             )
@@ -187,28 +190,28 @@ class ProxyService(
   def invalidateAccessToken(token: String): IO[Unit] =
     googleTokenCache.remove(token)
 
-  def proxyRequest(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName, request: HttpRequest)(
+  def proxyRequest(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName, request: HttpRequest)(
     implicit ev: Ask[IO, AppContext]
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
-      samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(googleProject, runtimeName))
+      samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(cloudContext, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
       _ <- if (!hasViewPermission) {
-        IO.raiseError(RuntimeNotFoundException(googleProject, runtimeName, ctx.traceId.asString))
+        IO.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, ctx.traceId.asString))
       } else IO.unit
       hasConnectPermission <- authProvider.hasPermission(samResource, RuntimeAction.ConnectToRuntime, userInfo)
       _ <- if (!hasConnectPermission) {
         IO.raiseError(ForbiddenError(userInfo.userEmail))
       } else IO.unit
-      hostStatus <- getRuntimeTargetHost(googleProject, runtimeName)
+      hostStatus <- getRuntimeTargetHost(cloudContext, runtimeName)
       _ <- hostStatus match {
         case HostReady(_) =>
-          dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, googleProject, ctx.now))
+          dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, cloudContext, ctx.now))
         case _ => IO.unit
       }
-      hostContext = HostContext(hostStatus, s"${googleProject.value}/${runtimeName.asString}")
+      hostContext = HostContext(hostStatus, s"${cloudContext.asStringWithProvider}/${runtimeName.asString}")
       r <- proxyInternal(hostContext, request)
     } yield r
 
@@ -223,7 +226,7 @@ class ProxyService(
         IO.unit
       else
         jupyterDAO.createTerminal(googleProject, runtimeName)
-      r <- proxyRequest(userInfo, googleProject, runtimeName, request)
+      r <- proxyRequest(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
     } yield r
 
   def proxyAppRequest(userInfo: UserInfo,
@@ -250,8 +253,8 @@ class ProxyService(
       r <- proxyInternal(hostContext, request)
     } yield r
 
-  private[service] def getRuntimeTargetHost(googleProject: GoogleProject, runtimeName: RuntimeName): IO[HostStatus] =
-    Proxy.getRuntimeTargetHost[IO](runtimeDnsCache, googleProject, runtimeName)
+  private[service] def getRuntimeTargetHost(cloudContext: CloudContext, runtimeName: RuntimeName): IO[HostStatus] =
+    Proxy.getRuntimeTargetHost[IO](runtimeDnsCache, cloudContext, runtimeName)
 
   private[service] def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
     Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)

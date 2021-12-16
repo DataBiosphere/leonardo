@@ -29,7 +29,7 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   hostToIpMapping: Ref[F, Map[Host, IP]],
-  hostStatusCache: Cache[F, HostStatus]
+  hostStatusCache: Cache[F, KubernetesDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: KubernetesDnsCacheKey): F[HostStatus] =
     hostStatusCache.cachingF(key)(None)(getHostStatusHelper(key))

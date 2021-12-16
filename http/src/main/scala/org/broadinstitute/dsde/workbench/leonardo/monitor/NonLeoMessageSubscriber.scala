@@ -145,8 +145,9 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
+      cloudContext = CloudContext.Gcp(googleProject)
       runtimeInfo <- clusterQuery
-        .getActiveClusterRecordByName(googleProject, runtimeName)
+        .getActiveClusterRecordByName(cloudContext, runtimeName)
         .transaction
       _ <- runtimeInfo match {
         case None =>
@@ -157,10 +158,10 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
         case Some(runtime) =>
           for {
             _ <- clusterQuery
-              .markDeleted(googleProject, runtimeName, ctx.now, Some(s"cryptomining: ${message}"))
+              .markDeleted(cloudContext, runtimeName, ctx.now, Some(s"cryptomining: ${message}"))
               .transaction
             _ <- computeService.deleteInstance(googleProject, zone, InstanceName(runtimeName.asString))
-            userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, runtime.googleProject)
+            userSubjectId <- samDao.getUserSubjectId(runtime.auditInfo.creator, googleProject)
             _ <- userSubjectId.traverse { sid =>
               val byteString = ByteString.copyFromUtf8(CryptominingUserMessage(sid).asJson.noSpaces)
 

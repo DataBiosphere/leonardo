@@ -22,15 +22,15 @@ import scala.concurrent.ExecutionContext
 
 trait RuntimeService[F[_]] {
   def createRuntime(userInfo: UserInfo,
-                    googleProject: GoogleProject,
+                    cloudContext: CloudContext,
                     runtimeName: RuntimeName,
                     req: CreateRuntime2Request)(implicit as: Ask[F, AppContext]): F[Unit]
 
-  def getRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
     implicit as: Ask[F, AppContext]
   ): F[GetRuntimeResponse]
 
-  def listRuntimes(userInfo: UserInfo, googleProject: Option[GoogleProject], params: Map[String, String])(
+  def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
     implicit as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
 
@@ -38,7 +38,7 @@ trait RuntimeService[F[_]] {
     implicit as: Ask[F, AppContext]
   ): F[Unit]
 
-  def stopRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
+  def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
     implicit as: Ask[F, AppContext]
   ): F[Unit]
 

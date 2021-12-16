@@ -5,10 +5,9 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.DiskName
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.unmarshalDestroyedDate
 import org.broadinstitute.dsde.workbench.leonardo.db.persistentDiskQuery.unmarshalPersistentDisk
+import org.broadinstitute.dsde.workbench.leonardo.http.GetPersistentDiskResponse
 import org.broadinstitute.dsde.workbench.leonardo.http.service.DiskNotFoundException
 import org.broadinstitute.dsde.workbench.model.TraceId
 
@@ -16,7 +15,7 @@ import scala.concurrent.ExecutionContext
 
 object DiskServiceDbQueries {
 
-  def listDisks(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
+  def listDisks(labelMap: LabelMap, includeDeleted: Boolean, cloudContextOpt: Option[CloudContext] = None)(
     implicit ec: ExecutionContext
   ): DBIO[List[PersistentDisk]] = {
     val diskQueryFilteredByDeletion =
@@ -24,7 +23,11 @@ object DiskServiceDbQueries {
       else persistentDiskQuery.tableQuery.filterNot(_.status === (DiskStatus.Deleted: DiskStatus))
 
     val diskQueryFilteredByProject =
-      googleProjectOpt.fold(diskQueryFilteredByDeletion)(p => diskQueryFilteredByDeletion.filter(_.googleProject === p))
+      cloudContextOpt.fold(diskQueryFilteredByDeletion)(p =>
+        diskQueryFilteredByDeletion
+          .filter(_.cloudContext === p.asCloudContextDb)
+          .filter(_.cloudProvider === p.cloudProvider)
+      )
 
     val diskQueryJoinedWithLabel = persistentDiskQuery.joinLabelQuery(diskQueryFilteredByProject)
 
@@ -59,10 +62,10 @@ object DiskServiceDbQueries {
     }
   }
 
-  def getGetPersistentDiskResponse(googleProject: GoogleProject, diskName: DiskName, traceId: TraceId)(
+  def getGetPersistentDiskResponse(cloudContext: CloudContext, diskName: DiskName, traceId: TraceId)(
     implicit executionContext: ExecutionContext
   ): DBIO[GetPersistentDiskResponse] = {
-    val diskQuery = persistentDiskQuery.findActiveByNameQuery(googleProject, diskName)
+    val diskQuery = persistentDiskQuery.findActiveByNameQuery(cloudContext, diskName)
     val diskQueryJoinedWithLabels = persistentDiskQuery.joinLabelQuery(diskQuery)
 
     diskQueryJoinedWithLabels.result.flatMap { x =>
@@ -72,16 +75,15 @@ object DiskServiceDbQueries {
           Map(diskRec -> labelMap)
       }.headOption
       diskWithLabel.fold[DBIO[GetPersistentDiskResponse]](
-        DBIO.failed(DiskNotFoundException(googleProject, diskName, traceId))
+        DBIO.failed(DiskNotFoundException(cloudContext, diskName, traceId))
       ) { d =>
         val diskRec = d._1
         val labelMap = d._2
         val getDiskResponse = GetPersistentDiskResponse(
           diskRec.id,
-          diskRec.googleProject,
+          diskRec.cloudContext,
           diskRec.zone,
           diskRec.name,
-          diskRec.googleId,
           diskRec.serviceAccount,
           diskRec.samResource,
           diskRec.status,

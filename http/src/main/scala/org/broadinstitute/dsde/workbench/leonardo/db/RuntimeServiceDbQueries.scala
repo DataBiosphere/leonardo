@@ -15,7 +15,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse}
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeNotFoundException
 import org.broadinstitute.dsde.workbench.model.IP
-import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 
 import scala.concurrent.ExecutionContext
 
@@ -31,11 +31,11 @@ object RuntimeServiceDbQueries {
       }
     } yield (runtime, label)
 
-  def getStatusByName(project: GoogleProject,
+  def getStatusByName(cloudContext: CloudContext,
                       name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[RuntimeStatus]] = {
     val res = clusterQuery
-      .filter(_.googleProject === project)
-      .filter(_.clusterName === name)
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === name)
       .filter(_.destroyedDate === dummyDate)
       .map(_.status)
       .result
@@ -43,10 +43,10 @@ object RuntimeServiceDbQueries {
     res.map(recs => recs.headOption)
   }
 
-  def getRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
+  def getRuntime(cloudContext: CloudContext, runtimeName: RuntimeName)(
     implicit executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
-    val activeRuntime = getRuntimeQueryByUniqueKey(googleProject, runtimeName, None)
+    val activeRuntime = getRuntimeQueryByUniqueKey(cloudContext, runtimeName, None)
       .join(runtimeConfigs)
       .on(_._1.runtimeConfigId === _.id)
       .joinLeft(persistentDiskQuery.tableQuery)
@@ -63,7 +63,7 @@ object RuntimeServiceDbQueries {
                                        persistentDisk.map(DiskConfig.fromPersistentDisk)).headOption
       } yield runtime
       res.fold[DBIO[GetRuntimeResponse]](
-        DBIO.failed(RuntimeNotFoundException(googleProject, runtimeName, "Not found in database"))
+        DBIO.failed(RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
       )(r => DBIO.successful(r))
     }
   }
@@ -107,7 +107,6 @@ object RuntimeServiceDbQueries {
     clusterRecordMap.map {
       case (clusterRecord, (errorRecords, labels, extensions, clusterImageRecords, scopes, patch)) =>
         val name = clusterRecord.runtimeName
-        val project = clusterRecord.googleProject
         val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
           (googleId, operationName, stagingBucket) =>
             AsyncRuntimeFields(googleId,
@@ -126,13 +125,17 @@ object RuntimeServiceDbQueries {
           clusterRecord.id,
           RuntimeSamResourceId(clusterRecord.internalId),
           name,
-          project,
+          clusterRecord.cloudContext,
           clusterRecord.serviceAccountInfo,
           dataprocInfo,
           clusterRecord.auditInfo,
           clusterRecord.kernelFoundBusyDate,
           runtimeConfig,
-          Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, project, name, clusterImages, labelMap),
+          Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
+                              clusterRecord.cloudContext,
+                              name,
+                              clusterImages,
+                              labelMap),
           clusterRecord.status,
           labelMap,
           clusterRecord.userScriptUri,
@@ -154,13 +157,15 @@ object RuntimeServiceDbQueries {
     }.toSeq
   }
 
-  def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, googleProjectOpt: Option[GoogleProject] = None)(
+  def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, cloudContext: Option[CloudContext] = None)(
     implicit ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByDeletion =
       if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
-    val clusterQueryFilteredByProject = googleProjectOpt.fold(runtimeQueryFilteredByDeletion)(p =>
-      runtimeQueryFilteredByDeletion.filter(_.googleProject === p)
+    val clusterQueryFilteredByProject = cloudContext.fold(runtimeQueryFilteredByDeletion)(p =>
+      runtimeQueryFilteredByDeletion
+        .filter(_.cloudContextDb === p.asCloudContextDb)
+        .filter(_.cloudProvider === p.cloudProvider)
     )
     val runtimeQueryJoinedWithLabel = runtimeLabelQuery(clusterQueryFilteredByProject)
 
@@ -208,11 +213,11 @@ object RuntimeServiceDbQueries {
             runtimeRec.id,
             RuntimeSamResourceId(runtimeRec.internalId),
             runtimeRec.runtimeName,
-            runtimeRec.googleProject,
+            runtimeRec.cloudContext,
             runtimeRec.auditInfo,
             runtimeConfig,
             Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                                runtimeRec.googleProject,
+                                runtimeRec.cloudContext,
                                 runtimeRec.runtimeName,
                                 Set.empty,
                                 lmp),

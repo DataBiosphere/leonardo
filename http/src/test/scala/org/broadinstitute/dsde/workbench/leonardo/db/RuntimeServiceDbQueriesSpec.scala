@@ -29,11 +29,11 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   it should "getStatusByName" in isolatedDbTest {
     val r = makeCluster(1)
     val res = for {
-      statusBeforeCreating <- getStatusByName(r.googleProject, r.runtimeName).transaction
+      statusBeforeCreating <- getStatusByName(r.cloudContext, r.runtimeName).transaction
       runtime <- IO(r.save())
-      status <- getStatusByName(runtime.googleProject, runtime.runtimeName).transaction
+      status <- getStatusByName(runtime.cloudContext, runtime.runtimeName).transaction
       _ <- clusterQuery.markPendingDeletion(runtime.id, Instant.now).transaction
-      statusAfterDeletion <- getStatusByName(runtime.googleProject, runtime.runtimeName).transaction
+      statusAfterDeletion <- getStatusByName(runtime.cloudContext, runtime.runtimeName).transaction
     } yield {
       statusBeforeCreating shouldBe None
       runtime.status shouldBe (status.get)
@@ -99,10 +99,10 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       zone = ZoneName("us-west2-b"),
                                                       None)
       c2 <- IO(makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig))
-      labels1 = Map("googleProject" -> c1.googleProject.value,
+      labels1 = Map("googleProject" -> c1.cloudContext.asString,
                     "clusterName" -> c1.runtimeName.asString,
                     "creator" -> c1.auditInfo.creator.value)
-      labels2 = Map("googleProject" -> c2.googleProject.value,
+      labels2 = Map("googleProject" -> c2.cloudContext.asString,
                     "clusterName" -> c2.runtimeName.asString,
                     "creator" -> c2.auditInfo.creator.value)
       list1 <- RuntimeServiceDbQueries.listRuntimes(labels1, false, None).transaction
@@ -112,7 +112,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       list3 <- RuntimeServiceDbQueries.listRuntimes(labels1, false, None).transaction
       list4 <- RuntimeServiceDbQueries.listRuntimes(labels2, false, None).transaction
       list5 <- RuntimeServiceDbQueries
-        .listRuntimes(Map("googleProject" -> c1.googleProject.value), false, None)
+        .listRuntimes(Map("googleProject" -> c1.cloudContext.asString), false, None)
         .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
@@ -152,8 +152,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(project)).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(project2)).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(cloudContext)).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(cloudContext2)).transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -234,8 +234,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       zone = ZoneName("us-west2-b"),
                                                       CommonTestData.gpuConfig)
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
-      get1 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, c1.runtimeName).transaction
-      get2 <- RuntimeServiceDbQueries.getRuntime(c1.googleProject, RuntimeName("does-not-exist")).transaction.attempt
+      get1 <- RuntimeServiceDbQueries.getRuntime(c1.cloudContext, c1.runtimeName).transaction
+      get2 <- RuntimeServiceDbQueries.getRuntime(c1.cloudContext, RuntimeName("does-not-exist")).transaction.attempt
     } yield {
       get1 shouldBe GetRuntimeResponse.fromRuntime(c1, c1RuntimeConfig, Some(DiskConfig.fromPersistentDisk(disk)))
       get2.isLeft shouldBe true
@@ -253,11 +253,11 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       runtime.id,
       runtime.samResource,
       runtime.runtimeName,
-      runtime.googleProject,
+      runtime.cloudContext,
       runtime.auditInfo,
       runtimeConfig,
       Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                          runtime.googleProject,
+                          runtime.cloudContext,
                           runtime.runtimeName,
                           Set.empty,
                           labels),

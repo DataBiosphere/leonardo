@@ -57,7 +57,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
       whenKernelNotReady,
       failureLogMessage =
         s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.asString} for ${kernel}"
-    )(30 seconds, 3 minutes) { () =>
+    )(30 seconds, 10 minutes) { () =>
       withNotebooksListPage(cluster) { notebooksListPage =>
         logger.info(
           s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."

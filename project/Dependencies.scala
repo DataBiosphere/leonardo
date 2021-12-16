@@ -4,25 +4,23 @@ object Dependencies {
   val scalaV = "2.13"
 
   val akkaV = "2.6.17"
-  val akkaHttpV = "10.2.6"
+  val akkaHttpV = "10.2.7"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.10"
   val slickV = "3.3.3"
-  val http4sVersion = "0.23.6"
+  val http4sVersion = "1.0.0-M30"
   val guavaV = "31.0.1-jre"
   val monocleV = "2.1.0"
-  val opencensusV = "0.28.3"
+  val opencensusV = "0.29.0"
 
-
-  private val workbenchLibsHash = "4a4a4a7"
+  private val workbenchLibsHash = "03a7abb"
   val serviceTestV = s"0.21-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.23-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.2-$workbenchLibsHash"
-  val workbenchErrorReportingV = s"0.2-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.4"
 
@@ -41,8 +39,6 @@ object Dependencies {
   val excludeJacksonCore = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-core")
   val excludeJacksonAnnotation = ExclusionRule(organization = "com.fasterxml.jackson.core", name = "jackson-annotations")
   val excludeSlf4j = ExclusionRule(organization = "org.slf4j", name = "slf4j-api")
-  val excludeLogbackCore = ExclusionRule(organization = "ch.qos.logback", name = "logback-core")
-  val excludeLogbackClassic = ExclusionRule(organization = "ch.qos.logback", name = "logback-classic")
   val excludeTypesafeConfig = ExclusionRule(organization = "com.typesafe", name = "config")
   val excludeTypesafeSslConfig = ExclusionRule(organization = "com.typesafe", name = "ssl-config-core")
   val excludeGoogleError = ExclusionRule(organization = "com.google.errorprone", name = "error_prone_annotations")
@@ -59,9 +55,9 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.6"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.7"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "3.52.5"
+  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "4.1.3"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
@@ -72,7 +68,7 @@ object Dependencies {
   val akkaTestKit: ModuleID =       "com.typesafe.akka" %% "akka-testkit"         % akkaV     % "test"
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
-  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.39.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
+  val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.42.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -110,10 +106,8 @@ object Dependencies {
 
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
-  val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeGuava)
+  val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeIoGrpc, excludeGuava)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
-  val workbenchErrorReporting: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV
-  val workbenchErrorReportingTest: ModuleID =      "org.broadinstitute.dsde.workbench" %% "workbench-error-reporting"  % workbenchErrorReportingV % Test classifier "tests"
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
   val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
@@ -121,9 +115,9 @@ object Dependencies {
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.22"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.5.0"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.6.2"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.10" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.16" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
@@ -141,7 +135,7 @@ object Dependencies {
     workbenchOpenTelemetryTest,
     helmScalaSdk,
     helmScalaSdkTest,
-    "net.logstash.logback" % "logstash-logback-encoder" % "6.6", // for structured logging in logback
+    "net.logstash.logback" % "logstash-logback-encoder" % "7.0.1", // for structured logging in logback
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
@@ -172,16 +166,12 @@ object Dependencies {
     hikariCP,
     workbenchGoogle,
     workbenchGoogleTest,
-    workbenchErrorReporting,
-    workbenchErrorReportingTest,
     "com.rms.miu" %% "slick-cats" % "0.10.4",
     googleCloudNio,
     mysql,
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
 
-    // Dependent on the trace exporters you want to use add one or more of the following
-    "io.opencensus" % "opencensus-exporter-trace-stackdriver" % opencensusV,
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito
@@ -191,7 +181,7 @@ object Dependencies {
 
   val automationDependencies = List(
     "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.0" % "test",
-    "ch.qos.logback" % "logback-classic" % "1.2.6" % "test",
+    "ch.qos.logback" % "logback-classic" % "1.2.7" % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
     "com.typesafe.akka" %% "akka-stream-testkit" % akkaV % "test",

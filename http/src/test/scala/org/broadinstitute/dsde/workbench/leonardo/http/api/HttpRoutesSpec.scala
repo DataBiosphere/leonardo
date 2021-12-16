@@ -145,7 +145,7 @@ class HttpRoutesSpec
       responseClusters should have size 1
 
       val cluster = responseClusters.head
-      cluster.googleProject shouldEqual GoogleProject(googleProject)
+      cluster.cloudContext shouldEqual CloudContext.Gcp(GoogleProject(googleProject))
       cluster.clusterName shouldEqual RuntimeName(s"${clusterName}-6")
       cluster.labels shouldEqual Map(
         "clusterName" -> s"${clusterName}-6",
@@ -167,7 +167,7 @@ class HttpRoutesSpec
       responseClusters should have size 1
 
       val cluster = responseClusters.head
-      cluster.googleProject.value shouldEqual googleProject
+      cluster.cloudContext.asString shouldEqual googleProject
       cluster.clusterName shouldEqual RuntimeName(s"${clusterName}-4")
       cluster.labels shouldEqual Map(
         "clusterName" -> s"${clusterName}-4",
@@ -621,7 +621,7 @@ object HttpRoutesSpec {
     for {
       id <- x.downField("id").as[Long]
       clusterName <- x.downField("runtimeName").as[RuntimeName]
-      googleProject <- x.downField("googleProject").as[GoogleProject]
+      cloudContext <- x.downField("cloudContext").as[CloudContext]
       auditInfo <- x.downField("auditInfo").as[AuditInfo]
       machineConfig <- x.downField("runtimeConfig").as[RuntimeConfig]
       clusterUrl <- x.downField("proxyUrl").as[URL]
@@ -632,7 +632,7 @@ object HttpRoutesSpec {
       id,
       RuntimeSamResourceId("fakeId"),
       clusterName,
-      googleProject,
+      cloudContext,
       auditInfo,
       machineConfig,
       clusterUrl,

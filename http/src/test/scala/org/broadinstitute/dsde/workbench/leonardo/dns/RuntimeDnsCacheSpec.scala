@@ -29,29 +29,30 @@ class RuntimeDnsCacheSpec
 
   val clusterBeingCreated: Runtime =
     makeCluster(2)
-      .copy(status = RuntimeStatus.Creating, asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)))
+      .copy(asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)), status = RuntimeStatus.Creating)
   val runningCluster: Runtime = makeCluster(1).copy(status = RuntimeStatus.Running)
   val stoppedCluster: Runtime =
     makeCluster(3)
-      .copy(status = RuntimeStatus.Stopped, asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)))
+      .copy(asyncRuntimeFields = Some(makeAsyncRuntimeFields(2).copy(hostIp = None)), status = RuntimeStatus.Stopped)
 
   val cacheKeyForClusterBeingCreated =
-    RuntimeDnsCacheKey(clusterBeingCreated.googleProject, clusterBeingCreated.runtimeName)
-  val cacheKeyForRunningCluster = RuntimeDnsCacheKey(runningCluster.googleProject, runningCluster.runtimeName)
-  val cacheKeyForStoppedCluster = RuntimeDnsCacheKey(stoppedCluster.googleProject, stoppedCluster.runtimeName)
+    RuntimeDnsCacheKey(clusterBeingCreated.cloudContext, clusterBeingCreated.runtimeName)
+  val cacheKeyForRunningCluster = RuntimeDnsCacheKey(runningCluster.cloudContext, runningCluster.runtimeName)
+  val cacheKeyForStoppedCluster = RuntimeDnsCacheKey(stoppedCluster.cloudContext, stoppedCluster.runtimeName)
 
   val runningClusterHost = Host(
-    s"${runningCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
+    s"${runningCluster.asyncRuntimeFields.map(_.proxyHostName).get.value.toString}.jupyter.firecloud.org"
   )
   val clusterBeingCreatedHost = Host(
-    s"${clusterBeingCreated.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
+    s"${clusterBeingCreated.asyncRuntimeFields.map(_.proxyHostName).get.value.toString}.jupyter.firecloud.org"
   )
   val stoppedClusterHost = Host(
-    s"${stoppedCluster.asyncRuntimeFields.map(_.googleId).get.value.toString}.jupyter.firecloud.org"
+    s"${stoppedCluster.asyncRuntimeFields.map(_.proxyHostName).get.value.toString}.jupyter.firecloud.org"
   )
   val underlyingRuntimeDnsCache =
-    Caffeine.newBuilder().maximumSize(10000L).recordStats().build[String, scalacache.Entry[HostStatus]]()
-  val runtimeDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingRuntimeDnsCache)
+    Caffeine.newBuilder().maximumSize(10000L).recordStats().build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
+  val runtimeDnsCaffeineCache: Cache[IO, RuntimeDnsCacheKey, HostStatus] =
+    CaffeineCache[IO, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache)
   val runtimeDnsCache =
     new RuntimeDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, runtimeDnsCaffeineCache)
 

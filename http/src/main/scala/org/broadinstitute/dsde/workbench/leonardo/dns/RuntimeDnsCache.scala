@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.dns
+package org.broadinstitute.dsde.workbench.leonardo
+package dns
 
 import akka.http.scaladsl.model.Uri.Host
 import cats.effect.{Async, Ref}
@@ -7,16 +8,14 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.{GoogleId, Runtime, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.IP
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 import scalacache.Cache
 
 import scala.concurrent.ExecutionContext
 
-final case class RuntimeDnsCacheKey(googleProject: GoogleProject, runtimeName: RuntimeName)
+final case class RuntimeDnsCacheKey(cloudContext: CloudContext, runtimeName: RuntimeName)
 
 /**
  * This class provides an in-memory cache of (GoogleProject, RuntimeName) -> HostStatus.
@@ -29,7 +28,7 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   hostToIpMapping: Ref[F, Map[Host, IP]],
-  runtimeDnsCache: Cache[F, HostStatus]
+  runtimeDnsCache: Cache[F, RuntimeDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
     runtimeDnsCache.cachingF(key)(None)(getHostStatusHelper(key))
@@ -37,9 +36,9 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   private def getHostStatusHelper(key: RuntimeDnsCacheKey): F[HostStatus] =
     for {
       _ <- Logger[F]
-        .debug(s"DNS Cache miss for ${key.googleProject} / ${key.runtimeName}...loading from DB...")
+        .debug(s"DNS Cache miss for ${key.cloudContext} / ${key.runtimeName}...loading from DB...")
       runtimeOpt <- dbRef.inTransaction {
-        clusterQuery.getActiveClusterByNameMinimal(key.googleProject, key.runtimeName)
+        clusterQuery.getActiveClusterByNameMinimal(key.cloudContext, key.runtimeName)
       }
       hostStatus <- runtimeOpt match {
         case Some(runtime) =>
@@ -49,13 +48,13 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
       }
     } yield hostStatus
 
-  private def host(googleId: GoogleId): Host =
+  private def host(googleId: ProxyHostName): Host =
     Host(googleId.value + proxyConfig.proxyDomain)
 
   private def hostStatusByProjectAndCluster(r: Runtime): F[HostStatus] = {
     val hostAndIpOpt = for {
       a <- r.asyncRuntimeFields
-      h = host(a.googleId)
+      h = host(a.proxyHostName)
       ip <- a.hostIp
     } yield (h, ip)
 

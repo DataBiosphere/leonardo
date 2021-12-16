@@ -3,12 +3,9 @@ package monitor
 
 import cats.effect.Async
 import cats.effect.std.Queue
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import fs2.Stream
-import org.typelevel.log4cats.Logger
-import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
-import org.broadinstitute.dsde.workbench.errorReporting.ReportWorthySyntax._
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
@@ -16,12 +13,11 @@ import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
 
-class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
-                          computeService: GoogleComputeService[F],
-                          errorReporting: ErrorReporting[F])(
+class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeService: GoogleComputeService[F])(
   implicit F: Async[F],
   dbRef: DbReference[F],
   logger: Logger[F],
@@ -75,10 +71,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       msg <- runtimeStatusToMessage(runtimeToMonitor, traceId)
       _ <- publisherQueue.offer(msg)
     } yield ()
-    res.handleErrorWith { e =>
-      logger.error(e)(s"MonitorAtBoot: Error monitoring runtime ${runtimeToMonitor.id}") >>
-        (if (e.isReportWorthy) errorReporting.reportError(e) else F.unit)
-    }
+    res.handleErrorWith(e => logger.error(e)(s"MonitorAtBoot: Error monitoring runtime ${runtimeToMonitor.id}"))
   }
 
   private def handleRuntimePatchInProgress(
@@ -121,10 +114,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
       msg <- appStatusToMessage(app, nodepool, cluster)
       _ <- publisherQueue.offer(msg)
     } yield ()
-    res.handleErrorWith { e =>
-      logger.error(e)(s"MonitorAtBoot: Error monitoring app ${app.id}") >>
-        (if (e.isReportWorthy) errorReporting.reportError(e) else F.unit)
-    }
+    res.handleErrorWith(e => logger.error(e)(s"MonitorAtBoot: Error monitoring app ${app.id}"))
   }
 
   private def appStatusToMessage(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(

@@ -25,7 +25,7 @@ class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](
   samDao: SamDAO[F],
   config: SamAuthProviderConfig,
   saProvider: ServiceAccountProvider[F],
-  authCache: Cache[F, Boolean]
+  authCache: Cache[F, AuthCacheKey, Boolean]
 )(implicit F: Async[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
@@ -173,7 +173,7 @@ final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
                                        authCacheMaxSize: Int = 1000,
                                        authCacheExpiryTime: FiniteDuration = 15 minutes)
 
-private[auth] case class AuthCacheKey(samResourceType: SamResourceType,
-                                      samResource: String,
-                                      authorization: Authorization,
-                                      action: String)
+private[leonardo] case class AuthCacheKey(samResourceType: SamResourceType,
+                                          samResource: String,
+                                          authorization: Authorization,
+                                          action: String)

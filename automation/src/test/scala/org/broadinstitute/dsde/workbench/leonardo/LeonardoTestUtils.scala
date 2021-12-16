@@ -424,7 +424,7 @@ trait LeonardoTestUtils
 
       caught.message should include("\"statusCode\":422")
       caught.message should include(
-        s"""Proxy host ${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding."""
+        s"""Proxy host Gcp/${googleProject.value}/${runtimeName.asString} is stopped. Start your runtime before proceeding."""
       )
     }
   }

@@ -66,7 +66,9 @@ object CommonTestData {
   val name3 = RuntimeName("clustername3")
   val runtimeSamResource = RuntimeSamResourceId("067e2867-5d4a-47f3-a53c-fd711529b287")
   val project = GoogleProject("dsp-leo-test")
+  val cloudContext = CloudContext.Gcp(project)
   val project2 = GoogleProject("dsp-leo-test-2")
+  val cloudContext2 = CloudContext.Gcp(project2)
   val userEmail = WorkbenchEmail("user1@example.com")
   val userEmail2 = WorkbenchEmail("user2@example.com")
   val userInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), userEmail, 0)
@@ -105,7 +107,7 @@ object CommonTestData {
   )
   val zone = ZoneName("us-central1-a")
   val diskName = DiskName("disk-name")
-  val googleId = GoogleId("google-id")
+  val googleId = ProxyHostName("google-id")
   val diskSamResource = PersistentDiskSamResourceId("disk-resource-id")
   val diskSize = DiskSize(250)
   val diskType = leonardo.DiskType.Standard
@@ -181,7 +183,7 @@ object CommonTestData {
 
   def makeAsyncRuntimeFields(index: Int): AsyncRuntimeFields =
     AsyncRuntimeFields(
-      GoogleId(UUID.randomUUID().toString),
+      ProxyHostName(UUID.randomUUID().toString),
       OperationName("operationName" + index.toString),
       GcsBucketName("stagingbucketname" + index.toString),
       Some(IP("numbers.and.dots"))
@@ -255,14 +257,14 @@ object CommonTestData {
     val clusterName = RuntimeName("clustername" + index.toString)
     Runtime(
       id = -1,
-      runtimeName = clusterName,
       samResource = runtimeSamResource,
-      googleProject = project,
+      runtimeName = clusterName,
+      cloudContext = cloudContext,
       serviceAccount = serviceAccount,
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,
       kernelFoundBusyDate = None,
-      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, clusterName, Set(jupyterImage), Map.empty),
+      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, clusterName, Set(jupyterImage), Map.empty),
       status = RuntimeStatus.Unknown,
       labels = Map(),
       userScriptUri = None,
@@ -284,16 +286,16 @@ object CommonTestData {
 
   val testCluster = Runtime(
     id = -1,
-    runtimeName = name1,
     samResource = runtimeSamResource,
-    googleProject = project,
+    runtimeName = name1,
+    cloudContext = cloudContext,
     serviceAccount = serviceAccount,
     asyncRuntimeFields = Some(
-      AsyncRuntimeFields(GoogleId(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
+      AsyncRuntimeFields(ProxyHostName(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
     ),
     auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
     kernelFoundBusyDate = None,
-    proxyUrl = Runtime.getProxyUrl(proxyUrlBase, project, name1, Set(jupyterImage), Map.empty),
+    proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
     userScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
@@ -317,8 +319,8 @@ object CommonTestData {
     id = -1,
     runtimeName = name1,
     internalId = runtimeSamResource.resourceId,
-    googleProject = project,
-    googleId = testCluster.asyncRuntimeFields.map(_.googleId),
+    cloudContext = cloudContext,
+    googleId = testCluster.asyncRuntimeFields.map(_.proxyHostName),
     operationName = testCluster.asyncRuntimeFields.map(_.operationName.value),
     status = testCluster.status,
     auditInfo = testCluster.auditInfo,
@@ -361,15 +363,14 @@ object CommonTestData {
 
   def makePersistentDisk(diskName: Option[DiskName] = None,
                          formattedBy: Option[FormattedBy] = None,
-                         galaxyRestore: Option[GalaxyRestore] = None,
+                         appRestore: Option[AppRestore] = None,
                          zoneName: Option[ZoneName] = None,
-                         googleProject: Option[GoogleProject] = None): PersistentDisk =
+                         cloudContextOpt: Option[CloudContext] = None): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
-      googleProject.getOrElse(project),
+      cloudContextOpt.getOrElse(cloudContext),
       zoneName.getOrElse(zone),
       diskName.getOrElse(DiskName("disk")),
-      Some(googleId),
       serviceAccount,
       diskSamResource,
       DiskStatus.Ready,
@@ -378,7 +379,7 @@ object CommonTestData {
       diskType,
       blockSize,
       formattedBy,
-      galaxyRestore,
+      appRestore,
       Map("key1" -> "value1", "key2" -> "value2", "key3" -> "value3")
     )
 
