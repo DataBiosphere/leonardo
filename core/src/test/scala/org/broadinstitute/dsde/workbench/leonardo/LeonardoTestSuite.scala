@@ -30,9 +30,9 @@ trait LeonardoTestSuite extends Matchers {
       .maximumSize(10)
       .expireAfterWrite(60, TimeUnit.SECONDS)
       .recordStats()
-      .build[String, scalacache.Entry[Semaphore[IO]]]()
-  val cache: CaffeineCache[IO, Semaphore[IO]] =
-    CaffeineCache[IO, Semaphore[IO]](underlyingCache)
+      .build[KubernetesClusterId, scalacache.Entry[Semaphore[IO]]]()
+  val cache: CaffeineCache[IO, KubernetesClusterId, Semaphore[IO]] =
+    CaffeineCache[IO, KubernetesClusterId, Semaphore[IO]](underlyingCache)
   val nodepoolLock = KeyLock[IO, KubernetesClusterId](cache)
 
   def withInfiniteStream(stream: Stream[IO, Unit], validations: IO[Assertion], maxRetry: Int = 30): IO[Assertion] = {

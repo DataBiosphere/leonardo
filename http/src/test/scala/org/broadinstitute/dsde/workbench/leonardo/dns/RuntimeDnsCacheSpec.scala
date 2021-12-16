@@ -50,8 +50,9 @@ class RuntimeDnsCacheSpec
     s"${stoppedCluster.asyncRuntimeFields.map(_.proxyHostName).get.value.toString}.jupyter.firecloud.org"
   )
   val underlyingRuntimeDnsCache =
-    Caffeine.newBuilder().maximumSize(10000L).recordStats().build[String, scalacache.Entry[HostStatus]]()
-  val runtimeDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingRuntimeDnsCache)
+    Caffeine.newBuilder().maximumSize(10000L).recordStats().build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
+  val runtimeDnsCaffeineCache: Cache[IO, RuntimeDnsCacheKey, HostStatus] =
+    CaffeineCache[IO, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache)
   val runtimeDnsCache =
     new RuntimeDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, runtimeDnsCaffeineCache)
 
