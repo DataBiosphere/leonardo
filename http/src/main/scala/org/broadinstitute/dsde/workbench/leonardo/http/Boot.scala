@@ -13,11 +13,9 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
-import com.google.devtools.clouderrorreporting.v1beta1.ProjectName
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
-import org.broadinstitute.dsde.workbench.errorReporting.ErrorReporting
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
 import org.broadinstitute.dsde.workbench.google.{HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
@@ -36,15 +34,21 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleSubscriber
 }
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.auth.{PetClusterServiceAccountProvider, SamAuthProvider}
+import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
 import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{
+  KubernetesDnsCache,
+  KubernetesDnsCacheKey,
+  ProxyResolver,
+  RuntimeDnsCache,
+  RuntimeDnsCacheKey
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, StandardUserInfoDirectives}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{DiskServiceInterp, LeoAppServiceInterp, _}
+import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
 import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscriber.nonLeoMessageDecoder
@@ -57,16 +61,15 @@ import org.http4s.blaze.client
 import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+import scalacache.caffeine._
 
 import java.nio.file.Paths
+import java.time.Instant
+import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
-import scalacache.caffeine._
-
-import java.time.Instant
-import java.util.concurrent.TimeUnit
 
 object Boot extends IOApp {
   val workbenchMetricsBaseName = "google"
@@ -75,8 +78,6 @@ object Boot extends IOApp {
     // We need an ActorSystem to host our application in
     implicit val system = ActorSystem(applicationConfig.applicationName)
     import system.dispatcher
-
-    import org.broadinstitute.dsde.workbench.leonardo.http.serviceDataEncoder
     implicit val logger =
       StructuredLogger.withContext[IO](Slf4jLogger.getLogger[IO])(
         Map(
@@ -243,9 +244,8 @@ object Boot extends IOApp {
           implicit val cloudServiceRuntimeMonitor: RuntimeMonitor[IO, CloudService] =
             new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
 
-          val monitorAtBoot = new MonitorAtBoot[IO](appDependencies.publisherQueue,
-                                                    googleDependencies.googleComputeService,
-                                                    googleDependencies.errorReporting)
+          val monitorAtBoot =
+            new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.googleComputeService)
 
           val googleDiskService = googleDependencies.googleDiskService
 
@@ -274,8 +274,7 @@ object Boot extends IOApp {
               googleDiskService,
               googleDependencies.computePollOperation,
               appDependencies.authProvider,
-              gkeAlg,
-              googleDependencies.errorReporting
+              gkeAlg
             )
 
           val autopauseMonitor = AutopauseMonitor(
@@ -347,20 +346,22 @@ object Boot extends IOApp {
       hostToIpMapping <- Resource.eval(Ref.of(Map.empty[Host, IP]))
       proxyResolver <- Dispatcher[F].map(d => ProxyResolver(hostToIpMapping, d))
 
-      underlyingRuntimeDnsCache = buildCache[scalacache.Entry[HostStatus]](runtimeDnsCacheConfig.cacheMaxSize,
-                                                                           runtimeDnsCacheConfig.cacheExpiryTime)
-      runtimeDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingRuntimeDnsCache)))(s =>
-        F.delay(s.close)
+      underlyingRuntimeDnsCache = buildCache[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]](
+        runtimeDnsCacheConfig.cacheMaxSize,
+        runtimeDnsCacheConfig.cacheExpiryTime
       )
+      runtimeDnsCaffineCache <- Resource.make(
+        F.delay(CaffeineCache[F, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache))
+      )(s => F.delay(s.close))
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffineCache)
-      underlyingKubernetesDnsCache = buildCache[scalacache.Entry[HostStatus]](
+      underlyingKubernetesDnsCache = buildCache[KubernetesDnsCacheKey, scalacache.Entry[HostStatus]](
         kubernetesDnsCacheConfig.cacheMaxSize,
         kubernetesDnsCacheConfig.cacheExpiryTime
       )
 
-      kubernetesDnsCaffineCache <- Resource.make(F.delay(CaffeineCache[F, HostStatus](underlyingKubernetesDnsCache)))(
-        s => F.delay(s.close)
-      )
+      kubernetesDnsCaffineCache <- Resource.make(
+        F.delay(CaffeineCache[F, KubernetesDnsCacheKey, HostStatus](underlyingKubernetesDnsCache))
+      )(s => F.delay(s.close))
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, hostToIpMapping, kubernetesDnsCaffineCache)
 
       // Set up SSL context and http clients
@@ -378,11 +379,13 @@ object Boot extends IOApp {
       httpClientWithRetryAndLogging = Retry(retryPolicy)(httpClientWithLogging)
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
-      underlyingPetTokenCache = buildCache[scalacache.Entry[Option[String]]](httpSamDaoConfig.petCacheMaxSize,
-                                                                             httpSamDaoConfig.petCacheExpiryTime)
-      petTokenCache <- Resource.make(F.delay(CaffeineCache[F, Option[String]](underlyingPetTokenCache)))(s =>
-        F.delay(s.close)
+      underlyingPetTokenCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[String]]](
+        httpSamDaoConfig.petCacheMaxSize,
+        httpSamDaoConfig.petCacheExpiryTime
       )
+      petTokenCache <- Resource.make(
+        F.delay(CaffeineCache[F, UserEmailAndProject, Option[String]](underlyingPetTokenCache))
+      )(s => F.delay(s.close))
 
       samDao = HttpSamDAO[F](Retry(retryPolicy)(httpClient), httpSamDaoConfig, petTokenCache)
       jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging)
@@ -394,18 +397,17 @@ object Boot extends IOApp {
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
-      underlyingAuthCache = buildCache[scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
-                                                                  samAuthConfig.authCacheExpiryTime)
-      authCache <- Resource.make(F.delay(CaffeineCache[F, Boolean](underlyingAuthCache)))(s => F.delay(s.close))
+      underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
+                                                                                samAuthConfig.authCacheExpiryTime)
+      authCache <- Resource.make(F.delay(CaffeineCache[F, AuthCacheKey, Boolean](underlyingAuthCache)))(s =>
+        F.delay(s.close)
+      )
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, authCache)
 
       // Set up GCP credentials
       credential <- credentialResource(pathToCredentialJson)
       scopedCredential = credential.createScoped(Seq(ComputeScopes.COMPUTE).asJava)
       kubernetesScopedCredential = credential.createScoped(Seq(ContainerScopes.CLOUD_PLATFORM).asJava)
-      cloudPlatformScopedCredential = credential.createScoped(
-        "https://www.googleapis.com/auth/cloud-platform"
-      ) // See https://developers.google.com/identity/protocols/oauth2/scopes
       credentialJson <- Resource.eval(
         readFileToString(applicationConfig.leoServiceAccountJsonFile)
       )
@@ -451,17 +453,14 @@ object Boot extends IOApp {
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson))
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, semaphore)
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, semaphore)
-      errorReporting <- ErrorReporting.fromCredential(cloudPlatformScopedCredential,
-                                                      applicationConfig.applicationName,
-                                                      ProjectName.of(applicationConfig.leoGoogleProject.value))
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
-      underlyingNodepoolLockCache = buildCache[scalacache.Entry[Semaphore[F]]](
+      underlyingNodepoolLockCache = buildCache[KubernetesClusterId, scalacache.Entry[Semaphore[F]]](
         gkeClusterConfig.nodepoolLockCacheMaxSize,
         gkeClusterConfig.nodepoolLockCacheExpiryTime
       )
-      nodepoolLockCache <- Resource.make(F.delay(CaffeineCache[F, Semaphore[F]](underlyingNodepoolLockCache)))(s =>
-        F.delay(s.close)
-      )
+      nodepoolLockCache <- Resource.make(
+        F.delay(CaffeineCache[F, KubernetesClusterId, Semaphore[F]](underlyingNodepoolLockCache))
+      )(s => F.delay(s.close))
       nodepoolLock = KeyLock[F, KubernetesClusterId](nodepoolLockCache)
 
       // Set up PubSub queues
@@ -479,11 +478,13 @@ object Boot extends IOApp {
       asyncTasksQueue <- Resource.eval(Queue.bounded[F, Task[F]](asyncTaskProcessorConfig.queueBound))
 
       // Set up k8s and helm clients
-      underlyingKubeClientCache = buildCache[scalacache.Entry[ApiClient]](
+      underlyingKubeClientCache = buildCache[KubernetesClusterId, scalacache.Entry[ApiClient]](
         200,
         2 hours
       )
-      kubeCache <- Resource.make(F.delay(CaffeineCache[F, ApiClient](underlyingKubeClientCache)))(s => F.delay(s.close))
+      kubeCache <- Resource.make(F.delay(CaffeineCache[F, KubernetesClusterId, ApiClient](underlyingKubeClientCache)))(
+        s => F.delay(s.close)
+      )
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
       // Use a low concurrency for helm because it can generate very chatty network traffic
@@ -491,19 +492,21 @@ object Boot extends IOApp {
       helmConcurrency <- Resource.eval(Semaphore[F](20L))
       helmClient = new HelmInterpreter[F](helmConcurrency)
 
-      underlyingGoogleTokenCache = buildCache[scalacache.Entry[(UserInfo, Instant)]](
+      underlyingGoogleTokenCache = buildCache[String, scalacache.Entry[(UserInfo, Instant)]](
         proxyConfig.tokenCacheMaxSize,
         proxyConfig.tokenCacheExpiryTime
       )
-      googleTokenCache <- Resource.make(F.delay(CaffeineCache[F, (UserInfo, Instant)](underlyingGoogleTokenCache)))(s =>
-        F.delay(s.close)
-      )
+      googleTokenCache <- Resource.make(
+        F.delay(CaffeineCache[F, String, (UserInfo, Instant)](underlyingGoogleTokenCache))
+      )(s => F.delay(s.close))
 
-      underlyingSamResourceCache = buildCache[scalacache.Entry[Option[String]]](proxyConfig.internalIdCacheMaxSize,
-                                                                                proxyConfig.internalIdCacheExpiryTime)
-      samResourceCache <- Resource.make(F.delay(CaffeineCache[F, Option[String]](underlyingSamResourceCache)))(s =>
-        F.delay(s.close)
+      underlyingSamResourceCache = buildCache[SamResourceCacheKey, scalacache.Entry[Option[String]]](
+        proxyConfig.internalIdCacheMaxSize,
+        proxyConfig.internalIdCacheExpiryTime
       )
+      samResourceCache <- Resource.make(
+        F.delay(CaffeineCache[F, SamResourceCacheKey, Option[String]](underlyingSamResourceCache))
+      )(s => F.delay(s.close))
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
@@ -533,7 +536,6 @@ object Boot extends IOApp {
         gkeService,
         kubeService,
         openTelemetry,
-        errorReporting,
         kubernetesScopedCredential,
         googleOauth2DAO
       )
@@ -566,14 +568,14 @@ object Boot extends IOApp {
       samResourceCache
     )
 
-  private def buildCache[V](maxSize: Int,
-                            expiresIn: FiniteDuration): com.github.benmanes.caffeine.cache.Cache[String, V] =
+  private def buildCache[K, V](maxSize: Int,
+                               expiresIn: FiniteDuration): com.github.benmanes.caffeine.cache.Cache[K, V] =
     Caffeine
       .newBuilder()
       .maximumSize(maxSize)
       .expireAfterWrite(expiresIn.toSeconds, TimeUnit.SECONDS)
       .recordStats()
-      .build[String, V]()
+      .build[K, V]()
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }
@@ -592,7 +594,6 @@ final case class GoogleDependencies[F[_]](
   gkeService: GKEService[F],
   kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
-  errorReporting: ErrorReporting[F],
   credentials: GoogleCredentials,
   googleOauth2DAO: GoogleOAuth2Service[F]
 )
@@ -622,6 +623,6 @@ final case class AppDependencies[F[_]](
   appDescriptorDAO: AppDescriptorDAO[F],
   proxyResolver: ProxyResolver[F],
   recordCacheMetrics: List[Stream[F, Unit]],
-  googleTokenCache: scalacache.Cache[F, (UserInfo, Instant)],
-  samResourceCache: scalacache.Cache[F, Option[String]]
+  googleTokenCache: scalacache.Cache[F, String, (UserInfo, Instant)],
+  samResourceCache: scalacache.Cache[F, SamResourceCacheKey, Option[String]]
 )

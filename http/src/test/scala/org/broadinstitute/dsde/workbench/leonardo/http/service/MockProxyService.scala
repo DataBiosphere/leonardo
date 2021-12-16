@@ -29,8 +29,8 @@ class MockProxyService(
   authProvider: LeoAuthProvider[IO],
   runtimeDnsCache: RuntimeDnsCache[IO],
   kubernetesDnsCache: KubernetesDnsCache[IO],
-  googleTokenCache: Cache[IO, (UserInfo, Instant)],
-  samResourceCache: Cache[IO, Option[String]],
+  googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
+  samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]],
   googleOauth2Service: GoogleOAuth2Service[IO],
   samDAO: Option[SamDAO[IO]] = None,
   queue: Option[Queue[IO, UpdateDateAccessMessage]] = None

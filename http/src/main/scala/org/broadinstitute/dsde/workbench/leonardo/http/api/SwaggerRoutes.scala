@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.SwaggerConfig
 import akka.stream.scaladsl.Flow
 
 class SwaggerRoutes(swaggerConfig: SwaggerConfig) extends LazyLogging {
-  private val swaggerUiPath = "META-INF/resources/webjars/swagger-ui/3.52.5"
+  private val swaggerUiPath = "META-INF/resources/webjars/swagger-ui/4.1.3"
 
   val routes: server.Route = {
     path("") {

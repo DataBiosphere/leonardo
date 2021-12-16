@@ -328,7 +328,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                       disk.zone,
                       OperationName(op.getName),
                       1 seconds,
-                      30,
+                      60,
                       None
                     )(
                       F.unit,

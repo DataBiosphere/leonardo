@@ -28,7 +28,7 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   proxyConfig: ProxyConfig,
   dbRef: DbReference[F],
   hostToIpMapping: Ref[F, Map[Host, IP]],
-  runtimeDnsCache: Cache[F, HostStatus]
+  runtimeDnsCache: Cache[F, RuntimeDnsCacheKey, HostStatus]
 )(implicit F: Async[F], ec: ExecutionContext) {
   def getHostStatus(key: RuntimeDnsCacheKey): F[HostStatus] =
     runtimeDnsCache.cachingF(key)(None)(getHostStatusHelper(key))
