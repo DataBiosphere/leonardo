@@ -37,7 +37,9 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 import scala.util.control.NoStackTrace
 
-class HttpSamDAO[F[_]](httpClient: Client[F], config: HttpSamDaoConfig, petTokenCache: Cache[F, Option[String]])(
+class HttpSamDAO[F[_]](httpClient: Client[F],
+                       config: HttpSamDaoConfig,
+                       petTokenCache: Cache[F, UserEmailAndProject, Option[String]])(
   implicit logger: Logger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
@@ -353,7 +355,7 @@ object HttpSamDAO {
   def apply[F[_]: Async](
     httpClient: Client[F],
     config: HttpSamDaoConfig,
-    petTokenCache: Cache[F, Option[String]]
+    petTokenCache: Cache[F, UserEmailAndProject, Option[String]]
   )(implicit logger: Logger[F], metrics: OpenTelemetryMetrics[F]): HttpSamDAO[F] =
     new HttpSamDAO[F](httpClient, config, petTokenCache)
 

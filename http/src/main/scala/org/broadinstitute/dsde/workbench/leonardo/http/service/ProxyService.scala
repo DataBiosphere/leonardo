@@ -89,8 +89,8 @@ class ProxyService(
   googleOauth2Service: GoogleOAuth2Service[IO],
   proxyResolver: ProxyResolver[IO],
   samDAO: SamDAO[IO],
-  googleTokenCache: Cache[IO, (UserInfo, Instant)],
-  samResourceCache: Cache[IO, Option[String]]
+  googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
+  samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]]
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
