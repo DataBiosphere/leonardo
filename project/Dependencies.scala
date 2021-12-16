@@ -69,8 +69,6 @@ object Dependencies {
   val akkaHttpTestKit: ModuleID =   "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpV % "test"
 
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.42.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
-  val grpcContext: ModuleID =                 "io.grpc"         % "grpc-context"                       % "1.42.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
-  val grpcNettyShaded: ModuleID =                 "io.grpc"         % "grpc-netty-shaded"                       % "1.42.1" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
   val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
@@ -135,8 +133,6 @@ object Dependencies {
     workbenchGoogle2Test,
     workbenchOpenTelemetry,
     workbenchOpenTelemetryTest,
-    grpcContext,
-    grpcNettyShaded,
     helmScalaSdk,
     helmScalaSdkTest,
     "net.logstash.logback" % "logstash-logback-encoder" % "7.0.1", // for structured logging in logback
