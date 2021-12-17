@@ -471,6 +471,7 @@ pipeline {
                     }
                 }
         }
+
         stage('Update custom leo images in conf') {
             when { expression { !shouldAbortBuild } }
                 steps {
