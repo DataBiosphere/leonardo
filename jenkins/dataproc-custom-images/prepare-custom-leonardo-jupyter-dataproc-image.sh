@@ -103,10 +103,6 @@ retry 5 apt-key update
 #TODO: Remove this flag once we migrate to debian11
 retry 5 apt-get --allow-releaseinfo-change update
 
-# install Docker
-# https://docs.docker.com/install/linux/docker-ce/debian/
-# export DOCKER_CE_VERSION="19.03.2~ce~3-0~debian"
-
 # retry 5 betterAptGet
 retry 5 apt-get install -y -q \
     apt-transport-https \
