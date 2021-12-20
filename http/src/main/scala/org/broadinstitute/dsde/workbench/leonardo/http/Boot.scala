@@ -451,6 +451,11 @@ object Boot extends IOApp {
         )
 
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson))
+      _ <- if (prometheusConfig.enabled)
+        OpenTelemetryMetrics.exposeMetricsToPrometheus[F](prometheusConfig.endpointPort)
+      else
+        Resource.unit[F]
+
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, semaphore)
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, semaphore)
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
