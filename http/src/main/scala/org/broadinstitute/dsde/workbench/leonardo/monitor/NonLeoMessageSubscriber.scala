@@ -64,11 +64,13 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
       now <- F.realTimeInstant
       uuid <- F.delay(java.util.UUID.randomUUID())
       traceId = event.traceId.getOrElse(TraceId(uuid.toString))
-      implicit0(ev: Ask[F, AppContext]) <- F.pure(Ask.const[F, AppContext](AppContext(traceId, now, "", None)))
+      ctx = AppContext(traceId, now, "", None)
+      implicit0(ev: Ask[F, AppContext]) <- F.pure(Ask.const[F, AppContext](ctx))
       _ <- metrics.incrementCounter(s"NonLeoPubSub/${event.msg.messageType}")
       res <- messageResponder(event.msg).attempt
       _ <- res match {
-        case Left(e)  => logger.error(e)("Fail to process pubsub message") >> F.delay(event.consumer.nack())
+        case Left(e) =>
+          logger.error(ctx.loggingCtx, e)("Fail to process pubsub message") >> F.delay(event.consumer.nack())
         case Right(_) => F.delay(event.consumer.ack())
       }
     } yield ()
@@ -96,10 +98,10 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
       // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
         .deleteAndPollCluster(DeleteClusterParams(msg.clusterId, msg.project))
         .onError {
-          case _ =>
+          case e =>
             for {
-              _ <- logger.error(
-                s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}. | trace id: ${ctx.traceId}"
+              _ <- logger.error(ctx.loggingCtx, e)(
+                s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}."
               )
               _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
               // TODO: Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
