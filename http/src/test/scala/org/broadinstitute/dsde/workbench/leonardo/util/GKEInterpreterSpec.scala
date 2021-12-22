@@ -147,17 +147,18 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   it should "build Cromwell override values string" in {
     val savedCluster1 = makeKubeCluster(1)
     val savedDisk1 = makePersistentDisk(Some(DiskName("disk1")))
-    val gcsBucket = Map("WORKSPACE_BUCKET" -> "gs://test-bucket")
+    val envVariables = Map("WORKSPACE_BUCKET" -> "gs://test-bucket")
     val res = gkeInterp.buildCromwellAppChartOverrideValuesString(
-      AppName("app1"),
-      savedCluster1,
-      NodepoolName("pool1"),
-      NamespaceName("ns"),
-      savedDisk1,
-      gcsBucket
+      appName = AppName("app1"),
+      cluster = savedCluster1,
+      nodepoolName = NodepoolName("pool1"),
+      namespaceName = NamespaceName("ns"),
+      disk = savedDisk1,
+      ksaName = ServiceAccountName("app1-cromwell-ksa"),
+      customEnvironmentVariables = envVariables
     )
 
-    res.mkString(",") shouldBe """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,persistence.size=250G,persistence.gcePersistentDisk=disk1,env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,config.gcsProject=dsp-leo-test1,config.gcsBucket=gs://test-bucket/cromwell-execution,ingress.enabled=true,ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,ingress.hosts[0].host=1455694897.jupyter.firecloud.org,ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service(/|$)(.*),ingress.tls[0].secretName=tls-secret,ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,db.password=replace-me"""
+    res.mkString(",") shouldBe """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,persistence.size=250G,persistence.gcePersistentDisk=disk1,env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,config.gcsProject=dsp-leo-test1,config.gcsBucket=gs://test-bucket/cromwell-execution,config.serviceAccount.name=app1-cromwell-ksa,ingress.enabled=true,ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,ingress.hosts[0].host=1455694897.jupyter.firecloud.org,ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service(/|$)(.*),ingress.tls[0].secretName=tls-secret,ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,db.password=replace-me"""
   }
 
   it should "check if a pod is done" in {
