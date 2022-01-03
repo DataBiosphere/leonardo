@@ -151,7 +151,7 @@ pipeline {
             description: "The path for the bucket where the custom Dataproc image generation logs will be stored")
         string(name: "GCE_IMAGE_BUCKET", defaultValue: "gs://leo-gce-image-creation-logs",
             description: "The path for the bucket where the custom GCE image generation logs will be stored")
-        string(name: "DATAPROC_VERSIONS", defaultValue: "2.0.25-debian10",
+        string(name: "DATAPROC_VERSIONS", defaultValue: "2.0.27-debian10",
             description: "A custom image will be build for each of these dataproc versions")
         string(name: "branch", defaultValue: "develop",
             description: "The branch that will be used to run the job")
@@ -471,6 +471,7 @@ pipeline {
                     }
                 }
         }
+
         stage('Update custom leo images in conf') {
             when { expression { !shouldAbortBuild } }
                 steps {
