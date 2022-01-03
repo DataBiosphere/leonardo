@@ -19,7 +19,7 @@ sealed trait GkeAppConfig {
   def chartVersion: ChartVersion
   def releaseNameSuffix: ReleaseNameSuffix
   def namespaceNameSuffix: NamespaceNameSuffix
-
+  def serviceAccountName: ServiceAccountName
   def chart: Chart = Chart(chartName, chartVersion)
   def kubernetesServices: List[KubernetesService]
 }

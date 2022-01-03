@@ -312,11 +312,10 @@ class GKEInterpreter[F[_]](
       )
 
       // Create KSA
-      ksaName = app.appType match {
-        case AppType.Galaxy   => config.galaxyAppConfig.serviceAccountName
-        case AppType.Cromwell => config.cromwellAppConfig.serviceAccountName
-        case AppType.Custom   => config.customAppConfig.serviceAccountName
-      }
+      ksaName: ServiceAccountName <- F.fromOption(
+        app.appResources.kubernetesServiceAccountName,
+        AppCreationException(s"Kubernetes Service Account not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}")
+      )
       gsa = dbApp.app.googleServiceAccount
 
       // Resolve the cluster in Google
