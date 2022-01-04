@@ -638,7 +638,8 @@ object Config {
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("chartVersion"),
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
-      config.as[NamespaceNameSuffix]("namespaceNameSuffix")
+      config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
+      config.as[ServiceAccountName]("serviceAccountName")
     )
   }
 

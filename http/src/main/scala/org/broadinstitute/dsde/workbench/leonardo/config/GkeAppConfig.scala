@@ -19,7 +19,7 @@ sealed trait GkeAppConfig {
   def chartVersion: ChartVersion
   def releaseNameSuffix: ReleaseNameSuffix
   def namespaceNameSuffix: NamespaceNameSuffix
-
+  def serviceAccountName: ServiceAccountName
   def chart: Chart = Chart(chartName, chartVersion)
   def kubernetesServices: List[KubernetesService]
 }
@@ -29,7 +29,7 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  chartVersion: ChartVersion,
                                  namespaceNameSuffix: NamespaceNameSuffix,
                                  services: List[ServiceConfig],
-                                 serviceAccount: ServiceAccountName,
+                                 serviceAccountName: ServiceAccountName,
                                  uninstallKeepHistory: Boolean,
                                  postgresPassword: DbPassword,
                                  orchUrl: GalaxyOrchUrl,
@@ -54,7 +54,8 @@ final case class CromwellAppConfig(chartName: ChartName,
 final case class CustomAppConfig(chartName: ChartName,
                                  chartVersion: ChartVersion,
                                  releaseNameSuffix: ReleaseNameSuffix,
-                                 namespaceNameSuffix: NamespaceNameSuffix)
+                                 namespaceNameSuffix: NamespaceNameSuffix,
+                                 serviceAccountName: ServiceAccountName)
     extends GkeAppConfig {
   // Not known at config. Generated at runtime.
   override lazy val kubernetesServices: List[KubernetesService] = List.empty

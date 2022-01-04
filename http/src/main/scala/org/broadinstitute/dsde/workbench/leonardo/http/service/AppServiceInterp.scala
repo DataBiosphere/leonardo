@@ -635,7 +635,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           ),
           Some(disk),
           gkeAppConfig.kubernetesServices,
-          Option.empty
+          Option(gkeAppConfig.serviceAccountName)
         ),
         List.empty,
         req.customEnvironmentVariables,
