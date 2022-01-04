@@ -56,6 +56,11 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
     Config.gceMonitorConfig shouldBe (expected)
   }
 
+  it should "read PrometheusConfig properly" in {
+    val expected = PrometheusConfig(true, 9098)
+    Config.prometheusConfig shouldBe expected
+  }
+
   "GKE config" should "read ClusterConfig properly" in {
     val expectedResult = KubernetesClusterConfig(
       Location("us-central1-a"),
