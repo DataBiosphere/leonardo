@@ -314,7 +314,9 @@ class GKEInterpreter[F[_]](
       // Create KSA
       ksaName: ServiceAccountName <- F.fromOption(
         app.appResources.kubernetesServiceAccountName,
-        AppCreationException(s"Kubernetes Service Account not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}")
+        AppCreationException(
+          s"Kubernetes Service Account not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}"
+        )
       )
       gsa = dbApp.app.googleServiceAccount
 
