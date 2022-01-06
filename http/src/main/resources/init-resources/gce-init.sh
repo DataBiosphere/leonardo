@@ -291,12 +291,12 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 fi
 
 # This condition is needed for supporting existing Runtime/PDs created before this change
-if [ -d $WORK_DIRECTORY/notebooks ]
-then
-    export NOTEBOOKS_DIR=$(notebooksDir)/notebooks
-else
-    export NOTEBOOKS_DIR=$(notebooksDir)
-fi
+#if [ -d $WORK_DIRECTORY/notebooks ]
+#then
+#    export NOTEBOOKS_DIR=$(notebooksDir)/notebooks
+#else
+export NOTEBOOKS_DIR=$(notebooksDir)
+#fi
 
 tee /var/variables.env << END
 CERT_DIRECTORY=${CERT_DIRECTORY}

@@ -343,7 +343,7 @@ class GceInterpreter[F[_]](
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
-      ctx <- ev.ask
+      _ <- ev.ask
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")

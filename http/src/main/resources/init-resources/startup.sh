@@ -81,7 +81,6 @@ export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we r
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
-
 FILE=/var/certs/jupyter-server.crt
 USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
@@ -96,12 +95,32 @@ then
     GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
     DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
     WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+    JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
     export WORK_DIRECTORY='/mnt/disks/work'
 
     fsck.ext4 -tvy /dev/${DISK_DEVICE_ID}
     mkdir -p /mnt/disks/work
     mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
-  chmod a+rwx /mnt/disks/work
+    chmod a+rwx /mnt/disks/work
+
+    # Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
+    if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+        echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+        tee /var/variables.env << END
+JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
+JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
+NOTEBOOKS_DIR=${NOTEBOOKS_DIR}
+GOOGLE_PROJECT=${GOOGLE_PROJECT}
+RUNTIME_NAME=${RUNTIME_NAME}
+OWNER_EMAIL=${OWNER_EMAIL}
+WELDER_ENABLED=${WELDER_ENABLED}
+MEM_LIMIT=${MEM_LIMIT}
+END
+
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
+    fi
 else
     CERT_DIRECTORY='/certs'
     DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
@@ -109,7 +128,15 @@ else
     GCLOUD_CMD='gcloud'
     DOCKER_COMPOSE='docker-compose'
     WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+    JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
     export WORK_DIRECTORY=/work
+
+    if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+        echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
+    fi
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
       # Update old welder docker-compose file's entrypoint
@@ -217,7 +244,6 @@ fi
 # Configuring Jupyter
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-
     TOOL_SERVER_NAME=${JUPYTER_SERVER_NAME}
 
     # update container MEM_LIMIT to reflect VM's MEM_LIMIT
