@@ -60,7 +60,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           proxyServerHostName: String,
                                           isGceFormatted: String,
                                           useGceStartupScript: String,
-                                          shouldDeleteJupyterDir: Boolean) {
+                                          shouldDeleteJupyterDir: String) {
 
   def toMap: Map[String, String] =
     this.productElementNames
@@ -279,7 +279,7 @@ object RuntimeTemplateValues {
       config.proxyConfig.getProxyServerHostName,
       config.isGceFormatted.toString,
       config.useGceStartupScript.toString,
-      shouldDeleteJupyterDir
+      shouldDeleteJupyterDir.toString
     )
   }
 
