@@ -411,7 +411,6 @@ class GKEInterpreter[F[_]](
             dbApp.nodepool.nodepoolName,
             namespaceName,
             nfsDisk,
-            ksaName,
             app.customEnvironmentVariables
           )
         case AppType.Custom =>
@@ -1014,7 +1013,6 @@ class GKEInterpreter[F[_]](
     nodepoolName: NodepoolName,
     namespaceName: NamespaceName,
     disk: PersistentDisk,
-    ksaName: ServiceAccountName,
     customEnvironmentVariables: Map[String, String]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
     // TODO: Use the chart from the database instead of re-looking it up in config:
@@ -1032,7 +1030,6 @@ class GKEInterpreter[F[_]](
                                                               nodepoolName,
                                                               namespaceName,
                                                               disk,
-                                                              ksaName,
                                                               customEnvironmentVariables)
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
@@ -1276,7 +1273,6 @@ class GKEInterpreter[F[_]](
     nodepoolName: NodepoolName,
     namespaceName: NamespaceName,
     disk: PersistentDisk,
-    ksaName: ServiceAccountName,
     customEnvironmentVariables: Map[String, String]
   ): List[String] = {
     val proxyPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
@@ -1308,9 +1304,7 @@ class GKEInterpreter[F[_]](
       raw"""env.swaggerBasePath=$proxyPath""",
       // cromwellConfig
       raw"""config.gcsProject=${cluster.googleProject.value}""",
-      raw"""config.gcsBucket=$gcsBucket/cromwell-execution""",
-      // Service Account
-      raw"""config.serviceAccount.name=${ksaName.value}"""
+      raw"""config.gcsBucket=$gcsBucket/cromwell-execution"""
     ) ++ ingress
   }
 
