@@ -92,7 +92,6 @@ export STAGING_BUCKET=$(stagingBucketName)
 export OWNER_EMAIL=$(loginHint)
 export JUPYTER_SERVER_NAME=$(jupyterServerName)
 export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
-export NOTEBOOKS_DIR=$(notebooksDir)
 export WELDER_SERVER_NAME=$(welderServerName)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
@@ -289,6 +288,14 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   TOOL_SERVER_NAME=${RSTUDIO_SERVER_NAME}
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`
+fi
+
+# This condition is needed for supporting existing Runtime/PDs created before this change
+if [ -d $WORK_DIRECTORY/notebooks ]
+then
+    export NOTEBOOKS_DIR=$(notebooksDir)/notebooks
+else
+    export NOTEBOOKS_DIR=$(notebooksDir)
 fi
 
 tee /var/variables.env << END

@@ -209,7 +209,7 @@ class GceInterpreter[F[_]](
         isFormatted
       )
 
-      templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
+      templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now), false)
 
       _ <- bucketHelper
         .initializeBucketObjects(initBucketName,
@@ -327,7 +327,7 @@ class GceInterpreter[F[_]](
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
       )
-      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
+      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
       _ <- googleComputeService.addInstanceMetadata(
         googleProject,
         zoneParam,
@@ -408,7 +408,7 @@ class GceInterpreter[F[_]](
             "GceInterpreter shouldn't get a dataproc runtime creation request. Something is very wrong"
           )
         )
-        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
+        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, true)
         googleProject <- F.fromOption(
           LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
           new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")

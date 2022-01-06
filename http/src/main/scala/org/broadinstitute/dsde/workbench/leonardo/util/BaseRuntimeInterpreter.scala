@@ -193,7 +193,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
     for {
       ctx <- ev.ask
-      replacements = RuntimeTemplateValues(templateConfig, Some(ctx.now))
+      replacements = RuntimeTemplateValues(templateConfig, Some(ctx.now), false)
       mp <- TemplateHelper
         .templateResource[F](replacements.toMap, config.clusterResourcesConfig.startupScript)
         .through(fs2.text.utf8.decode)
@@ -209,7 +209,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
   }
 
   // Shutdown script to run after the runtime is paused
-  protected def getShutdownScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Map[String, String]] = {
+  protected def getShutdownScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                  shouldDeleteJupyterDir: Boolean): F[Map[String, String]] = {
     val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
@@ -226,7 +227,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       None,
       false
     )
-    val replacements = RuntimeTemplateValues(templateConfig, None).toMap
+    val replacements = RuntimeTemplateValues(templateConfig, None, shouldDeleteJupyterDir).toMap
 
     TemplateHelper
       .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript)
