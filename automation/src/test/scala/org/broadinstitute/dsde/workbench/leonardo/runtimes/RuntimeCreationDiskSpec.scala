@@ -70,7 +70,7 @@ class RuntimeCreationDiskSpec
                 )
                 .get
               res should include("/dev/sdb")
-              res should include("/home/jupyter/notebooks")
+              res should include("/home/jupyter")
             }
           }
         )
@@ -197,7 +197,7 @@ class RuntimeCreationDiskSpec
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val createNewFile =
-              """! echo 'this should save' >> /home/jupyter/notebooks/test.txt""".stripMargin
+              """! echo 'this should save' >> /home/jupyter/test.txt""".stripMargin
             notebookPage.executeCell(createNewFile)
             notebookPage.executeCell("! pip install beautifulSoup4")
           }
@@ -211,7 +211,7 @@ class RuntimeCreationDiskSpec
           withNewNotebook(clusterCopy, Python3) { notebookPage =>
             val res = notebookPage.executeCell("! df -H").get
             res should include("/dev/sdb")
-            res should include("/home/jupyter/notebooks")
+            res should include("/home/jupyter")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeName, false)
@@ -222,10 +222,10 @@ class RuntimeCreationDiskSpec
         _ <- IO(withWebDriver { implicit driver =>
           withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
             val persistedData =
-              """! cat /home/jupyter/notebooks/test.txt""".stripMargin
+              """! cat /home/jupyter/test.txt""".stripMargin
             notebookPage.executeCell(persistedData).get should include("this should save")
             val persistedPackage = "! pip show beautifulSoup4"
-            notebookPage.executeCell(persistedPackage).get should include("/home/jupyter/notebooks/packages")
+            notebookPage.executeCell(persistedPackage).get should include("/home/jupyter/packages")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)

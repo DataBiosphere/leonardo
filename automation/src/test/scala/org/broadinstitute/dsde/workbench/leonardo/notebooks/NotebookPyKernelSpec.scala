@@ -33,7 +33,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             notebookPage.executeCell(getPythonVersion).get should include("3.7")
             notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
             notebookPage.executeCell(getPandasLocation).get should include("/opt/conda/lib/python3.7/site-packages")
-            notebookPage.executeCell("! pwd").get shouldBe ("/home/jupyter/notebooks")
+            notebookPage.executeCell("! pwd").get shouldBe ("/home/jupyter")
           }
         }
     }
@@ -54,7 +54,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             // user installed packages should be in directory where PD is mounted
             val getFuzzyWuzzyLocation = "! pip3 show fuzzywuzzy"
             notebookPage.executeCell(getFuzzyWuzzyLocation, cellNumberOpt = Some(1)).get should include(
-              "/home/jupyter/notebooks/packages"
+              "/home/jupyter/packages"
             )
           }
         }

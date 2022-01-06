@@ -78,7 +78,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val output = notebookPage.executeCell("""install.packages("httr")""", installTimeout)
           output shouldBe defined
           output.get should include("Installing package into")
-          output.get should include("/home/jupyter/notebooks/packages")
+          output.get should include("/home/jupyter/packages")
 
           val httpGetTest =
             """library(httr)
@@ -104,7 +104,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val installOutput = notebookPage.executeCell("""install.packages('mlr')""", installTimeout)
           installOutput shouldBe defined
           installOutput.get should include("Installing package into")
-          installOutput.get should include("/home/jupyter/notebooks/packages")
+          installOutput.get should include("/home/jupyter/packages")
           installOutput.get should not include ("Installation failed")
 
           // Make sure it was installed correctly; if not, this will return an error
@@ -140,7 +140,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           val installOutput = notebookPage.executeCell("""install.packages('qwraps2')""", installTimeout)
           installOutput shouldBe defined
           installOutput.get should include("Installing package into")
-          installOutput.get should include("/home/jupyter/notebooks/packages")
+          installOutput.get should include("/home/jupyter/packages")
           installOutput.get should not include ("cannot find -lgfortran")
         }
       }
