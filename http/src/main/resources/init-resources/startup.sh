@@ -256,7 +256,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # kernel tries to connect to it.
     docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
-    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && export PYTHONPATH=${PYTHONPATH:+$PYTHONPATH:}${NOTEBOOKS_DIR}/packages && export PATH=${PATH:+$PATH:}${NOTEBOOKS_DIR}/packages/bin && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
         # fix for https://broadworkbench.atlassian.net/browse/IA-1453
