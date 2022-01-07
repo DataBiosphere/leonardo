@@ -119,7 +119,8 @@ MEM_LIMIT=${MEM_LIMIT}
 END
 
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
     fi
 else
     CERT_DIRECTORY='/certs'
@@ -135,7 +136,8 @@ else
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d
     fi
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
