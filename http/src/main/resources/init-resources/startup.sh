@@ -68,6 +68,7 @@ export START_USER_SCRIPT_URI=$(startUserScriptUri)
 export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
+export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 GPU_ENABLED=$(gpuEnabled)
 export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
@@ -107,6 +108,8 @@ then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
+
         tee /var/variables.env << END
 JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
 JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
@@ -134,6 +137,7 @@ else
 
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
 
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
@@ -256,7 +260,7 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # kernel tries to connect to it.
     docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
-    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && export PYTHONPATH=${PYTHONPATH:+$PYTHONPATH:}${NOTEBOOKS_DIR}/packages && export PATH=${PATH:+$PATH:}${NOTEBOOKS_DIR}/packages/bin && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
+    docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
         # fix for https://broadworkbench.atlassian.net/browse/IA-1453

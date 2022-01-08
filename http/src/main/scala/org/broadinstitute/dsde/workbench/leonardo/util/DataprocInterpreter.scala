@@ -105,7 +105,7 @@ class DataprocInterpreter[F[_]: Parallel](
   metrics: OpenTelemetryMetrics[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F])
-    extends BaseRuntimeInterpreter[F](config, welderDao)
+    extends BaseRuntimeInterpreter[F](config, welderDao, bucketHelper)
     with RuntimeAlgebra[F]
     with LazyLogging {
 

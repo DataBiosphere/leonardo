@@ -22,7 +22,8 @@ import scala.util.Try
 
 abstract private[util] class BaseRuntimeInterpreter[F[_]](
   config: RuntimeInterpreterConfig,
-  welderDao: WelderDAO[F]
+  welderDao: WelderDAO[F],
+  bucketHelper: BucketHelper[F]
 )(implicit F: Async[F],
   dbRef: DbReference[F],
   metrics: OpenTelemetryMetrics[F],
@@ -82,6 +83,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
               .as(params.runtimeAndRuntimeConfig.runtime)
         }
         .map(_.getOrElse(params.runtimeAndRuntimeConfig.runtime))
+
+      // Re-upload Jupyter Docker Compose file to init bucket for updating environment variables in Jupyter
+      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, config.clusterResourcesConfig.jupyterDockerCompose)
 
       startGoogleRuntimeReq = StartGoogleRuntime(params.runtimeAndRuntimeConfig.copy(runtime = updatedRuntime),
                                                  params.initBucket,

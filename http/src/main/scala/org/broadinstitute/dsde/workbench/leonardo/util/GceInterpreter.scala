@@ -52,7 +52,7 @@ class GceInterpreter[F[_]](
   dbRef: DbReference[F],
   F: Async[F],
   logger: StructuredLogger[F])
-    extends BaseRuntimeInterpreter[F](config, welderDao)
+    extends BaseRuntimeInterpreter[F](config, welderDao, bucketHelper)
     with RuntimeAlgebra[F] {
   override def createRuntime(
     params: CreateRuntimeParams
