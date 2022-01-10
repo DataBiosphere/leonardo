@@ -15,7 +15,7 @@ RUN mkdir /helm-go-lib-build && \
 
 # Use this graalvm image if we need to use jstack etc
 # FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.0.0.2
-FROM adoptopenjdk/openjdk11:ubi
+FROM us.gcr.io/broad-dsp-gcr-public/base/jre:11-debian
 
 EXPOSE 8080
 EXPOSE 5050
@@ -64,3 +64,6 @@ RUN cd /leonardo && \
 
 # Add Leonardo as a service (it will start when the container starts)
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
+
+# Install https://github.com/apangin/jattach to get access to JDK tools
+RUN apt install jattach
