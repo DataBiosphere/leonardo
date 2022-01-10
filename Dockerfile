@@ -66,4 +66,5 @@ RUN cd /leonardo && \
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
-RUN apt install jattach
+RUN apt update && \
+    apt install jattach
