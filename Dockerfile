@@ -63,8 +63,8 @@ RUN cd /leonardo && \
     cd /
 
 # Install https://github.com/apangin/jattach to get access to JDK tools
-RUN apt update && \
-    apt install jattach
+RUN apt-get update && \
+    apt-get install jattach
 
 # Add Leonardo as a service (it will start when the container starts)
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
