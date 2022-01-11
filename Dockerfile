@@ -62,9 +62,9 @@ RUN cd /leonardo && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     cd /
 
-# Add Leonardo as a service (it will start when the container starts)
-CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
-
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt update && \
     apt install jattach
+
+# Add Leonardo as a service (it will start when the container starts)
+CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')
