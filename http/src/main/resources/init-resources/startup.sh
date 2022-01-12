@@ -156,7 +156,7 @@ fi
 
 function failScriptIfError() {
   if [ $EXIT_CODE -ne 0 ]; then
-    echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
+    echo "Fail to docker-compose start container ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
     retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
     exit $EXIT_CODE
   else
@@ -230,6 +230,10 @@ fi
 if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
   START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
   log "Executing user start script [$START_USER_SCRIPT]..."
+
+  docker cp /var/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
+  retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
+
   if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
       docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
