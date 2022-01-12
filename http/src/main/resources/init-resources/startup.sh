@@ -40,7 +40,6 @@ function retry {
 function log() {
   echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
 }
-
 #
 # Main
 #
@@ -231,11 +230,11 @@ if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
   START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
   log "Executing user start script [$START_USER_SCRIPT]..."
 
-  docker cp /var/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
-  retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
-
   if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
+      docker cp /var/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
+      retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
+
       docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     else
       docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
@@ -243,6 +242,9 @@ if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
   fi
 
   if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    docker cp /var/${START_USER_SCRIPT} ${RSTUDIO_SERVER_NAME}:${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT}
+    retry 3 docker exec -u root ${RSTUDIO_SERVER_NAME} chmod +x ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT}
+
     docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
   fi
 
