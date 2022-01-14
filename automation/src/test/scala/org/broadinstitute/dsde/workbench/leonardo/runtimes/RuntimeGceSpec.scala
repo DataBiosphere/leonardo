@@ -23,6 +23,7 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.service.Sam
 import org.http4s.client.Client
+import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import java.nio.charset.{Charset, StandardCharsets}
@@ -133,7 +134,7 @@ class RuntimeGceSpec
     testStartupScripts(project).unsafeRunSync()
   }
 
-  "should run a user script and startup script for RStudio" in { project =>
+  "should run a user script and startup script for RStudio" taggedAs Retryable in { project =>
     testStartupScripts(project, Some(LeonardoConfig.Leonardo.rstudioBioconductorImage)).unsafeRunSync()
   }
 
