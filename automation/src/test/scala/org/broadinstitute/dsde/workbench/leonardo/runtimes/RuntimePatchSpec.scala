@@ -258,7 +258,6 @@ class RuntimePatchSpec
           )
           clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
           implicit0(authToken: AuthToken) <- Ron.authToken()
-          _ <- IO.sleep(30 seconds) // Wait 30 seconds before we try to make a notebooks on the cluster
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(clusterCopy, Python3) { notebookPage =>

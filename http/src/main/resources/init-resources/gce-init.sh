@@ -105,6 +105,8 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 export WELDER_ENABLED=$(welderEnabled)
 export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
+export NOTEBOOKS_DIR=$(notebooksDir)
+
 #if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 #  export IS_RSTUDIO_RUNTIME="true"
 #else
@@ -289,14 +291,6 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   COMPOSE_FILES+=(-f ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`)
   cat ${DOCKER_COMPOSE_FILES_DIRECTORY}/`basename ${RSTUDIO_DOCKER_COMPOSE}`
 fi
-
-# This condition is needed for supporting existing Runtime/PDs created before this change
-#if [ -d $WORK_DIRECTORY/notebooks ]
-#then
-#    export NOTEBOOKS_DIR=$(notebooksDir)/notebooks
-#else
-export NOTEBOOKS_DIR=$(notebooksDir)
-#fi
 
 tee /var/variables.env << END
 CERT_DIRECTORY=${CERT_DIRECTORY}
