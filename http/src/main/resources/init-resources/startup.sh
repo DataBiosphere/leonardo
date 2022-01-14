@@ -107,6 +107,7 @@ then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
         $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
 
         tee /var/variables.env << END
@@ -136,6 +137,8 @@ else
 
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
         $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
 
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
@@ -235,13 +238,15 @@ if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
   log "Executing user start script [$START_USER_SCRIPT]..."
 
   if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-    docker cp /var/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
-    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
-
-
     if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
+      docker cp /var/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
+      retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
+
       docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     else
+      docker cp /etc/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
+      retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
+
       docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     fi
   fi
