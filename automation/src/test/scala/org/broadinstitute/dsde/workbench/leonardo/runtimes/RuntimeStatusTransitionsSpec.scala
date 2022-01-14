@@ -4,6 +4,7 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.service.RestException
+import org.scalatest.tagobjects.Retryable
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 /**
@@ -22,7 +23,7 @@ class RuntimeStatusTransitionsSpec extends GPAllocFixtureSpec with ParallelTestE
     implicit val rat = ronAuthToken.unsafeRunSync()
     implicit val ra = ronAuthorization.unsafeRunSync()
 
-    "create, monitor, delete should transition correctly" in { billingProject =>
+    "create, monitor, delete should transition correctly" taggedAs Retryable in { billingProject =>
       logger.info("Starting RuntimeStatusTransitionsSpec: create, monitor, delete should transition correctly")
 
       val runtimeName = randomClusterName
