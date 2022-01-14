@@ -141,6 +141,10 @@ else
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d
+
+        # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
+        # A better to do this might be to take welder host as an argument to the script
+        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
     fi
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
@@ -267,6 +271,10 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # kernel tries to connect to it.
     docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
 
+    # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
+    # This is to make it so that older images will still work after we change notebooks location to home dir
+    docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
+
     docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
@@ -302,5 +310,10 @@ if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
 fi
 
 # Resize persistent disk if needed.
-echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-resize2fs /dev/${DISK_DEVICE_ID}
+# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
+# a dedicated flag that distinguishes gce and dataproc. But this will do for now
+# If it's GCE, we resize the PD. Dataproc doesn't have PD
+if [ -f "$FILE" ]; then
+  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+  resize2fs /dev/${DISK_DEVICE_ID}
+fi
