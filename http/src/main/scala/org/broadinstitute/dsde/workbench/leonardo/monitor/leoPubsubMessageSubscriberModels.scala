@@ -116,6 +116,7 @@ sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Produ
 object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   val values = findValues
 
+  //TODO rename to be google specific?
   final case object CreateRuntime extends LeoPubsubMessageType {
     val asString = "createRuntime"
   }
@@ -154,6 +155,10 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   }
   final case object StartApp extends LeoPubsubMessageType {
     val asString = "startApp"
+  }
+
+  final case object CreateAzureRuntime extends LeoPubsubMessageType {
+    val asString = "createAzureRuntime"
   }
 }
 
@@ -303,6 +308,10 @@ object LeoPubsubMessage {
   final case class UpdateDiskMessage(diskId: DiskId, newSize: DiskSize, traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
+  }
+
+  final case class CreateAzureRuntimeMessage(runtimeId: Long, traceId: Option[TraceId]) extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
 }
 

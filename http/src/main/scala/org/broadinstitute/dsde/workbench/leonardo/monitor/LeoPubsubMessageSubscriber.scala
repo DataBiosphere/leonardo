@@ -87,6 +87,8 @@ class LeoPubsubMessageSubscriber[F[_]](
         handleStopAppMessage(msg)
       case msg: StartAppMessage =>
         handleStartAppMessage(msg)
+      case msg: CreateAzureRuntimeMessage =>
+        handleCreateAzureRuntimeMessage(msg)
     }
 
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
@@ -1180,6 +1182,13 @@ class LeoPubsubMessageSubscriber[F[_]](
         }
 
       _ <- asyncTasks.offer(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now))
+    } yield ()
+
+  private[monitor] def handleCreateAzureRuntimeMessage(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      createAzureRuntime = azureAlg
+        .
     } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>
