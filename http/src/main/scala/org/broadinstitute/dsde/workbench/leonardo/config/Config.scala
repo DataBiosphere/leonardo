@@ -210,6 +210,13 @@ object Config {
     SamConfig(config.getString("server"))
   }
 
+  implicit private val prometheusConfigReader: ValueReader[PrometheusConfig] = ValueReader.relative { config =>
+    PrometheusConfig(
+      config.getBoolean("enabled"),
+      config.getInt("endpointPort")
+    )
+  }
+
   implicit private val proxyConfigReader: ValueReader[ProxyConfig] = ValueReader.relative { config =>
     ProxyConfig(
       config.getString("proxyDomain"),
@@ -445,6 +452,7 @@ object Config {
   val dataprocConfig = config.as[DataprocConfig]("dataproc")
   val gceConfig = config.as[GceConfig]("gce")
   val imageConfig = config.as[ImageConfig]("image")
+  val prometheusConfig = config.as[PrometheusConfig]("prometheus")
   val proxyConfig = config.as[ProxyConfig]("proxy")
   val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val securityFilesConfig = config.as[SecurityFilesConfig]("clusterFiles")
@@ -630,7 +638,8 @@ object Config {
       config.as[ChartName]("chartName"),
       config.as[ChartVersion]("chartVersion"),
       config.as[ReleaseNameSuffix]("releaseNameSuffix"),
-      config.as[NamespaceNameSuffix]("namespaceNameSuffix")
+      config.as[NamespaceNameSuffix]("namespaceNameSuffix"),
+      config.as[ServiceAccountName]("serviceAccountName")
     )
   }
 

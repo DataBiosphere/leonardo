@@ -1,18 +1,32 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
+import cats.effect.std.Semaphore
+import com.github.benmanes.caffeine.cache.Caffeine
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
+import scalacache.caffeine.CaffeineCache
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
 
 class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
+  val underlyingKeylockCache =
+    Caffeine
+      .newBuilder()
+      .maximumSize(10)
+      .expireAfterWrite(60, TimeUnit.SECONDS)
+      .recordStats()
+      .build[String, scalacache.Entry[Semaphore[IO]]]()
+  val keyLockCache: CaffeineCache[IO, String, Semaphore[IO]] =
+    CaffeineCache[IO, String, Semaphore[IO]](underlyingKeylockCache)
+
   "KeyLock" should "perform operations using withKeyLock" in {
-    val test = KeyLock[IO, String](cache)
+    val test = KeyLock[IO, String](keyLockCache)
 
     val res =
       for {
-        _ <- cache.removeAll
+        _ <- keyLockCache.removeAll
 
         key1 = "key1"
         key2 = "key2"
@@ -29,11 +43,11 @@ class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
   }
 
   it should "block on withKeyLock for the same key" in {
-    val test = KeyLock[IO, String](cache)
+    val test = KeyLock[IO, String](keyLockCache)
 
     val res =
       for {
-        _ <- cache.removeAll
+        _ <- keyLockCache.removeAll
         key = "key"
         timeoutErr <- test
           .withKeyLock(key)(

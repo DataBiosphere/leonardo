@@ -312,7 +312,12 @@ class GKEInterpreter[F[_]](
       )
 
       // Create KSA
-      ksaName = config.galaxyAppConfig.serviceAccount
+      ksaName: ServiceAccountName <- F.fromOption(
+        app.appResources.kubernetesServiceAccountName,
+        AppCreationException(
+          s"Kubernetes Service Account not found in DB for app ${app.appName.value} | trace id: ${ctx.traceId}"
+        )
+      )
       gsa = dbApp.app.googleServiceAccount
 
       // Resolve the cluster in Google
@@ -406,6 +411,8 @@ class GKEInterpreter[F[_]](
             dbApp.nodepool.nodepoolName,
             namespaceName,
             nfsDisk,
+            ksaName,
+            gsa,
             app.customEnvironmentVariables
           )
         case AppType.Custom =>
@@ -1008,6 +1015,8 @@ class GKEInterpreter[F[_]](
     nodepoolName: NodepoolName,
     namespaceName: NamespaceName,
     disk: PersistentDisk,
+    ksaName: ServiceAccountName,
+    gsa: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String]
   )(implicit ev: Ask[F, AppContext]): F[Unit] = {
     // TODO: Use the chart from the database instead of re-looking it up in config:
@@ -1025,6 +1034,8 @@ class GKEInterpreter[F[_]](
                                                               nodepoolName,
                                                               namespaceName,
                                                               disk,
+                                                              ksaName,
+                                                              gsa,
                                                               customEnvironmentVariables)
       _ <- logger.info(ctx.loggingCtx)(s"Chart override values are: $chartValues")
 
@@ -1268,6 +1279,8 @@ class GKEInterpreter[F[_]](
     nodepoolName: NodepoolName,
     namespaceName: NamespaceName,
     disk: PersistentDisk,
+    ksaName: ServiceAccountName,
+    gsa: WorkbenchEmail,
     customEnvironmentVariables: Map[String, String]
   ): List[String] = {
     val proxyPath = s"/proxy/google/v1/apps/${cluster.googleProject.value}/${appName.value}/cromwell-service"
@@ -1299,7 +1312,10 @@ class GKEInterpreter[F[_]](
       raw"""env.swaggerBasePath=$proxyPath""",
       // cromwellConfig
       raw"""config.gcsProject=${cluster.googleProject.value}""",
-      raw"""config.gcsBucket=$gcsBucket/cromwell-execution"""
+      raw"""config.gcsBucket=$gcsBucket/cromwell-execution""",
+      // Service Account
+      raw"""config.serviceAccount.name=${ksaName.value}""",
+      raw"""config.serviceAccount.annotations.gcpServiceAccount=${gsa.value}"""
     ) ++ ingress
   }
 

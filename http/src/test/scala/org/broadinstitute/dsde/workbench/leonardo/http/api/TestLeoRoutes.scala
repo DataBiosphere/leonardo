@@ -15,7 +15,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, MockDockerDAO, MockJupyterDAO, MockWelderDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{
+  KubernetesDnsCache,
+  KubernetesDnsCacheKey,
+  RuntimeDnsCache,
+  RuntimeDnsCacheKey
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.UserInfo
@@ -100,24 +105,27 @@ trait TestLeoRoutes {
   )
 
   val underlyingRuntimeDnsCache =
-    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[HostStatus]]()
-  val runtimeDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingRuntimeDnsCache)
+    Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
+  val runtimeDnsCaffeineCache: Cache[IO, RuntimeDnsCacheKey, HostStatus] =
+    CaffeineCache[IO, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache)
   val runtimeDnsCache =
     new RuntimeDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, runtimeDnsCaffeineCache)
 
   val underlyingKubernetesDnsCache =
-    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[HostStatus]]()
-  val kubernetesDnsCaffeineCache: Cache[IO, HostStatus] = CaffeineCache[IO, HostStatus](underlyingKubernetesDnsCache)
+    Caffeine.newBuilder().maximumSize(10000L).build[KubernetesDnsCacheKey, scalacache.Entry[HostStatus]]()
+  val kubernetesDnsCaffeineCache: Cache[IO, KubernetesDnsCacheKey, HostStatus] =
+    CaffeineCache[IO, KubernetesDnsCacheKey, HostStatus](underlyingKubernetesDnsCache)
   val kubernetesDnsCache =
     new KubernetesDnsCache[IO](proxyConfig, testDbRef, hostToIpMapping, kubernetesDnsCaffeineCache)
 
   val underlyingGoogleTokenCache =
     Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[(UserInfo, Instant)]]()
-  val googleTokenCache: Cache[IO, (UserInfo, Instant)] =
-    CaffeineCache[IO, (UserInfo, Instant)](underlyingGoogleTokenCache)
+  val googleTokenCache: Cache[IO, String, (UserInfo, Instant)] =
+    CaffeineCache[IO, String, (UserInfo, Instant)](underlyingGoogleTokenCache)
   val underlyingSamResourceCache =
-    Caffeine.newBuilder().maximumSize(10000L).build[String, scalacache.Entry[Option[String]]]()
-  val samResourceCache: Cache[IO, Option[String]] = CaffeineCache[IO, Option[String]](underlyingSamResourceCache)
+    Caffeine.newBuilder().maximumSize(10000L).build[SamResourceCacheKey, scalacache.Entry[Option[String]]]()
+  val samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]] =
+    CaffeineCache[IO, SamResourceCacheKey, Option[String]](underlyingSamResourceCache)
 
   val proxyService = new MockProxyService(proxyConfig,
                                           MockJupyterDAO,

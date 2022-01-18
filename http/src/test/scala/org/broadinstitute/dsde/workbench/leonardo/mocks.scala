@@ -2,15 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.data.NonEmptyList
 import cats.effect.IO
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.auth.Credentials
 import com.google.cloud.compute.v1.Operation
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.Storage.BucketSourceOption
 import fs2.Stream
 import io.circe.{Decoder, Encoder}
-import io.kubernetes.client.openapi.models.{V1ObjectMetaBuilder, V1PersistentVolumeClaim}
+import io.kubernetes.client.openapi.models.{V1ObjectMeta, V1PersistentVolumeClaim}
 import org.broadinstitute.dsde.workbench.RetryConfig
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.{KubernetesNamespace, KubernetesPodStatus, PodStatus}
@@ -170,18 +170,16 @@ class MockKubernetesService(podStatus: PodStatus = PodStatus.Running, appRelease
     ev: Ask[IO, TraceId]
   ): IO[List[V1PersistentVolumeClaim]] =
     appRelease.flatTraverse { r =>
-      val nfcMetadata = new V1ObjectMetaBuilder(false).build()
+      val nfcMetadata = new V1ObjectMeta()
       nfcMetadata.setName(s"${r.asString}-galaxy-pvc")
       nfcMetadata.setUid(s"nfs-pvc-id1")
-      val nfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaimBuilder(false)
-        .build()
+      val nfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaim()
       nfsPvc.setMetadata(nfcMetadata)
 
-      val cvmfsMetadata = new V1ObjectMetaBuilder(false).build()
+      val cvmfsMetadata = new V1ObjectMeta()
       cvmfsMetadata.setName(s"${r.asString}-cvmfs-alien-cache-pvc")
       cvmfsMetadata.setUid(s"cvmfs-pvc-id1")
-      val cvmfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaimBuilder(false)
-        .build()
+      val cvmfsPvc = new io.kubernetes.client.openapi.models.V1PersistentVolumeClaim()
       cvmfsPvc.setMetadata(cvmfsMetadata)
 
       IO.pure(

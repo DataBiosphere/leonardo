@@ -29,7 +29,7 @@ ENV TERRA_APP_VERSION 0.3.0
 ENV GALAXY_VERSION 1.2.0
 ENV NGINX_VERSION 3.23.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.1.8
+ENV CROMWELL_CHART_VERSION 0.1.9
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo
@@ -61,6 +61,10 @@ RUN cd /leonardo && \
     helm pull ingress-nginx/ingress-nginx --version $NGINX_VERSION --untar && \
     helm pull cromwell-helm/cromwell --version $CROMWELL_CHART_VERSION --untar && \
     cd /
+
+# Install https://github.com/apangin/jattach to get access to JDK tools
+RUN apt-get update && \
+    apt-get install jattach
 
 # Add Leonardo as a service (it will start when the container starts)
 CMD java $JAVA_OPTS -jar $(find /leonardo -name 'leonardo*.jar')

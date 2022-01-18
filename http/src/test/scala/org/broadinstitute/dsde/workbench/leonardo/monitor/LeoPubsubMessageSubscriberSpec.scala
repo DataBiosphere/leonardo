@@ -665,7 +665,8 @@ class LeoPubsubMessageSubscriberSpec
       .copy(appResources =
         makeApp1.appResources.copy(
           disk = Some(disk),
-          services = List(makeService(1), makeService(2))
+          services = List(makeService(1), makeService(2)),
+          kubernetesServiceAccountName = Some(ServiceAccountName("gxy-ksa"))
         )
       )
       .save()
@@ -747,7 +748,8 @@ class LeoPubsubMessageSubscriberSpec
       .copy(appResources =
         makeApp1.appResources.copy(
           disk = Some(disk),
-          services = List(makeService(1), makeService(2))
+          services = List(makeService(1), makeService(2)),
+          kubernetesServiceAccountName = Some(ServiceAccountName("cromwell-ksa"))
         )
       )
       .save()
@@ -802,7 +804,8 @@ class LeoPubsubMessageSubscriberSpec
       .copy(appResources =
         makeApp1.appResources.copy(
           disk = Some(disk1),
-          services = List(makeService(1), makeService(2))
+          services = List(makeService(1), makeService(2)),
+          kubernetesServiceAccountName = Some(ServiceAccountName("gxy-ksa"))
         )
       )
       .save()
@@ -811,7 +814,8 @@ class LeoPubsubMessageSubscriberSpec
       .copy(appResources =
         makeApp2.appResources.copy(
           disk = Some(disk2),
-          services = List(makeService(1), makeService(2))
+          services = List(makeService(1), makeService(2)),
+          kubernetesServiceAccountName = Some(ServiceAccountName("gxy-ksa"))
         )
       )
       .save()
@@ -1080,7 +1084,8 @@ class LeoPubsubMessageSubscriberSpec
       .copy(appResources =
         makeApp1.appResources.copy(
           disk = Some(disk),
-          services = List(makeService(1), makeService(2))
+          services = List(makeService(1), makeService(2)),
+          kubernetesServiceAccountName = Some(ServiceAccountName("gxy-ksa"))
         )
       )
       .save()
@@ -1466,7 +1471,8 @@ class LeoPubsubMessageSubscriberSpec
       .copy(appResources =
         makeApp1.appResources.copy(
           disk = Some(disk),
-          services = List(makeService(1), makeService(2))
+          services = List(makeService(1), makeService(2)),
+          kubernetesServiceAccountName = Some(ServiceAccountName("gxy-ksa"))
         )
       )
       .save()
@@ -1640,8 +1646,7 @@ class LeoPubsubMessageSubscriberSpec
       diskInterp,
       computePollOperation,
       MockAuthProvider,
-      gkeAlgebra,
-      org.broadinstitute.dsde.workbench.errorReporting.FakeErrorReporting
+      gkeAlgebra
     )
   }
 
