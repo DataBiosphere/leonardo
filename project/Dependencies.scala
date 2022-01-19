@@ -97,16 +97,18 @@ object Dependencies {
     excludeKms,
     excludeBigQuery,
     excludeCloudBilling,
-    excludeBouncyCastle,
-    excludeBouncyCastleExt,
-    excludeBouncyCastleUtil,
-    excludeBouncyCastlePkix,
     excludeSundrCodegen,
     excludeGuava)
 
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
-  val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (excludeIoGrpc, excludeGuava)
+  val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
+    excludeIoGrpc,
+    excludeGuava,
+    excludeBouncyCastle,
+    excludeBouncyCastleExt,
+    excludeBouncyCastleUtil,
+    excludeBouncyCastlePkix)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
