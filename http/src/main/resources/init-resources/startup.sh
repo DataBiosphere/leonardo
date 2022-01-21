@@ -85,6 +85,7 @@ FILE=/var/certs/jupyter-server.crt
 USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
+# https://broadworkbench.atlassian.net/browse/IA-3186
 # This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
 # a dedicated flag that distinguishes gce and dataproc. But this will do for now
 if [ -f "$FILE" ]
@@ -103,7 +104,7 @@ then
     mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
     chmod a+rwx /mnt/disks/work
 
-    # Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
+    # (1/6/22) Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 

@@ -45,8 +45,10 @@ services:
       WELDER_ENABLED: "${WELDER_ENABLED}"
       NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
       MEM_LIMIT: "${MEM_LIMIT}"
+      # (1/6/2022) When it's a year from now, consider removing the next two lines.
       # The next two lines aren't great. But they're for updating PYTHONPATH, PATH in older than (inclusive) us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.2.
-      # We should remove the two lines once we no longer support older images
+      # We should remove the two lines once we no longer support older images.
+      # When we update base image in terra-docker next time, we should verify the paths are still valid
       PYTHONPATH: "/etc/jupyter/custom:/usr/lib/spark/python:${NOTEBOOKS_DIR}/packages"
       PATH: "/opt/conda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${NOTEBOOKS_DIR}/.local/bin:${NOTEBOOKS_DIR}/packages/bin"
     env_file:
