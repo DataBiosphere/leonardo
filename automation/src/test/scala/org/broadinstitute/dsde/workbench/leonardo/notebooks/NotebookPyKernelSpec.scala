@@ -33,7 +33,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             notebookPage.executeCell(getPythonVersion).get should include("3.7")
             notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
             notebookPage.executeCell(getPandasLocation).get should include("/opt/conda/lib/python3.7/site-packages")
-            notebookPage.executeCell("! pwd").get shouldBe ("/home/jupyter/notebooks")
+            notebookPage.executeCell("! pwd").get shouldBe ("/home/jupyter")
           }
         }
     }
@@ -54,7 +54,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             // user installed packages should be in directory where PD is mounted
             val getFuzzyWuzzyLocation = "! pip3 show fuzzywuzzy"
             notebookPage.executeCell(getFuzzyWuzzyLocation, cellNumberOpt = Some(1)).get should include(
-              "/home/jupyter/notebooks/packages"
+              "/home/jupyter/packages"
             )
           }
         }
@@ -193,7 +193,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               // TODO: remove when PPW is rolled out to all workspaces
               // and Leo removes the kernel_bootstrap logic.
               // See https://broadworkbench.atlassian.net/browse/IA-2936
-              "WORKSPACE_NAME" -> "jupyter"
+              "WORKSPACE_NAME" -> "home"
             )
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import os")

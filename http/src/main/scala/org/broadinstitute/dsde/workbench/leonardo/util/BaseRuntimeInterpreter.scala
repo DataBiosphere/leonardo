@@ -22,7 +22,8 @@ import scala.util.Try
 
 abstract private[util] class BaseRuntimeInterpreter[F[_]](
   config: RuntimeInterpreterConfig,
-  welderDao: WelderDAO[F]
+  welderDao: WelderDAO[F],
+  bucketHelper: BucketHelper[F]
 )(implicit F: Async[F],
   dbRef: DbReference[F],
   metrics: OpenTelemetryMetrics[F],
@@ -82,6 +83,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
               .as(params.runtimeAndRuntimeConfig.runtime)
         }
         .map(_.getOrElse(params.runtimeAndRuntimeConfig.runtime))
+
+      // Re-upload Jupyter Docker Compose file to init bucket for updating environment variables in Jupyter
+      _ <- bucketHelper.uploadFileToInitBucket(params.initBucket, config.clusterResourcesConfig.jupyterDockerCompose)
 
       startGoogleRuntimeReq = StartGoogleRuntime(params.runtimeAndRuntimeConfig.copy(runtime = updatedRuntime),
                                                  params.initBucket,
@@ -193,7 +197,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
     for {
       ctx <- ev.ask
-      replacements = RuntimeTemplateValues(templateConfig, Some(ctx.now))
+      replacements = RuntimeTemplateValues(templateConfig, Some(ctx.now), false)
       mp <- TemplateHelper
         .templateResource[F](replacements.toMap, config.clusterResourcesConfig.startupScript)
         .through(fs2.text.utf8.decode)
@@ -209,7 +213,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
   }
 
   // Shutdown script to run after the runtime is paused
-  protected def getShutdownScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Map[String, String]] = {
+  protected def getShutdownScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                  shouldDeleteJupyterDir: Boolean): F[Map[String, String]] = {
     val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
@@ -226,7 +231,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       None,
       false
     )
-    val replacements = RuntimeTemplateValues(templateConfig, None).toMap
+    val replacements = RuntimeTemplateValues(templateConfig, None, shouldDeleteJupyterDir).toMap
 
     TemplateHelper
       .templateResource[F](replacements, config.clusterResourcesConfig.shutdownScript)

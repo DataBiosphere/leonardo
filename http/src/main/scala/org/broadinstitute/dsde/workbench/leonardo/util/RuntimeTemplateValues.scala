@@ -59,7 +59,8 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           rstudioLicenseFile: String,
                                           proxyServerHostName: String,
                                           isGceFormatted: String,
-                                          useGceStartupScript: String) {
+                                          useGceStartupScript: String,
+                                          shouldDeleteJupyterDir: String) {
 
   def toMap: Map[String, String] =
     this.productElementNames
@@ -184,7 +185,9 @@ object RuntimeTemplateValues {
   val serviceAccountCredentialsFilename = "service-account-credentials.json"
   val customEnvVarFilename = "custom_env_vars.env"
 
-  def apply(config: RuntimeTemplateValuesConfig, now: Option[Instant]): RuntimeTemplateValues = {
+  def apply(config: RuntimeTemplateValuesConfig,
+            now: Option[Instant],
+            shouldDeleteJupyterDir: Boolean): RuntimeTemplateValues = {
     val jupyterUserhome =
       config.runtimeImages
         .find(_.imageType == Jupyter)
@@ -261,7 +264,7 @@ object RuntimeTemplateValues {
         .getOrElse(""),
       config.defaultClientId.getOrElse(""),
       config.welderEnabled.toString, // TODO: remove this and conditional below when welder is rolled out to all clusters
-      s"${jupyterUserhome}/notebooks",
+      notebooksDir = s"${jupyterUserhome}",
       config.initBucketName
         .map(n => GcsPath(n, GcsObjectName(config.clusterResourcesConfig.customEnvVarsConfigUri.asString)).toUri)
         .getOrElse(""),
@@ -275,7 +278,8 @@ object RuntimeTemplateValues {
         .getOrElse(""),
       config.proxyConfig.getProxyServerHostName,
       config.isGceFormatted.toString,
-      config.useGceStartupScript.toString
+      config.useGceStartupScript.toString,
+      shouldDeleteJupyterDir.toString
     )
   }
 
