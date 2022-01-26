@@ -108,6 +108,12 @@ then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+        # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
+        # then all jupyter related files (.jupyter, .local) and things like bash history etc all lives under $HOME. The home diretory change will
+        # make it so that next time this runtime starts up, PD will be mapped to $HOME, but this means that the previous files under $HOME (.jupyter, .local etc)
+        # will be lost....So this one line is to before we restart jupyter container with updated home directory mapping,
+        # we will copy all files under $HOME to $HOME/notebooks first, which will live on PD...So when it starts up,
+        # what was previously under $HOME will now appear in new $HOME as well
         docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && [ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
 
         # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
@@ -141,6 +147,12 @@ else
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+        # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
+        # then all jupyter related files (.jupyter, .local) and things like bash history etc all lives under $HOME. The home diretory change will
+        # make it so that next time this runtime starts up, PD will be mapped to $HOME, but this means that the previous files under $HOME (.jupyter, .local etc)
+        # will be lost....So this one line is to before we restart jupyter container with updated home directory mapping,
+        # we will copy all files under $HOME to $HOME/notebooks first, which will live on PD...So when it starts up,
+        # what was previously under $HOME will now appear in new $HOME as well
         docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && [ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -avr --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
 
         # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
