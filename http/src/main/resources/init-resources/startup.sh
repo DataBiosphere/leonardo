@@ -125,8 +125,7 @@ MEM_LIMIT=${MEM_LIMIT}
 END
 
         ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-#        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
-# will notebooks under /notebooks still exist?
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
         ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
     fi
 else
@@ -141,6 +140,8 @@ else
 
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && rsync -av --progress . $JUPYTER_USER_HOME/notebooks --exclude $JUPYTER_USER_HOME/notebooks || true"
 
         # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
         $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE

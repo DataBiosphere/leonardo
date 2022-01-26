@@ -17,6 +17,5 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 fi
 
 if [ -d '/mnt/disks/work/.jupyter' ] && [ "SHOULD_DELETE_JUPYTER_DIR" = "true" ] ; then
-    echo "deleting .jupyter $SHOULD_DELETE_JUPYTER_DIR"
     rm -rf /mnt/disks/work/.jupyter
 fi
