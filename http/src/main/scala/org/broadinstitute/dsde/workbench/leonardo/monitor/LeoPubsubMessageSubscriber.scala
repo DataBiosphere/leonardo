@@ -51,7 +51,8 @@ class LeoPubsubMessageSubscriber[F[_]](
   googleDiskService: GoogleDiskService[F],
   computePollOperation: ComputePollOperation[F],
   authProvider: LeoAuthProvider[F],
-  gkeAlg: GKEAlgebra[F]
+  gkeAlg: GKEAlgebra[F],
+  azureAlg: AzureAlgebra[F]
 )(implicit executionContext: ExecutionContext,
   F: Async[F],
   logger: StructuredLogger[F],
@@ -88,7 +89,9 @@ class LeoPubsubMessageSubscriber[F[_]](
       case msg: StartAppMessage =>
         handleStartAppMessage(msg)
       case msg: CreateAzureRuntimeMessage =>
-        handleCreateAzureRuntimeMessage(msg)
+        azureAlg.createAndPollRuntime(msg)
+      case msg: DeleteAzureRuntimeMessage =>
+        azureAlg.deleteAndPollRuntime(msg)
     }
 
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
@@ -205,7 +208,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
-        new RuntimeException("Azure runtime is not supported yet")
+        new AzureUnimplementedException("Azure runtime is not supported yet")
       )
       poll = op match {
         case Some(o) =>
@@ -283,7 +286,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
-        new RuntimeException("Azure runtime is not supported yet")
+        new AzureUnimplementedException("Azure runtime is not supported yet")
       )
       poll = op match {
         case Some(o) =>
@@ -722,7 +725,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       )(F.pure)
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
-        new RuntimeException("Azure disk is not supported yet")
+        new AzureUnimplementedException("Azure disk is not supported yet")
       )
       operation <- googleDiskService.resizeDisk(googleProject, disk.zone, disk.name, msg.newSize.gb)
       task = computePollOperation
@@ -1184,13 +1187,6 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- asyncTasks.offer(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now))
     } yield ()
 
-  private[monitor] def handleCreateAzureRuntimeMessage(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
-    for {
-      ctx <- ev.ask
-      createAzureRuntime = azureAlg
-        .
-    } yield ()
-
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>
     e match {
       case e: PubsubKubernetesError =>
@@ -1211,7 +1207,7 @@ class LeoPubsubMessageSubscriber[F[_]](
     }
   }
 
-  private def createRuntimeErrorHandler(msg: CreateRuntimeMessage,
+  private[monitor] def createRuntimeErrorHandler(msg: CreateRuntimeMessage,
                                         now: Instant)(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask

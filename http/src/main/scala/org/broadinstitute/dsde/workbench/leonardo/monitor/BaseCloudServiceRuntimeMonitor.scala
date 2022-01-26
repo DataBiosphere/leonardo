@@ -566,6 +566,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         dbRef.inTransaction {
           clusterQuery.mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = dataprocInstances))
         }.void
+      case CloudService.AzureVm => F.unit
     }
 }
 

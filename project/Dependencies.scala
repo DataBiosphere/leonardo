@@ -128,7 +128,9 @@ object Dependencies {
 
   val azureCore = "com.azure" % "azure-core" % "1.19.0"
   val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.8.0"
-  val azureIdentity =  "com.microsoft.azure" % "azure-management" % "0.8.0"
+  val azureIdentity =  "com.azure" % "azure-identity" % "1.3.5"
+  val crl = "bio.terra.cloud-resource-lib" % "platform" % "0.5.0"
+
 
 
   val coreDependencies = List(
@@ -154,7 +156,9 @@ object Dependencies {
     http4sDsl,
     scalaTestScalaCheck,
     azureCore,
-    azureResourceManager
+    azureResourceManager,
+    azureIdentity,
+    crl
   )
 
   val httpDependencies = Seq(

@@ -29,7 +29,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
         uri = config.wsmUri
           .withPath(
             Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value}/resources/controlled/azure/ip")
+              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip")
           ),
         body = Stream.emits(request.asJson.noSpaces.getBytes),
         headers = Headers(fakeAuth()) //TODO
@@ -43,7 +43,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
         uri = config.wsmUri
           .withPath(
             Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value}/resources/controlled/azure/disk")
+              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disk")
           ),
         body = Stream.emits(request.asJson.noSpaces.getBytes),
         headers = Headers(fakeAuth())
@@ -57,7 +57,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
       uri = config.wsmUri
         .withPath(
           Uri.Path
-            .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value}/resources/controlled/azure/disk")
+            .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disk")
         ),
       body = Stream.emits(request.asJson.noSpaces.getBytes),
       headers = Headers(fakeAuth())
@@ -65,16 +65,57 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
   )(onError)
 
 
-  override def createVm(request: CreateVmRequestData)(implicit ev: Ask[F, AppContext]): F[CreateVmResponse] =
-    httpClient.expectOr[CreateVmResponse](
+  override def createVm(request: CreateVmRequest)(implicit ev: Ask[F, AppContext]): F[CreateVmResult] =
+    httpClient.expectOr[CreateVmResult](
       Request[F](
         method = Method.POST,
         uri = config.wsmUri
           .withPath(
             Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value}/resources/controlled/azure/vm")
+              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm")
           ),
         body = Stream.emits(request.asJson.noSpaces.getBytes),
+        headers = Headers(fakeAuth())
+      )
+    )(onError)
+
+  override def getWorkspace(workspaceId: WorkspaceId)(implicit ev: Ask[F, AppContext]): F[WorkspaceDescription] =
+    httpClient.expectOr[WorkspaceDescription](
+      Request[F](
+        method = Method.GET,
+        uri = config.wsmUri
+          .withPath(
+            Uri.Path
+              .unsafeFromString(s"/api/workspaces/v1/${workspaceId.value.toString}")
+          ),
+        headers = Headers(fakeAuth())
+      )
+    )(onError)
+
+
+  override def deleteVm(request: DeleteVmRequest)(implicit ev: Ask[F, AppContext]): F[DeleteVmResult] =
+    httpClient.expectOr[DeleteVmResult](
+      Request[F](
+        method = Method.POST,
+        uri = config.wsmUri
+          .withPath(
+            Uri.Path
+              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/${request.resourceId.id.toString}")
+          ),
+        body = Stream.emits(request.jobControl.asJson.noSpaces.getBytes),
+        headers = Headers(fakeAuth())
+      )
+    )(onError)
+
+  override def getCreateVmJobResult(request: GetJobResultRequest)(implicit ev: Ask[F, AppContext]): F[CreateVmResult] =
+    httpClient.expectOr[CreateVmResult](
+      Request[F](
+        method = Method.GET,
+        uri = config.wsmUri
+          .withPath(
+            Uri.Path
+              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/create-result/${request.jobId.value}")
+          ),
         headers = Headers(fakeAuth())
       )
     )(onError)
@@ -90,6 +131,5 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
   private def fakeAuth(): Authorization = {
     Authorization(Credentials.Token(AuthScheme.Bearer, ""))
   }
-
 
 }

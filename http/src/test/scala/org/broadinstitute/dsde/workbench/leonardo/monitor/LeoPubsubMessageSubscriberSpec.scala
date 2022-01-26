@@ -18,38 +18,15 @@ import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGoogleDataprocService,
-  FakeGoogleResourceService,
-  MockComputePollOperation,
-  MockGKEService,
-  MockGoogleDiskService
-}
-import org.broadinstitute.dsde.workbench.google2.{
-  ComputePollOperation,
-  DiskName,
-  Event,
-  GKEModels,
-  GoogleDiskService,
-  KubernetesModels,
-  MachineTypeName,
-  OperationName,
-  RegionName,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.mock.{MockComputePollOperation, FakeGoogleResourceService, FakeGoogleComputeService, MockGoogleDiskService, FakeGoogleDataprocService, MockGKEService}
+import org.broadinstitute.dsde.workbench.google2.{Event, DiskName, RegionName, MachineTypeName, GKEModels, ZoneName, GoogleDiskService, OperationName, ComputePollOperation, KubernetesModels}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
-  makeApp,
-  makeKubeCluster,
-  makeNodepool,
-  makeService
-}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeNodepool, makeService, makeKubeCluster, makeApp}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.BootSource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockAppDAO, MockAppDescriptorDAO, WelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{WelderDAO, MockComputeManagerDao, MockWsmDAO, WsmJobStatus, MockAppDAO, MockAppDescriptorDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
@@ -57,7 +34,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, TraceId}
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.broadinstitute.dsp._
 import org.mockito.Mockito.{verify, _}
@@ -1628,7 +1605,8 @@ class LeoPubsubMessageSubscriberSpec
     gkeAlgebra: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService,
     diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
-    gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp
+    gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
+    azureInterp: AzureInterpreter[IO] = makeAzureInterp()
   ): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
@@ -1646,9 +1624,23 @@ class LeoPubsubMessageSubscriberSpec
       diskInterp,
       computePollOperation,
       MockAuthProvider,
-      gkeAlgebra
+      gkeAlgebra,
+      azureInterp
     )
   }
+
+  // Needs to be made for each test its used in, otherwise queue will overlap
+  def makeAzureInterp(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded): AzureInterpreter[IO] = {
+    new AzureInterpreter[IO](
+      Config.azureInterpConfig,
+      Config.azureMonitorConfig,
+      makeTaskQueue(),
+      new MockWsmDAO(jobStatus),
+      new MockComputeManagerDao()
+    )
+  }
+
+  def makeTaskQueue(): Queue[IO, Task[IO]] = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   def makeDetachingDiskInterp(): GoogleDiskService[IO] =
     new MockGoogleDiskService {

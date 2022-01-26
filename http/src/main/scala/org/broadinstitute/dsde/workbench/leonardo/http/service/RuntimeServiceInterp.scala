@@ -79,7 +79,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       context <- as.ask
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        new RuntimeException("Azure runtime is not supported yet")
+        new AzureUnimplementedException("Azure runtime is not supported yet")
       )
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateRuntime,
@@ -388,7 +388,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       ctx <- as.ask
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        new RuntimeException("Azure runtime is not supported yet")
+        new AzureUnimplementedException("Azure runtime is not supported yet")
       )
       // throw 404 if not existent
       runtimeOpt <- clusterQuery
@@ -868,6 +868,10 @@ object RuntimeServiceInterp {
             if (req.scopes.isEmpty) config.gceConfig.defaultScopes else req.scopes
           case CloudService.Dataproc =>
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
+          case CloudService.AzureVm =>
+            //TODO in https://broadworkbench.atlassian.net/browse/IA-3112
+              throw AzureUnimplementedException("cluster scopes not implemented for azure")
+
         }
       case None =>
         if (req.scopes.isEmpty) config.gceConfig.defaultScopes

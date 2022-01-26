@@ -6,21 +6,7 @@ import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
-import org.broadinstitute.dsde.workbench.google2.{
-  DeviceName,
-  FirewallRuleName,
-  KubernetesName,
-  Location,
-  MachineTypeName,
-  MaxRetries,
-  NetworkName,
-  PublisherConfig,
-  RegionName,
-  SubnetworkName,
-  SubscriberConfig,
-  SubscriberDeadLetterPolicy,
-  ZoneName
-}
+import org.broadinstitute.dsde.workbench.google2.{SubscriberDeadLetterPolicy, Location, MaxRetries, SubscriberConfig, FirewallRuleName, SubnetworkName, RegionName, MachineTypeName, PublisherConfig, ZoneName, DeviceName, NetworkName, KubernetesName}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
@@ -28,27 +14,17 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  DateAccessedUpdaterConfig,
-  InterruptablePollMonitorConfig,
-  LeoPubsubMessageSubscriberConfig,
-  PersistentDiskMonitorConfig,
-  PollMonitorConfig
-}
-
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
-  DataprocInterpreterConfig,
-  GceInterpreterConfig
-}
-import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VPCInterpreterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{GceMonitorConfig, DataprocMonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{PollMonitorConfig, InterruptablePollMonitorConfig, DateAccessedUpdaterConfig, PersistentDiskMonitorConfig, LeoPubsubMessageSubscriberConfig}
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{GceInterpreterConfig, DataprocInterpreterConfig}
+import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VPCInterpreterConfig, AzureInterpretorConfig, AzureMonitorConfig}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
-
 import java.nio.file.{Path, Paths}
+
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -807,4 +783,57 @@ object Config {
       proxyConfig,
       gkeGalaxyDiskConfig
     )
+
+  implicit private val azureInterpConfigReader: ValueReader[AzureInterpretorConfig] = ValueReader.relative { config =>
+    AzureInterpretorConfig(
+      config.as[String]("ipControlledResourceDesc"),
+      config.as[String]("ipNamePrefix"),
+      config.as[String]("networkControlledResourceDesc"),
+      config.as[String]("networkNamePrefix"),
+      config.as[String]("subnetNamePrefix"),
+      config.as[CidrIP]("addressSpaceCidr"),
+      config.as[CidrIP]("subnetAddressCidr"),
+      config.as[String]("diskControlledResourceDesc"),
+      config.as[String]("vmControlledResourceDesc")
+    )
+  }
+
+  val azureInterpConfig: AzureInterpretorConfig = config.as[AzureInterpretorConfig]("azure.runtimeDefaults")
+
+
+  implicit private val azureMonitorConfigReader: ValueReader[AzureMonitorConfig] = ValueReader.relative { config =>
+    AzureMonitorConfig(
+      config.as[PollMonitorConfig]("pollStatus")
+    )
+  }
+
+  val azureMonitorConfig: AzureMonitorConfig = config.as[AzureMonitorConfig]("azure.monitor")
+
+  implicit private val wsmDaoConfigReader: ValueReader[HttpWsmDaoConfig] = ValueReader.relative { config =>
+    HttpWsmDaoConfig(
+      Uri.unsafeFromString(config.as[String]("uri"))
+    )
+  }
+
+  val wsmDaoConfig: HttpWsmDaoConfig = config.as[HttpWsmDaoConfig]("azure.wsm")
+
+  implicit private val azureConfigReader: ValueReader[AzureConfig] = ValueReader.relative { config =>
+    AzureConfig(
+      ClientId(config.as[String]("clientId")),
+      ClientSecret(config.as[String]("clientSecret")),
+      ManagedAppTenantId(config.as[String]("managedAppTenantId"))
+    )
+  }
+
+  val azureConfig: AzureConfig = config.as[AzureConfig]("azure.appConfig")
+
+  implicit private val azureCloudContextReader: ValueReader[AzureCloudContext] = ValueReader.relative { config =>
+    AzureCloudContext(
+      TenantId(config.as[String]("tenantId")),
+      SubscriptionId(config.as[String]("subscriptionId")),
+      ManagedResourceGroupName(config.as[String]("managedResourceGroupName"))
+    )
+  }
+
+  val azureCloudContext: AzureCloudContext = config.as[AzureCloudContext]("azure.cloudContext")
 }
