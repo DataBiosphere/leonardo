@@ -6,25 +6,32 @@ import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmControlledResourceId
 
-case class RuntimeControlledResourceRecord(runtimeId: Long, resourceId: WsmControlledResourceId, resourceType: WsmResourceType, azureName: String)
+case class RuntimeControlledResourceRecord(runtimeId: Long,
+                                           resourceId: WsmControlledResourceId,
+                                           resourceType: WsmResourceType,
+                                           azureName: String)
 
-class RuntimeControlledResourceTable(tag: Tag) extends Table[RuntimeControlledResourceRecord](tag, "RUNTIME_CONTROLLED_RESOURCE") {
+class RuntimeControlledResourceTable(tag: Tag)
+    extends Table[RuntimeControlledResourceRecord](tag, "RUNTIME_CONTROLLED_RESOURCE") {
   def runtimeId = column[Long]("runtimeId")
-  //TODO: this should be PK
   def resourceId = column[WsmControlledResourceId]("resourceId")
-  //TODO: resourceType + runtimeId should be a unique constraint
   def resourceType = column[WsmResourceType]("resourceType")
   def azureName = column[String]("azureName")
 
-  def * = (runtimeId, resourceId, resourceType, azureName) <> (RuntimeControlledResourceRecord.tupled, RuntimeControlledResourceRecord.unapply)
+  def * =
+    (runtimeId, resourceId, resourceType, azureName) <> (RuntimeControlledResourceRecord.tupled, RuntimeControlledResourceRecord.unapply)
 }
 
 object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceTable(_)) {
 
-  def save(runtimeId: Long, resourceId: WsmControlledResourceId, resourceType: WsmResourceType, azureName: String): DBIO[Int] =
+  def save(runtimeId: Long,
+           resourceId: WsmControlledResourceId,
+           resourceType: WsmResourceType,
+           azureName: String): DBIO[Int] =
     controlledResourceQuery += RuntimeControlledResourceRecord(runtimeId, resourceId, resourceType, azureName)
 
-  def getResourceTypeForRuntime(runtimeId: Long, resourceType: WsmResourceType): DBIO[Option[RuntimeControlledResourceRecord]] =
+  def getResourceTypeForRuntime(runtimeId: Long,
+                                resourceType: WsmResourceType): DBIO[Option[RuntimeControlledResourceRecord]] =
     controlledResourceQuery
       .filter(_.runtimeId === runtimeId)
       .filter(_.resourceType === resourceType)

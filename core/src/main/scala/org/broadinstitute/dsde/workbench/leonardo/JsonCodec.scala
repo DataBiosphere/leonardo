@@ -5,15 +5,33 @@ import java.time.Instant
 
 import cats.syntax.all._
 import io.circe.syntax._
-import io.circe.{Encoder, DecodingFailure, Decoder}
+import io.circe.{Decoder, DecodingFailure, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.google2.GKEModels.{NodepoolName, KubernetesClusterName}
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceName, NamespaceName}
-import org.broadinstitute.dsde.workbench.google2.{Location, DiskName, SubnetworkName, InstanceName, DataprocRole, RegionName, MachineTypeName, ZoneName, OperationName, NetworkName, KubernetesName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DataprocRole,
+  DiskName,
+  InstanceName,
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  OperationName,
+  RegionName,
+  SubnetworkName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GoogleProject, GcsPath, GcsObjectName}
+import org.broadinstitute.dsde.workbench.model.google.{
+  parseGcsPath,
+  GcsBucketName,
+  GcsObjectName,
+  GcsPath,
+  GoogleProject
+}
 import org.http4s.Uri
 import java.nio.file.{Path, Paths}
 import java.util.UUID
@@ -157,7 +175,7 @@ object JsonCodec {
       case x: RuntimeConfig.DataprocConfig  => x.asJson
       case x: RuntimeConfig.GceConfig       => x.asJson
       case x: RuntimeConfig.GceWithPdConfig => x.asJson
-      case x: RuntimeConfig.AzureVmConfig => x.asJson
+      case x: RuntimeConfig.AzureVmConfig   => x.asJson
     }
   )
   implicit val defaultRuntimeLabelsEncoder: Encoder[DefaultRuntimeLabels] = Encoder.forProduct7(
@@ -405,10 +423,13 @@ object JsonCodec {
   implicit val gpuTypeDecoder: Decoder[GpuType] =
     Decoder.decodeString.emap(s => GpuType.stringToObject.get(s).toRight(s"unsupported gpuType ${s}"))
   implicit val azureRegionDecoder: Decoder[Region] =
-    Decoder.decodeString.emap( s => {
-      val regionOpt: Option[Region] = if (Region.values.stream.map((x: Region) => x.toString).collect(Collectors.toList[String]).contains(s)) Some(Region.fromName(s)) else none[Region]
+    Decoder.decodeString.emap { s =>
+      val regionOpt: Option[Region] =
+        if (Region.values.stream.map((x: Region) => x.toString).collect(Collectors.toList[String]).contains(s))
+          Some(Region.fromName(s))
+        else none[Region]
       regionOpt.toRight(s"Invalid azure region ${s}")
-    })
+    }
 
   implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(
     "gpuType",

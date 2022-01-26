@@ -12,6 +12,10 @@
             <column name="workspaceId" />
         </dropColumn>
 
+        <addPrimaryKey columnNames="resourceId"
+                       constraintName="PRIMARY"
+                       tableName="RUNTIME_CONTROLLED_RESOURCE"/>
+
         <dropUniqueConstraint tableName="RUNTIME_CONTROLLED_RESOURCE" constraintName="IDX_RUNTIME_CONTROLLED_RESOURCE_UNIQUE"/>
         <addUniqueConstraint tableName="RUNTIME_CONTROLLED_RESOURCE" columnNames="runtimeId, resourceType" constraintName="IDX_RUNTIME_CONTROLLED_RESOURCE_UNIQUE" />
     </changeSet>

@@ -6,7 +6,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import cats.effect.Async
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
-import org.http4s.{Request, AuthScheme, Headers, Uri, Method, Response, Credentials}
+import org.http4s.{AuthScheme, Credentials, Headers, Method, Request, Response, Uri}
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import cats.implicits._
@@ -17,10 +17,11 @@ import WsmEncoders._
 import fs2.Stream
 import org.http4s.headers.Authorization
 
-class HttpWsmDao[F[_]](httpClient: Client[F],
-                        config: HttpWsmDaoConfig)(implicit logger: Logger[F],
-                                                    F: Async[F],
-                                                    metrics: OpenTelemetryMetrics[F])  extends WsmDao[F] with Http4sClientDsl[F] {
+class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit logger: Logger[F],
+                                                                        F: Async[F],
+                                                                        metrics: OpenTelemetryMetrics[F])
+    extends WsmDao[F]
+    with Http4sClientDsl[F] {
 
   override def createIp(request: CreateIpRequest)(implicit ev: Ask[F, AppContext]): F[CreateIpResponse] =
     httpClient.expectOr[CreateIpResponse](
@@ -29,7 +30,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
         uri = config.wsmUri
           .withPath(
             Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip")
+              .unsafeFromString(
+                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip"
+              )
           ),
         body = Stream.emits(request.asJson.noSpaces.getBytes),
         headers = Headers(fakeAuth()) //TODO
@@ -43,7 +46,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
         uri = config.wsmUri
           .withPath(
             Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disk")
+              .unsafeFromString(
+                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disk"
+              )
           ),
         body = Stream.emits(request.asJson.noSpaces.getBytes),
         headers = Headers(fakeAuth())
@@ -52,18 +57,19 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
 
   override def createNetwork(request: CreateNetworkRequest)(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] =
     httpClient.expectOr[CreateNetworkResponse](
-    Request[F](
-      method = Method.POST,
-      uri = config.wsmUri
-        .withPath(
-          Uri.Path
-            .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disk")
-        ),
-      body = Stream.emits(request.asJson.noSpaces.getBytes),
-      headers = Headers(fakeAuth())
-    )
-  )(onError)
-
+      Request[F](
+        method = Method.POST,
+        uri = config.wsmUri
+          .withPath(
+            Uri.Path
+              .unsafeFromString(
+                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disk"
+              )
+          ),
+        body = Stream.emits(request.asJson.noSpaces.getBytes),
+        headers = Headers(fakeAuth())
+      )
+    )(onError)
 
   override def createVm(request: CreateVmRequest)(implicit ev: Ask[F, AppContext]): F[CreateVmResult] =
     httpClient.expectOr[CreateVmResult](
@@ -72,7 +78,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
         uri = config.wsmUri
           .withPath(
             Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm")
+              .unsafeFromString(
+                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm"
+              )
           ),
         body = Stream.emits(request.asJson.noSpaces.getBytes),
         headers = Headers(fakeAuth())
@@ -92,7 +100,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
       )
     )(onError)
 
-
   override def deleteVm(request: DeleteVmRequest)(implicit ev: Ask[F, AppContext]): F[DeleteVmResult] =
     httpClient.expectOr[DeleteVmResult](
       Request[F](
@@ -100,7 +107,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
         uri = config.wsmUri
           .withPath(
             Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/${request.resourceId.id.toString}")
+              .unsafeFromString(
+                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/${request.resourceId.id.toString}"
+              )
           ),
         body = Stream.emits(request.jobControl.asJson.noSpaces.getBytes),
         headers = Headers(fakeAuth())
@@ -114,7 +123,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
         uri = config.wsmUri
           .withPath(
             Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/create-result/${request.jobId.value}")
+              .unsafeFromString(
+                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/create-result/${request.jobId.value}"
+              )
           ),
         headers = Headers(fakeAuth())
       )
@@ -128,8 +139,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F],
       _ <- metrics.incrementCounter("wsm/errorResponse")
     } yield WsmException(context.traceId, body)
 
-  private def fakeAuth(): Authorization = {
+  private def fakeAuth(): Authorization =
     Authorization(Credentials.Token(AuthScheme.Bearer, ""))
-  }
 
 }

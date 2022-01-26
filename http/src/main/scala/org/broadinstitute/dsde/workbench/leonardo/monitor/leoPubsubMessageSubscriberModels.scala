@@ -116,7 +116,6 @@ sealed trait LeoPubsubMessageType extends EnumEntry with Serializable with Produ
 object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   val values = findValues
 
-  //TODO rename to be google specific?
   final case object CreateRuntime extends LeoPubsubMessageType {
     val asString = "createRuntime"
   }
@@ -313,11 +312,13 @@ object LeoPubsubMessage {
   }
 
   //TODO: workspaceId should be present in runtime table after https://broadworkbench.atlassian.net/browse/IA-3112
-  final case class CreateAzureRuntimeMessage(runtimeId: Long, workspaceId: WorkspaceId, traceId: Option[TraceId]) extends LeoPubsubMessage {
+  final case class CreateAzureRuntimeMessage(runtimeId: Long, workspaceId: WorkspaceId, traceId: Option[TraceId])
+      extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
 
-  final case class DeleteAzureRuntimeMessage(runtimeId: Long, workspaceId: WorkspaceId, traceId: Option[TraceId]) extends LeoPubsubMessage {
+  final case class DeleteAzureRuntimeMessage(runtimeId: Long, workspaceId: WorkspaceId, traceId: Option[TraceId])
+      extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAzureRuntime
   }
 }
@@ -479,18 +480,18 @@ object LeoPubsubCodec {
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
       value <- messageType match {
-        case LeoPubsubMessageType.CreateDisk    => message.as[CreateDiskMessage]
-        case LeoPubsubMessageType.UpdateDisk    => message.as[UpdateDiskMessage]
-        case LeoPubsubMessageType.DeleteDisk    => message.as[DeleteDiskMessage]
-        case LeoPubsubMessageType.CreateRuntime => message.as[CreateRuntimeMessage]
-        case LeoPubsubMessageType.DeleteRuntime => message.as[DeleteRuntimeMessage]
-        case LeoPubsubMessageType.StopRuntime   => message.as[StopRuntimeMessage]
-        case LeoPubsubMessageType.StartRuntime  => message.as[StartRuntimeMessage]
-        case LeoPubsubMessageType.UpdateRuntime => message.as[UpdateRuntimeMessage]
-        case LeoPubsubMessageType.CreateApp     => message.as[CreateAppMessage]
-        case LeoPubsubMessageType.DeleteApp     => message.as[DeleteAppMessage]
-        case LeoPubsubMessageType.StopApp       => message.as[StopAppMessage]
-        case LeoPubsubMessageType.StartApp      => message.as[StartAppMessage]
+        case LeoPubsubMessageType.CreateDisk         => message.as[CreateDiskMessage]
+        case LeoPubsubMessageType.UpdateDisk         => message.as[UpdateDiskMessage]
+        case LeoPubsubMessageType.DeleteDisk         => message.as[DeleteDiskMessage]
+        case LeoPubsubMessageType.CreateRuntime      => message.as[CreateRuntimeMessage]
+        case LeoPubsubMessageType.DeleteRuntime      => message.as[DeleteRuntimeMessage]
+        case LeoPubsubMessageType.StopRuntime        => message.as[StopRuntimeMessage]
+        case LeoPubsubMessageType.StartRuntime       => message.as[StartRuntimeMessage]
+        case LeoPubsubMessageType.UpdateRuntime      => message.as[UpdateRuntimeMessage]
+        case LeoPubsubMessageType.CreateApp          => message.as[CreateAppMessage]
+        case LeoPubsubMessageType.DeleteApp          => message.as[DeleteAppMessage]
+        case LeoPubsubMessageType.StopApp            => message.as[StopAppMessage]
+        case LeoPubsubMessageType.StartApp           => message.as[StartAppMessage]
         case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
         case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
       }
@@ -794,26 +795,24 @@ object LeoPubsubCodec {
     )
 
   implicit val createAzureMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x =>
-      (x.messageType, x.runtimeId, x.traceId))
+    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
-    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x =>
-      (x.messageType, x.runtimeId, x.traceId))
+    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
-    case m: CreateDiskMessage    => m.asJson
-    case m: UpdateDiskMessage    => m.asJson
-    case m: DeleteDiskMessage    => m.asJson
-    case m: CreateRuntimeMessage => m.asJson
-    case m: DeleteRuntimeMessage => m.asJson
-    case m: StopRuntimeMessage   => m.asJson
-    case m: StartRuntimeMessage  => m.asJson
-    case m: UpdateRuntimeMessage => m.asJson
-    case m: CreateAppMessage     => m.asJson
-    case m: DeleteAppMessage     => m.asJson
-    case m: StopAppMessage       => m.asJson
-    case m: StartAppMessage      => m.asJson
+    case m: CreateDiskMessage         => m.asJson
+    case m: UpdateDiskMessage         => m.asJson
+    case m: DeleteDiskMessage         => m.asJson
+    case m: CreateRuntimeMessage      => m.asJson
+    case m: DeleteRuntimeMessage      => m.asJson
+    case m: StopRuntimeMessage        => m.asJson
+    case m: StartRuntimeMessage       => m.asJson
+    case m: UpdateRuntimeMessage      => m.asJson
+    case m: CreateAppMessage          => m.asJson
+    case m: DeleteAppMessage          => m.asJson
+    case m: StopAppMessage            => m.asJson
+    case m: StartAppMessage           => m.asJson
     case m: CreateAzureRuntimeMessage => m.asJson
     case m: DeleteAzureRuntimeMessage => m.asJson
   }
@@ -879,7 +878,11 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeError(runtimeId: Long, traceId: TraceId, pubsubMsg: Option[LeoPubsubMessage], errorMsg: String) extends PubsubHandleMessageError {
+  final case class AzureRuntimeError(runtimeId: Long,
+                                     traceId: TraceId,
+                                     pubsubMsg: Option[LeoPubsubMessage],
+                                     errorMsg: String)
+      extends PubsubHandleMessageError {
     override def getMessage: String =
       s"${runtimeId}, ${pubsubMsg}, traceId: ${traceId} | ${errorMsg}"
     val isRetryable: Boolean = false

@@ -870,7 +870,7 @@ object RuntimeServiceInterp {
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
           case CloudService.AzureVm =>
             //TODO in https://broadworkbench.atlassian.net/browse/IA-3112
-              throw AzureUnimplementedException("cluster scopes not implemented for azure")
+            throw AzureUnimplementedException("cluster scopes not implemented for azure")
 
         }
       case None =>

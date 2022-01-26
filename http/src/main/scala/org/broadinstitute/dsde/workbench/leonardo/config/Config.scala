@@ -6,7 +6,21 @@ import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
-import org.broadinstitute.dsde.workbench.google2.{SubscriberDeadLetterPolicy, Location, MaxRetries, SubscriberConfig, FirewallRuleName, SubnetworkName, RegionName, MachineTypeName, PublisherConfig, ZoneName, DeviceName, NetworkName, KubernetesName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DeviceName,
+  FirewallRuleName,
+  KubernetesName,
+  Location,
+  MachineTypeName,
+  MaxRetries,
+  NetworkName,
+  PublisherConfig,
+  RegionName,
+  SubnetworkName,
+  SubscriberConfig,
+  SubscriberDeadLetterPolicy,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
@@ -14,10 +28,24 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
-import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{GceMonitorConfig, DataprocMonitorConfig}
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{PollMonitorConfig, InterruptablePollMonitorConfig, DateAccessedUpdaterConfig, PersistentDiskMonitorConfig, LeoPubsubMessageSubscriberConfig}
-import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{GceInterpreterConfig, DataprocInterpreterConfig}
-import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VPCInterpreterConfig, AzureInterpretorConfig, AzureMonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  DateAccessedUpdaterConfig,
+  InterruptablePollMonitorConfig,
+  LeoPubsubMessageSubscriberConfig,
+  PersistentDiskMonitorConfig,
+  PollMonitorConfig
+}
+import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
+  DataprocInterpreterConfig,
+  GceInterpreterConfig
+}
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  AzureInterpretorConfig,
+  AzureMonitorConfig,
+  GKEInterpreterConfig,
+  VPCInterpreterConfig
+}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -799,7 +827,6 @@ object Config {
   }
 
   val azureInterpConfig: AzureInterpretorConfig = config.as[AzureInterpretorConfig]("azure.runtimeDefaults")
-
 
   implicit private val azureMonitorConfigReader: ValueReader[AzureMonitorConfig] = ValueReader.relative { config =>
     AzureMonitorConfig(

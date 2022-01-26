@@ -15,7 +15,8 @@ class CloudServiceRuntimeMonitor[F[_]](
   )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] = a match {
     case CloudService.GCE      => gceRuntimeMonitorInterp.process(runtimeId, action)
     case CloudService.Dataproc => dataprocRuntimeMonitorInterp.process(runtimeId, action)
-    case CloudService.AzureVm => throw AzureUnimplementedException("Azure vms should not be handled with CloudServiceRuntimeMonitor")
+    case CloudService.AzureVm =>
+      throw AzureUnimplementedException("Azure vms should not be handled with CloudServiceRuntimeMonitor")
   }
 
   // Function used for transitions that we can get an Operation
@@ -27,6 +28,7 @@ class CloudServiceRuntimeMonitor[F[_]](
       gceRuntimeMonitorInterp.pollCheck(googleProject, runtimeAndRuntimeConfig, operation, action)
     case CloudService.Dataproc =>
       dataprocRuntimeMonitorInterp.pollCheck(googleProject, runtimeAndRuntimeConfig, operation, action)
-    case CloudService.AzureVm => throw AzureUnimplementedException("Azure vms should not be handled with CloudServiceRuntimeMonitor")
+    case CloudService.AzureVm =>
+      throw AzureUnimplementedException("Azure vms should not be handled with CloudServiceRuntimeMonitor")
   }
 }

@@ -5,10 +5,22 @@ import java.time.Instant
 
 import io.circe.Printer
 import io.circe.syntax._
-import org.broadinstitute.dsde.workbench.google2.{Location, DiskName, SubnetworkName, RegionName, MachineTypeName, ZoneName, NetworkName}
-import org.broadinstitute.dsde.workbench.google2.GKEModels.{NodepoolName, KubernetesClusterName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{ServiceName, ServiceAccountName, NamespaceName}
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, TraceId}
+import org.broadinstitute.dsde.workbench.google2.{
+  DiskName,
+  Location,
+  MachineTypeName,
+  NetworkName,
+  RegionName,
+  SubnetworkName,
+  ZoneName
+}
+import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
+import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{
+  NamespaceName,
+  ServiceAccountName,
+  ServiceName
+}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsPath, GoogleProject}
 import org.broadinstitute.dsp.Release
@@ -265,7 +277,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       )
 
     implicit val wsmControlledResourceIdColumnType: BaseColumnType[WsmControlledResourceId] =
-      MappedColumnType.base[WsmControlledResourceId, String](_.id.toString, s => WsmControlledResourceId(UUID.fromString(s)))
+      MappedColumnType
+        .base[WsmControlledResourceId, String](_.id.toString, s => WsmControlledResourceId(UUID.fromString(s)))
 
   }
 

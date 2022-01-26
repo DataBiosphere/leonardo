@@ -17,10 +17,22 @@ import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
 import org.broadinstitute.dsde.workbench.google.GoogleCredentialModes.Json
-import org.broadinstitute.dsde.workbench.google.{HttpGoogleIamDAO, HttpGoogleDirectoryDAO}
+import org.broadinstitute.dsde.workbench.google.{HttpGoogleDirectoryDAO, HttpGoogleIamDAO}
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
-import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, Event, GoogleSubscriber, GooglePublisher, GoogleDataprocService, GKEService, GoogleDiskService, ComputePollOperation, GoogleResourceService, GoogleStorageService, credentialResource}
+import org.broadinstitute.dsde.workbench.google2.{
+  credentialResource,
+  ComputePollOperation,
+  Event,
+  GKEService,
+  GoogleComputeService,
+  GoogleDataprocService,
+  GoogleDiskService,
+  GooglePublisher,
+  GoogleResourceService,
+  GoogleStorageService,
+  GoogleSubscriber
+}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.auth.{AuthCacheKey, PetClusterServiceAccountProvider, SamAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config._
@@ -28,8 +40,14 @@ import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{RuntimeDnsCacheKey, ProxyResolver, RuntimeDnsCache, KubernetesDnsCache, KubernetesDnsCacheKey}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.{StandardUserInfoDirectives, HttpRoutes, BuildTimeVersion}
+import org.broadinstitute.dsde.workbench.leonardo.dns.{
+  KubernetesDnsCache,
+  KubernetesDnsCacheKey,
+  ProxyResolver,
+  RuntimeDnsCache,
+  RuntimeDnsCacheKey
+}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec.leoPubsubMessageDecoder
@@ -249,13 +267,11 @@ object Boot extends IOApp {
             appDependencies.nodepoolLock
           )
 
-
           val azureAlg = new AzureInterpreter[IO](azureInterpConfig,
-            azureMonitorConfig,
-            appDependencies.asyncTasksQueue,
-            appDependencies.wsmDAO,
-            ComputeManagerDao.buildComputeManager(azureCloudContext, azureConfig)
-          )
+                                                  azureMonitorConfig,
+                                                  appDependencies.asyncTasksQueue,
+                                                  appDependencies.wsmDAO,
+                                                  ComputeManagerDao.buildComputeManager(azureCloudContext, azureConfig))
 
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](
@@ -594,10 +610,6 @@ final case class GoogleDependencies[F[_]](
   googleOauth2DAO: GoogleOAuth2Service[F]
 )
 
-final case class AzureDependencies[F[_]](
-
-                                        )
-
 final case class AppDependencies[F[_]](
   sslContext: SSLContext,
   dbReference: DbReference[F],
@@ -608,7 +620,7 @@ final case class AppDependencies[F[_]](
   dockerDAO: HttpDockerDAO[F],
   jupyterDAO: HttpJupyterDAO[F],
   rStudioDAO: RStudioDAO[F],
-  wsmDAO : HttpWsmDao[F],
+  wsmDAO: HttpWsmDao[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: SamAuthProvider[F],
   semaphore: Semaphore[F],

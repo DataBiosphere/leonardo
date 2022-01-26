@@ -1208,7 +1208,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   }
 
   private[monitor] def createRuntimeErrorHandler(msg: CreateRuntimeMessage,
-                                        now: Instant)(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
+                                                 now: Instant)(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")

@@ -1,10 +1,21 @@
 package org.broadinstitute.dsde.workbench.leonardo.util
 
-import org.broadinstitute.dsde.workbench.leonardo.{RuntimeImage, WorkspaceId, RuntimeConfig, ManagedResourceGroupName, Runtime, PersistentDisk, AppContext}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  ManagedResourceGroupName,
+  PersistentDisk,
+  Runtime,
+  RuntimeConfig,
+  RuntimeImage,
+  WorkspaceId
+}
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmJobId
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeControlledResourceRecord
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAzureRuntimeMessage,
+  DeleteAzureRuntimeMessage
+}
 
 trait AzureAlgebra[F[_]] {
 
@@ -16,8 +27,16 @@ trait AzureAlgebra[F[_]] {
   def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 }
 
+final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
+                                          runtime: Runtime,
+                                          runtimeConfig: RuntimeConfig.AzureVmConfig,
+                                          pd: PersistentDisk,
+                                          vmImage: RuntimeImage)
+final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId,
+                                          runtime: Runtime,
+                                          vmControlledResource: RuntimeControlledResourceRecord)
 
-final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime, runtimeConfig: RuntimeConfig.AzureVmConfig, pd: PersistentDisk, vmImage: RuntimeImage)
-final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime, vmControlledResource: RuntimeControlledResourceRecord)
-
-final case class PollRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime, resourceGroup: ManagedResourceGroupName, jobId: WsmJobId)
+final case class PollRuntimeParams(workspaceId: WorkspaceId,
+                                   runtime: Runtime,
+                                   resourceGroup: ManagedResourceGroupName,
+                                   jobId: WsmJobId)

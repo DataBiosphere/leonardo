@@ -5,7 +5,7 @@ import java.sql.SQLDataException
 import java.time.Instant
 
 import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.google2.{RegionName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
@@ -118,8 +118,12 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
           case CloudService.AzureVm =>
             RuntimeConfig.AzureVmConfig(
               machineType,
-              persistentDiskId.getOrElse(throw new SQLDataException("persistentDiskId field should not be null for Azure.")),
-              Region.fromName(region.getOrElse(throw new SQLDataException("region field should not be null for Azure.")).value),
+              persistentDiskId.getOrElse(
+                throw new SQLDataException("persistentDiskId field should not be null for Azure.")
+              ),
+              Region.fromName(
+                region.getOrElse(throw new SQLDataException("region field should not be null for Azure.")).value
+              )
             )
         }
         RuntimeConfigRecord(id, r, dateAccessed)
@@ -192,24 +196,24 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
           Some(
             x.id,
             (CloudService.AzureVm: CloudService,
-              0,
-              r.machineType,
-              None,
-              None,
-              None,
-              None,
-              None,
-              None,
-              None,
-              Some(r.persistentDiskId),
-              None,
-            //TODO: should this be generalized to a type above regionName?
-              Some(RegionName(r.region.toString)),
-              (None, None),
-              false,
-              false),
+             0,
+             r.machineType,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             None,
+             Some(r.persistentDiskId),
+             None,
+             //TODO: should this be generalized to a type above regionName?
+             Some(RegionName(r.region.toString)),
+             (None, None),
+             false,
+             false),
             x.dateAccessed
-            )
+          )
       }
     })
 
