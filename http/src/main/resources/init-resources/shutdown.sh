@@ -16,6 +16,8 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
     docker exec -u rstudio -i $RSTUDIO_SERVER_NAME rstudio-server stop
 fi
 
+# Remove jupyter related files if user decides to delete the VM
 if [ -d '/mnt/disks/work/.jupyter' ] && [ "SHOULD_DELETE_JUPYTER_DIR" = "true" ] ; then
     rm -rf /mnt/disks/work/.jupyter
+    rm -rf /mnt/disks/work/.local || true
 fi
