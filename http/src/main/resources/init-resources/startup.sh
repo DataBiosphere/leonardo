@@ -108,7 +108,7 @@ then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
-        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && rsync -av --progress . $JUPYTER_USER_HOME/notebooks --exclude $JUPYTER_USER_HOME/notebooks || true"
+        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && [ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress . $JUPYTER_USER_HOME/notebooks --exclude $JUPYTER_USER_HOME/notebooks || true"
 
         # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
         $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
