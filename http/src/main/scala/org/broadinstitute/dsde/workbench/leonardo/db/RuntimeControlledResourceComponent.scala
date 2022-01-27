@@ -8,27 +8,25 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.WsmControlledResourceId
 
 case class RuntimeControlledResourceRecord(runtimeId: Long,
                                            resourceId: WsmControlledResourceId,
-                                           resourceType: WsmResourceType,
-                                           azureName: String)
+                                           resourceType: WsmResourceType)
 
 class RuntimeControlledResourceTable(tag: Tag)
     extends Table[RuntimeControlledResourceRecord](tag, "RUNTIME_CONTROLLED_RESOURCE") {
   def runtimeId = column[Long]("runtimeId")
   def resourceId = column[WsmControlledResourceId]("resourceId")
   def resourceType = column[WsmResourceType]("resourceType")
-  def azureName = column[String]("azureName")
 
   def * =
-    (runtimeId, resourceId, resourceType, azureName) <> (RuntimeControlledResourceRecord.tupled, RuntimeControlledResourceRecord.unapply)
+    (runtimeId, resourceId, resourceType) <> (RuntimeControlledResourceRecord.tupled, (runtimeId,
+                                                                                       resourceId,
+                                                                                       resourceType) =>
+      RuntimeControlledResourceRecord.unapply())
 }
 
 object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceTable(_)) {
 
-  def save(runtimeId: Long,
-           resourceId: WsmControlledResourceId,
-           resourceType: WsmResourceType,
-           azureName: String): DBIO[Int] =
-    controlledResourceQuery += RuntimeControlledResourceRecord(runtimeId, resourceId, resourceType, azureName)
+  def save(runtimeId: Long, resourceId: WsmControlledResourceId, resourceType: WsmResourceType): DBIO[Int] =
+    controlledResourceQuery += RuntimeControlledResourceRecord(runtimeId, resourceId, resourceType)
 
   def getResourceTypeForRuntime(runtimeId: Long,
                                 resourceType: WsmResourceType): DBIO[Option[RuntimeControlledResourceRecord]] =

@@ -568,6 +568,8 @@ object JsonCodec {
   implicit val uriDecoder: Decoder[Uri] =
     Decoder.decodeString.emap(s => Uri.fromString(s).leftMap(_.getMessage()))
 
+  implicit val uuidDecoder: Decoder[UUID] = Decoder.decodeString.map(s => UUID.fromString(s))
+
   implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
     Decoder.decodeString.map(x => WorkspaceId(UUID.fromString(x)))
 }

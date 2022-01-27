@@ -844,15 +844,15 @@ object Config {
 
   val wsmDaoConfig: HttpWsmDaoConfig = config.as[HttpWsmDaoConfig]("azure.wsm")
 
-  implicit private val azureConfigReader: ValueReader[AzureConfig] = ValueReader.relative { config =>
-    AzureConfig(
+  implicit private val azureConfigReader: ValueReader[AzureAppRegistrationConfig] = ValueReader.relative { config =>
+    AzureAppRegistrationConfig(
       ClientId(config.as[String]("clientId")),
       ClientSecret(config.as[String]("clientSecret")),
       ManagedAppTenantId(config.as[String]("managedAppTenantId"))
     )
   }
 
-  val azureConfig: AzureConfig = config.as[AzureConfig]("azure.appConfig")
+  val azureConfig: AzureAppRegistrationConfig = config.as[AzureAppRegistrationConfig]("azure.appConfig")
 
   implicit private val azureCloudContextReader: ValueReader[AzureCloudContext] = ValueReader.relative { config =>
     AzureCloudContext(

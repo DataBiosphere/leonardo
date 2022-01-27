@@ -267,20 +267,14 @@ object WsmDecoders {
 
   implicit val wsmJobReportDecoder: Decoder[WsmJobReport] = Decoder.instance { c =>
     for {
-      id <- c.downField("id").as[String]
+      id <- c.downField("id").as[UUID]
       description <- c.downField("description").as[String]
       status <- c.downField("status").as[WsmJobStatus]
       statusCode <- c.downField("statusCode").as[Int]
       submitted <- c.downField("submitted").as[String]
       completed <- c.downField("completed").as[String]
       resultUrl <- c.downField("resultUrl").as[String]
-    } yield WsmJobReport(WsmJobId(UUID.fromString(id)),
-                         description,
-                         status,
-                         statusCode,
-                         submitted,
-                         completed,
-                         resultUrl)
+    } yield WsmJobReport(WsmJobId(id), description, status, statusCode, submitted, completed, resultUrl)
   }
 
   implicit val wsmErrorReportDecoder: Decoder[WsmErrorReport] =

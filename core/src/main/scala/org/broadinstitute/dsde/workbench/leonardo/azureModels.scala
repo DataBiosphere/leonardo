@@ -20,7 +20,9 @@ final case class ClientId(value: String) extends AnyVal
 final case class ClientSecret(value: String) extends AnyVal
 final case class ManagedAppTenantId(value: String) extends AnyVal
 
-final case class AzureConfig(clientId: ClientId, clientSecret: ClientSecret, managedAppTenantId: ManagedAppTenantId)
+final case class AzureAppRegistrationConfig(clientId: ClientId,
+                                            clientSecret: ClientSecret,
+                                            managedAppTenantId: ManagedAppTenantId)
 
 object AzureCloudContext {
   def fromString(s: String): Either[String, AzureCloudContext] = {

@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.{Logger, StructuredLogger}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import cats.effect.Async
 import cats.mtl.Ask
@@ -17,7 +17,7 @@ import WsmEncoders._
 import fs2.Stream
 import org.http4s.headers.Authorization
 
-class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit logger: Logger[F],
+class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit logger: StructuredLogger[F],
                                                                         F: Async[F],
                                                                         metrics: OpenTelemetryMetrics[F])
     extends WsmDao[F]
@@ -135,7 +135,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     for {
       context <- ev.ask
       body <- response.bodyText.compile.foldMonoid
-      _ <- logger.error(s"${context.traceId} | WSM call failed: $body")
+      _ <- logger.error(context.loggingCtx)("WSM call failed: $body")
       _ <- metrics.incrementCounter("wsm/errorResponse")
     } yield WsmException(context.traceId, body)
 

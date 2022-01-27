@@ -13,7 +13,7 @@ import com.azure.resourcemanager.compute.models.VirtualMachine
 //TODO: move to wbLibs
 object ComputeManagerDao {
   def buildComputeManager[F[_]: Async](azureCloudContext: AzureCloudContext,
-                                       azureConfig: AzureConfig): ComputeManagerDao[F] = {
+                                       azureConfig: AzureAppRegistrationConfig): ComputeManagerDao[F] = {
     val azureCreds = getManagedAppCredentials(azureConfig)
     val azureProfile =
       new AzureProfile(azureCloudContext.tenantId.value, azureCloudContext.subscriptionId.value, AzureEnvironment.AZURE)
@@ -22,7 +22,7 @@ object ComputeManagerDao {
     new HttpComputerManagerDao(computeManager)
   }
 
-  private def getManagedAppCredentials(azureConfig: AzureConfig): ClientSecretCredential =
+  private def getManagedAppCredentials(azureConfig: AzureAppRegistrationConfig): ClientSecretCredential =
     new ClientSecretCredentialBuilder()
       .clientId(azureConfig.clientId.value)
       .clientSecret(azureConfig.clientSecret.value)

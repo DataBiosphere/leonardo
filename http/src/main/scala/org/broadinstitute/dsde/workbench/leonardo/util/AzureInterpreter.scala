@@ -152,8 +152,7 @@ class AzureInterpreter[F[_]](
         controlledResourceQuery.save(
           params.runtime.id,
           createVmResp.vm.resourceId,
-          WsmResourceType.AzureVm,
-          params.pd.name.value
+          WsmResourceType.AzureVm
         )
       )
     } yield createVmResp
@@ -167,15 +166,17 @@ class AzureInterpreter[F[_]](
       ctx <- ev.ask
 
       getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId))
-      getRuntimeOpt <- azureComputeManager.getAzureVm(params.runtime.runtimeName, params.resourceGroup)
-
-      getRuntime = F.fromOption(
-        getRuntimeOpt,
-        PubsubHandleMessageError.AzureRuntimeError(params.runtime.id,
-                                                   ctx.traceId,
-                                                   None,
-                                                   "Could not retrieve vm controlled resource for runtime from DB")
-      )
+      getRuntime = azureComputeManager
+        .getAzureVm(params.runtime.runtimeName, params.resourceGroup)
+        .flatMap(op =>
+          F.fromOption(
+            op,
+            PubsubHandleMessageError.AzureRuntimeError(params.runtime.id,
+                                                       ctx.traceId,
+                                                       None,
+                                                       "Could not retrieve vm controlled resource for runtime from DB")
+          )
+        )
 
       taskToRun = for {
         // first poll the WSM createVm job for completion
@@ -301,7 +302,7 @@ class AzureInterpreter[F[_]](
     for {
       ipResp <- wsmDao.createIp(request)
       _ <- dbRef.inTransaction(
-        controlledResourceQuery.save(params.runtime.id, ipResp.resourceId, WsmResourceType.AzureIp, azureIpName)
+        controlledResourceQuery.save(params.runtime.id, ipResp.resourceId, WsmResourceType.AzureIp)
       )
       //TODO: update runtime hostIp after WSM return update
     } yield ipResp
@@ -327,7 +328,7 @@ class AzureInterpreter[F[_]](
       diskResp <- wsmDao.createDisk(request)
       _ <- dbRef.inTransaction(
         controlledResourceQuery
-          .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk, params.pd.name.value)
+          .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
       )
     } yield diskResp
   }
@@ -356,7 +357,7 @@ class AzureInterpreter[F[_]](
       networkResp <- wsmDao.createNetwork(request)
       _ <- dbRef.inTransaction(
         controlledResourceQuery
-          .save(params.runtime.id, networkResp.resourceId, WsmResourceType.AzureNetwork, params.pd.name.value)
+          .save(params.runtime.id, networkResp.resourceId, WsmResourceType.AzureNetwork)
       )
     } yield networkResp
   }

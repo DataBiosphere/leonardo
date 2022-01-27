@@ -566,7 +566,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         dbRef.inTransaction {
           clusterQuery.mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = dataprocInstances))
         }.void
-      case CloudService.AzureVm => F.unit
+      case CloudService.AzureVm =>
+        throw new RuntimeException("This should never happen, we should not be persisting instances for CloudService")
     }
 }
 

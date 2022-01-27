@@ -19,7 +19,7 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.map(s => ZoneName(s))
   implicit val diskTypeConfigReader: ConfigReader[DiskType] =
     ConfigReader.stringConfigReader.map(s => DiskType.stringToObject(s))
-  implicit val diskDiszeConfigReader: ConfigReader[DiskSize] =
+  implicit val diskSizeConfigReader: ConfigReader[DiskSize] =
     ConfigReader.intConfigReader.map(s => DiskSize(s))
   implicit val blockSizeConfigReader: ConfigReader[BlockSize] =
     ConfigReader.intConfigReader.map(s => BlockSize(s))
