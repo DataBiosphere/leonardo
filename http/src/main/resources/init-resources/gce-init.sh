@@ -104,14 +104,7 @@ export MEM_LIMIT=$(memLimit)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 export WELDER_ENABLED=$(welderEnabled)
-export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
 export NOTEBOOKS_DIR=$(notebooksDir)
-
-#if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-#  export IS_RSTUDIO_RUNTIME="true"
-#else
-#  export IS_RSTUDIO_RUNTIME="false"
-#fi
 
 START_USER_SCRIPT_URI=$(startUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
@@ -148,6 +141,13 @@ DOCKER_COMPOSE_FILES_DIRECTORY='/var/docker-compose-files'
 WORK_DIRECTORY='/mnt/disks/work'
 GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
 GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
+
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export IS_RSTUDIO_RUNTIME="true"
+  export XDG_CONFIG_HOME=${RSTUDIO_USER_HOME}/.config/rstudio
+else
+  export IS_RSTUDIO_RUNTIME="false"
+fi
 
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
   log 'Authorizing GCR...'

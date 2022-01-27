@@ -71,12 +71,11 @@ export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 GPU_ENABLED=$(gpuEnabled)
-export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
-#if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-#  export IS_RSTUDIO_RUNTIME="true"
-#else
-#  export IS_RSTUDIO_RUNTIME="false"
-#fi
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export IS_RSTUDIO_RUNTIME="true"
+else
+  export IS_RSTUDIO_RUNTIME="false"
+fi
 
 # Overwrite old cert on restart
 SERVER_CRT=$(proxyServerCrt)
