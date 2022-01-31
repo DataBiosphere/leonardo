@@ -75,7 +75,7 @@ function apply_user_script() {
   # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
   # can gain full access to the VM already, so using this flag is not a significant escalation.
   EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> us_output.txt || EXIT_CODE=$?
+  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> us_output.txt || EXIT_CODE=$?
 
   if [ $EXIT_CODE -ne 0 ]; then
     log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
@@ -102,7 +102,7 @@ function apply_start_user_script() {
 
   # Keep in sync with startup.sh
   EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
+  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> start_output.txt || EXIT_CODE=$?
   if [ $EXIT_CODE -ne 0 ]; then
     echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
     retry 3 gsutil -h "x-goog-meta-passed":"false" cp start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}

@@ -29,7 +29,6 @@ services:
       WELDER_ENABLED: "${WELDER_ENABLED}"
       NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
       PIP_USER: "false"
-      PIP_TARGET: "${NOTEBOOKS_DIR}/packages"
       R_LIBS: "${NOTEBOOKS_DIR}/packages"
       # The next two lines aren't great. But they're for updating PYTHONPATH, PATH in older than (inclusive) us.gcr.io/broad-dsp-gcr-public/terra-jupyter-base:1.0.2
       # We should remove the two lines once we no longer support older images. In the meantime, we need to be careful updating Jupyter base images.
