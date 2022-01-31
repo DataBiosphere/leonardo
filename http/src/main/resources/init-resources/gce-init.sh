@@ -174,7 +174,7 @@ function apply_user_script() {
   # network egress throttling. As docker is not a security layer, it is assumed that a determined attacker
   # can gain full access to the VM already, so using this flag is not a significant escalation.
   EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> /var/us_output.txt || EXIT_CODE=$?
+  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${USER_SCRIPT} &> /var/us_output.txt || EXIT_CODE=$?
 
   if [ $EXIT_CODE -ne 0 ]; then
     log "User script failed with exit code $EXIT_CODE. Output is saved to $USER_SCRIPT_OUTPUT_URI."
@@ -201,7 +201,7 @@ function apply_start_user_script() {
 
   # Keep in sync with startup.sh
   EXIT_CODE=0
-  docker exec --privileged -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
+  docker exec --privileged -u root -e PIP_USER=false ${CONTAINER_NAME} ${TARGET_DIR}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
   if [ $EXIT_CODE -ne 0 ]; then
     echo "User start script failed with exit code ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
     retry 3 $GSUTIL_CMD -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
@@ -348,24 +348,13 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
-  # Used to pip install packacges
-  JUPYTER_USER_PIP_DIR=$JUPYTER_USER_HOME/.local/lib/python3.7/site-packages
+  # TODO: Remove once we stop supporting non AI notebooks based images
+  log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
+  KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
-  # TODO: update this if we upgrade python version
-  if [ "$JUPYTER_USER_HOME" = "/home/jupyter" ]
-  then
-     ROOT_USER_PIP_DIR=/opt/conda/lib/python3.7/site-packages
-  else
-     ROOT_USER_PIP_DIR=/usr/local/lib/python3.7/dist-packages
-
-
-    # TODO: Remove once we stop supporting non AI notebooks based images
-    log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
-    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
-
-    # Install kernelspecs inside the Jupyter container
-    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
-  fi
+  # Install kernelspecs inside the Jupyter container
+  retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
+fi
 
 
   # Install notebook.json
@@ -407,9 +396,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         $GSUTIL_CMD cp $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
         docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-        retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_server_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       else
-        retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_server_extension.sh $ext
       fi
     done
   fi
@@ -424,9 +413,9 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         $GSUTIL_CMD cp $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
         docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-        retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_combined_extension.sh ${JUPYTER_EXTENSION_ARCHIVE}
       else
-        retry 3 docker exec -u root -e PIP_TARGET=${ROOT_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
+        retry 3 docker exec -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_pip_install_combined_extension.sh $ext
       fi
     done
   fi
@@ -442,14 +431,14 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         $GSUTIL_CMD cp -r $ext /var
         JUPYTER_EXTENSION_ARCHIVE=`basename $ext`
         docker cp /var/${JUPYTER_EXTENSION_ARCHIVE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
-        retry 3 docker exec -e PIP_TARGET=${JUPYTER_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_ARCHIVE}
       elif [[ $ext == 'http://'* || $ext == 'https://'* ]]; then
         JUPYTER_EXTENSION_FILE=`basename $ext`
         curl $ext -o /var/${JUPYTER_EXTENSION_FILE}
         docker cp /var/${JUPYTER_EXTENSION_FILE} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
-        retry 3 docker exec -e PIP_TARGET=${JUPYTER_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh ${JUPYTER_HOME}/${JUPYTER_EXTENSION_FILE}
       else
-        retry 3 docker exec -e PIP_TARGET=${JUPYTER_USER_PIP_DIR} ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
+        retry 3 docker exec ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/extension/jupyter_install_lab_extension.sh $ext
       fi
     done
   fi
