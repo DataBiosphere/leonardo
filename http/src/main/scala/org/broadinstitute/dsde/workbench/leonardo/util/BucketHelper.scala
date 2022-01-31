@@ -90,6 +90,13 @@ class BucketHelper[F[_]](
         .drain
     } yield ()
 
+  def uploadFileToInitBucket(initBucketName: GcsBucketName, runtimeResource: RuntimeResource): F[Unit] =
+    (TemplateHelper.resourceStream[F](runtimeResource) through google2StorageDAO
+      .streamUploadBlob(
+        initBucketName,
+        GcsBlobName(runtimeResource.asString)
+      )).compile.drain
+
   def initializeBucketObjects(
     initBucketName: GcsBucketName,
     serviceAccountKey: Option[ServiceAccountKey],

@@ -495,6 +495,10 @@ END
       # A better to do this might be to take welder host as an argument to the script
       docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
 
+      # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
+      # This is to make it so that older images will still work after we change notebooks location to home dir
+      docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
+
       docker exec -u 0 $JUPYTER_SERVER_NAME /bin/bash -c "$JUPYTER_HOME/scripts/extension/install_jupyter_contrib_nbextensions.sh \
            && mkdir -p $JUPYTER_USER_HOME/.jupyter/custom/ \
            && cp $JUPYTER_HOME/custom/google_sign_in.js $JUPYTER_USER_HOME/.jupyter/custom/ \

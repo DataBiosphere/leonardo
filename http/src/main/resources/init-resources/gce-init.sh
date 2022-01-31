@@ -92,7 +92,6 @@ export STAGING_BUCKET=$(stagingBucketName)
 export OWNER_EMAIL=$(loginHint)
 export JUPYTER_SERVER_NAME=$(jupyterServerName)
 export JUPYTER_DOCKER_IMAGE=$(jupyterDockerImage)
-export NOTEBOOKS_DIR=$(notebooksDir)
 export WELDER_SERVER_NAME=$(welderServerName)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
@@ -106,6 +105,8 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 export WELDER_ENABLED=$(welderEnabled)
 export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
+export NOTEBOOKS_DIR=$(notebooksDir)
+
 #if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 #  export IS_RSTUDIO_RUNTIME="true"
 #else
@@ -488,6 +489,10 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
        && cp $JUPYTER_HOME/custom/safe-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && cp $JUPYTER_HOME/custom/edit-mode.js $JUPYTER_USER_HOME/.jupyter/custom/ \
        && mkdir -p $JUPYTER_HOME/nbconfig"
+
+  # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
+  # This is to make it so that older images will still work after we change notebooks location to home dir
+  docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
   log 'Starting Jupyter Notebook...'
   retry 3 docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "${JUPYTER_SCRIPTS}/run-jupyter.sh ${NOTEBOOKS_DIR}"

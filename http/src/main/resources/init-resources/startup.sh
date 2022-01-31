@@ -40,7 +40,6 @@ function retry {
 function log() {
   echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: $@"
 }
-
 #
 # Main
 #
@@ -68,6 +67,7 @@ export START_USER_SCRIPT_URI=$(startUserScriptUri)
 export START_USER_SCRIPT_OUTPUT_URI=$(startUserScriptOutputUri)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
+export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
 GPU_ENABLED=$(gpuEnabled)
 export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
@@ -81,11 +81,11 @@ export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we r
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
-
 FILE=/var/certs/jupyter-server.crt
 USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
+# https://broadworkbench.atlassian.net/browse/IA-3186
 # This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
 # a dedicated flag that distinguishes gce and dataproc. But this will do for now
 if [ -f "$FILE" ]
@@ -96,12 +96,44 @@ then
     GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
     DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1'
     WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+    JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
     export WORK_DIRECTORY='/mnt/disks/work'
 
     fsck.ext4 -tvy /dev/${DISK_DEVICE_ID}
     mkdir -p /mnt/disks/work
     mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
-  chmod a+rwx /mnt/disks/work
+    chmod a+rwx /mnt/disks/work
+
+    # (1/6/22) Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
+    if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+        echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+        # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
+        # then all jupyter related files (.jupyter, .local) and things like bash history etc all lives under $HOME. The home diretory change will
+        # make it so that next time this runtime starts up, PD will be mapped to $HOME, but this means that the previous files under $HOME (.jupyter, .local etc)
+        # will be lost....So this one line is to before we restart jupyter container with updated home directory mapping,
+        # we will copy all files under $HOME to $HOME/notebooks first, which will live on PD...So when it starts up,
+        # what was previously under $HOME will now appear in new $HOME as well
+        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && [ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
+
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
+        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
+
+        tee /var/variables.env << END
+JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
+JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
+NOTEBOOKS_DIR=${NOTEBOOKS_DIR}
+GOOGLE_PROJECT=${GOOGLE_PROJECT}
+RUNTIME_NAME=${RUNTIME_NAME}
+OWNER_EMAIL=${OWNER_EMAIL}
+WELDER_ENABLED=${WELDER_ENABLED}
+MEM_LIMIT=${MEM_LIMIT}
+END
+
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+    fi
 else
     CERT_DIRECTORY='/certs'
     DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
@@ -109,7 +141,31 @@ else
     GCLOUD_CMD='gcloud'
     DOCKER_COMPOSE='docker-compose'
     WELDER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/welder*)
+    JUPYTER_DOCKER_COMPOSE=$(ls ${DOCKER_COMPOSE_FILES_DIRECTORY}/jupyter-docker*)
     export WORK_DIRECTORY=/work
+
+    if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+        echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
+
+        # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
+        # then all jupyter related files (.jupyter, .local) and things like bash history etc all lives under $HOME. The home diretory change will
+        # make it so that next time this runtime starts up, PD will be mapped to $HOME, but this means that the previous files under $HOME (.jupyter, .local etc)
+        # will be lost....So this one line is to before we restart jupyter container with updated home directory mapping,
+        # we will copy all files under $HOME to $HOME/notebooks first, which will live on PD...So when it starts up,
+        # what was previously under $HOME will now appear in new $HOME as well
+        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && [ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -avr --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
+
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
+        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
+
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d
+
+        # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
+        # A better to do this might be to take welder host as an argument to the script
+        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"
+    fi
 
     if [ "$WELDER_ENABLED" == "true" ] ; then
       # Update old welder docker-compose file's entrypoint
@@ -123,7 +179,7 @@ fi
 
 function failScriptIfError() {
   if [ $EXIT_CODE -ne 0 ]; then
-    echo "Fail to docker-compose start welder ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
+    echo "Fail to docker-compose start container ${EXIT_CODE}. Output is saved to ${START_USER_SCRIPT_OUTPUT_URI}"
     retry 3 ${GSUTIL_CMD} -h "x-goog-meta-passed":"false" cp /var/start_output.txt ${START_USER_SCRIPT_OUTPUT_URI}
     exit $EXIT_CODE
   else
@@ -197,15 +253,25 @@ fi
 if [ ! -z ${START_USER_SCRIPT_URI} ] ; then
   START_USER_SCRIPT=`basename ${START_USER_SCRIPT_URI}`
   log "Executing user start script [$START_USER_SCRIPT]..."
+
   if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     if [ "$USE_GCE_STARTUP_SCRIPT" == "true" ] ; then
+      docker cp /var/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
+      retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
+
       docker exec --privileged -u root -e PIP_TARGET=/usr/local/lib/python3.7/dist-packages ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     else
+      docker cp /etc/${START_USER_SCRIPT} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/${START_USER_SCRIPT}
+      retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} chmod +x ${JUPYTER_HOME}/${START_USER_SCRIPT}
+
       docker exec --privileged -u root -e PIP_USER=false ${JUPYTER_SERVER_NAME} ${JUPYTER_HOME}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
     fi
   fi
 
   if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+    docker cp /var/${START_USER_SCRIPT} ${RSTUDIO_SERVER_NAME}:${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT}
+    retry 3 docker exec -u root ${RSTUDIO_SERVER_NAME} chmod +x ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT}
+
     docker exec --privileged -u root ${RSTUDIO_SERVER_NAME} ${RSTUDIO_SCRIPTS}/${START_USER_SCRIPT} &> /var/start_output.txt || EXIT_CODE=$?
   fi
 
@@ -217,7 +283,6 @@ fi
 # Configuring Jupyter
 if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     echo "Starting Jupyter on cluster $GOOGLE_PROJECT / $CLUSTER_NAME..."
-
     TOOL_SERVER_NAME=${JUPYTER_SERVER_NAME}
 
     # update container MEM_LIMIT to reflect VM's MEM_LIMIT
@@ -227,6 +292,10 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
     # The intent of this is to "warm up" R at VM creation time to hopefully prevent issues when the Jupyter
     # kernel tries to connect to it.
     docker exec $JUPYTER_SERVER_NAME /bin/bash -c "R -e '1+1'" || true
+
+    # In new jupyter images, we should update jupyter_notebook_config.py in terra-docker.
+    # This is to make it so that older images will still work after we change notebooks location to home dir
+    docker exec ${JUPYTER_SERVER_NAME} sed -i '/^# to mount there as it effectively deletes existing files on the image/,+5d' ${JUPYTER_HOME}/jupyter_notebook_config.py
 
     docker exec -d $JUPYTER_SERVER_NAME /bin/bash -c "export WELDER_ENABLED=$WELDER_ENABLED && export NOTEBOOKS_DIR=$NOTEBOOKS_DIR && (/etc/jupyter/scripts/run-jupyter.sh $NOTEBOOKS_DIR || /opt/conda/bin/jupyter notebook)"
 
@@ -263,5 +332,10 @@ if [ ! -z "$CRYPTO_DETECTOR_DOCKER_IMAGE" ] ; then
 fi
 
 # Resize persistent disk if needed.
-echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-resize2fs /dev/${DISK_DEVICE_ID}
+# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
+# a dedicated flag that distinguishes gce and dataproc. But this will do for now
+# If it's GCE, we resize the PD. Dataproc doesn't have PD
+if [ -f "$FILE" ]; then
+  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+  resize2fs /dev/${DISK_DEVICE_ID}
+fi

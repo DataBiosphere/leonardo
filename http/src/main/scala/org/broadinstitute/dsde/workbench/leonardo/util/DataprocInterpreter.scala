@@ -105,7 +105,7 @@ class DataprocInterpreter[F[_]: Parallel](
   metrics: OpenTelemetryMetrics[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F])
-    extends BaseRuntimeInterpreter[F](config, welderDao)
+    extends BaseRuntimeInterpreter[F](config, welderDao, bucketHelper)
     with RuntimeAlgebra[F]
     with LazyLogging {
 
@@ -173,7 +173,7 @@ class DataprocInterpreter[F[_]: Parallel](
           Some(resourceConstraints),
           false
         )
-        templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now))
+        templateValues = RuntimeTemplateValues(templateParams, Some(ctx.now), false)
         _ <- bucketHelper
           .initializeBucketObjects(initBucketName,
                                    templateParams.serviceAccountKey,
@@ -363,7 +363,7 @@ class DataprocInterpreter[F[_]: Parallel](
           LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
           new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
         )
-        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
+        metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
         _ <- params.runtimeAndRuntimeConfig.runtime.dataprocInstances.find(_.dataprocRole == Master).traverse {
           instance =>
             googleComputeService
@@ -399,7 +399,7 @@ class DataprocInterpreter[F[_]: Parallel](
         LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
         new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
       )
-      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig)
+      metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
         new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")

@@ -25,7 +25,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
     val test = for {
       now <- IO.realTimeInstant
-      result = RuntimeTemplateValues(config, Some(now))
+      result = RuntimeTemplateValues(config, Some(now), false)
     } yield {
       // note: alphabetized
       result.clusterName shouldBe CommonTestData.testCluster.runtimeName.asString
@@ -63,7 +63,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.userScriptUri shouldBe GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")).toUri
       result.loginHint shouldBe CommonTestData.auditInfo.creator.value
       result.memLimit shouldBe "3758096384b" // 3.5 GB
-      result.notebooksDir shouldBe "/home/jupyter/notebooks"
+      result.notebooksDir shouldBe "/home/jupyter"
       result.proxyDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                  GcsObjectName("test-proxy-docker-compose.yaml")).toUri
       result.proxyDockerImage shouldBe CommonTestData.proxyImage.imageUrl
@@ -84,6 +84,7 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.welderEnabled shouldBe "true"
       result.welderMemLimit shouldBe "805306368b" // 768 MB
       result.welderServerName shouldBe "welder-server"
+      result.shouldDeleteJupyterDir shouldBe "false"
     }
 
     test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
