@@ -63,36 +63,55 @@ class LeoPubsubMessageSubscriber[F[_]](
   private[monitor] def messageResponder(
     message: LeoPubsubMessage
   )(implicit traceId: Ask[F, AppContext]): F[Unit] =
-    message match {
-      case msg: CreateRuntimeMessage =>
-        handleCreateRuntimeMessage(msg)
-      case msg: DeleteRuntimeMessage =>
-        handleDeleteRuntimeMessage(msg)
-      case msg: StopRuntimeMessage =>
-        handleStopRuntimeMessage(msg)
-      case msg: StartRuntimeMessage =>
-        handleStartRuntimeMessage(msg)
-      case msg: UpdateRuntimeMessage =>
-        handleUpdateRuntimeMessage(msg)
-      case msg: CreateDiskMessage =>
-        handleCreateDiskMessage(msg)
-      case msg: DeleteDiskMessage =>
-        handleDeleteDiskMessage(msg)
-      case msg: UpdateDiskMessage =>
-        handleUpdateDiskMessage(msg)
-      case msg: CreateAppMessage =>
-        handleCreateAppMessage(msg)
-      case msg: DeleteAppMessage =>
-        handleDeleteAppMessage(msg)
-      case msg: StopAppMessage =>
-        handleStopAppMessage(msg)
-      case msg: StartAppMessage =>
-        handleStartAppMessage(msg)
-      case msg: CreateAzureRuntimeMessage =>
-        azureAlg.createAndPollRuntime(msg)
-      case msg: DeleteAzureRuntimeMessage =>
-        azureAlg.deleteAndPollRuntime(msg)
-    }
+    for {
+      ctx <- traceId.ask
+      resp <- message match {
+        case msg: CreateRuntimeMessage =>
+          handleCreateRuntimeMessage(msg)
+        case msg: DeleteRuntimeMessage =>
+          handleDeleteRuntimeMessage(msg)
+        case msg: StopRuntimeMessage =>
+          handleStopRuntimeMessage(msg)
+        case msg: StartRuntimeMessage =>
+          handleStartRuntimeMessage(msg)
+        case msg: UpdateRuntimeMessage =>
+          handleUpdateRuntimeMessage(msg)
+        case msg: CreateDiskMessage =>
+          handleCreateDiskMessage(msg)
+        case msg: DeleteDiskMessage =>
+          handleDeleteDiskMessage(msg)
+        case msg: UpdateDiskMessage =>
+          handleUpdateDiskMessage(msg)
+        case msg: CreateAppMessage =>
+          handleCreateAppMessage(msg)
+        case msg: DeleteAppMessage =>
+          handleDeleteAppMessage(msg)
+        case msg: StopAppMessage =>
+          handleStopAppMessage(msg)
+        case msg: StartAppMessage =>
+          handleStartAppMessage(msg)
+        case msg: CreateAzureRuntimeMessage =>
+          azureAlg.createAndPollRuntime(msg).adaptError {
+            case e =>
+              PubsubHandleMessageError.AzureRuntimeError(
+                msg.runtimeId,
+                ctx.traceId,
+                Some(msg),
+                e.getMessage
+              )
+          }
+        case msg: DeleteAzureRuntimeMessage =>
+          azureAlg.deleteAndPollRuntime(msg).adaptError {
+            case e =>
+              PubsubHandleMessageError.AzureRuntimeError(
+                msg.runtimeId,
+                ctx.traceId,
+                Some(msg),
+                e.getMessage
+              )
+          }
+      }
+    } yield resp
 
   private[monitor] def messageHandler(event: Event[LeoPubsubMessage]): F[Unit] = {
     val traceId = event.traceId.getOrElse(TraceId("None"))
@@ -113,6 +132,11 @@ class LeoPubsubMessageSubscriber[F[_]](
                     logger.error(ctx.loggingCtx, e)(s"Encountered an error for app ${ee.appId}, ${ee.getMessage}") >> handleKubernetesError(
                       ee
                     )
+                  case ee: AzureRuntimeError =>
+                    logger.error(ctx.loggingCtx, e)(
+                      s"Encountered an error for azure runtime ${ee.runtimeId}, ${ee.getMessage}"
+                    ) >>
+                      createRuntimeErrorHandler(ee.runtimeId, now)(ee)
                   case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
                 }
                 _ <- if (ee.isRetryable)
@@ -179,13 +203,13 @@ class LeoPubsubMessageSubscriber[F[_]](
         Task(
           ctx.traceId,
           taskToRun,
-          Some(createRuntimeErrorHandler(msg, ctx.now)),
+          Some(createRuntimeErrorHandler(msg.runtimeId, ctx.now)),
           ctx.now
         )
       )
     } yield ()
 
-    createCluster.handleErrorWith(e => ev.ask.flatMap(ctx => createRuntimeErrorHandler(msg, ctx.now)(e)))
+    createCluster.handleErrorWith(e => ev.ask.flatMap(ctx => createRuntimeErrorHandler(msg.runtimeId, ctx.now)(e)))
   }
 
   private[monitor] def handleDeleteRuntimeMessage(msg: DeleteRuntimeMessage)(
@@ -1207,11 +1231,11 @@ class LeoPubsubMessageSubscriber[F[_]](
     }
   }
 
-  private[monitor] def createRuntimeErrorHandler(msg: CreateRuntimeMessage,
+  private[monitor] def createRuntimeErrorHandler(runtimeId: Long,
                                                  now: Instant)(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
-      _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create runtime ${msg.runtimeProjectAndName} in Google")
+      _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create runtime ${runtimeId}")
       errorMessage = e match {
         case leoEx: LeoException =>
           Some(ErrorReport.loggableString(leoEx.toErrorReport))
@@ -1219,11 +1243,11 @@ class LeoPubsubMessageSubscriber[F[_]](
             if ee.getStatusCode.getCode.getHttpStatusCode == 409 && ee.getMessage.contains("already exists") =>
           None //this could happen when pubsub redelivers an event unexpectedly
         case _ =>
-          Some(s"Failed to create cluster ${msg.runtimeProjectAndName} due to ${e.getMessage}")
+          Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
       }
       _ <- errorMessage.traverse(m =>
-        (clusterErrorQuery.save(msg.runtimeId, RuntimeError(m, None, now)) >>
-          clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Error, now)).transaction[F]
+        (clusterErrorQuery.save(runtimeId, RuntimeError(m, None, now)) >>
+          clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
     } yield ()
 

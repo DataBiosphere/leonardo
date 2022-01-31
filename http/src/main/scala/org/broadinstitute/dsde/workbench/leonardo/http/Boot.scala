@@ -267,11 +267,11 @@ object Boot extends IOApp {
             appDependencies.nodepoolLock
           )
 
-          val azureAlg = new AzureInterpreter[IO](azureInterpConfig,
-                                                  azureMonitorConfig,
+          val azureAlg = new AzureInterpreter[IO](ConfigReader.appConfig.azure.runtimeDefaults,
+                                                  ConfigReader.appConfig.azure.monitor,
                                                   appDependencies.asyncTasksQueue,
                                                   appDependencies.wsmDAO,
-                                                  ComputeManagerDao.buildComputeManager(azureCloudContext, azureConfig))
+                                                  appDependencies.computeManagerDao)
 
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](
@@ -402,7 +402,8 @@ object Boot extends IOApp {
       appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientWithLogging)
       dockerDao = HttpDockerDAO[F](httpClientWithRetryAndLogging)
       appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithRetryAndLogging)
-      wsmDao = new HttpWsmDao[F](httpClientWithRetryAndLogging, wsmDaoConfig)
+      wsmDao = new HttpWsmDao[F](httpClientWithRetryAndLogging, ConfigReader.appConfig.azure.wsm)
+      computeManagerDao = new HttpComputerManagerDao[F](ConfigReader.appConfig.azure.appRegistration)
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
@@ -561,6 +562,7 @@ object Boot extends IOApp {
       jupyterDao,
       rstudioDAO,
       wsmDao,
+      computeManagerDao,
       serviceAccountProvider,
       authProvider,
       semaphore,
@@ -621,6 +623,7 @@ final case class AppDependencies[F[_]](
   jupyterDAO: HttpJupyterDAO[F],
   rStudioDAO: RStudioDAO[F],
   wsmDAO: HttpWsmDao[F],
+  computeManagerDao: ComputeManagerDao[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: SamAuthProvider[F],
   semaphore: Semaphore[F],

@@ -30,8 +30,6 @@ import slick.jdbc.MySQLProfile.api._
 import java.nio.file.{Path, Paths}
 import java.util.UUID
 
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmControlledResourceId
-
 private[leonardo] object LeoProfile extends MySQLProfile {
   final val dummyDate: Instant = Instant.ofEpochMilli(1000)
 
@@ -278,7 +276,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
 
     implicit val wsmControlledResourceIdColumnType: BaseColumnType[WsmControlledResourceId] =
       MappedColumnType
-        .base[WsmControlledResourceId, String](_.id.toString, s => WsmControlledResourceId(UUID.fromString(s)))
+        .base[WsmControlledResourceId, String](_.value.toString, s => WsmControlledResourceId(UUID.fromString(s)))
 
   }
 

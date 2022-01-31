@@ -14,7 +14,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   RuntimeName,
   SubscriptionId,
   TenantId,
-  WorkspaceId
+  WorkspaceId,
+  WsmControlledResourceId
 }
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import _root_.io.circe._
@@ -58,7 +59,7 @@ final case class WsmVm(resourceId: WsmControlledResourceId)
 
 final case class DeleteVmRequest(workspaceId: WorkspaceId,
                                  resourceId: WsmControlledResourceId,
-                                 jobControl: WsmJobControl)
+                                 deleteRequest: DeleteControlledAzureResourceRequest)
 
 final case class CreateVmResult(vm: WsmVm, jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 
@@ -104,7 +105,6 @@ final case class AzureSubnetName(value: String) extends AnyVal
 final case class CreateNetworkResponse(resourceId: WsmControlledResourceId)
 
 // Common Controlled resource models
-final case class WsmControlledResourceId(id: UUID)
 
 final case class ControlledResourceCommonFields(name: ControlledResourceName,
                                                 description: ControlledResourceDescription,
@@ -273,7 +273,7 @@ object WsmDecoders {
       statusCode <- c.downField("statusCode").as[Int]
       submitted <- c.downField("submitted").as[String]
       completed <- c.downField("completed").as[String]
-      resultUrl <- c.downField("resultUrl").as[String]
+      resultUrl <- c.downField("resultURL").as[String]
     } yield WsmJobReport(WsmJobId(id), description, status, statusCode, submitted, completed, resultUrl)
   }
 
@@ -334,15 +334,16 @@ object WsmEncoders {
        x.region.toString,
        x.vmSize.toString,
        x.vmImageUri.imageUrl,
-       x.ipId.id.toString,
-       x.diskId.id.toString,
-       x.networkId.id.toString)
+       x.ipId.value.toString,
+       x.diskId.value.toString,
+       x.networkId.value.toString)
     )
   implicit val createVmRequestEncoder: Encoder[CreateVmRequest] =
     Encoder.forProduct2("common", "azureVm")(x => (x.common, x.vmData))
 
   implicit val wsmJobIdEncoder: Encoder[WsmJobId] = Encoder.encodeString.contramap(_.value.toString)
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
+
   implicit val deleteControlledAzureResourceRequestEncoder: Encoder[DeleteControlledAzureResourceRequest] =
     Encoder.forProduct1("jobControl")(x => x.jobControl)
 }

@@ -2,8 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import cats.effect.IO
 import com.azure.resourcemanager.compute.models.VirtualMachine
-import org.broadinstitute.dsde.workbench.leonardo.{RuntimeName, ManagedResourceGroupName}
+import org.broadinstitute.dsde.workbench.leonardo.{AzureCloudContext, RuntimeName}
 
-class MockComputeManagerDao extends ComputeManagerDao[IO] {
-  override def getAzureVm(name: RuntimeName, resourceGroup: ManagedResourceGroupName): IO[Option[VirtualMachine]] = IO.pure(None)
+class MockComputeManagerDao(vmReturn: Option[VirtualMachine] = None) extends ComputeManagerDao[IO] {
+  override def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): IO[Option[VirtualMachine]] =
+    IO.pure(vmReturn)
 }

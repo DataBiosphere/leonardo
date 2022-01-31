@@ -2,4 +2,4 @@ package org.broadinstitute.dsde.workbench.leonardo.config
 
 import org.http4s.Uri
 
-final case class HttpWsmDaoConfig(wsmUri: Uri)
+final case class HttpWsmDaoConfig(uri: Uri)

@@ -1,5 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
+import java.util.UUID
+
 import cats.implicits._
 
 final case class TenantId(value: String) extends AnyVal
@@ -19,6 +21,8 @@ final case class AzureUnimplementedException(message: String) extends Exception 
 final case class ClientId(value: String) extends AnyVal
 final case class ClientSecret(value: String) extends AnyVal
 final case class ManagedAppTenantId(value: String) extends AnyVal
+
+final case class WsmControlledResourceId(value: UUID) extends AnyVal
 
 final case class AzureAppRegistrationConfig(clientId: ClientId,
                                             clientSecret: ClientSecret,

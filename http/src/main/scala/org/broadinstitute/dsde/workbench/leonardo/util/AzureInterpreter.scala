@@ -35,6 +35,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   CreateVmRequest,
   CreateVmRequestData,
   CreateVmResult,
+  DeleteControlledAzureResourceRequest,
   DeleteVmRequest,
   GetJobResultRequest,
   ManagedBy,
@@ -46,7 +47,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.db.{
   clusterErrorQuery,
-  clusterImageQuery,
   clusterQuery,
   controlledResourceQuery,
   persistentDiskQuery,
@@ -75,6 +75,7 @@ class AzureInterpreter[F[_]](
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
+
       runtimeOpt <- dbRef.inTransaction(clusterQuery.getClusterById(msg.runtimeId))
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
 
@@ -96,29 +97,12 @@ class AzureInterpreter[F[_]](
       pdOpt <- dbRef.inTransaction(persistentDiskQuery.getById(azureRuntimeConfig.persistentDiskId))
       pd <- F.fromOption(pdOpt, PubsubHandleMessageError.DiskNotFound(azureRuntimeConfig.persistentDiskId))
 
-      //TODO: should front-leo persist this instead to allow for eventual API param?
-      // decide in https://broadworkbench.atlassian.net/browse/IA-3112
-      vmImageOpt <- dbRef.inTransaction(clusterImageQuery.get(runtime.id, RuntimeImageType.AzureVm))
-      vmImage <- F.fromOption(
-        vmImageOpt,
-        PubsubHandleMessageError.AzureRuntimeError(
-          msg.runtimeId,
-          ctx.traceId,
-          Some(msg),
-          s"createRuntime in AzureInterp should not get a runtime without a CLUSTER_IMAGES table entry that has type RuntimeImageType.AzureVm"
-        )
-      )
-
-      params = CreateAzureRuntimeParams(msg.workspaceId, runtime, azureRuntimeConfig, pd, vmImage)
+      params = CreateAzureRuntimeParams(msg.workspaceId, runtime, azureRuntimeConfig, pd, msg.vmImage)
 
       createAzureRuntimeResult <- createRuntime(params)
 
-      wsmWorkspace <- wsmDao.getWorkspace(msg.workspaceId)
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId,
-                          runtime,
-                          wsmWorkspace.azureContext.managedResourceGroupName,
-                          createAzureRuntimeResult.jobReport.id)
+        PollRuntimeParams(msg.workspaceId, runtime, createAzureRuntimeResult.jobReport.id)
       )
     } yield ()
 
@@ -147,7 +131,9 @@ class AzureInterpreter[F[_]](
           createNetworkResp.resourceId
         )
       )
+
       createVmResp <- wsmDao.createVm(vmRequest)
+
       _ <- dbRef.inTransaction(
         controlledResourceQuery.save(
           params.runtime.id,
@@ -166,15 +152,23 @@ class AzureInterpreter[F[_]](
       ctx <- ev.ask
 
       getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId))
+
+      cloudContext = params.runtime.cloudContext match {
+        case _: CloudContext.Gcp =>
+          throw PubsubHandleMessageError.AzureRuntimeError(params.runtime.id,
+                                                           ctx.traceId,
+                                                           None,
+                                                           "Azure runtime should oto have GCP cloud context")
+        case x: CloudContext.Azure => x
+      }
+
       getRuntime = azureComputeManager
-        .getAzureVm(params.runtime.runtimeName, params.resourceGroup)
+        .getAzureVm(params.runtime.runtimeName, cloudContext.value)
         .flatMap(op =>
           F.fromOption(
             op,
-            PubsubHandleMessageError.AzureRuntimeError(params.runtime.id,
-                                                       ctx.traceId,
-                                                       None,
-                                                       "Could not retrieve vm controlled resource for runtime from DB")
+            PubsubHandleMessageError
+              .AzureRuntimeError(params.runtime.id, ctx.traceId, None, "Could not retrieve vm for runtime from azure")
           )
         )
 
@@ -230,30 +224,25 @@ class AzureInterpreter[F[_]](
 
       runtimeOpt <- dbRef.inTransaction(clusterQuery.getClusterById(msg.runtimeId))
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
-      vmControlledResourceOpt <- dbRef.inTransaction(
-        controlledResourceQuery.getResourceTypeForRuntime(msg.runtimeId, WsmResourceType.AzureVm)
-      )
-      vmControlledResource <- F.fromOption(
-        vmControlledResourceOpt,
-        PubsubHandleMessageError.AzureRuntimeError(msg.runtimeId,
-                                                   ctx.traceId,
-                                                   Some(msg),
-                                                   "Could not retrieve vm controlled resource for runtime from DB")
-      )
-
-      params = DeleteAzureRuntimeParams(msg.workspaceId, runtime, vmControlledResource)
 
       _ <- wsmDao.deleteVm(
         DeleteVmRequest(
-          params.workspaceId,
-          params.vmControlledResource.resourceId,
-          WsmJobControl(WsmJobId(UUID.fromString(uniqueName("delete-job"))))
+          msg.workspaceId,
+          msg.wsmResourceId,
+          DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(UUID.randomUUID())))
         )
       )
 
-      wsmWorkspace <- wsmDao.getWorkspace(msg.workspaceId)
-      getDeleteResult = azureComputeManager.getAzureVm(runtime.runtimeName,
-                                                       wsmWorkspace.azureContext.managedResourceGroupName)
+      cloudContext = runtime.cloudContext match {
+        case _: CloudContext.Gcp =>
+          throw PubsubHandleMessageError.AzureRuntimeError(runtime.id,
+                                                           ctx.traceId,
+                                                           None,
+                                                           "Azure runtime should oto have GCP cloud context")
+        case x: CloudContext.Azure => x
+      }
+
+      getDeleteResult = azureComputeManager.getAzureVm(runtime.runtimeName, cloudContext.value)
 
       taskToRun = for {
         _ <- streamUntilDoneOrTimeout(
@@ -262,7 +251,8 @@ class AzureInterpreter[F[_]](
           monitorConfig.pollStatus.interval,
           s"Azure vm still exists after ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
         )
-        _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(params.runtime.id, RuntimeStatus.Deleted, ctx.now))
+        _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+        - <- dbRef.inTransaction(controlledResourceQuery.deleteAllForRuntime(runtime.id))
       } yield ()
 
       _ <- asyncTasks.offer(
@@ -273,8 +263,8 @@ class AzureInterpreter[F[_]](
             dbRef
               .inTransaction(
                 clusterErrorQuery
-                  .save(params.runtime.id, RuntimeError(e.getMessage, None, ctx.now, Some(ctx.traceId))) >>
-                  clusterQuery.updateClusterStatus(params.runtime.id, RuntimeStatus.Error, ctx.now)
+                  .save(runtime.id, RuntimeError(e.getMessage, None, ctx.now, Some(ctx.traceId))) >>
+                  clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Error, ctx.now)
               )
               .void
           ),
@@ -379,7 +369,11 @@ class AzureInterpreter[F[_]](
       )
     )
 
-  private def uniqueName(prefix: String): String = prefix + "-" + UUID.randomUUID.toString
+  private def uniqueName(prefix: String): String = {
+    val s1 = prefix + "-"
+    val s2 = UUID.randomUUID().toString
+    s1 + s2.substring(0, s2.length - s1.length).replaceAll("\\-", "")
+  }
 }
 
 final case class AzureInterpretorConfig(ipControlledResourceDesc: String,

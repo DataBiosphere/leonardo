@@ -311,13 +311,18 @@ object LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
 
-  //TODO: workspaceId should be present in runtime table after https://broadworkbench.atlassian.net/browse/IA-3112
-  final case class CreateAzureRuntimeMessage(runtimeId: Long, workspaceId: WorkspaceId, traceId: Option[TraceId])
+  final case class CreateAzureRuntimeMessage(runtimeId: Long,
+                                             workspaceId: WorkspaceId,
+                                             vmImage: RuntimeImage,
+                                             traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
 
-  final case class DeleteAzureRuntimeMessage(runtimeId: Long, workspaceId: WorkspaceId, traceId: Option[TraceId])
+  final case class DeleteAzureRuntimeMessage(runtimeId: Long,
+                                             workspaceId: WorkspaceId,
+                                             wsmResourceId: WsmControlledResourceId,
+                                             traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAzureRuntime
   }
@@ -467,10 +472,10 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct3("runtimeId", "workspaceId", "traceId")(CreateAzureRuntimeMessage.apply)
+    Decoder.forProduct4("runtimeId", "workspaceId", "vmImage", "traceId")(CreateAzureRuntimeMessage.apply)
 
   implicit val deleteAzureRuntimeDecoder: Decoder[DeleteAzureRuntimeMessage] =
-    Decoder.forProduct3("runtimeId", "workspaceId", "traceId")(DeleteAzureRuntimeMessage.apply)
+    Decoder.forProduct4("runtimeId", "workspaceId", "wsmResourceId", "traceId")(DeleteAzureRuntimeMessage.apply)
 
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
@@ -795,10 +800,14 @@ object LeoPubsubCodec {
     )
 
   implicit val createAzureMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
+    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "vmImage", "traceId")(x =>
+      (x.messageType, x.runtimeId, x.workspaceId, x.vmImage, x.traceId)
+    )
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
-    Encoder.forProduct3("messageType", "runtimeId", "traceId")(x => (x.messageType, x.runtimeId, x.traceId))
+    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "wsmResourceId", "traceId")(x =>
+      (x.messageType, x.runtimeId, x.workspaceId, x.wsmResourceId, x.traceId)
+    )
 
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
     case m: CreateDiskMessage         => m.asJson
@@ -884,7 +893,7 @@ object PubsubHandleMessageError {
                                      errorMsg: String)
       extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"${runtimeId}, ${pubsubMsg}, traceId: ${traceId} | ${errorMsg}"
+      s"\n\truntimeId: ${runtimeId}, \n\tpubsubMsg: ${pubsubMsg}, \n\ttraceId: ${traceId} \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false
   }
 }

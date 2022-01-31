@@ -572,4 +572,14 @@ object JsonCodec {
 
   implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
     Decoder.decodeString.map(x => WorkspaceId(UUID.fromString(x)))
+
+  implicit val workspaceIdEncoder: Encoder[WorkspaceId] =
+    Encoder.encodeString.contramap(_.value.toString)
+
+  implicit val wsmControlledResourceIdEncoder: Encoder[WsmControlledResourceId] =
+    Encoder.encodeString.contramap(_.value.toString)
+
+  implicit val wsmControlledResourceIdDecoder: Decoder[WsmControlledResourceId] =
+    Decoder.decodeString.map(x => WsmControlledResourceId(UUID.fromString(x)))
+
 }

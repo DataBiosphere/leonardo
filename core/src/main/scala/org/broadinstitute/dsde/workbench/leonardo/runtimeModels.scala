@@ -69,7 +69,8 @@ object Runtime {
           urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
         )
       case _: CloudContext.Azure =>
-        throw new NotImplementedError("Proxying Azure runtime is not supported yet")
+        //TODO: this is not the correct proxy URL
+        new URL(urlBase)
     }
   }
 }

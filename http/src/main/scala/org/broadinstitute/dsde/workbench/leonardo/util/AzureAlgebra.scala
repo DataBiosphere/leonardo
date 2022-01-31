@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
-  ManagedResourceGroupName,
   PersistentDisk,
   Runtime,
   RuntimeConfig,
@@ -11,7 +10,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmJobId
-import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeControlledResourceRecord
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
@@ -32,11 +30,6 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           runtimeConfig: RuntimeConfig.AzureVmConfig,
                                           pd: PersistentDisk,
                                           vmImage: RuntimeImage)
-final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId,
-                                          runtime: Runtime,
-                                          vmControlledResource: RuntimeControlledResourceRecord)
+final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 
-final case class PollRuntimeParams(workspaceId: WorkspaceId,
-                                   runtime: Runtime,
-                                   resourceGroup: ManagedResourceGroupName,
-                                   jobId: WsmJobId)
+final case class PollRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime, jobId: WsmJobId)

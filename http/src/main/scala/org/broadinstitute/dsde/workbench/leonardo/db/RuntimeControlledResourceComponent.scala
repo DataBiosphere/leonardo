@@ -4,7 +4,8 @@ package db
 import ca.mrvisser.sealerate
 import LeoProfile.api._
 import LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmControlledResourceId
+
+import scala.concurrent.ExecutionContext
 
 case class RuntimeControlledResourceRecord(runtimeId: Long,
                                            resourceId: WsmControlledResourceId,
@@ -17,13 +18,14 @@ class RuntimeControlledResourceTable(tag: Tag)
   def resourceType = column[WsmResourceType]("resourceType")
 
   def * =
-    (runtimeId, resourceId, resourceType) <> (RuntimeControlledResourceRecord.tupled, (runtimeId,
-                                                                                       resourceId,
-                                                                                       resourceType) =>
-      RuntimeControlledResourceRecord.unapply())
+    (runtimeId, resourceId, resourceType) <> (RuntimeControlledResourceRecord.tupled, RuntimeControlledResourceRecord.unapply)
 }
 
 object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceTable(_)) {
+  def deleteAllForRuntime(runtimeId: Long): DBIO[Int] =
+    controlledResourceQuery
+      .filter(_.runtimeId === runtimeId)
+      .delete
 
   def save(runtimeId: Long, resourceId: WsmControlledResourceId, resourceType: WsmResourceType): DBIO[Int] =
     controlledResourceQuery += RuntimeControlledResourceRecord(runtimeId, resourceId, resourceType)
@@ -35,6 +37,12 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
       .filter(_.resourceType === resourceType)
       .result
       .headOption
+
+  def getAllForRuntime(runtimeId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeControlledResourceRecord]] =
+    controlledResourceQuery
+      .filter(_.runtimeId === runtimeId)
+      .result
+      .map(_.toList)
 }
 
 sealed abstract class WsmResourceType

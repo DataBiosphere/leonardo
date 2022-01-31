@@ -2,6 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
+import java.util.UUID
+
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.Kleisli
@@ -13,20 +15,58 @@ import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
 import cats.effect.std.Queue
+import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
+import com.azure.resourcemanager.network.models.PublicIpAddress
 import com.google.cloud.compute.v1.Operation.Status
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{MockComputePollOperation, FakeGoogleResourceService, FakeGoogleComputeService, MockGoogleDiskService, FakeGoogleDataprocService, MockGKEService}
-import org.broadinstitute.dsde.workbench.google2.{Event, DiskName, RegionName, MachineTypeName, GKEModels, ZoneName, GoogleDiskService, OperationName, ComputePollOperation, KubernetesModels}
+import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeGoogleComputeService,
+  FakeGoogleDataprocService,
+  FakeGoogleResourceService,
+  MockComputePollOperation,
+  MockGKEService,
+  MockGoogleDiskService
+}
+import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
+  DiskName,
+  Event,
+  GKEModels,
+  GoogleDiskService,
+  KubernetesModels,
+  MachineTypeName,
+  OperationName,
+  RegionName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.GalaxyRestore
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeNodepool, makeService, makeKubeCluster, makeApp}
+import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
+  makeApp,
+  makeKubeCluster,
+  makeNodepool,
+  makeService
+}
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.BootSource
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{WelderDAO, MockComputeManagerDao, MockWsmDAO, WsmJobStatus, MockAppDAO, MockAppDescriptorDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  ComputeManagerDao,
+  CreateVmRequest,
+  CreateVmResult,
+  DeleteVmRequest,
+  DeleteVmResult,
+  GetJobResultRequest,
+  MockAppDAO,
+  MockAppDescriptorDAO,
+  MockComputeManagerDao,
+  MockWsmDAO,
+  WelderDAO,
+  WsmJobStatus
+}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
@@ -34,7 +74,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterInvalidState
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail, TraceId}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsp.mocks.MockHelm
 import org.broadinstitute.dsp._
 import org.mockito.Mockito.{verify, _}
@@ -1583,6 +1623,296 @@ class LeoPubsubMessageSubscriberSpec
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "create azure vm properly" in isolatedDbTest {
+    val vmReturn = mock[VirtualMachine]
+    val ipReturn: PublicIpAddress = mock[PublicIpAddress]
+
+    when(vmReturn.powerState()).thenReturn(PowerState.RUNNING)
+
+    val stubIp = "0.0.0.0"
+    when(vmReturn.getPrimaryPublicIPAddress()).thenReturn(ipReturn)
+    when(ipReturn.ipAddress()).thenReturn(stubIp)
+
+    val queue = makeTaskQueue()
+    val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(computeManagerDao =
+                                                                          new MockComputeManagerDao(Some(vmReturn)),
+                                                                        asyncTaskQueue = queue),
+                                          asyncTaskQueue = queue)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                         disk.id,
+                                                         azureRegion)
+        runtime = makeCluster(1)
+          .copy(
+            runtimeImages = Set(azureImage),
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+        } yield {
+          getRuntime.asyncRuntimeFields.flatMap(_.hostIp).isDefined shouldBe true
+          getRuntime.status shouldBe RuntimeStatus.Running
+        }
+
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, azureImage, None)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(msg)
+
+        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield {
+        controlledResources.length shouldBe 4
+        controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureVm)
+        controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureNetwork)
+        controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureDisk)
+        controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureIp)
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "delete azure vm properly" in isolatedDbTest {
+    val queue = makeTaskQueue()
+    val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue), asyncTaskQueue = queue)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                         disk.id,
+                                                         azureRegion)
+        runtime = makeCluster(2)
+          .copy(
+            runtimeImages = Set(azureImage),
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Deleted
+          controlledResources.length shouldBe 0
+        }
+
+        msg = DeleteAzureRuntimeMessage(runtime.id, workspaceId, wsmResourceId, None)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle error in create azure vm async task properly" in isolatedDbTest {
+    val queue = makeTaskQueue()
+    val exceptionMsg = "test exception"
+    val mockWsmDao = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[CreateVmResult] = IO.raiseError(new Exception(exceptionMsg))
+    }
+    val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao),
+                                          asyncTaskQueue = queue)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                         disk.id,
+                                                         azureRegion)
+        runtime = makeCluster(1)
+          .copy(
+            runtimeImages = Set(azureImage),
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          error <- clusterErrorQuery.get(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Error
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, azureImage, None)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle error in delete azure vm async task properly" in isolatedDbTest {
+    val exceptionMsg = "test exception"
+    val mockComputeManagerDao = new MockComputeManagerDao {
+      override def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): IO[Option[VirtualMachine]] =
+        IO.raiseError(new Exception(exceptionMsg))
+    }
+    val queue = makeTaskQueue()
+    val leoSubscriber =
+      makeLeoSubscriber(azureInterp =
+                          makeAzureInterp(asyncTaskQueue = queue, computeManagerDao = mockComputeManagerDao),
+                        asyncTaskQueue = queue)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                         disk.id,
+                                                         azureRegion)
+        runtime = makeCluster(2)
+          .copy(
+            runtimeImages = Set(azureImage),
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .transaction
+
+        assertions = for {
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+          getRuntime = getRuntimeOpt.get
+          controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+          error <- clusterErrorQuery.get(runtime.id).transaction
+        } yield {
+          getRuntime.status shouldBe RuntimeStatus.Error
+          controlledResources.length shouldBe 1
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+
+        msg = DeleteAzureRuntimeMessage(runtime.id, workspaceId, wsmResourceId, None)
+
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- leoSubscriber.messageResponder(msg)
+
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle top-level error in create azure vm properly" in isolatedDbTest {
+    val exceptionMsg = "test exception"
+    val mockWsmDao = new MockWsmDAO {
+      override def createVm(request: CreateVmRequest)(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
+        IO.raiseError(new Exception(exceptionMsg))
+    }
+    val mockAckConsumer = mock[AckReplyConsumer]
+    val queue = makeTaskQueue()
+    val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao),
+                                          asyncTaskQueue = queue)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                         disk.id,
+                                                         azureRegion)
+        runtime = makeCluster(1)
+          .copy(
+            runtimeImages = Set(azureImage),
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, azureImage, None)
+
+        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+        error <- clusterErrorQuery.get(runtime.id).transaction
+        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+      } yield {
+        getRuntime.status shouldBe RuntimeStatus.Error
+        //This check is mainly here to ensure nothing unintended is happening with controlled resource saving
+        //At the time of writing, leo controlled resources are saved sequentially, and the mock for this test makes it error before the 4th vm controlled resource is saved
+        //This check isn't essential if it becomes problematic with restructuring
+        controlledResources.length shouldBe 3
+        error.length shouldBe 1
+        error.map(_.errorMessage).head should include(exceptionMsg)
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "handle top-level error in delete azure vm properly" in isolatedDbTest {
+    val exceptionMsg = "test exception"
+    val mockWsmDao = new MockWsmDAO {
+      override def deleteVm(request: DeleteVmRequest)(implicit ev: Ask[IO, AppContext]): IO[DeleteVmResult] =
+        IO.raiseError(new Exception(exceptionMsg))
+    }
+    val mockAckConsumer = mock[AckReplyConsumer]
+    val queue = makeTaskQueue()
+    val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao),
+                                          asyncTaskQueue = queue)
+
+    val res =
+      for {
+        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
+
+        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                         disk.id,
+                                                         azureRegion)
+        runtime = makeCluster(2)
+          .copy(
+            runtimeImages = Set(azureImage),
+            status = RuntimeStatus.Running,
+            cloudContext = CloudContext.Azure(azureCloudContext)
+          )
+          .saveWithRuntimeConfig(azureRuntimeConfig)
+
+        msg = DeleteAzureRuntimeMessage(runtime.id, workspaceId, wsmResourceId, None)
+
+        //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
+        _ <- controlledResourceQuery
+          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
+          .transaction
+
+        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
+        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        getRuntime = getRuntimeOpt.get
+        error <- clusterErrorQuery.get(runtime.id).transaction
+        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
+      } yield {
+        getRuntime.status shouldBe RuntimeStatus.Error
+        error.length shouldBe 1
+        error.map(_.errorMessage).head should include(exceptionMsg)
+        controlledResources.length shouldBe 1
+      }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   def makeGKEInterp(lock: KeyLock[IO, GKEModels.KubernetesClusterId],
                     appRelease: List[Release] = List.empty): GKEInterpreter[IO] =
     new GKEInterpreter[IO](Config.gkeInterpConfig,
@@ -1630,17 +1960,19 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   // Needs to be made for each test its used in, otherwise queue will overlap
-  def makeAzureInterp(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded): AzureInterpreter[IO] = {
+  def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),
+                      computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
+                      wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
     new AzureInterpreter[IO](
-      Config.azureInterpConfig,
-      Config.azureMonitorConfig,
-      makeTaskQueue(),
-      new MockWsmDAO(jobStatus),
-      new MockComputeManagerDao()
+      ConfigReader.appConfig.azure.runtimeDefaults,
+      ConfigReader.appConfig.azure.monitor,
+      asyncTaskQueue,
+      wsmDAO,
+      computeManagerDao
     )
-  }
 
-  def makeTaskQueue(): Queue[IO, Task[IO]] = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  def makeTaskQueue(): Queue[IO, Task[IO]] =
+    Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
   def makeDetachingDiskInterp(): GoogleDiskService[IO] =
     new MockGoogleDiskService {

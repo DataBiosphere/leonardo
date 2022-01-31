@@ -40,12 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.
   DataprocInterpreterConfig,
   GceInterpreterConfig
 }
-import org.broadinstitute.dsde.workbench.leonardo.util.{
-  AzureInterpretorConfig,
-  AzureMonitorConfig,
-  GKEInterpreterConfig,
-  VPCInterpreterConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.util.{GKEInterpreterConfig, VPCInterpreterConfig}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
@@ -812,55 +807,4 @@ object Config {
       gkeGalaxyDiskConfig
     )
 
-  implicit private val azureInterpConfigReader: ValueReader[AzureInterpretorConfig] = ValueReader.relative { config =>
-    AzureInterpretorConfig(
-      config.as[String]("ipControlledResourceDesc"),
-      config.as[String]("ipNamePrefix"),
-      config.as[String]("networkControlledResourceDesc"),
-      config.as[String]("networkNamePrefix"),
-      config.as[String]("subnetNamePrefix"),
-      config.as[CidrIP]("addressSpaceCidr"),
-      config.as[CidrIP]("subnetAddressCidr"),
-      config.as[String]("diskControlledResourceDesc"),
-      config.as[String]("vmControlledResourceDesc")
-    )
-  }
-
-  val azureInterpConfig: AzureInterpretorConfig = config.as[AzureInterpretorConfig]("azure.runtimeDefaults")
-
-  implicit private val azureMonitorConfigReader: ValueReader[AzureMonitorConfig] = ValueReader.relative { config =>
-    AzureMonitorConfig(
-      config.as[PollMonitorConfig]("pollStatus")
-    )
-  }
-
-  val azureMonitorConfig: AzureMonitorConfig = config.as[AzureMonitorConfig]("azure.monitor")
-
-  implicit private val wsmDaoConfigReader: ValueReader[HttpWsmDaoConfig] = ValueReader.relative { config =>
-    HttpWsmDaoConfig(
-      Uri.unsafeFromString(config.as[String]("uri"))
-    )
-  }
-
-  val wsmDaoConfig: HttpWsmDaoConfig = config.as[HttpWsmDaoConfig]("azure.wsm")
-
-  implicit private val azureConfigReader: ValueReader[AzureAppRegistrationConfig] = ValueReader.relative { config =>
-    AzureAppRegistrationConfig(
-      ClientId(config.as[String]("clientId")),
-      ClientSecret(config.as[String]("clientSecret")),
-      ManagedAppTenantId(config.as[String]("managedAppTenantId"))
-    )
-  }
-
-  val azureConfig: AzureAppRegistrationConfig = config.as[AzureAppRegistrationConfig]("azure.appConfig")
-
-  implicit private val azureCloudContextReader: ValueReader[AzureCloudContext] = ValueReader.relative { config =>
-    AzureCloudContext(
-      TenantId(config.as[String]("tenantId")),
-      SubscriptionId(config.as[String]("subscriptionId")),
-      ManagedResourceGroupName(config.as[String]("managedResourceGroupName"))
-    )
-  }
-
-  val azureCloudContext: AzureCloudContext = config.as[AzureCloudContext]("azure.cloudContext")
 }

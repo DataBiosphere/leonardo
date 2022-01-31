@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import org.typelevel.log4cats.{Logger, StructuredLogger}
+import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import cats.effect.Async
 import cats.mtl.Ask
@@ -27,7 +27,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     httpClient.expectOr[CreateIpResponse](
       Request[F](
         method = Method.POST,
-        uri = config.wsmUri
+        uri = config.uri
           .withPath(
             Uri.Path
               .unsafeFromString(
@@ -43,7 +43,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     httpClient.expectOr[CreateDiskResponse](
       Request[F](
         method = Method.POST,
-        uri = config.wsmUri
+        uri = config.uri
           .withPath(
             Uri.Path
               .unsafeFromString(
@@ -59,7 +59,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     httpClient.expectOr[CreateNetworkResponse](
       Request[F](
         method = Method.POST,
-        uri = config.wsmUri
+        uri = config.uri
           .withPath(
             Uri.Path
               .unsafeFromString(
@@ -75,7 +75,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     httpClient.expectOr[CreateVmResult](
       Request[F](
         method = Method.POST,
-        uri = config.wsmUri
+        uri = config.uri
           .withPath(
             Uri.Path
               .unsafeFromString(
@@ -91,7 +91,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     httpClient.expectOr[WorkspaceDescription](
       Request[F](
         method = Method.GET,
-        uri = config.wsmUri
+        uri = config.uri
           .withPath(
             Uri.Path
               .unsafeFromString(s"/api/workspaces/v1/${workspaceId.value.toString}")
@@ -104,14 +104,14 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     httpClient.expectOr[DeleteVmResult](
       Request[F](
         method = Method.POST,
-        uri = config.wsmUri
+        uri = config.uri
           .withPath(
             Uri.Path
               .unsafeFromString(
-                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/${request.resourceId.id.toString}"
+                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/${request.resourceId.value.toString}"
               )
           ),
-        body = Stream.emits(request.jobControl.asJson.noSpaces.getBytes),
+        body = Stream.emits(request.deleteRequest.asJson.noSpaces.getBytes),
         headers = Headers(fakeAuth())
       )
     )(onError)
@@ -120,7 +120,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     httpClient.expectOr[CreateVmResult](
       Request[F](
         method = Method.GET,
-        uri = config.wsmUri
+        uri = config.uri
           .withPath(
             Uri.Path
               .unsafeFromString(
@@ -135,7 +135,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
     for {
       context <- ev.ask
       body <- response.bodyText.compile.foldMonoid
-      _ <- logger.error(context.loggingCtx)("WSM call failed: $body")
+      _ <- logger.error(context.loggingCtx)(s"WSM call failed: $body")
       _ <- metrics.incrementCounter("wsm/errorResponse")
     } yield WsmException(context.traceId, body)
 
