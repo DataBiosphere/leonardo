@@ -43,8 +43,8 @@ jobs:
 
     - name: Run tests
       env:
-        JAVA_OPTS: -Xmx3G
-        JVM_OPTS:  -Xmx3G
+        JAVA_OPTS: -Xmx4G
+        JVM_OPTS:  -Xmx4G
       run: |
          export SBT_OPTS="-Duser.timezone=UTC -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3307"
          sbt "project core" coverage test coverageReport
