@@ -39,8 +39,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       ),
       AzureConfig(
         AzureMonitorConfig(PollMonitorConfig(120, 1 seconds)),
-        AzureInterpretorConfig("ip",
-                               "Azure Ip",
+        AzureInterpretorConfig("Azure Ip",
+                               "ip",
                                "Azure Network",
                                "network",
                                "subnet",
