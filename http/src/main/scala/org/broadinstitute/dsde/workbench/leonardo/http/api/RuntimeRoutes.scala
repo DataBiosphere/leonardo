@@ -16,8 +16,10 @@ import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeRequest, RuntimeService}
+import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
@@ -25,9 +27,15 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import java.net.URL
 import scala.concurrent.duration._
 
-class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: UserInfoDirectives)(
+class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
+                    runtimeService: RuntimeService[IO],
+                    userInfoDirectives: UserInfoDirectives)(
   implicit metrics: OpenTelemetryMetrics[IO]
 ) {
+  // See https://github.com/DataBiosphere/terra-ui/blob/ef88f396a61383ee08beb65a37af7cae9476cc20/src/libs/ajax.js#L1358
+  private val allValidSaturnIframeExtensions =
+    saturnIframeExtentionHostConfig.validHosts.map(s => s"https://${s}/jupyter-iframe-extension.js")
+
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
@@ -146,6 +154,12 @@ class RuntimeRoutes(runtimeService: RuntimeService[IO], userInfoDirectives: User
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
+      _ <- req.userJupyterExtensionConfig.traverse(uje =>
+        uje.nbExtensions.get("saturn-iframe-extension").traverse { s =>
+          if (allValidSaturnIframeExtensions.contains(s)) IO.unit
+          else IO.raiseError(BadRequestException(s"Invalid `saturn-iframe-extension` ${s}", Some(ctx.traceId)))
+        }
+      )
       apiCall = runtimeService.createRuntime(userInfo, cloudContext, runtimeName, req)
       _ <- metrics.incrementCounter("createRuntime")
       _ <- ctx.span.fold(apiCall)(span =>

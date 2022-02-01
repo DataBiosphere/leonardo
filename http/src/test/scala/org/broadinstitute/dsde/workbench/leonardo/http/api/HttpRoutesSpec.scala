@@ -22,6 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCode
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
@@ -54,11 +55,28 @@ class HttpRoutesSpec
       refererConfig
     )
 
+  implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
+    for {
+      message <- h.downField("message").as[String]
+    } yield ErrorReport(message)(ErrorReportSource("leonardo"))
+  }
+
   "RuntimeRoutes" should "create runtime" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, defaultCreateRuntimeRequest.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "reject if saturn-iframe-extension is invalid" in {
+    val req = defaultCreateRuntimeRequest.copy(userJupyterExtensionConfig =
+      Some(UserJupyterExtensionConfig(Map("saturn-iframe-extension" -> "random"), Map.empty, Map.empty, Map.empty))
+    )
+    Post("/api/google/v1/runtimes/googleProject1/runtime1")
+      .withEntity(ContentTypes.`application/json`, req.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.BadRequest
+      responseAs[ErrorReport].message.contains("Invalid `saturn-iframe-extension`") shouldBe (true)
     }
   }
 
