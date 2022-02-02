@@ -20,6 +20,11 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import _root_.io.circe._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
+  azureRegionEncoder,
+  runtimeNameEncoder,
+  wsmControlledResourceIdEncoder
+}
 
 trait WsmDao[F[_]] {
   def createIp(request: CreateIpRequest)(implicit ev: Ask[F, AppContext]): F[CreateIpResponse]
@@ -328,15 +333,11 @@ object WsmEncoders {
   implicit val createNetworkRequestEncoder: Encoder[CreateNetworkRequest] =
     Encoder.forProduct2("common", "azureNetwork")(x => (x.common, x.networkData))
 
+  implicit val vmSizeEncoder: Encoder[VirtualMachineSizeTypes] = Encoder.encodeString.contramap(_.toString)
+
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
     Encoder.forProduct7("name", "region", "vmSize", "vmImageUri", "ipId", "diskId", "networkId")(x =>
-      (x.name.asString,
-       x.region.toString,
-       x.vmSize.toString,
-       x.vmImageUri.imageUrl,
-       x.ipId.value.toString,
-       x.diskId.value.toString,
-       x.networkId.value.toString)
+      (x.name, x.region, x.vmSize, x.vmImageUri.imageUrl, x.ipId, x.diskId, x.networkId)
     )
   implicit val createVmRequestEncoder: Encoder[CreateVmRequest] =
     Encoder.forProduct2("common", "azureVm")(x => (x.common, x.vmData))
