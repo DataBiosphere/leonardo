@@ -74,11 +74,6 @@ trait LeonardoTestUtils
   val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(2, Seconds)))
 
-  val multiExtensionClusterRequest = UserJupyterExtensionConfig(
-    // This is not a valid saturn-iframe-extension. But only this is allowed when running tests in a fiab.
-    // When running NotebookGCECustomizationSpec locally, update this to https://localhost:3000/jupyter-iframe-extension.js
-    nbExtensions = Map("saturn-iframe-extension" -> "https://*/jupyter-iframe-extension.js")
-  )
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
   )

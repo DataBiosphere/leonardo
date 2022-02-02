@@ -4,7 +4,7 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoApiClient}
+import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoApiClient, UserJupyterExtensionConfig}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -26,9 +26,8 @@ final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with Paralle
       val translateExtensionFile = ResourceFile("bucket-tests/translate_nbextension.tar.gz")
       withResourceFileInBucket(billingProject, translateExtensionFile, "application/x-gzip") {
         translateExtensionBucketPath =>
-          val extensionConfig = multiExtensionClusterRequest.copy(
-            nbExtensions =
-              multiExtensionClusterRequest.nbExtensions + ("translate" -> translateExtensionBucketPath.toUri)
+          val extensionConfig = UserJupyterExtensionConfig(
+            nbExtensions = Map("translate" -> translateExtensionBucketPath.toUri)
           )
           withNewRuntime(
             billingProject,
