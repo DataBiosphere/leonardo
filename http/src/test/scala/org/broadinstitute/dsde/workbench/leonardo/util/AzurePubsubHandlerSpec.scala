@@ -39,7 +39,7 @@ import org.mockito.Mockito.when
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class AzureInterpreterSpec
+class AzurePubsubHandlerSpec
     extends TestKit(ActorSystem("leonardotest"))
     with AnyFlatSpecLike
     with TestComponent
