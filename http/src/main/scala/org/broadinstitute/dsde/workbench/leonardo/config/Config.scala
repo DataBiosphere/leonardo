@@ -212,7 +212,6 @@ object Config {
 
   implicit private val prometheusConfigReader: ValueReader[PrometheusConfig] = ValueReader.relative { config =>
     PrometheusConfig(
-      config.getBoolean("enabled"),
       config.getInt("endpointPort")
     )
   }
