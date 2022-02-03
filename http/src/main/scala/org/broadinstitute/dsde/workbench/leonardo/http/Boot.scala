@@ -336,7 +336,7 @@ object Boot extends IOApp {
       // Typing in `leonardo` in metrics explorer will show all leonardo custom metrics.
       // As best practice, we should have all related metrics under same prefix separated by `/`
       implicit0(openTelemetry: OpenTelemetryMetrics[F]) <- OpenTelemetryMetrics
-        .resource[F](applicationConfig.leoServiceAccountJsonFile, applicationConfig.applicationName)
+        .resource[F](applicationConfig.applicationName, prometheusConfig.endpointPort)
 
       // Set up database reference
       concurrentDbAccessPermits <- Resource.eval(Semaphore[F](dbConcurrency))
@@ -451,10 +451,6 @@ object Boot extends IOApp {
         )
 
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson))
-      _ <- if (prometheusConfig.enabled)
-        OpenTelemetryMetrics.exposeMetricsToPrometheus[F](prometheusConfig.endpointPort)
-      else
-        Resource.unit[F]
 
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, semaphore)
       computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, semaphore)
