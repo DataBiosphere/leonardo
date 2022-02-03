@@ -35,86 +35,87 @@ class RuntimePatchSpec
       super.withFixture(test)
 
   //this is an end to end test of the pub/sub infrastructure
-  "Patch endpoint should perform a stop/start transition for GCE VM" taggedAs Tags.SmokeTest in { googleProject =>
-    // create a new GCE runtime
-    val runtimeName = randomClusterName
+  "Patch endpoint should perform a stop/start transition for GCE VM" taggedAs (Tags.SmokeTest, Retryable) in {
+    googleProject =>
+      // create a new GCE runtime
+      val runtimeName = randomClusterName
 
-    val newMasterMachineType = MachineTypeName("n1-standard-2")
-    val newDiskSize = DiskSize(20)
-    val updateRuntimeRequest = UpdateRuntimeRequest(Some(
-                                                      UpdateRuntimeConfigRequest.GceConfig(
-                                                        Some(newMasterMachineType),
-                                                        Some(newDiskSize)
-                                                      )
-                                                    ),
-                                                    true,
-                                                    None,
-                                                    None,
-                                                    Map.empty,
-                                                    Set.empty)
-    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
-      runtimeConfig = Some(
-        RuntimeConfigRequest.GceConfig(
-          Some(MachineTypeName("n1-standard-4")),
-          Some(DiskSize(10)),
-          None,
-          None
+      val newMasterMachineType = MachineTypeName("n1-standard-2")
+      val newDiskSize = DiskSize(20)
+      val updateRuntimeRequest = UpdateRuntimeRequest(Some(
+                                                        UpdateRuntimeConfigRequest.GceConfig(
+                                                          Some(newMasterMachineType),
+                                                          Some(newDiskSize)
+                                                        )
+                                                      ),
+                                                      true,
+                                                      None,
+                                                      None,
+                                                      Map.empty,
+                                                      Set.empty)
+      val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+        runtimeConfig = Some(
+          RuntimeConfigRequest.GceConfig(
+            Some(MachineTypeName("n1-standard-4")),
+            Some(DiskSize(10)),
+            None,
+            None
+          )
         )
       )
-    )
 
-    val res = LeonardoApiClient.client.use { c =>
-      implicit val httpClient = c
-      val stoppingDoneCheckable: DoneCheckable[GetRuntimeResponseCopy] =
-        x => x.status == ClusterStatus.Starting
-      val startingDoneCheckable: DoneCheckable[GetRuntimeResponseCopy] =
-        x => x.status == ClusterStatus.Running
+      val res = LeonardoApiClient.client.use { c =>
+        implicit val httpClient = c
+        val stoppingDoneCheckable: DoneCheckable[GetRuntimeResponseCopy] =
+          x => x.status == ClusterStatus.Starting
+        val startingDoneCheckable: DoneCheckable[GetRuntimeResponseCopy] =
+          x => x.status == ClusterStatus.Running
 
-      for {
-        _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
-        _ <- updateRuntime(googleProject, runtimeName, updateRuntimeRequest)
-        _ <- IO.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
-        ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
-        getRuntimeResult <- ioa
-        _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
-        monitorStoppingResult <- IO.sleep(30 seconds) >> streamFUntilDone(ioa, 20, 10 seconds)(
-          implicitly,
-          stoppingDoneCheckable
-        ).compile.lastOrError
-        _ = monitorStoppingResult.status shouldBe ClusterStatus.Starting
-        monitoringStartingResult <- IO.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
-          implicitly,
-          startingDoneCheckable
-        ).compile.lastOrError
-        clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
-        implicit0(authToken: AuthToken) <- Ron.authToken()
-        _ <- IO(
-          withWebDriver { implicit driver =>
-            withNewNotebook(clusterCopy, Python3) { notebookPage =>
-              //all other packages cannot be tested for their versions in this manner
-              //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
-              val res = notebookPage
-                .executeCell(
-                  "! df -H |grep sdb"
-                )
-                .get
-              res should include("22G") //disk output is always a few more gb than what's specified
+        for {
+          _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+          _ <- updateRuntime(googleProject, runtimeName, updateRuntimeRequest)
+          _ <- IO.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
+          ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
+          getRuntimeResult <- ioa
+          _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
+          monitorStoppingResult <- IO.sleep(30 seconds) >> streamFUntilDone(ioa, 20, 10 seconds)(
+            implicitly,
+            stoppingDoneCheckable
+          ).compile.lastOrError
+          _ = monitorStoppingResult.status shouldBe ClusterStatus.Starting
+          monitoringStartingResult <- IO.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
+            implicitly,
+            startingDoneCheckable
+          ).compile.lastOrError
+          clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResult)
+          implicit0(authToken: AuthToken) <- Ron.authToken()
+          _ <- IO(
+            withWebDriver { implicit driver =>
+              withNewNotebook(clusterCopy, Python3) { notebookPage =>
+                //all other packages cannot be tested for their versions in this manner
+                //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+                val res = notebookPage
+                  .executeCell(
+                    "! df -H |grep sdb"
+                  )
+                  .get
+                res should include("22G") //disk output is always a few more gb than what's specified
+              }
             }
-          }
-        )
-      } yield {
-        monitoringStartingResult.status shouldBe ClusterStatus.Running
-        val res = monitoringStartingResult.runtimeConfig
-          .asInstanceOf[RuntimeConfig.GceConfig]
-        res.machineType shouldBe newMasterMachineType
-        res.diskSize shouldBe newDiskSize
+          )
+        } yield {
+          monitoringStartingResult.status shouldBe ClusterStatus.Running
+          val res = monitoringStartingResult.runtimeConfig
+            .asInstanceOf[RuntimeConfig.GceConfig]
+          res.machineType shouldBe newMasterMachineType
+          res.diskSize shouldBe newDiskSize
+        }
       }
-    }
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   //this is an end to end test of the pub/sub infrastructure
-  "Patch endpoint should perform a stop/start transition for GCE VM with PD" taggedAs Tags.SmokeTest in {
+  "Patch endpoint should perform a stop/start transition for GCE VM with PD" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       // create a new GCE runtime
       val runtimeName = randomClusterName
