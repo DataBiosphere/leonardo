@@ -112,7 +112,7 @@ object Config {
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults"),
-      config.as[FiniteDuration]("waitBeforeStartVm")
+      config.as[FiniteDuration]("waitBeforeStartingVM")
     )
   }
 

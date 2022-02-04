@@ -11,4 +11,4 @@ case class GceConfig(sourceImage: GceCustomImage,
                      defaultScopes: Set[String],
                      gceReservedMemory: Option[MemorySize],
                      runtimeConfigDefaults: RuntimeConfig.GceConfig,
-                     waitBeforeStartVM: FiniteDuration)
+                     waitBeforeStartingVM: FiniteDuration)
