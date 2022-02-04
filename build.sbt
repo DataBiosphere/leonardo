@@ -19,4 +19,9 @@ lazy val automation = project.in(file("automation"))
   .settings(automationSettings)
   .dependsOn(core % "test->test;compile->compile")
 
+assemblyMergeStrategy in assembly := {
+  case PathList("META-INF", xs @ _*) => MergeStrategy.discard
+  case x => MergeStrategy.first
+}
+
 ThisBuild / scalafixDependencies += "org.scalatest" %% "autofix" % "3.1.0.1"
