@@ -30,7 +30,6 @@ import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
-import scala.concurrent.duration._
 
 final case class InstanceResourceConstraintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
