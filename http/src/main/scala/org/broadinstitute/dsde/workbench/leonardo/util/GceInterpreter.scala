@@ -30,6 +30,7 @@ import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
+import scala.concurrent.duration._
 
 final case class InstanceResourceConstraintsException(project: GoogleProject, machineType: MachineTypeName)
     extends LeoException(
@@ -370,6 +371,9 @@ class GceInterpreter[F[_]](
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
+      // This sleep is added here because as of 2/1/2022, we started seeing increased amount of `RESOURCE_NOT_READY` error.
+      // Google support says this is due to the setMetadata API and start VM API is called too close to each other.
+      _ <- F.sleep(config.gceConfig.waitBeforeStartVM)
       _ <- googleComputeService.startInstance(googleProject,
                                               zoneParam,
                                               InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
