@@ -108,7 +108,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                     logger.error(ctx.loggingCtx, e)(s"Encountered an error for app ${ee.appId}, ${ee.getMessage}") >> handleKubernetesError(
                       ee
                     )
-                  case _ => F.unit
+                  case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
                 }
                 _ <- if (ee.isRetryable)
                   logger.error(ctx.loggingCtx, e)("Fail to process retryable pubsub message") >> F

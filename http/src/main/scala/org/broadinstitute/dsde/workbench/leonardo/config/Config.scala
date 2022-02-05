@@ -112,7 +112,8 @@ object Config {
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
       config.as[RuntimeConfig.GceConfig]("runtimeDefaults"),
-      config.as[FiniteDuration]("waitBeforeStartingVM")
+      config.as[FiniteDuration]("setMetadataPollDelay"),
+      config.as[Int]("setMetadataPollMaxAttempts")
     )
   }
 
