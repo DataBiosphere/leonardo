@@ -370,10 +370,6 @@ class GceInterpreter[F[_]](
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
-      // This sleep is added here because as of 2/1/2022, we started seeing increased amount of `RESOURCE_NOT_READY` error.
-      // Google support says this is due to the setMetadata API and start VM API is called too close to each other.
-      // https://console.cloud.google.com/support/cases/detail/29414506?authuser=0&organizationId=548622027621&supportedpurview=project
-      _ <- F.sleep(config.gceConfig.waitBeforeStartingVM)
       _ <- googleComputeService.startInstance(googleProject,
                                               zoneParam,
                                               InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
