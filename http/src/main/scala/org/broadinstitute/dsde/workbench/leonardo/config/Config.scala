@@ -111,7 +111,9 @@ object Config {
       config.as[DeviceName]("userDiskDeviceName"),
       config.getStringList("defaultScopes").asScala.toSet,
       config.getAs[MemorySize]("gceReservedMemory"),
-      config.as[RuntimeConfig.GceConfig]("runtimeDefaults")
+      config.as[RuntimeConfig.GceConfig]("runtimeDefaults"),
+      config.as[FiniteDuration]("setMetadataPollDelay"),
+      config.as[Int]("setMetadataPollMaxAttempts")
     )
   }
 

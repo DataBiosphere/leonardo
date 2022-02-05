@@ -89,6 +89,7 @@ trait TestLeoRoutes {
                                 MockWelderDAO)
   val gceInterp =
     new GceInterpreter[IO](Config.gceInterpreterConfig,
+                           new MockComputePollOperation(),
                            bucketHelper,
                            vpcInterp,
                            FakeGoogleComputeService,

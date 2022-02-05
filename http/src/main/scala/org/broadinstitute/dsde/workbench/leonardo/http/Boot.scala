@@ -122,6 +122,7 @@ object Boot extends IOApp {
 
       val gceInterp = new GceInterpreter(
         gceInterpreterConfig,
+        googleDependencies.computePollOperation,
         bucketHelper,
         vpcInterp,
         googleDependencies.googleComputeService,
