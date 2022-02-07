@@ -126,12 +126,8 @@ object Dependencies {
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
-  val azureCore = "com.azure" % "azure-core" % "1.19.0"
   val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.8.0"
   val azureIdentity =  "com.azure" % "azure-identity" % "1.3.5"
-  val crl = "bio.terra.cloud-resource-lib" % "platform" % "0.5.0"
-
-
 
   val coreDependencies = List(
     scalaTest,
@@ -155,10 +151,8 @@ object Dependencies {
     circeYaml,
     http4sDsl,
     scalaTestScalaCheck,
-    azureCore,
     azureResourceManager,
-    azureIdentity,
-    crl
+    azureIdentity
   )
 
   val httpDependencies = Seq(
