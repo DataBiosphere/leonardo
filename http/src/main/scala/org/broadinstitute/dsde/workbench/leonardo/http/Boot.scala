@@ -442,9 +442,11 @@ object Boot extends IOApp {
         RetryPredicates.whenStatusCode(400)
       )
 
+      computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, semaphore)
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
+          computePollOperation,
           pathToCredentialJson,
           semaphore,
           dataprocConfig.supportedRegions,
@@ -454,7 +456,6 @@ object Boot extends IOApp {
       _ <- OpenTelemetryMetrics.registerTracing[F](Paths.get(pathToCredentialJson))
 
       googleDiskService <- GoogleDiskService.resource(pathToCredentialJson, semaphore)
-      computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, semaphore)
       googleOauth2DAO <- GoogleOAuth2Service.resource(semaphore)
       underlyingNodepoolLockCache = buildCache[KubernetesClusterId, scalacache.Entry[Semaphore[F]]](
         gkeClusterConfig.nodepoolLockCacheMaxSize,
