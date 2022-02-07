@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.config.{Credentials => WorkbenchCredentials}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
   DiskName,
   GoogleComputeService,
   GoogleDataprocService,
@@ -92,9 +93,12 @@ trait LeonardoTestUtils
                                   Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global))
   val googleDataprocService = for {
     compute <- googleComputeService
+    computePoll <- ComputePollOperation.resource(LeonardoConfig.GCS.pathToQAJson,
+                                                 Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global))
     dp <- GoogleDataprocService
       .resource(
         compute,
+        computePoll,
         LeonardoConfig.GCS.pathToQAJson,
         semaphore,
         Set(RegionName("us-central1"), RegionName("europe-west1"))
