@@ -797,6 +797,13 @@ object PubsubHandleMessageError {
       s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
   }
 
+  final case class ClusterError(clusterId: Long, msg: String) extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"${clusterId}: ${msg}"
+
+    override def isRetryable: Boolean = true
+  }
+
   final case class ClusterNotFound(clusterId: Long, message: LeoPubsubMessage) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"Unable to process transition finished message ${message} for cluster ${clusterId} because it was not found in the database"

@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
 import java.time.Instant
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.Kleisli
@@ -131,6 +130,7 @@ class LeoPubsubMessageSubscriberSpec
                                                    resourceService,
                                                    mockWelderDAO)
   val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
+                                         new MockComputePollOperation(),
                                          bucketHelper,
                                          vpcInterp,
                                          FakeGoogleComputeService,
