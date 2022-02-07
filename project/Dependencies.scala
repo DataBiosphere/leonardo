@@ -10,7 +10,7 @@ object Dependencies {
   val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.11"
   val slickV = "3.3.3"
-  val http4sVersion = "1.0.0-M30"
+  val http4sVersion = "1.0.0-M31"
   val guavaV = "31.0.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
@@ -119,7 +119,7 @@ object Dependencies {
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.28"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.7.1"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
-  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.18" % Test // brought in for FakeStorageInterpreter
+  val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.19" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
