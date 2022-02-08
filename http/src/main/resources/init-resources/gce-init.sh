@@ -348,12 +348,15 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
-  # TODO: Remove once we stop supporting non AI notebooks based images
-  log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
-  KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
+  # TODO: update this if we upgrade python version
+  if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ]
+    # TODO: Remove once we stop supporting non AI notebooks based images
+    log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
+    KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
 
-  # Install kernelspecs inside the Jupyter container
-  retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
+    # Install kernelspecs inside the Jupyter container
+    retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
+  fi
 
   # Install notebook.json
   if [ ! -z "$JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI" ] ; then
