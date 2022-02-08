@@ -6,6 +6,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.{Operation, _}
 import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
   GoogleComputeService,
   GoogleDiskService,
   InstanceName,
@@ -28,6 +29,8 @@ import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName,
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterError
+
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
@@ -42,6 +45,7 @@ final case class MissingServiceAccountException(projectAndName: RuntimeProjectAn
 
 class GceInterpreter[F[_]](
   config: GceInterpreterConfig,
+  computePollOperation: ComputePollOperation[F],
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
   googleComputeService: GoogleComputeService[F],
@@ -363,16 +367,39 @@ class GceInterpreter[F[_]](
                                    resourceConstraints,
                                    true)
       // remove the startup-script-url metadata entry if present which is only used at creation time
-      _ <- googleComputeService.modifyInstanceMetadata(
+      op <- googleComputeService.modifyInstanceMetadata(
         googleProject,
         zoneParam,
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
-      _ <- googleComputeService.startInstance(googleProject,
-                                              zoneParam,
-                                              InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
+      _ <- op.traverse { o =>
+        computePollOperation
+          .pollOperation(googleProject,
+                         o,
+                         config.gceConfig.setMetadataPollDelay,
+                         config.gceConfig.setMetadataPollMaxAttempts,
+                         None)(
+            googleComputeService.startInstance(
+              googleProject,
+              zoneParam,
+              InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+            ),
+            F.raiseError(
+              ClusterError(
+                params.runtimeAndRuntimeConfig.runtime.id,
+                "SetMetadata timed out"
+              )
+            ),
+            F.raiseError(
+              ClusterError(
+                params.runtimeAndRuntimeConfig.runtime.id,
+                "This should never happen"
+              )
+            )
+          )
+      }
     } yield ()
 
   override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
@@ -423,8 +450,8 @@ class GceInterpreter[F[_]](
           .handleErrorWith {
             case e: org.broadinstitute.dsde.workbench.model.WorkbenchException
                 if e.getMessage.contains("Instance not found") =>
-              F.unit
-            case e => F.raiseError[Unit](e)
+              F.pure(none[Operation])
+            case e => F.raiseError[Option[Operation]](e)
           }
         op <- googleComputeService
           .deleteInstance(googleProject,

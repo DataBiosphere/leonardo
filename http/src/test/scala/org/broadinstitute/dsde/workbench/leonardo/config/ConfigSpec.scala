@@ -57,7 +57,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "read PrometheusConfig properly" in {
-    val expected = PrometheusConfig(true, 9098)
+    val expected = PrometheusConfig(9098)
     Config.prometheusConfig shouldBe expected
   }
 

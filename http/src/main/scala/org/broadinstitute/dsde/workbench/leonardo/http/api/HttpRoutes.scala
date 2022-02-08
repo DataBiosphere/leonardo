@@ -40,7 +40,7 @@ class HttpRoutes(
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)
   private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
-  private val runtimeRoutes = new RuntimeRoutes(runtimeService, userInfoDirectives)
+  private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
 

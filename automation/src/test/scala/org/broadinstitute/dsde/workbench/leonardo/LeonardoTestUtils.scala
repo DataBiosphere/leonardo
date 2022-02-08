@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.config.{Credentials => WorkbenchCredentials}
 import org.broadinstitute.dsde.workbench.dao.Google.{googleIamDAO, googleStorageDAO}
 import org.broadinstitute.dsde.workbench.google2.{
+  ComputePollOperation,
   DiskName,
   GoogleComputeService,
   GoogleDataprocService,
@@ -73,9 +74,6 @@ trait LeonardoTestUtils
   val startPatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(1, Seconds)))
   val getAfterCreatePatience = PatienceConfig(timeout = scaled(Span(5, Minutes)), interval = scaled(Span(2, Seconds)))
 
-  val multiExtensionClusterRequest = UserJupyterExtensionConfig(
-    nbExtensions = Map("saturn-iframe-extension" -> "https://app.terra.bio/jupyter-iframe-extension.js")
-  )
   val jupyterLabExtensionClusterRequest = UserJupyterExtensionConfig(
     serverExtensions = Map("jupyterlab" -> "jupyterlab")
   )
@@ -92,9 +90,12 @@ trait LeonardoTestUtils
                                   Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global))
   val googleDataprocService = for {
     compute <- googleComputeService
+    computePoll <- ComputePollOperation.resource(LeonardoConfig.GCS.pathToQAJson,
+                                                 Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global))
     dp <- GoogleDataprocService
       .resource(
         compute,
+        computePoll,
         LeonardoConfig.GCS.pathToQAJson,
         semaphore,
         Set(RegionName("us-central1"), RegionName("europe-west1"))
