@@ -354,8 +354,6 @@ if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
 
   # Install kernelspecs inside the Jupyter container
   retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} ${JUPYTER_SCRIPTS}/kernel/kernelspec.sh ${JUPYTER_SCRIPTS}/kernel ${KERNELSPEC_HOME}
-fi
-
 
   # Install notebook.json
   if [ ! -z "$JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI" ] ; then
