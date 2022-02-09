@@ -113,6 +113,9 @@ class LeoPubsubMessageSubscriberSpec
   val resourceService = new FakeGoogleResourceService {
     override def getProjectNumber(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Long]] =
       IO(Some(1L))
+
+    override def getLabels(project: GoogleProject)(implicit ev: Ask[IO, TraceId]): IO[Option[Map[String, String]]] =
+      IO(Some(Map("gke-default-sa" -> "gke-node-default-sa")))
   }
   val authProvider = mock[LeoAuthProvider[IO]]
   val currentTime = Instant.now
@@ -1073,7 +1076,8 @@ class LeoPubsubMessageSubscriberSpec
                                           iamDAOKubernetes,
                                           makeDetachingDiskInterp(),
                                           MockAppDescriptorDAO,
-                                          nodepoolLock)
+                                          nodepoolLock,
+                                          resourceService)
     val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gkeAlgebra = gkeInter)
 
     val res =
@@ -1228,7 +1232,8 @@ class LeoPubsubMessageSubscriberSpec
                                            iamDAOKubernetes,
                                            makeDetachingDiskInterp(),
                                            MockAppDescriptorDAO,
-                                           nodepoolLock)
+                                           nodepoolLock,
+                                           resourceService)
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
@@ -1368,7 +1373,8 @@ class LeoPubsubMessageSubscriberSpec
                                            iamDAO,
                                            makeDetachingDiskInterp(),
                                            MockAppDescriptorDAO,
-                                           nodepoolLock)
+                                           nodepoolLock,
+                                           resourceService)
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
 
@@ -1457,7 +1463,8 @@ class LeoPubsubMessageSubscriberSpec
                                            iamDAOKubernetes,
                                            makeDetachingDiskInterp(),
                                            MockAppDescriptorDAO,
-                                           nodepoolLock)
+                                           nodepoolLock,
+                                           resourceService)
 
     val leoSubscriber =
       makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = makeDetachingDiskInterp(), gkeAlgebra = gkeInterp)
@@ -1726,7 +1733,8 @@ class LeoPubsubMessageSubscriberSpec
                            iamDAOKubernetes,
                            makeDetachingDiskInterp(),
                            MockAppDescriptorDAO,
-                           lock)
+                           lock,
+                           resourceService)
 
   def makeLeoSubscriber(
     runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
