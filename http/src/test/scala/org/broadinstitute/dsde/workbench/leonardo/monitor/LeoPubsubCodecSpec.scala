@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
 import java.util.UUID
+
 import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
@@ -9,7 +10,11 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Name
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, CreateRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAppMessage,
+  CreateAzureRuntimeMessage,
+  CreateRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppId,
   AppName,
@@ -19,8 +24,11 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   DiskSize,
   KubernetesClusterLeoId,
   NodepoolLeoId,
+  RuntimeImage,
+  RuntimeImageType,
   RuntimeName,
-  RuntimeProjectAndName
+  RuntimeProjectAndName,
+  WorkspaceId
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -118,6 +126,17 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
     )
 
     val res = decode[CreateAppMessage](originalMessage.asJson.printWith(Printer.noSpaces))
+
+    res shouldBe Right(originalMessage)
+  }
+
+  it should "encode/decode CreateAzureRuntimeMessage properly" in {
+    val originalMessage = CreateAzureRuntimeMessage(1,
+                                                    WorkspaceId(UUID.randomUUID()),
+                                                    RuntimeImage(RuntimeImageType.AzureVm, "test", None, Instant.now),
+                                                    None)
+
+    val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
 
     res shouldBe Right(originalMessage)
   }

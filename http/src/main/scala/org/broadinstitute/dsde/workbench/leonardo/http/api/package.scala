@@ -23,7 +23,7 @@ package object api {
 
   val googleProjectSegment = Segment.map(GoogleProject)
   val runtimeNameSegment = Segment.map(RuntimeName)
-  val workspaceIdSegment = Segment.map(WorkspaceId)
+  val workspaceIdSegment = Segment.map(x => WorkspaceId(UUID.fromString(x)))
   val appNameSegment = Segment.map(AppName)
   val serviceNameSegment = Segment.map(ServiceName)
   val terminalNameSegment = Segment.map(TerminalName)

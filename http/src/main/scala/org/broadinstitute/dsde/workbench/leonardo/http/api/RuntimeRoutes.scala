@@ -393,6 +393,9 @@ object RuntimeRoutes {
                   .map(d => RuntimeConfigRequest.GceConfig(machineType, d, zone, gpu))
             }
           } yield res
+        case CloudService.AzureVm =>
+          //TODO in https://broadworkbench.atlassian.net/browse/IA-3112
+          throw AzureUnimplementedException("RuntimeConfigRequest does not exists for azure yet")
       }
     } yield r
   }
@@ -472,6 +475,9 @@ object RuntimeRoutes {
           x.as[UpdateRuntimeConfigRequest.DataprocConfig]
         case CloudService.GCE =>
           x.as[UpdateRuntimeConfigRequest.GceConfig]
+        case CloudService.AzureVm =>
+          //TODO in https://broadworkbench.atlassian.net/browse/IA-3112
+          throw AzureUnimplementedException("cannot decode update runtime config request for azure yet")
       }
     } yield r
   }

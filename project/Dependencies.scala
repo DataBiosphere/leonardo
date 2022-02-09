@@ -126,6 +126,9 @@ object Dependencies {
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
+  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.8.0"
+  val azureIdentity =  "com.azure" % "azure-identity" % "1.3.5"
+
   val coreDependencies = List(
     scalaTest,
     slick,
@@ -147,7 +150,9 @@ object Dependencies {
     enumeratum,
     circeYaml,
     http4sDsl,
-    scalaTestScalaCheck
+    scalaTestScalaCheck,
+    azureResourceManager,
+    azureIdentity
   )
 
   val httpDependencies = Seq(
