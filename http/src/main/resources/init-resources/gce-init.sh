@@ -343,7 +343,7 @@ fi
 STEP_TIMINGS+=($(date +%s))
 
 # Jupyter-specific setup, only do if Jupyter is installed
-if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
+if [ ! -z "$JUPYTER_DOCKER_IMAGE" ]; then
   # user package installation directory
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
