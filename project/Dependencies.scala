@@ -70,10 +70,10 @@ object Dependencies {
 
   val googleRpc: ModuleID =                 "io.grpc"         % "grpc-core"                       % "1.44.0" excludeAll (excludeGuava, excludeGson, excludeFindbugsJsr)
 
-  val scalaTest: ModuleID = "org.scalatest"                 %% "scalatest"     % scalaTestV  % Test
+  val scalaTest: ModuleID = "org.scalatest" %% "scalatest" % scalaTestV  % Test
   val scalaTestScalaCheck = "org.scalatestplus" %% "scalacheck-1-15" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-scalacheck
-  val scalaTestMockito = "org.scalatestplus" %% "mockito-3-12" % s"3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-mockito
-  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-4-1" % s"${scalaTestV}.0" % Test // https://github.com/scalatest/scalatestplus-selenium
+  val scalaTestMockito = "org.scalatestplus" %% "mockito-3-12" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-mockito
+  val scalaTestSelenium =  "org.scalatestplus" %% "selenium-3-141" % "3.2.10.0" % Test // https://github.com/scalatest/scalatestplus-selenium
 
   // Exclude workbench-libs transitive dependencies so we can control the library versions individually.
   // workbench-google pulls in workbench-{util, model, metrics} and workbcan ench-metrics pulls in workbench-util.
