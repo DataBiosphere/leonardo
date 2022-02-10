@@ -343,13 +343,13 @@ fi
 STEP_TIMINGS+=($(date +%s))
 
 # Jupyter-specific setup, only do if Jupyter is installed
-if [ ! -z "$JUPYTER_DOCKER_IMAGE" ]; then
+if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
   # user package installation directory
   mkdir -p ${WORK_DIRECTORY}/packages
   chmod a+rwx ${WORK_DIRECTORY}/packages
 
   # TODO: update this if we upgrade python version
-  if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ]
+  if [ ! "$JUPYTER_USER_HOME" = "/home/jupyter" ] ; then
     # TODO: Remove once we stop supporting non AI notebooks based images
     log 'Installing Jupyter kernelspecs...(Remove once we stop supporting non AI notebooks based images)'
     KERNELSPEC_HOME=/usr/local/share/jupyter/kernels
