@@ -10,8 +10,7 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.syntax._
-import io.circe.{Decoder, DecodingFailure, Encoder, Json}
+import io.circe.{Decoder, DecodingFailure, Encoder}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -508,53 +507,6 @@ object RuntimeRoutes {
     } yield {
       UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), labelsToUpdate, labelsToDelete)
     }
-  }
-
-  implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap { x =>
-    x match {
-      case RuntimeStatus.PreCreating => RuntimeStatus.Creating.toString
-      case RuntimeStatus.PreStarting => RuntimeStatus.Starting.toString
-      case RuntimeStatus.PreStopping => RuntimeStatus.Stopping.toString
-      case RuntimeStatus.PreDeleting => RuntimeStatus.Deleting.toString
-      case _                         => x.toString
-    }
-  }
-
-  implicit val diskConfigEncoder: Encoder[DiskConfig] = Encoder.forProduct4(
-    "name",
-    "size",
-    "diskType",
-    "blockSize"
-  )(x => (x.name, x.size, x.diskType, x.blockSize))
-
-  // can't use Encoder.forProductX because there are 23 fields :(
-  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.instance { x =>
-    Json.obj(
-      ("id", x.id.asJson),
-      ("runtimeName", x.clusterName.asJson),
-      ("googleProject", x.cloudContext.asString.asJson),
-      ("cloudContext", x.cloudContext.asJson),
-      ("serviceAccount", x.serviceAccountInfo.asJson),
-      ("asyncRuntimeFields", x.asyncRuntimeFields.asJson),
-      ("auditInfo", x.auditInfo.asJson),
-      ("runtimeConfig", x.runtimeConfig.asJson),
-      ("proxyUrl", x.clusterUrl.asJson),
-      ("status", x.status.asJson),
-      ("labels", x.labels.asJson),
-      ("userScriptUri", x.userScriptUri.asJson),
-      ("startUserScriptUri", x.startUserScriptUri.asJson),
-      ("jupyterUserScriptUri", x.userScriptUri.asJson),
-      ("jupyterStartUserScriptUri", x.startUserScriptUri.asJson),
-      ("errors", x.errors.asJson),
-      ("userJupyterExtensionConfig", x.userJupyterExtensionConfig.asJson),
-      ("autopauseThreshold", x.autopauseThreshold.asJson),
-      ("defaultClientId", x.defaultClientId.asJson),
-      ("runtimeImages", x.clusterImages.asJson),
-      ("scopes", x.scopes.asJson),
-      ("customEnvironmentVariables", x.customClusterEnvironmentVariables.asJson),
-      ("diskConfig", x.diskConfig.asJson),
-      ("patchInProgress", x.patchInProgress.asJson)
-    )
   }
 
   implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct10(

@@ -16,9 +16,9 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
   it should "save controlled resources for a runtime" in isolatedDbTest {
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-      azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
-                                                       azureRegion)
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion)
       runtime = makeCluster(1)
         .copy(
           runtimeImages = Set(azureImage),
@@ -45,9 +45,9 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
   it should "not allow controlled resources of the same type for a runtime" in isolatedDbTest {
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-      azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
-                                                       azureRegion)
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion)
       runtime = makeCluster(1)
         .copy(
           runtimeImages = Set(azureImage),
@@ -71,9 +71,9 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
   it should "delete all controlled resources for a runtime" in isolatedDbTest {
     val res = for {
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-      azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
-                                                       azureRegion)
+      azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                     disk.id,
+                                                     azureRegion)
       runtime = makeCluster(1)
         .copy(
           runtimeImages = Set(azureImage),

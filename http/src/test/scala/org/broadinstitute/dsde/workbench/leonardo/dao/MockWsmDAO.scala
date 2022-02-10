@@ -66,7 +66,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
   override def getCreateVmJobResult(
     request: GetJobResultRequest
   )(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
-    IO.pure(println("in createVmJobResult")) >> IO.pure(
+    IO.pure(
       CreateVmResult(
         WsmVm(WsmControlledResourceId(UUID.randomUUID())),
         WsmJobReport(
@@ -117,7 +117,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
   override def getWorkspace(workspaceId: WorkspaceId)(implicit ev: Ask[IO, AppContext]): IO[WorkspaceDescription] =
     IO.pure(
       WorkspaceDescription(
-        WorkspaceId(UUID.randomUUID()),
+        workspaceId,
         "workspaceName",
         AzureCloudContext(
           TenantId("testTenantId"),

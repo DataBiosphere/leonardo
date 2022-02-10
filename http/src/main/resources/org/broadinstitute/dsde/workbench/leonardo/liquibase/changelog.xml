@@ -84,4 +84,5 @@
     <include file="changesets/20211116_update_persistent_disk_formattedBy_enum.xml" relativeToChangelogFile="true" />
     <include file="changesets/20211129_support_proxy_to_azure_pd.xml" relativeToChangelogFile="true" />
     <include file="changesets/20220118_update_runtime_controlled_resource.xml" relativeToChangelogFile="true" />
+    <include file="changesets/20220211_cluster_workspace_unique.xml" relativeToChangelogFile="true" />
 </databaseChangeLog>

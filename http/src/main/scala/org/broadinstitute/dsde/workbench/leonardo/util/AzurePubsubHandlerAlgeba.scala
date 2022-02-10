@@ -27,9 +27,9 @@ trait AzureAlgebra[F[_]] {
 
 final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           runtime: Runtime,
-                                          runtimeConfig: RuntimeConfig.AzureVmConfig,
-                                          pd: PersistentDisk,
+                                          runtimeConfig: RuntimeConfig.AzureConfig,
+                                          disk: PersistentDisk,
                                           vmImage: RuntimeImage)
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 
-final case class PollRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime, jobId: WsmJobId)
+final case class PollRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime, jobId: WsmJobId, disk: PersistentDisk)

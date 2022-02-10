@@ -3,7 +3,13 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import java.util.UUID
 
 import com.azure.core.management.Region
-import org.broadinstitute.dsde.workbench.leonardo.{CidrIP, DiskSize, RuntimeName, WsmControlledResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AzureDiskName,
+  CidrIP,
+  DiskSize,
+  RuntimeName,
+  WsmControlledResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.flatspec.AnyFlatSpec

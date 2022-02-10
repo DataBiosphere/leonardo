@@ -9,7 +9,9 @@ import org.broadinstitute.dsde.workbench.leonardo.model.SamResource.{
   AppSamResource,
   PersistentDiskSamResource,
   ProjectSamResource,
-  RuntimeSamResource
+  RuntimeSamResource,
+  WorkspaceResource,
+  WsmResource
 }
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -42,11 +44,23 @@ object SamResource {
     val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Manager)
     def resourceIdAsString(r: AppSamResourceId): String = r.resourceId
   }
+  class WorkspaceResource extends SamResource[WorkspaceResourceSamResourceId] {
+    val resourceType = SamResourceType.Workspace
+    val policyNames = Set(SamPolicyName.Creator) //TODO: is this policy name correct?
+    def resourceIdAsString(r: WorkspaceResourceSamResourceId): String = r.resourceId
+  }
+  class WsmResource extends SamResource[WsmResourceSamResourceId] {
+    val resourceType = SamResourceType.WsmResource
+    val policyNames = Set(SamPolicyName.Creator) //TODO: is this policy name correct?
+    def resourceIdAsString(r: WsmResourceSamResourceId): String = r.resourceId
+  }
 
   implicit object ProjectSamResource extends ProjectSamResource
   implicit object RuntimeSamResource extends RuntimeSamResource
   implicit object PersistentDiskSamResource extends PersistentDiskSamResource
   implicit object AppSamResource extends AppSamResource
+  implicit object WorkspaceResource extends WorkspaceResource
+  implicit object WsmResource extends WsmResource
 }
 
 // Typeclass representing an action on a Sam resource
@@ -93,6 +107,24 @@ object SamResourceAction {
     val cacheableActions = List(AppAction.GetAppStatus, AppAction.ConnectToApp)
     def actionAsString(a: A): String = a.asString
   }
+
+  implicit def workspaceSamResourceAction[A <: WorkspaceAction] =
+    new WorkspaceResource with SamResourceAction[WorkspaceResourceSamResourceId, A] {
+      type ActionCategory = WorkspaceAction
+      val decoder = Decoder[WorkspaceAction]
+      val allActions = WorkspaceAction.allActions.toList
+      val cacheableActions = List(WorkspaceAction.CreateControlledResource)
+      def actionAsString(a: A): String = a.asString
+    }
+
+  implicit def wsmResourceSamResourceAction[A <: WsmResourceAction] =
+    new WsmResource with SamResourceAction[WsmResourceSamResourceId, A] {
+      type ActionCategory = WsmResourceAction
+      val decoder = Decoder[WsmResourceAction]
+      val allActions = WsmResourceAction.allActions.toList
+      val cacheableActions = List(WsmResourceAction.Write)
+      def actionAsString(a: A): String = a.asString
+    }
 }
 
 // TODO: https://broadworkbench.atlassian.net/browse/IA-2093 will allow us to remove the *WithProjectFallback methods

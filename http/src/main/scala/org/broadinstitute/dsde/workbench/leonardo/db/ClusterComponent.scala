@@ -49,7 +49,8 @@ final case class ClusterRecord(id: Long,
                                welderEnabled: Boolean,
                                customClusterEnvironmentVariables: Map[String, String],
                                runtimeConfigId: RuntimeConfigId,
-                               deletedFrom: Option[String]) {
+                               deletedFrom: Option[String],
+                               workspaceId: Option[WorkspaceId]) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
 }
 
@@ -81,6 +82,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def runtimeConfigId = column[RuntimeConfigId]("runtimeConfigId")
   def customClusterEnvironmentVariables = column[Option[Map[String, String]]]("customClusterEnvironmentVariables")
   def deletedFrom = column[Option[String]]("deletedFrom")
+  def workspaceId = column[Option[WorkspaceId]]("workspaceId")
 
   // Can't use the shorthand
   //   def * = (...) <> (ClusterRecord.tupled, ClusterRecord.unapply)
@@ -108,7 +110,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       welderEnabled,
       customClusterEnvironmentVariables,
       runtimeConfigId,
-      deletedFrom
+      deletedFrom,
+      workspaceId
     ).shaped <> ({
       case (id,
             internalId,
@@ -130,7 +133,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             welderEnabled,
             customClusterEnvironmentVariables,
             runtimeConfigId,
-            deletedFrom) =>
+            deletedFrom,
+            workspaceId) =>
         ClusterRecord(
           id,
           internalId,
@@ -164,7 +168,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           welderEnabled,
           customClusterEnvironmentVariables.getOrElse(Map.empty),
           runtimeConfigId,
-          deletedFrom
+          deletedFrom,
+          workspaceId
         )
     }, { c: ClusterRecord =>
       def ai(_ai: AuditInfo) = (
@@ -200,7 +205,8 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.welderEnabled,
           if (c.customClusterEnvironmentVariables.isEmpty) None else Some(c.customClusterEnvironmentVariables),
           c.runtimeConfigId,
-          c.deletedFrom
+          c.deletedFrom,
+          c.workspaceId
         )
       )
     })
@@ -311,8 +317,11 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       cluster = LeoLenses.runtimeToRuntimeConfigId.modify(_ => runtimeConfigId.value)(
         saveCluster.cluster
       ) // update runtimeConfigId
+
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
-                                                                                   saveCluster.initBucket.map(_.toUri))
+                                                                                   saveCluster.initBucket.map(_.toUri),
+                                                                                   saveCluster.workspaceId)
+
       _ <- labelQuery.saveAllForResource(clusterId, LabelResourceType.Runtime, cluster.labels)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
       _ <- clusterImageQuery.saveAllForCluster(clusterId, cluster.runtimeImages.toSeq)
@@ -599,7 +608,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
-  private def marshalCluster(runtime: Runtime, initBucket: Option[String]): ClusterRecord =
+  private def marshalCluster(runtime: Runtime,
+                             initBucket: Option[String],
+                             workspaceId: Option[WorkspaceId] = None): ClusterRecord =
     ClusterRecord(
       id = 0, // DB AutoInc
       runtime.samResource.resourceId,
@@ -621,7 +632,8 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.welderEnabled,
       runtime.customEnvironmentVariables,
       runtime.runtimeConfigId,
-      None
+      None,
+      workspaceId
     )
 
   private def unmarshalMinimalCluster(
@@ -776,4 +788,5 @@ final case class SaveCluster(cluster: Runtime,
                              initBucket: Option[GcsPath] = None,
                              serviceAccountKeyId: Option[ServiceAccountKeyId] = None,
                              runtimeConfig: RuntimeConfig,
-                             now: Instant)
+                             now: Instant,
+                             workspaceId: Option[WorkspaceId] = None)

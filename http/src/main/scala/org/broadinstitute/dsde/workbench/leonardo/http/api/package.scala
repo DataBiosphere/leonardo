@@ -12,9 +12,11 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.leonardo.dao.TerminalName
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import java.time.Instant
 import java.util.UUID
+
+import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
+
 import scala.concurrent.Future
 
 package object api {
@@ -23,7 +25,15 @@ package object api {
 
   val googleProjectSegment = Segment.map(GoogleProject)
   val runtimeNameSegment = Segment.map(RuntimeName)
-  val workspaceIdSegment = Segment.map(x => WorkspaceId(UUID.fromString(x)))
+  val runtimeNameSegmentWithValidation = Segment.map(x =>
+    validateName(x).map(RuntimeName).getOrElse(throw BadRequestException(s"Invalid runtime name $x", None))
+  )
+  val workspaceIdSegment = Segment.map { x =>
+    val components: Array[String] = x.split("-")
+    if (components.length != 5)
+      throw BadRequestException(s"Invalid workspace id $x, workspace id must be a valid UUID", None)
+    else WorkspaceId(UUID.fromString(x))
+  }
   val appNameSegment = Segment.map(AppName)
   val serviceNameSegment = Segment.map(ServiceName)
   val terminalNameSegment = Segment.map(TerminalName)
