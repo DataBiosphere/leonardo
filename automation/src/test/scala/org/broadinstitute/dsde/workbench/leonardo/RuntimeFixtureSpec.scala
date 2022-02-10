@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
+import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 import RuntimeFixtureSpec._

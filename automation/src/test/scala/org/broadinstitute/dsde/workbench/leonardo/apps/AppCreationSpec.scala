@@ -18,9 +18,9 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class AppCreationSpec
-    extends GPAllocFixtureSpec
+    extends BillingProjectFixtureSpec
     with LeonardoTestUtils
-    with GPAllocUtils
+    with BillingProjectUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)

@@ -36,7 +36,7 @@ import scala.jdk.CollectionConverters._
 
 @DoNotDiscover
 class RuntimeDataprocSpec
-    extends GPAllocFixtureSpec
+    extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {

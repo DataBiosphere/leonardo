@@ -3,7 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 import cats.effect.{IO, Ref}
 import cats.implicits._
 import fs2._
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.proxyRedirectServerPortKey
+import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec.proxyRedirectServerPortKey
 import org.http4s.blaze.server.BlazeServerBuilder
 import org.http4s.client.Client
 import org.http4s.dsl.io._
