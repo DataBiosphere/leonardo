@@ -69,7 +69,8 @@ object Runtime {
           urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
         )
       case _: CloudContext.Azure =>
-        throw new NotImplementedError("Proxying Azure runtime is not supported yet")
+        //TODO: this is not the correct proxy URL
+        new URL(urlBase)
     }
   }
 }
@@ -209,6 +210,10 @@ object CloudService extends Enum[CloudService] {
     val asString: String = "GCE"
   }
 
+  case object AzureVm extends CloudService {
+    val asString: String = "AZURE_VM"
+  }
+
   override def values: immutable.IndexedSeq[CloudService] = findValues
 }
 
@@ -273,6 +278,14 @@ object RuntimeConfig {
     val machineType: MachineTypeName = masterMachineType
     val diskSize: DiskSize = masterDiskSize
   }
+
+  //Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
+  final case class AzureVmConfig(machineType: MachineTypeName,
+                                 persistentDiskId: DiskId,
+                                 region: com.azure.core.management.Region)
+      extends RuntimeConfig {
+    val cloudService: CloudService = CloudService.AzureVm
+  }
 }
 
 /** Runtime user script */
@@ -333,6 +346,8 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object BootSource extends RuntimeImageType
   case object Proxy extends RuntimeImageType
   case object CryptoDetector extends RuntimeImageType
+
+  case object AzureVm extends RuntimeImageType
 
   def stringToRuntimeImageType: Map[String, RuntimeImageType] = values.map(c => c.toString -> c).toMap
 }
