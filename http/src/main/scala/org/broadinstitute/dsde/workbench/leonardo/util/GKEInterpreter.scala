@@ -1244,35 +1244,33 @@ class GKEInterpreter[F[_]](
           .setAutoRepair(true)
       )
 
-    serviceAccount match {
-      case Some(sa) => {
+    val nodepoolBuilderWithSa = serviceAccount match {
+      case Some(sa) =>
         nodepoolBuilder.setConfig(
           NodeConfig
             .newBuilder()
             .setMachineType(nodepool.machineType.value)
             .setServiceAccount(sa)
         )
-      }
-      case _ => {
+      case _ =>
         nodepoolBuilder.setConfig(
           NodeConfig
             .newBuilder()
             .setMachineType(nodepool.machineType.value)
         )
-      }
     }
 
-    val builderWithAutoscaling = nodepool.autoscalingConfig.fold(nodepoolBuilder)(config =>
+    val builderWithAutoscaling = nodepool.autoscalingConfig.fold(nodepoolBuilderWithSa)(config =>
       nodepool.autoscalingEnabled match {
         case true =>
-          nodepoolBuilder.setAutoscaling(
+          nodepoolBuilderWithSa.setAutoscaling(
             NodePoolAutoscaling
               .newBuilder()
               .setEnabled(true)
               .setMinNodeCount(config.autoscalingMin.amount)
               .setMaxNodeCount(config.autoscalingMax.amount)
           )
-        case false => nodepoolBuilder
+        case false => nodepoolBuilderWithSa
       }
     )
 
@@ -1293,7 +1291,7 @@ class GKEInterpreter[F[_]](
         new com.google.api.services.container.model.NodeManagement().setAutoUpgrade(true).setAutoRepair(true)
       )
 
-    serviceAccount match {
+    val legacyGoogleNodepoolWithSa = serviceAccount match {
       case Some(sa) => {
         legacyGoogleNodepool.setConfig(
           new com.google.api.services.container.model.NodeConfig()
@@ -1309,16 +1307,16 @@ class GKEInterpreter[F[_]](
       }
     }
 
-    nodepool.autoscalingConfig.fold(legacyGoogleNodepool)(config =>
+    nodepool.autoscalingConfig.fold(legacyGoogleNodepoolWithSa)(config =>
       nodepool.autoscalingEnabled match {
         case true =>
-          legacyGoogleNodepool.setAutoscaling(
+          legacyGoogleNodepoolWithSa.setAutoscaling(
             new com.google.api.services.container.model.NodePoolAutoscaling()
               .setEnabled(true)
               .setMinNodeCount(config.autoscalingMin.amount)
               .setMaxNodeCount(config.autoscalingMax.amount)
           )
-        case false => legacyGoogleNodepool
+        case false => legacyGoogleNodepoolWithSa
       }
     )
   }
