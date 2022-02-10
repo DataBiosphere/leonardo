@@ -3,9 +3,13 @@ package http
 
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
-import org.broadinstitute.dsde.workbench.leonardo.ConfigImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.util.TerraAppSetupChartConfig
-import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
+import ConfigImplicits._
+import org.broadinstitute.dsde.workbench.leonardo.util.{
+  AzureInterpretorConfig,
+  AzureMonitorConfig,
+  TerraAppSetupChartConfig
+}
+import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
 
 object ConfigReader {
   lazy val appConfig =
@@ -14,9 +18,17 @@ object ConfigReader {
       .loadOrThrow[AppConfig]
 }
 
+final case class AzureConfig(
+  monitor: AzureMonitorConfig,
+  runtimeDefaults: AzureInterpretorConfig,
+  wsm: HttpWsmDaoConfig,
+  appRegistration: AzureAppRegistrationConfig
+)
+
 // Note: pureconfig supports reading kebab case into camel case in code by default
 // More docs see https://pureconfig.github.io/docs/index.html
 final case class AppConfig(
   terraAppSetupChart: TerraAppSetupChartConfig,
-  persistentDisk: PersistentDiskConfig
+  persistentDisk: PersistentDiskConfig,
+  azure: AzureConfig
 )

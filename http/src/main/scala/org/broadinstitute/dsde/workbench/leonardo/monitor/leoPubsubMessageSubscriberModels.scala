@@ -155,6 +155,12 @@ object LeoPubsubMessageType extends Enum[LeoPubsubMessageType] {
   final case object StartApp extends LeoPubsubMessageType {
     val asString = "startApp"
   }
+  final case object CreateAzureRuntime extends LeoPubsubMessageType {
+    val asString = "createAzureRuntime"
+  }
+  final case object DeleteAzureRuntime extends LeoPubsubMessageType {
+    val asString = "deleteAzureRuntime"
+  }
 }
 
 sealed trait LeoPubsubMessage {
@@ -304,6 +310,22 @@ object LeoPubsubMessage {
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.UpdateDisk
   }
+
+  final case class CreateAzureRuntimeMessage(runtimeId: Long,
+                                             workspaceId: WorkspaceId,
+                                             vmImage: RuntimeImage,
+                                             traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
+  }
+
+  final case class DeleteAzureRuntimeMessage(runtimeId: Long,
+                                             workspaceId: WorkspaceId,
+                                             wsmResourceId: WsmControlledResourceId,
+                                             traceId: Option[TraceId])
+      extends LeoPubsubMessage {
+    val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAzureRuntime
+  }
 }
 
 sealed trait ClusterNodepoolActionType extends Product with Serializable {
@@ -449,6 +471,12 @@ object LeoPubsubCodec {
   implicit val startAppDecoder: Decoder[StartAppMessage] =
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
+  implicit val createAzureRuntimeDecoder: Decoder[CreateAzureRuntimeMessage] =
+    Decoder.forProduct4("runtimeId", "workspaceId", "vmImage", "traceId")(CreateAzureRuntimeMessage.apply)
+
+  implicit val deleteAzureRuntimeDecoder: Decoder[DeleteAzureRuntimeMessage] =
+    Decoder.forProduct4("runtimeId", "workspaceId", "wsmResourceId", "traceId")(DeleteAzureRuntimeMessage.apply)
+
   implicit val leoPubsubMessageTypeDecoder: Decoder[LeoPubsubMessageType] = Decoder.decodeString.emap { x =>
     Either.catchNonFatal(LeoPubsubMessageType.withName(x)).leftMap(_.getMessage)
   }
@@ -457,18 +485,20 @@ object LeoPubsubCodec {
     for {
       messageType <- message.downField("messageType").as[LeoPubsubMessageType]
       value <- messageType match {
-        case LeoPubsubMessageType.CreateDisk    => message.as[CreateDiskMessage]
-        case LeoPubsubMessageType.UpdateDisk    => message.as[UpdateDiskMessage]
-        case LeoPubsubMessageType.DeleteDisk    => message.as[DeleteDiskMessage]
-        case LeoPubsubMessageType.CreateRuntime => message.as[CreateRuntimeMessage]
-        case LeoPubsubMessageType.DeleteRuntime => message.as[DeleteRuntimeMessage]
-        case LeoPubsubMessageType.StopRuntime   => message.as[StopRuntimeMessage]
-        case LeoPubsubMessageType.StartRuntime  => message.as[StartRuntimeMessage]
-        case LeoPubsubMessageType.UpdateRuntime => message.as[UpdateRuntimeMessage]
-        case LeoPubsubMessageType.CreateApp     => message.as[CreateAppMessage]
-        case LeoPubsubMessageType.DeleteApp     => message.as[DeleteAppMessage]
-        case LeoPubsubMessageType.StopApp       => message.as[StopAppMessage]
-        case LeoPubsubMessageType.StartApp      => message.as[StartAppMessage]
+        case LeoPubsubMessageType.CreateDisk         => message.as[CreateDiskMessage]
+        case LeoPubsubMessageType.UpdateDisk         => message.as[UpdateDiskMessage]
+        case LeoPubsubMessageType.DeleteDisk         => message.as[DeleteDiskMessage]
+        case LeoPubsubMessageType.CreateRuntime      => message.as[CreateRuntimeMessage]
+        case LeoPubsubMessageType.DeleteRuntime      => message.as[DeleteRuntimeMessage]
+        case LeoPubsubMessageType.StopRuntime        => message.as[StopRuntimeMessage]
+        case LeoPubsubMessageType.StartRuntime       => message.as[StartRuntimeMessage]
+        case LeoPubsubMessageType.UpdateRuntime      => message.as[UpdateRuntimeMessage]
+        case LeoPubsubMessageType.CreateApp          => message.as[CreateAppMessage]
+        case LeoPubsubMessageType.DeleteApp          => message.as[DeleteAppMessage]
+        case LeoPubsubMessageType.StopApp            => message.as[StopAppMessage]
+        case LeoPubsubMessageType.StartApp           => message.as[StartAppMessage]
+        case LeoPubsubMessageType.CreateAzureRuntime => message.as[CreateAzureRuntimeMessage]
+        case LeoPubsubMessageType.DeleteAzureRuntime => message.as[DeleteAzureRuntimeMessage]
       }
     } yield value
   }
@@ -605,6 +635,8 @@ object LeoPubsubCodec {
           case CloudService.GCE =>
             x.as[RuntimeConfigInCreateRuntimeMessage.GceConfig] orElse x
               .as[RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig]
+          case CloudService.AzureVm =>
+            throw new AzureUnimplementedException("Azure should not be used with existing create runtime message")
         }
       } yield r
     }
@@ -767,19 +799,31 @@ object LeoPubsubCodec {
       (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
 
+  implicit val createAzureMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
+    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "vmImage", "traceId")(x =>
+      (x.messageType, x.runtimeId, x.workspaceId, x.vmImage, x.traceId)
+    )
+
+  implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
+    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "wsmResourceId", "traceId")(x =>
+      (x.messageType, x.runtimeId, x.workspaceId, x.wsmResourceId, x.traceId)
+    )
+
   implicit val leoPubsubMessageEncoder: Encoder[LeoPubsubMessage] = Encoder.instance {
-    case m: CreateDiskMessage    => m.asJson
-    case m: UpdateDiskMessage    => m.asJson
-    case m: DeleteDiskMessage    => m.asJson
-    case m: CreateRuntimeMessage => m.asJson
-    case m: DeleteRuntimeMessage => m.asJson
-    case m: StopRuntimeMessage   => m.asJson
-    case m: StartRuntimeMessage  => m.asJson
-    case m: UpdateRuntimeMessage => m.asJson
-    case m: CreateAppMessage     => m.asJson
-    case m: DeleteAppMessage     => m.asJson
-    case m: StopAppMessage       => m.asJson
-    case m: StartAppMessage      => m.asJson
+    case m: CreateDiskMessage         => m.asJson
+    case m: UpdateDiskMessage         => m.asJson
+    case m: DeleteDiskMessage         => m.asJson
+    case m: CreateRuntimeMessage      => m.asJson
+    case m: DeleteRuntimeMessage      => m.asJson
+    case m: StopRuntimeMessage        => m.asJson
+    case m: StartRuntimeMessage       => m.asJson
+    case m: UpdateRuntimeMessage      => m.asJson
+    case m: CreateAppMessage          => m.asJson
+    case m: DeleteAppMessage          => m.asJson
+    case m: StopAppMessage            => m.asJson
+    case m: StartAppMessage           => m.asJson
+    case m: CreateAzureRuntimeMessage => m.asJson
+    case m: DeleteAzureRuntimeMessage => m.asJson
   }
 }
 
@@ -840,6 +884,16 @@ object PubsubHandleMessageError {
       extends PubsubHandleMessageError {
     override def getMessage: String =
       s"${diskId}, ${projectName} | Unable to process disk because not in correct state. Disk details: ${disk}"
+    val isRetryable: Boolean = false
+  }
+
+  final case class AzureRuntimeError(runtimeId: Long,
+                                     traceId: TraceId,
+                                     pubsubMsg: Option[LeoPubsubMessage],
+                                     errorMsg: String)
+      extends PubsubHandleMessageError {
+    override def getMessage: String =
+      s"\n\truntimeId: ${runtimeId}, \n\tpubsubMsg: ${pubsubMsg}, \n\ttraceId: ${traceId} \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false
   }
 }

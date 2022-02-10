@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.URL
 import java.time.Instant
+
 import cats.syntax.all._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder}
@@ -32,8 +33,11 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject
 }
 import org.http4s.Uri
-
 import java.nio.file.{Path, Paths}
+import java.util.UUID
+import java.util.stream.Collectors
+
+import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
@@ -128,6 +132,13 @@ object JsonCodec {
     "zone",
     "gpuConfig"
   )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig))
+
+  implicit val azureRegionEncoder: Encoder[Region] = Encoder.encodeString.contramap(_.toString)
+  implicit val azureRuntimeConfigEncoder: Encoder[RuntimeConfig.AzureVmConfig] = Encoder.forProduct3(
+    "machineType",
+    "persistentDiskId",
+    "region"
+  )(x => (x.machineType, x.persistentDiskId, x.region))
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
     "serverExtensions",
@@ -164,6 +175,7 @@ object JsonCodec {
       case x: RuntimeConfig.DataprocConfig  => x.asJson
       case x: RuntimeConfig.GceConfig       => x.asJson
       case x: RuntimeConfig.GceWithPdConfig => x.asJson
+      case x: RuntimeConfig.AzureVmConfig   => x.asJson
     }
   )
   implicit val defaultRuntimeLabelsEncoder: Encoder[DefaultRuntimeLabels] = Encoder.forProduct7(
@@ -188,7 +200,6 @@ object JsonCodec {
     "timestamp",
     "traceId"
   )(x => RuntimeError.unapply(x).get)
-
   implicit val errorSourceEncoder: Encoder[ErrorSource] = Encoder.encodeString.contramap(_.toString)
   implicit val errorActionEncoder: Encoder[ErrorAction] = Encoder.encodeString.contramap(_.toString)
   implicit val appErrorEncoder: Encoder[AppError] =
@@ -347,6 +358,8 @@ object JsonCodec {
           x.as[RuntimeConfig.DataprocConfig]
         case CloudService.GCE =>
           x.as[RuntimeConfig.GceConfig] orElse x.as[RuntimeConfig.GceWithPdConfig]
+        case CloudService.AzureVm =>
+          x.as[RuntimeConfig.AzureVmConfig]
       }
     } yield r
   }
@@ -409,6 +422,14 @@ object JsonCodec {
     Decoder.decodeString.emap(x => DiskType.stringToObject.get(x).toRight(s"Invalid disk type: $x"))
   implicit val gpuTypeDecoder: Decoder[GpuType] =
     Decoder.decodeString.emap(s => GpuType.stringToObject.get(s).toRight(s"unsupported gpuType ${s}"))
+  implicit val azureRegionDecoder: Decoder[Region] =
+    Decoder.decodeString.emap { s =>
+      val regionOpt: Option[Region] =
+        if (Region.values.stream.map((x: Region) => x.toString).collect(Collectors.toList[String]).contains(s))
+          Some(Region.fromName(s))
+        else none[Region]
+      regionOpt.toRight(s"Invalid azure region ${s}")
+    }
 
   implicit val gpuConfigDecoder: Decoder[GpuConfig] = Decoder.forProduct2(
     "gpuType",
@@ -434,6 +455,12 @@ object JsonCodec {
     "zone",
     "gpuConfig"
   )((mt, ds, bds, z, gpu) => RuntimeConfig.GceConfig(mt, ds, bds, z, gpu))
+
+  implicit val azureVmConfigDecoder: Decoder[RuntimeConfig.AzureVmConfig] = Decoder.forProduct3(
+    "machineType",
+    "persistentDiskId",
+    "region"
+  )(RuntimeConfig.AzureVmConfig.apply)
 
   implicit val persistentDiskRequestDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
     for {
@@ -540,4 +567,19 @@ object JsonCodec {
 
   implicit val uriDecoder: Decoder[Uri] =
     Decoder.decodeString.emap(s => Uri.fromString(s).leftMap(_.getMessage()))
+
+  implicit val uuidDecoder: Decoder[UUID] = Decoder.decodeString.map(s => UUID.fromString(s))
+
+  implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
+    Decoder.decodeString.map(x => WorkspaceId(UUID.fromString(x)))
+
+  implicit val workspaceIdEncoder: Encoder[WorkspaceId] =
+    Encoder.encodeString.contramap(_.value.toString)
+
+  implicit val wsmControlledResourceIdEncoder: Encoder[WsmControlledResourceId] =
+    Encoder.encodeString.contramap(_.value.toString)
+
+  implicit val wsmControlledResourceIdDecoder: Decoder[WsmControlledResourceId] =
+    Decoder.decodeString.map(x => WsmControlledResourceId(UUID.fromString(x)))
+
 }

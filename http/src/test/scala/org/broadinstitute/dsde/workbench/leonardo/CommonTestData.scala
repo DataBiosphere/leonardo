@@ -36,7 +36,17 @@ import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.auth.{MockPetClusterServiceAccountProvider, WhitelistAuthProvider}
 import org.broadinstitute.dsde.workbench.leonardo.config._
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  AccessScope,
+  CloningInstructions,
+  ControlledResourceCommonFields,
+  ControlledResourceDescription,
+  ControlledResourceIamRole,
+  ControlledResourceName,
+  ManagedBy,
+  MockSamDAO,
+  PrivateResourceUser
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
@@ -45,17 +55,17 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 }
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.{
-  GoogleProject,
-  ServiceAccountKey,
   ServiceAccountKeyId,
   ServiceAccountPrivateKeyData,
+  GoogleProject,
+  ServiceAccountKey,
   _
 }
-
 import java.nio.file.Paths
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
+
 import scala.concurrent.duration._
 
 object CommonTestData {
@@ -177,6 +187,7 @@ object CommonTestData {
   val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now)
   val customDataprocImage = RuntimeImage(BootSource, "custom_dataproc", None, Instant.now)
   val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now)
+  val azureImage = RuntimeImage(RuntimeImageType.AzureVm, "test", None, Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
   val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
@@ -425,6 +436,27 @@ object CommonTestData {
     ip = Some(IP("1.2.3.6")),
     dataprocRole = DataprocRole.Worker,
     createdDate = Instant.now()
+  )
+
+  val azureRegion: com.azure.core.management.Region = com.azure.core.management.Region.US_EAST
+
+  val azureCloudContext =
+    AzureCloudContext(TenantId("testTenant"), SubscriptionId("testSubscription"), ManagedResourceGroupName("testMrg"))
+  val workspaceId = WorkspaceId(UUID.randomUUID())
+  val wsmResourceId = WsmControlledResourceId(UUID.randomUUID())
+
+  val testCommonControlledResourceFields = ControlledResourceCommonFields(
+    ControlledResourceName("name"),
+    ControlledResourceDescription("desc"),
+    CloningInstructions.Nothing,
+    AccessScope.PrivateAccess,
+    ManagedBy.User,
+    Some(
+      PrivateResourceUser(
+        userEmail,
+        List(ControlledResourceIamRole.Editor)
+      )
+    )
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =
