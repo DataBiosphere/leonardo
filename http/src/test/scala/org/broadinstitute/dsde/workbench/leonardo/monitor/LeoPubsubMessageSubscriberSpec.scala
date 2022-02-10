@@ -58,7 +58,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   CreateVmResult,
   DeleteVmRequest,
   DeleteVmResult,
-  GetJobResultRequest,
   MockAppDAO,
   MockAppDescriptorDAO,
   MockComputeManagerDao,
