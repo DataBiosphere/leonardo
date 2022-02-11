@@ -1,4 +1,5 @@
 # Note: we need to stay on docker-compose version 2 because version 3 doesn't support
+# Note: we need to stay on docker-compose version 2 because version 3 doesn't support
 # configuring memory options in container mode. See discussion in:
 # https://docs.docker.com/compose/compose-file/#resources
 # https://github.com/docker/compose/issues/4513
