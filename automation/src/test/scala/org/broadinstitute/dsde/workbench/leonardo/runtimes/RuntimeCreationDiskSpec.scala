@@ -229,7 +229,9 @@ class RuntimeCreationDiskSpec
               """! cat /home/jupyter/test.txt""".stripMargin
             notebookPage.executeCell(persistedData).get should include("this should save")
             val persistedPackage = "! pip show beautifulSoup4"
-            notebookPage.executeCell(persistedPackage).get should include("/home/jupyter/packages")
+            notebookPage.executeCell(persistedPackage).get should include(
+              "/home/jupyter/.local/lib/python3.7/site-packages"
+            )
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
