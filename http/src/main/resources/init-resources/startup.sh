@@ -226,7 +226,7 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
   # jupyter container will fail to start until the appropriate volume/device exists.
   # Hence restart jupyter container here
   docker restart jupyter-server
-  retry 3 docker exec -d jupyter-server /etc/jupyter/scripts/run-jupyter.sh ${NOTEBOOKS_DIR}
+  retry 3 docker exec -e PIP_USER=true -d jupyter-server /etc/jupyter/scripts/run-jupyter.sh ${NOTEBOOKS_DIR}
 fi
 
 
