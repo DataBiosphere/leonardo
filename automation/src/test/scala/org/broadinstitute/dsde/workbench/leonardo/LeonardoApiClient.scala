@@ -359,6 +359,33 @@ object LeonardoApiClient {
         }
     } yield r
 
+  def patchDisk(
+    googleProject: GoogleProject,
+    diskName: DiskName,
+    req: UpdateDiskRequest
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
+      r <- client
+        .run(
+          Request[IO](
+            method = Method.PATCH,
+            headers = Headers(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri
+              .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
+            body = req
+          )
+        )
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to create disk ${googleProject.value}/${diskName.value}")(resp)
+              .flatMap(IO.raiseError)
+          } else
+            IO.unit
+        }
+    } yield r
+
   def createDiskWithWait(googleProject: GoogleProject, diskName: DiskName, createDiskRequest: CreateDiskRequest)(
     implicit client: Client[IO],
     authorization: IO[Authorization]
