@@ -49,7 +49,7 @@ Run `docker system prune -a`
 
 Build Leonardo and run all unit tests.
 ```
-export JAVA_OPTS="-Dheadless=false -Duser.timezone=UTC"
+export JAVA_OPTS="-Dheadless=false -Duser.timezone=UTC -Xmx4g -Xss2M -Xms4G"
 sbt clean compile "project http" test
 ```
 You can also run a particular test suite, e.g.
