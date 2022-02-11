@@ -3,8 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.runtimes
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.{
-  ClusterStatus,
   BillingProjectFixtureSpec,
+  ClusterStatus,
   Leonardo,
   LeonardoApiClient,
   LeonardoTestUtils

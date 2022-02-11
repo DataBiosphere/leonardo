@@ -110,7 +110,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
 
       _ <- releaseProject match {
         case Left(e) => loggerIO.warn(e)(s"Failed to release billing project: ${workspaceName.namespace}")
-        case _ => loggerIO.info(s"Billing project released: ${workspaceName.namespace}")
+        case _       => loggerIO.info(s"Billing project released: ${workspaceName.namespace}")
       }
     } yield ()
 
