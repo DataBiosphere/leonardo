@@ -66,8 +66,10 @@ trait BillingProjectUtils extends LeonardoTestUtils {
       hermioneAuthToken <- Hermione.authToken()
       billingProjectName = randomIdWithPrefix("leonardo-test-billing-project-")
       _ <- IO {
-        throw new Exception("no billing account")
-        Orchestration.billingV2.createBillingProject("billing-account-name", billingProjectName)(hermioneAuthToken)
+        Orchestration.billingV2.createBillingProject(
+          billingProjectName,
+          billingAccount = "00708C-45D19D-27AAFA"
+        )(hermioneAuthToken)
       }
 
       _ <- loggerIO.info(s"Billing project claimed: ${billingProjectName}")
