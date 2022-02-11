@@ -264,7 +264,8 @@ object Boot extends IOApp {
             googleDependencies.googleIamDAO,
             googleDependencies.googleDiskService,
             appDependencies.appDescriptorDAO,
-            appDependencies.nodepoolLock
+            appDependencies.nodepoolLock,
+            googleDependencies.googleResourceService
           )
 
           val azureAlg = new AzureInterpreter[IO](ConfigReader.appConfig.azure.runtimeDefaults,
