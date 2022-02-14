@@ -242,7 +242,7 @@ class RuntimeCreationDiskSpec
                   "! df -h --output=size $HOME"
                 )
                 .get
-              res should include("158G")
+              res should include("148G")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)
