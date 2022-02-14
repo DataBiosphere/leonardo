@@ -379,7 +379,7 @@ object LeonardoApiClient {
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
-            onError(s"Failed to create disk ${googleProject.value}/${diskName.value}")(resp)
+            onError(s"Failed to patch disk ${googleProject.value}/${diskName.value}")(resp)
               .flatMap(IO.raiseError)
           } else
             IO.unit

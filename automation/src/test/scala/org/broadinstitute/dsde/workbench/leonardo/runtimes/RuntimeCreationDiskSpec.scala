@@ -239,7 +239,7 @@ class RuntimeCreationDiskSpec
 
               val res = notebookPage
                 .executeCell(
-                  "! df -H |grep sdb"
+                  "! df -h --output=size $HOME"
                 )
                 .get
               res should include("158G")
