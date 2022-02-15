@@ -536,8 +536,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                               config.autoFreezeConfig)
 
       _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold
-        || runtime.autopauseEnabled != req.updateAutopauseEnabled.getOrElse(false))
-        clusterQuery.updateAutopause(runtime.id, updatedAutopauseThreshold, req.updateAutopauseEnabled.getOrElse(false) , ctx.now).transaction.void
+               || runtime.autopauseEnabled != req.updateAutopauseEnabled.getOrElse(false))
+        clusterQuery
+          .updateAutopause(runtime.id, updatedAutopauseThreshold, req.updateAutopauseEnabled.getOrElse(false), ctx.now)
+          .transaction
+          .void
       else Async[F].unit
 
       _ <- DBIOAction
@@ -1014,7 +1017,7 @@ object RuntimeServiceInterp {
 
   private[service] def calculateAutopauseThreshold(autopauseEnabled: Option[Boolean],
                                                    autopauseThreshold: Option[Int],
-                                                   autoFreezeConfig: AutoFreezeConfig): Int = {
+                                                   autoFreezeConfig: AutoFreezeConfig): Int =
     autopauseEnabled match {
       case None =>
         autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
@@ -1024,7 +1027,6 @@ object RuntimeServiceInterp {
         if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
         else Math.max(autoPauseOffValue, autopauseThreshold.get)
     }
-  }
 }
 
 final case class PersistentDiskRequestResult(disk: PersistentDisk, creationNeeded: Boolean)

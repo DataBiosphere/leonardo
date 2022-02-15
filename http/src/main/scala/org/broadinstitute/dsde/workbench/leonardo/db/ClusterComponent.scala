@@ -587,14 +587,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
                                                dateAccessed: Instant)(implicit ec: ExecutionContext): DBIO[Int] =
     clusterQuery.getActiveClusterByNameMinimal(cloudContext, clusterName) flatMap {
       case Some(c) => clusterQuery.clearKernelFoundBusyDate(c.id, dateAccessed)
-      case None => DBIO.successful(0)
+      case None    => DBIO.successful(0)
     }
 
-  def updateAutopause(id: Long, autopauseThreshold: Int, autopauseEnabled: Boolean, dateAccessed: Instant): DBIO[Int] = {
+  def updateAutopause(id: Long, autopauseThreshold: Int, autopauseEnabled: Boolean, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.autopauseThreshold, c.autopauseEnabled, c.dateAccessed))
       .update((autopauseThreshold, autopauseEnabled, dateAccessed))
-  }
 
   def updateWelder(id: Long, welderImage: RuntimeImage, dateAccessed: Instant)(
     implicit ec: ExecutionContext
