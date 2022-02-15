@@ -85,6 +85,18 @@ FILE=/var/certs/jupyter-server.crt
 USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
+if [ "${GPU_ENABLED}" == "true" ] ; then
+  log 'Installing GPU driver...'
+  cos-extensions install gpu
+  mount --bind /var/lib/nvidia /var/lib/nvidia
+  mount -o remount,exec /var/lib/nvidia
+
+  # Containers will usually restart just fine. But when gpu is enabled,
+  # jupyter container will fail to start until the appropriate volume/device exists.
+  # Hence restart jupyter container here
+  docker restart jupyter-server
+fi
+
 # https://broadworkbench.atlassian.net/browse/IA-3186
 # This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
 # a dedicated flag that distinguishes gce and dataproc. But this will do for now
@@ -214,21 +226,6 @@ validateCert ${CERT_DIRECTORY}
 
 JUPYTER_HOME=/etc/jupyter
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
-
-# Make this run conditionally
-if [ "${GPU_ENABLED}" == "true" ] ; then
-  log 'Installing GPU driver...'
-  cos-extensions install gpu
-  mount --bind /var/lib/nvidia /var/lib/nvidia
-  mount -o remount,exec /var/lib/nvidia
-
-  # Containers will usually restart just fine. But when gpu is enabled,
-  # jupyter container will fail to start until the appropriate volume/device exists.
-  # Hence restart jupyter container here
-  docker restart jupyter-server
-  retry 3 docker exec -d jupyter-server /etc/jupyter/scripts/run-jupyter.sh ${NOTEBOOKS_DIR}
-fi
-
 
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
