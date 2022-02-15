@@ -46,7 +46,6 @@ import org.broadinstitute.dsp._
 import org.http4s.Uri
 
 import java.util.Base64
-
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 
 import scala.concurrent.ExecutionContext
@@ -1279,6 +1278,7 @@ class GKEInterpreter[F[_]](
         nodepoolBuilder.setConfig(
           NodeConfig
             .newBuilder()
+            .setTags(0, config.vpcNetworkTag.value)
             .setMachineType(nodepool.machineType.value)
             .setServiceAccount(sa)
         )
@@ -1287,6 +1287,7 @@ class GKEInterpreter[F[_]](
           NodeConfig
             .newBuilder()
             .setMachineType(nodepool.machineType.value)
+            .setTags(0, config.vpcNetworkTag.value)
         )
     }
 
@@ -1312,6 +1313,8 @@ class GKEInterpreter[F[_]](
     googleProject: GoogleProject,
     projectLabels: Option[Map[String, String]]
   ): com.google.api.services.container.model.NodePool = {
+    import com.google.api.services.container.model.NodeConfig
+    import scala.jdk.CollectionConverters._
     val serviceAccount = getNodepoolServiceAccount(projectLabels, googleProject)
 
     val legacyGoogleNodepool = new com.google.api.services.container.model.NodePool()
@@ -1326,12 +1329,14 @@ class GKEInterpreter[F[_]](
         legacyGoogleNodepool.setConfig(
           new com.google.api.services.container.model.NodeConfig()
             .setMachineType(nodepool.machineType.value)
+            .setTags(List(config.vpcNetworkTag.value).asJava)
             .setServiceAccount(sa)
         )
       case _ =>
         legacyGoogleNodepool.setConfig(
           new com.google.api.services.container.model.NodeConfig()
             .setMachineType(nodepool.machineType.value)
+            .setTags(List(config.vpcNetworkTag.value).asJava)
         )
     }
 
@@ -1630,7 +1635,8 @@ final case class DeleteNodepoolResult(nodepoolId: NodepoolLeoId,
                                       getAppResult: GetAppResult
 )
 
-final case class GKEInterpreterConfig(terraAppSetupChartConfig: TerraAppSetupChartConfig,
+final case class GKEInterpreterConfig(vpcNetworkTag: NetworkTag,
+                                      terraAppSetupChartConfig: TerraAppSetupChartConfig,
                                       ingressConfig: KubernetesIngressConfig,
                                       galaxyAppConfig: GalaxyAppConfig,
                                       cromwellAppConfig: CromwellAppConfig,
