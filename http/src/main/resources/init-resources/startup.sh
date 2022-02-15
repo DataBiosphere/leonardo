@@ -119,12 +119,6 @@ then
 
     # (1/6/22) Restart Jupyter Container to reset `NOTEBOOKS_DIR` for existing runtimes. This code can probably be removed after a year
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
-#        # Loop to wait for jupyter container to come up; This is only needed when it's a GPU enabled VM in reality
-#        until [ "`docker inspect -f {{.State.Running}} $JUPYTER_SERVER_NAME`"=="true" ]; do
-#            echo "Waiting for jupyter-server to come up"
-#            sleep 0.1;
-#        done;
-
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
         # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
