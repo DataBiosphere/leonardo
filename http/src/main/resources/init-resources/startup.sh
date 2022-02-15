@@ -108,6 +108,10 @@ then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+        # Loop to wait for jupyter container to come up; This is only needed when it's a GPU enabled VM in reality
+        until [ "`docker inspect -f {{.State.Running}} $JUPYTER_SERVER_NAME`"=="true" ]; do
+            sleep 0.1;
+        done;
         # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
         # then all jupyter related files (.jupyter, .local) and things like bash history etc all lives under $HOME. The home diretory change will
         # make it so that next time this runtime starts up, PD will be mapped to $HOME, but this means that the previous files under $HOME (.jupyter, .local etc)
