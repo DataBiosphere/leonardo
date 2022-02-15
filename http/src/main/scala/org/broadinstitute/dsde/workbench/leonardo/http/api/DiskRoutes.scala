@@ -256,5 +256,3 @@ object DiskRoutes {
   )
 
 }
-
-final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)

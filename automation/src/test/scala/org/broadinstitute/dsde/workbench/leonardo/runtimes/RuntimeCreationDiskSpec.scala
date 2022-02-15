@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DiskName, Go
 import org.broadinstitute.dsde.workbench.leonardo.DiskModelGenerators._
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoApiClient._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest}
+import org.broadinstitute.dsde.workbench.leonardo.http.{PersistentDiskRequest, RuntimeConfigRequest, UpdateDiskRequest}
 import org.broadinstitute.dsde.workbench.leonardo.notebooks.{NotebookTestUtils, Python3}
 import org.http4s.client.Client
 import org.http4s.Status
@@ -165,7 +165,8 @@ class RuntimeCreationDiskSpec
     val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
     val diskName = genDiskName.sample.get
-    val diskSize = genDiskSize.sample.get
+    val diskSize = DiskSize(110)
+    val newDiskSize = DiskSize(150)
 
     val res = dependencies.use { dep =>
       implicit val client = dep.httpClient
@@ -219,19 +220,29 @@ class RuntimeCreationDiskSpec
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeName, false)
+        _ <- LeonardoApiClient.patchDisk(googleProject, diskName, UpdateDiskRequest(Map.empty, newDiskSize))
+        _ <- IO.sleep(5 seconds)
 
         // Creating new runtime with existing disk should have test.txt file and user installed package
         runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntime2Request)
         clusterCopyWithData = ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData)
         _ <- IO(withWebDriver { implicit driver =>
-          withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
-            val persistedData =
-              """! cat /home/jupyter/test.txt""".stripMargin
-            notebookPage.executeCell(persistedData).get should include("this should save")
-            val persistedPackage = "! pip show beautifulSoup4"
-            notebookPage.executeCell(persistedPackage).get should include(
-              "/home/jupyter/.local/lib/python3.7/site-packages"
-            )
+          withNewNotebook(clusterCopyWithData, Python3) {
+            notebookPage =>
+              val persistedData =
+                """! cat /home/jupyter/test.txt""".stripMargin
+              notebookPage.executeCell(persistedData).get should include("this should save")
+              val persistedPackage = "! pip show beautifulSoup4"
+              notebookPage.executeCell(persistedPackage).get should include(
+                "/home/jupyter/.local/lib/python3.7/site-packages"
+              )
+
+              val res = notebookPage
+                .executeCell(
+                  "! df -h --output=size $HOME"
+                )
+                .get
+              res should include("148G")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)

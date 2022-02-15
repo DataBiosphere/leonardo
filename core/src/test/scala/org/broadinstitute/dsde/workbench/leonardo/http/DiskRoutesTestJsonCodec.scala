@@ -84,4 +84,9 @@ object DiskRoutesTestJsonCodec {
       labels
     )
   }
+
+  implicit val updateDiskRequestEncoder: Encoder[UpdateDiskRequest] = Encoder.forProduct2(
+    "labels",
+    "size"
+  )(x => UpdateDiskRequest.unapply(x).get)
 }
