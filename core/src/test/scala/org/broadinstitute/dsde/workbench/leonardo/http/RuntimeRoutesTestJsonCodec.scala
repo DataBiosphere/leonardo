@@ -142,7 +142,7 @@ object RuntimeRoutesTestJsonCodec {
     (
       x.updatedRuntimeConfig,
       x.allowStop,
-      x.updateAutopauseEnabled.getOrElse(false),
+      x.updateAutopauseEnabled,
       x.updateAutopauseThreshold.map(_.toMinutes)
     )
   )
