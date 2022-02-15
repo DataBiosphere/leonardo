@@ -85,7 +85,6 @@ FILE=/var/certs/jupyter-server.crt
 USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
 
-# Make this run conditionally
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
   cos-extensions install gpu
