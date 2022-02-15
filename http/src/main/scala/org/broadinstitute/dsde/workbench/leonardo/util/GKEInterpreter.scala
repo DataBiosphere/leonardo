@@ -32,6 +32,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   PvName,
   ZoneName
 }
+import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{AppDAO, AppDescriptorDAO, CustomAppService}
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -46,8 +47,6 @@ import org.broadinstitute.dsp._
 import org.http4s.Uri
 
 import java.util.Base64
-import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -1313,7 +1312,6 @@ class GKEInterpreter[F[_]](
     googleProject: GoogleProject,
     projectLabels: Option[Map[String, String]]
   ): com.google.api.services.container.model.NodePool = {
-    import com.google.api.services.container.model.NodeConfig
     import scala.jdk.CollectionConverters._
     val serviceAccount = getNodepoolServiceAccount(projectLabels, googleProject)
 
