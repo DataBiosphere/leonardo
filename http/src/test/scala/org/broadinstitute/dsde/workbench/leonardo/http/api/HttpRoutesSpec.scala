@@ -99,7 +99,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "get a runtime id1" in {
+  it should "get a runtime" in {
     Get("/api/google/v1/runtimes/googleProject/runtime1") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
       responseAs[GetRuntimeResponse].id shouldBe CommonTestData.testCluster.id

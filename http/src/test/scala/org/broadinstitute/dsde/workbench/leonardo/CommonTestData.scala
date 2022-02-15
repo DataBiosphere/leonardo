@@ -314,8 +314,8 @@ object CommonTestData {
     errors = List.empty,
     userJupyterExtensionConfig =
       Some(UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://bucket-name/extension"))),
-    autopauseThreshold = autopauseThreshold,
     autopauseEnabled = true,
+    autopauseThreshold = autopauseThreshold,
     defaultClientId = Some("clientId"),
     allowStop = false,
     runtimeImages = Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage),
