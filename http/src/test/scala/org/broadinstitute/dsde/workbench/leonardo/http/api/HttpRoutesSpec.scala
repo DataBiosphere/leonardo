@@ -7,9 +7,9 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
-import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -22,8 +22,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCode
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -625,16 +625,6 @@ class HttpRoutesSpec
 }
 
 object HttpRoutesSpec {
-  implicit val updateDiskRequestEncoder: Encoder[UpdateDiskRequest] = Encoder.forProduct2(
-    "labels",
-    "size"
-  )(x =>
-    (
-      x.labels,
-      x.size
-    )
-  )
-
   implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse2] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]

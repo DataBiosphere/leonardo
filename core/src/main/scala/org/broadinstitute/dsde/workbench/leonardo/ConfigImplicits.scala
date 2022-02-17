@@ -5,8 +5,8 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import pureconfig.error.ExceptionThrown
-
 import java.nio.file.{Path, Paths}
+import org.http4s.Uri
 
 object ConfigImplicits {
   implicit val pathConfigReader: ConfigReader[Path] =
@@ -19,8 +19,23 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.map(s => ZoneName(s))
   implicit val diskTypeConfigReader: ConfigReader[DiskType] =
     ConfigReader.stringConfigReader.map(s => DiskType.stringToObject(s))
-  implicit val diskDiszeConfigReader: ConfigReader[DiskSize] =
+  implicit val diskSizeConfigReader: ConfigReader[DiskSize] =
     ConfigReader.intConfigReader.map(s => DiskSize(s))
   implicit val blockSizeConfigReader: ConfigReader[BlockSize] =
     ConfigReader.intConfigReader.map(s => BlockSize(s))
+
+  implicit val cidrIpConfigReader: ConfigReader[CidrIP] =
+    ConfigReader.stringConfigReader.map(s => CidrIP(s))
+
+  implicit val clientIdConfigReader: ConfigReader[ClientId] =
+    ConfigReader.stringConfigReader.map(s => ClientId(s))
+  implicit val clientSecretConfigReader: ConfigReader[ClientSecret] =
+    ConfigReader.stringConfigReader.map(s => ClientSecret(s))
+  implicit val tentantIdConfigReader: ConfigReader[ManagedAppTenantId] =
+    ConfigReader.stringConfigReader.map(s => ManagedAppTenantId(s))
+  implicit val uriConfigReader: ConfigReader[Uri] =
+    ConfigReader.stringConfigReader.emap(s =>
+      Either.catchNonFatal(Uri.unsafeFromString(s)).leftMap(ExceptionThrown.apply)
+    )
+
 }

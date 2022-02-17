@@ -56,7 +56,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       googleIamDao,
       MockGoogleDiskService,
       MockAppDescriptorDAO,
-      nodepoolLock
+      nodepoolLock,
+      FakeGoogleResourceService
     )
 
   "GKEInterpreter" should "create a nodepool with autoscaling" in isolatedDbTest {
@@ -67,10 +68,14 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       .copy(autoscalingEnabled = true,
             autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
       .save()
-    val googleNodepool = gkeInterp.buildGoogleNodepool(savedNodepool1)
+    val googleNodepool =
+      gkeInterp.buildGoogleNodepool(savedNodepool1,
+                                    savedCluster1.googleProject,
+                                    Some(Map("gke-default-sa" -> "gke-node-default-sa")))
     googleNodepool.getAutoscaling.getEnabled shouldBe true
     googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
     googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
+    googleNodepool.getConfig.getServiceAccount shouldBe s"gke-node-default-sa@${savedCluster1.googleProject.value}.iam.gserviceaccount.com"
   }
 
   it should "get a helm auth context" in {
@@ -239,7 +244,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         googleIamDao,
         MockGoogleDiskService,
         MockAppDescriptorDAO,
-        nodepoolLock
+        nodepoolLock,
+        FakeGoogleResourceService
       )
 
     val res = for {

@@ -104,6 +104,7 @@ object DataAccess {
       TableQuery[ClusterImageTable].delete andThen
       TableQuery[ScopeTable].delete andThen
       TableQuery[PatchTable].delete andThen
+      TableQuery[RuntimeControlledResourceTable].delete andThen
       TableQuery[ClusterTable].delete andThen
       RuntimeConfigQueries.runtimeConfigs.delete andThen
       persistentDiskQuery.nullifyDiskIds andThen

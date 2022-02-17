@@ -36,7 +36,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   PersistentDiskMonitorConfig,
   PollMonitorConfig
 }
-
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.{
   DataprocInterpreterConfig,
   GceInterpreterConfig
@@ -47,8 +46,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
-
 import java.nio.file.{Path, Paths}
+
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -807,4 +806,5 @@ object Config {
       proxyConfig,
       gkeGalaxyDiskConfig
     )
+
 }

@@ -243,6 +243,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
               Right(
                 LeoLenses.runtimeConfigPrism.getOption(rtConfig).get: RuntimeConfigInCreateRuntimeMessage
               )
+            case _: RuntimeConfig.AzureVmConfig =>
+              throw AzureUnimplementedException("Azure are not yet handled with existing monitor at boot code")
           }
           rtConfigInMessage <- F.fromEither(r.leftMap(s => MonitorAtBootException(s, traceId)))
         } yield {

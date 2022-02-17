@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package db
 
 import java.time.Instant
+
 import io.circe.Printer
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{
@@ -26,8 +27,8 @@ import org.broadinstitute.dsp.Release
 import org.http4s.Uri
 import slick.jdbc.MySQLProfile
 import slick.jdbc.MySQLProfile.api._
-
 import java.nio.file.{Path, Paths}
+import java.util.UUID
 
 private[leonardo] object LeoProfile extends MySQLProfile {
   final val dummyDate: Instant = Instant.ofEpochMilli(1000)
@@ -266,6 +267,16 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         _.asString,
         s => GpuType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid gpuType $s"))
       )
+
+    implicit val wsmResourceTypeColumnType: BaseColumnType[WsmResourceType] =
+      MappedColumnType.base[WsmResourceType, String](
+        _.toString,
+        s => WsmResourceType.stringToObject.getOrElse(s, throw ColumnDecodingException(s"invalid wsmResourceType $s"))
+      )
+
+    implicit val wsmControlledResourceIdColumnType: BaseColumnType[WsmControlledResourceId] =
+      MappedColumnType
+        .base[WsmControlledResourceId, String](_.value.toString, s => WsmControlledResourceId(UUID.fromString(s)))
 
   }
 

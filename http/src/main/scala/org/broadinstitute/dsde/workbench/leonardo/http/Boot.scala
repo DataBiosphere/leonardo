@@ -62,11 +62,11 @@ import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
-
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -264,8 +264,15 @@ object Boot extends IOApp {
             googleDependencies.googleIamDAO,
             googleDependencies.googleDiskService,
             appDependencies.appDescriptorDAO,
-            appDependencies.nodepoolLock
+            appDependencies.nodepoolLock,
+            googleDependencies.googleResourceService
           )
+
+          val azureAlg = new AzureInterpreter[IO](ConfigReader.appConfig.azure.runtimeDefaults,
+                                                  ConfigReader.appConfig.azure.monitor,
+                                                  appDependencies.asyncTasksQueue,
+                                                  appDependencies.wsmDAO,
+                                                  appDependencies.computeManagerDao)
 
           val pubsubSubscriber =
             new LeoPubsubMessageSubscriber[IO](
@@ -275,7 +282,8 @@ object Boot extends IOApp {
               googleDiskService,
               googleDependencies.computePollOperation,
               appDependencies.authProvider,
-              gkeAlg
+              gkeAlg,
+              azureAlg
             )
 
           val autopauseMonitor = AutopauseMonitor(
@@ -395,6 +403,8 @@ object Boot extends IOApp {
       appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientWithLogging)
       dockerDao = HttpDockerDAO[F](httpClientWithRetryAndLogging)
       appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithRetryAndLogging)
+      wsmDao = new HttpWsmDao[F](httpClientWithRetryAndLogging, ConfigReader.appConfig.azure.wsm)
+      computeManagerDao = new HttpComputerManagerDao[F](ConfigReader.appConfig.azure.appRegistration)
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
@@ -552,6 +562,8 @@ object Boot extends IOApp {
       dockerDao,
       jupyterDao,
       rstudioDAO,
+      wsmDao,
+      computeManagerDao,
       serviceAccountProvider,
       authProvider,
       semaphore,
@@ -611,6 +623,8 @@ final case class AppDependencies[F[_]](
   dockerDAO: HttpDockerDAO[F],
   jupyterDAO: HttpJupyterDAO[F],
   rStudioDAO: RStudioDAO[F],
+  wsmDAO: HttpWsmDao[F],
+  computeManagerDao: ComputeManagerDao[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: SamAuthProvider[F],
   semaphore: Semaphore[F],

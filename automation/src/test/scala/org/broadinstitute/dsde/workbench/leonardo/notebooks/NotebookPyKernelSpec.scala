@@ -54,7 +54,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             // user installed packages should be in directory where PD is mounted
             val getFuzzyWuzzyLocation = "! pip3 show fuzzywuzzy"
             notebookPage.executeCell(getFuzzyWuzzyLocation, cellNumberOpt = Some(1)).get should include(
-              "/home/jupyter/packages"
+              "/home/jupyter/.local/lib/python3.7/site-packages"
             )
           }
         }

@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   tracedRetryF,
   DiskName,
   GoogleDiskService,
+  GoogleResourceService,
   KubernetesClusterNotFoundException,
   PvName,
   ZoneName
@@ -63,7 +64,8 @@ class GKEInterpreter[F[_]](
   googleIamDAO: GoogleIamDAO,
   googleDiskService: GoogleDiskService[F],
   appDescriptorDAO: AppDescriptorDAO[F],
-  nodepoolLock: KeyLock[F, KubernetesClusterId]
+  nodepoolLock: KeyLock[F, KubernetesClusterId],
+  googleResourceService: GoogleResourceService[F]
 )(implicit val executionContext: ExecutionContext, logger: StructuredLogger[F], dbRef: DbReference[F], F: Async[F])
     extends GKEAlgebra[F] {
 
@@ -87,9 +89,10 @@ class GKEInterpreter[F[_]](
       )
 
       // Get nodepools to pass in the create cluster request
+      projectLabels <- googleResourceService.getLabels(params.googleProject)
       nodepools = dbCluster.nodepools
         .filter(n => params.nodepoolsToCreate.contains(n.id))
-        .map(buildLegacyGoogleNodepool)
+        .map(np => buildLegacyGoogleNodepool(np, params.googleProject, projectLabels))
 
       _ <- if (nodepools.size != params.nodepoolsToCreate.size)
         F.raiseError[Unit](
@@ -250,9 +253,10 @@ class GKEInterpreter[F[_]](
         s"Beginning nodepool creation for nodepool ${dbNodepool.nodepoolName.value} in cluster ${dbCluster.getGkeClusterId.toString}"
       )
 
+      projectLabels <- googleResourceService.getLabels(params.googleProject)
       req = KubernetesCreateNodepoolRequest(
         dbCluster.getGkeClusterId,
-        buildGoogleNodepool(dbNodepool)
+        buildGoogleNodepool(dbNodepool, params.googleProject, projectLabels)
       )
 
       operationOpt <- nodepoolLock.withKeyLock(dbCluster.getGkeClusterId) {
@@ -1216,14 +1220,21 @@ class GKEInterpreter[F[_]](
 
     } yield helmAuthContext
 
-  private[util] def buildGoogleNodepool(nodepool: Nodepool): com.google.container.v1.NodePool = {
+  private[util] def getNodepoolServiceAccount(projectLabels: Option[Map[String, String]],
+                                              googleProject: GoogleProject): Option[String] =
+    projectLabels.flatMap { x =>
+      x.get("gke-default-sa").map(v => s"${v}@${googleProject.value}.iam.gserviceaccount.com")
+    }
+
+  private[util] def buildGoogleNodepool(
+    nodepool: Nodepool,
+    googleProject: GoogleProject,
+    projectLabels: Option[Map[String, String]]
+  ): com.google.container.v1.NodePool = {
+    val serviceAccount = getNodepoolServiceAccount(projectLabels, googleProject)
+
     val nodepoolBuilder = NodePool
       .newBuilder()
-      .setConfig(
-        NodeConfig
-          .newBuilder()
-          .setMachineType(nodepool.machineType.value)
-      )
       .setInitialNodeCount(nodepool.numNodes.amount)
       .setName(nodepool.nodepoolName.value)
       .setManagement(
@@ -1233,42 +1244,79 @@ class GKEInterpreter[F[_]](
           .setAutoRepair(true)
       )
 
-    val builderWithAutoscaling = nodepool.autoscalingConfig.fold(nodepoolBuilder)(config =>
+    val nodepoolBuilderWithSa = serviceAccount match {
+      case Some(sa) =>
+        nodepoolBuilder.setConfig(
+          NodeConfig
+            .newBuilder()
+            .setMachineType(nodepool.machineType.value)
+            .setServiceAccount(sa)
+        )
+      case _ =>
+        nodepoolBuilder.setConfig(
+          NodeConfig
+            .newBuilder()
+            .setMachineType(nodepool.machineType.value)
+        )
+    }
+
+    val builderWithAutoscaling = nodepool.autoscalingConfig.fold(nodepoolBuilderWithSa)(config =>
       nodepool.autoscalingEnabled match {
         case true =>
-          nodepoolBuilder.setAutoscaling(
+          nodepoolBuilderWithSa.setAutoscaling(
             NodePoolAutoscaling
               .newBuilder()
               .setEnabled(true)
               .setMinNodeCount(config.autoscalingMin.amount)
               .setMaxNodeCount(config.autoscalingMax.amount)
           )
-        case false => nodepoolBuilder
+        case false => nodepoolBuilderWithSa
       }
     )
 
     builderWithAutoscaling.build()
   }
 
-  private[util] def buildLegacyGoogleNodepool(nodepool: Nodepool): com.google.api.services.container.model.NodePool = {
+  private[util] def buildLegacyGoogleNodepool(
+    nodepool: Nodepool,
+    googleProject: GoogleProject,
+    projectLabels: Option[Map[String, String]]
+  ): com.google.api.services.container.model.NodePool = {
+    val serviceAccount = getNodepoolServiceAccount(projectLabels, googleProject)
+
     val legacyGoogleNodepool = new com.google.api.services.container.model.NodePool()
-      .setConfig(new com.google.api.services.container.model.NodeConfig().setMachineType(nodepool.machineType.value))
       .setInitialNodeCount(nodepool.numNodes.amount)
       .setName(nodepool.nodepoolName.value)
       .setManagement(
         new com.google.api.services.container.model.NodeManagement().setAutoUpgrade(true).setAutoRepair(true)
       )
 
-    nodepool.autoscalingConfig.fold(legacyGoogleNodepool)(config =>
+    val legacyGoogleNodepoolWithSa = serviceAccount match {
+      case Some(sa) => {
+        legacyGoogleNodepool.setConfig(
+          new com.google.api.services.container.model.NodeConfig()
+            .setMachineType(nodepool.machineType.value)
+            .setServiceAccount(sa)
+        )
+      }
+      case _ => {
+        legacyGoogleNodepool.setConfig(
+          new com.google.api.services.container.model.NodeConfig()
+            .setMachineType(nodepool.machineType.value)
+        )
+      }
+    }
+
+    nodepool.autoscalingConfig.fold(legacyGoogleNodepoolWithSa)(config =>
       nodepool.autoscalingEnabled match {
         case true =>
-          legacyGoogleNodepool.setAutoscaling(
+          legacyGoogleNodepoolWithSa.setAutoscaling(
             new com.google.api.services.container.model.NodePoolAutoscaling()
               .setEnabled(true)
               .setMinNodeCount(config.autoscalingMin.amount)
               .setMaxNodeCount(config.autoscalingMax.amount)
           )
-        case false => legacyGoogleNodepool
+        case false => legacyGoogleNodepoolWithSa
       }
     )
   }
