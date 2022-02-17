@@ -231,6 +231,15 @@ fi
 
 mount -t ext4 -O discard,defaults /dev/${DISK_DEVICE_ID} ${WORK_DIRECTORY}
 
+# Resize persistent disk if needed.
+# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
+# a dedicated flag that distinguishes gce and dataproc. But this will do for now
+# If it's GCE, we resize the PD. Dataproc doesn't have PD
+if [ -f "/var/certs/jupyter-server.crt" ]; then
+  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+  resize2fs /dev/${DISK_DEVICE_ID}
+fi
+
 # done persistent disk setup
 STEP_TIMINGS+=($(date +%s))
 
@@ -541,12 +550,3 @@ log 'All done!'
 ELAPSED_TIME=$(($END_TIME - $START_TIME))
 log "gce-init.sh took $(display_time $ELAPSED_TIME)"
 log "Step timings: ${STEP_TIMINGS[@]}"
-
-# Resize persistent disk if needed.
-# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
-# a dedicated flag that distinguishes gce and dataproc. But this will do for now
-# If it's GCE, we resize the PD. Dataproc doesn't have PD
-if [ -f "/var/certs/jupyter-server.crt" ]; then
-  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-  resize2fs /dev/${DISK_DEVICE_ID}
-fi
