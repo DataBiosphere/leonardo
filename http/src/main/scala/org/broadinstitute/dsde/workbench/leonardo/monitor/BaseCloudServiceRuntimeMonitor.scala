@@ -280,12 +280,19 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     monitorContext: MonitorContext
   )(implicit ct: Ask[F, AppContext]): F[CheckResult] =
     for {
-      runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig(monitorContext.runtimeId)
-      next <- runtimeAndRuntimeConfig.runtime.status match {
+      statusOpt <- clusterQuery.getClusterStatus(monitorContext.runtimeId).transaction
+      status <- Sync[F].fromEither(
+        statusOpt.toRight(new Exception(s"Cluster with id ${monitorContext.runtimeId} not found in the database"))
+      )
+      next <- status match {
         case status if status.isMonitored =>
-          logger.info(monitorContext.loggingContext)(
-            s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
-          ) >> handleCheck(monitorContext, runtimeAndRuntimeConfig)
+          for {
+            runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig(monitorContext.runtimeId)
+            _ <- logger.info(monitorContext.loggingContext)(
+              s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
+            )
+            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig)
+          } yield res
         case _ =>
           F.pure(((), None): CheckResult)
       }

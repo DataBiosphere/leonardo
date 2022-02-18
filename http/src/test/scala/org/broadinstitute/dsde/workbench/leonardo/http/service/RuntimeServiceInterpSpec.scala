@@ -260,7 +260,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           request
         )
         .attempt
-      runtime <- clusterQuery.getActiveClusterByName(cloudContext, runtimeName).transaction
+      runtime <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName).transaction
       _ <- publisherQueue.take //dequeue the message so that it doesn't affect other tests
     } yield {
       r shouldBe Right(())
@@ -440,18 +440,18 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .attempt
 
       runtimeOpt1 <- clusterQuery
-        .getActiveClusterByName(cloudContext, runtimeName1)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName1)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime1 = runtimeOpt1.get
       welder1 = runtime1.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
 
-      runtimeOpt2 <- clusterQuery.getActiveClusterByName(cloudContext, runtimeName2).transaction
+      runtimeOpt2 <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName2).transaction
       runtime2 = runtimeOpt2.get
       welder2 = runtime2.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
 
-      runtimeOpt3 <- clusterQuery.getActiveClusterByName(cloudContext, runtimeName3).transaction
+      runtimeOpt3 <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName3).transaction
       runtime3 = runtimeOpt3.get
       welder3 = runtime3.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
@@ -500,13 +500,13 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .attempt
 
       runtimeOpt1 <- clusterQuery
-        .getActiveClusterByName(cloudContext, runtimeName1)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName1)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime1 = runtimeOpt1.get
       _ <- publisherQueue.take
 
       runtimeOpt2 <- clusterQuery
-        .getActiveClusterByName(cloudContext, runtimeName2)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName2)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime2 = runtimeOpt2.get
       _ <- publisherQueue.take

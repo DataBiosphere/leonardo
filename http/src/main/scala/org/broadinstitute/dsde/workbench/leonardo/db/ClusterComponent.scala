@@ -10,7 +10,11 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimeToAutoPause, RuntimeToMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  ExtraInfoForCreateRuntime,
+  RuntimeToAutoPause,
+  RuntimeToMonitor
+}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -234,18 +238,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     } yield (cluster, image)
   }
 
-  def fullClusterQueryByUniqueKey(cloudContext: CloudContext,
-                                  clusterName: RuntimeName,
-                                  destroyedDateOpt: Option[Instant]) = {
-    val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
-    val baseQuery = clusterQuery
-      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
-      .filter(_.runtimeName === clusterName)
-      .filter(_.destroyedDate === destroyedDate)
-
-    fullClusterQuery(baseQuery)
-  }
-
   def getRuntimeQueryByUniqueKey(cloudContext: CloudContext,
                                  clusterName: RuntimeName,
                                  destroyedDateOpt: Option[Instant]) = {
@@ -281,7 +273,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   private def fullClusterQueryById(id: Long) =
     fullClusterQuery(findByIdQuery(id))
 
-  private def fullClusterQuery(
+  private[leonardo] def fullClusterQuery(
     baseClusterQuery: Query[ClusterTable, ClusterRecord, Seq]
   ): Query[(ClusterTable,
             Rep[Option[InstanceTable]],
@@ -356,12 +348,38 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .on(_._1.id === _.clusterId)
       .result map { recs =>
       recs.map { rec =>
-        RuntimeToMonitor(rec._1._1.id,
-                         rec._1._2.runtimeConfig.cloudService,
-                         rec._1._1.status,
-                         rec._2.map(_.inProgress).getOrElse(false))
+        val asyncFileds = (rec._1._1.googleId, rec._1._1.operationName, rec._1._1.stagingBucket).mapN {
+          (googleId, operationName, stagingBucket) =>
+            AsyncRuntimeFields(googleId,
+                               OperationName(operationName),
+                               GcsBucketName(stagingBucket),
+                               rec._1._1.hostIp map IP)
+        }
+        RuntimeToMonitor(
+          rec._1._1.id,
+          rec._1._1.cloudContext,
+          rec._1._1.runtimeName,
+          rec._1._1.status,
+          rec._2.map(_.inProgress).getOrElse(false),
+          rec._1._2.runtimeConfig,
+          rec._1._1.serviceAccountInfo,
+          asyncFileds,
+          rec._1._1.auditInfo,
+          rec._1._1.userScriptUri,
+          rec._1._1.startUserScriptUri,
+          rec._1._1.defaultClientId,
+          rec._1._1.welderEnabled,
+          rec._1._1.customClusterEnvironmentVariables
+        )
       }
     }
+
+  def getExtraInfo(runtimeId: Long)(implicit ec: ExecutionContext): DBIO[ExtraInfoForCreateRuntime] =
+    for {
+      extention <- extensionQuery.getAllForCluster(runtimeId)
+      images <- clusterImageQuery.getAllImagesForCluster(runtimeId)
+      scopes <- scopeQuery.getAllForCluster(runtimeId)
+    } yield ExtraInfoForCreateRuntime(images.toSet, Some(extention), scopes)
 
   def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =
     clusterJoinClusterImageQuery.filter(_._1.status === (RuntimeStatus.Running: RuntimeStatus)).result map {
@@ -381,20 +399,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .filter(_.status inSetBind RuntimeStatus.activeStatuses)
       .length
       .result
-
-  // find* and get* methods do query the INSTANCE table
-
-  def getActiveClusterByName(cloudContext: CloudContext,
-                             name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
-    fullClusterQueryByUniqueKey(cloudContext, name, Some(dummyDate)).result map { recs =>
-      unmarshalFullCluster(recs).headOption
-    }
-
-  def getDeletingClusterByName(cloudContext: CloudContext,
-                               name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
-    fullClusterQueryByUniqueKey(cloudContext, name, Some(dummyDate)).filter {
-      _._1.status === (RuntimeStatus.Deleting: RuntimeStatus)
-    }.result map { recs => unmarshalFullCluster(recs).headOption }
 
   def getActiveClusterByNameMinimal(cloudContext: CloudContext,
                                     name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[Runtime]] = {
@@ -432,32 +436,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .filter(_.destroyedDate === dummyDate)
       .result
       .map(recs => recs.headOption.map(clusterRec => RuntimeSamResourceId(clusterRec.internalId)))
-
-  private[leonardo] def getIdByUniqueKey(cluster: Runtime)(implicit ec: ExecutionContext): DBIO[Option[Long]] =
-    getIdByUniqueKey(cluster.cloudContext, cluster.runtimeName, cluster.auditInfo.destroyedDate)
-
-  private[leonardo] def getIdByUniqueKey(
-    cloudContext: CloudContext,
-    clusterName: RuntimeName,
-    destroyedDateOpt: Option[Instant]
-  )(implicit ec: ExecutionContext): DBIO[Option[Long]] =
-    getClusterByUniqueKey(cloudContext, clusterName, destroyedDateOpt).map(_.map(_.id))
-
-  // Convenience method for tests, in several of which we define a cluster and later on need
-  // to retrieve its updated status, etc. but don't know its id to look up
-  private[leonardo] def getClusterByUniqueKey(
-    getClusterId: GetClusterKey
-  )(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
-    getClusterByUniqueKey(getClusterId.cloudContext, getClusterId.clusterName, getClusterId.destroyedDate)
-
-  private[leonardo] def getClusterByUniqueKey(
-    cloudContext: CloudContext,
-    clusterName: RuntimeName,
-    destroyedDateOpt: Option[Instant]
-  )(implicit ec: ExecutionContext): DBIO[Option[Runtime]] =
-    fullClusterQueryByUniqueKey(cloudContext, clusterName, destroyedDateOpt).result map { recs =>
-      unmarshalFullCluster(recs).headOption
-    }
 
   def getInitBucket(cloudContext: CloudContext,
                     name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[GcsPath]] =

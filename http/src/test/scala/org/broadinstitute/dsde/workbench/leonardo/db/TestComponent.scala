@@ -95,10 +95,43 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   protected def getClusterId(getClusterIdRequest: GetClusterKey): Long =
     getClusterId(getClusterIdRequest.cloudContext, getClusterIdRequest.clusterName, getClusterIdRequest.destroyedDate)
 
+  private def getIdByUniqueKey(
+    cloudContext: CloudContext,
+    clusterName: RuntimeName,
+    destroyedDateOpt: Option[Instant]
+  ): DBIO[Option[Long]] =
+    getClusterByUniqueKey(cloudContext, clusterName, destroyedDateOpt).map(_.map(_.id))
+
+  private[leonardo] def getClusterByUniqueKey(
+    cloudContext: CloudContext,
+    clusterName: RuntimeName,
+    destroyedDateOpt: Option[Instant]
+  ): DBIO[Option[Runtime]] = {
+    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+    fullClusterQueryByUniqueKey(cloudContext, clusterName, destroyedDateOpt).result map { recs =>
+      clusterQuery.unmarshalFullCluster(recs).headOption
+    }
+  }
+
+  def fullClusterQueryByUniqueKey(cloudContext: CloudContext,
+                                  clusterName: RuntimeName,
+                                  destroyedDateOpt: Option[Instant]) = {
+    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
+    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+
+    val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
+    val baseQuery = clusterQuery
+      .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
+      .filter(_.runtimeName === clusterName)
+      .filter(_.destroyedDate === destroyedDate)
+
+    clusterQuery.fullClusterQuery(baseQuery)
+  }
+
   protected def getClusterId(cloudContext: CloudContext,
                              clusterName: RuntimeName,
                              destroyedDateOpt: Option[Instant]): Long =
-    dbFutureValue(clusterQuery.getIdByUniqueKey(cloudContext, clusterName, destroyedDateOpt)).get
+    dbFutureValue(getIdByUniqueKey(cloudContext, clusterName, destroyedDateOpt)).get
 
   implicit class ClusterExtensions(cluster: Runtime) {
     def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Runtime =

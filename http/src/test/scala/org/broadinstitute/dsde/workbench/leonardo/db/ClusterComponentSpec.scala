@@ -5,19 +5,27 @@ import java.sql.SQLException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
-
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimePatchDetails, RuntimeToMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
+import slick.dbio.DBIO
 
 class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
+  def getActiveClusterByName(cloudContext: CloudContext, name: RuntimeName): DBIO[Option[Runtime]] = {
+    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+    fullClusterQueryByUniqueKey(cloudContext, name, Some(dummyDate)).result map { recs =>
+      clusterQuery.unmarshalFullCluster(recs).headOption
+    }
+  }
+
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue(clusterQuery.listWithLabels) shouldEqual Seq()
 
@@ -71,13 +79,13 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     )
 
     // instances are returned by get* methods
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster1.cloudContext, cluster1.runtimeName)) shouldEqual Some(
+    dbFutureValue(getActiveClusterByName(cluster1.cloudContext, cluster1.runtimeName)) shouldEqual Some(
       savedCluster1
     )
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster2.cloudContext, cluster2.runtimeName)) shouldEqual Some(
+    dbFutureValue(getActiveClusterByName(cluster2.cloudContext, cluster2.runtimeName)) shouldEqual Some(
       savedCluster2
     )
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster3.cloudContext, cluster3.runtimeName)) shouldEqual Some(
+    dbFutureValue(getActiveClusterByName(cluster3.cloudContext, cluster3.runtimeName)) shouldEqual Some(
       savedCluster3
     )
 
@@ -287,11 +295,11 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val expectedRuntimeToMonitor = List(
-      RuntimeToMonitor(savedCluster1.id, CloudService.Dataproc, RuntimeStatus.Starting, false),
-      RuntimeToMonitor(savedCluster3.id, CloudService.GCE, RuntimeStatus.Updating, false),
-      RuntimeToMonitor(savedCluster4.id, CloudService.GCE, RuntimeStatus.Creating, true)
+      savedCluster1.id,
+      savedCluster3.id,
+      savedCluster4.id
     )
-    dbFutureValue(clusterQuery.listMonitored) should contain theSameElementsAs expectedRuntimeToMonitor
+    dbFutureValue(clusterQuery.listMonitored).map(_.id) should contain theSameElementsAs expectedRuntimeToMonitor
   }
 
   it should "persist custom environment variables" in isolatedDbTest {
