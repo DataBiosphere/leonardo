@@ -10,7 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
-import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeToMonitor
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimeToAutoPause, RuntimeToMonitor}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
   GcsBucketName,
@@ -487,7 +487,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .result
       .map(recs => recs.headOption.flatten.flatMap(head => parseGcsPath(head).toOption))
 
-  def getClustersReadyToAutoFreeze(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] = {
+  def getClustersReadyToAutoFreeze(implicit ec: ExecutionContext): DBIO[Seq[RuntimeToAutoPause]] = {
     val now = SimpleFunction.nullary[Instant]("NOW")
     val tsdiff = SimpleFunction.ternary[String, Instant, Instant, Int]("TIMESTAMPDIFF")
     val minute = SimpleLiteral[String]("MINUTE")
@@ -497,7 +497,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .filter(record => tsdiff(minute, record.dateAccessed, now) >= record.autopauseThreshold)
       .filter(_.status inSetBind RuntimeStatus.stoppableStatuses)
 
-    fullClusterQuery(baseQuery).result map { recs => unmarshalFullCluster(recs) }
+    baseQuery.result map { recs =>
+      recs.map(r => RuntimeToAutoPause(r.id, r.runtimeName, r.cloudContext, r.kernelFoundBusyDate))
+    }
   }
 
   def markPendingDeletion(id: Long, dateAccessed: Instant): DBIO[Int] =

@@ -14,6 +14,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 /**
@@ -95,4 +96,11 @@ object AutopauseMonitor {
     ec: ExecutionContext
   ): AutopauseMonitor[F] =
     new AutopauseMonitor(config, jupyterDAO, publisherQueue)
+}
+
+final case class RuntimeToAutoPause(id: Long,
+                                    runtimeName: RuntimeName,
+                                    cloudContext: CloudContext,
+                                    kernelFoundBusyDate: Option[Instant]) {
+  def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
 }

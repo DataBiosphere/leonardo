@@ -199,12 +199,12 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
             autopauseThreshold = 0)
       .save()
 
-    val autoFreezeList = dbFutureValue(clusterQuery.getClustersReadyToAutoFreeze)
-    autoFreezeList should contain(runningCluster1)
+    val autoFreezeList = dbFutureValue(clusterQuery.getClustersReadyToAutoFreeze).map(_.id)
+    autoFreezeList should contain(runningCluster1.id)
     //cluster2 is already stopped
-    autoFreezeList should not contain stoppedCluster
-    autoFreezeList should not contain runningCluster2
-    autoFreezeList should not contain autopauseDisabledCluster
+    autoFreezeList should not contain stoppedCluster.id
+    autoFreezeList should not contain runningCluster2.id
+    autoFreezeList should not contain autopauseDisabledCluster.id
   }
 
   it should "get for dns cache" in isolatedDbTest {
