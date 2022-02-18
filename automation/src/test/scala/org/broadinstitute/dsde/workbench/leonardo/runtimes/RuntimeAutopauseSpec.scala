@@ -23,7 +23,7 @@ class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution
   "autopause should work" in { billingProject =>
     val runtimeName = randomClusterName
     val runtimeRequest =
-      LeonardoApiClient.defaultCreateRuntime2Request.copy(autopauseEnabled = Some(true),
+      LeonardoApiClient.defaultCreateRuntime2Request.copy(autopause = Some(true),
                                                           autopauseThreshold = Some(1 minute))
 
     withNewRuntime(billingProject, runtimeName, runtimeRequest) { runtime =>

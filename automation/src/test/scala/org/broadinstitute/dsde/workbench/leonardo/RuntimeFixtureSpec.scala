@@ -186,7 +186,7 @@ object RuntimeFixtureSpec {
       userScriptUri = None,
       startUserScriptUri = None,
       userJupyterExtensionConfig = None,
-      autopauseEnabled = None,
+      autopause = None,
       autopauseThreshold = None,
       defaultClientId = None,
       welderRegistry = welderRegistry,

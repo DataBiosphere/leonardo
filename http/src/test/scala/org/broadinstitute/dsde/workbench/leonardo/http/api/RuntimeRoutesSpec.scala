@@ -147,7 +147,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       userJupyterExtensionConfig = Some(
         UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://extension_bucket/extension_path"))
       ),
-      autopauseEnabled = None,
+      autopause = None,
       autopauseThreshold = None,
       toolDockerImage = None,
       welderRegistry = None,

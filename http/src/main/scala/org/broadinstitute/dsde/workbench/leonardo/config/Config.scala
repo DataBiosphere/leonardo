@@ -267,8 +267,6 @@ object Config {
 
   implicit private val autoFreezeConfigReader: ValueReader[AutoFreezeConfig] = ValueReader.relative { config =>
     AutoFreezeConfig(
-      config.getBoolean("enableAutoFreeze"),
-      toScalaDuration(config.getDuration("autoFreezeAfter")),
       toScalaDuration(config.getDuration("autoFreezeCheckScheduler")),
       toScalaDuration(config.getDuration("maxKernelBusyLimit"))
     )

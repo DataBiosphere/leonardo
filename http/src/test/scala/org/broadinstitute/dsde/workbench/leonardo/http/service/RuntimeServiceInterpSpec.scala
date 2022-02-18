@@ -96,9 +96,9 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "calculate autopause threshold properly" in {
-    calculateAutopauseThreshold(None, None, autoFreezeConfig) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    calculateAutopauseThreshold(None, None, autoFreezeConfig) shouldBe 30
     calculateAutopauseThreshold(Some(false), None, autoFreezeConfig) shouldBe autoPauseOffValue
-    calculateAutopauseThreshold(Some(true), None, autoFreezeConfig) shouldBe autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+    calculateAutopauseThreshold(Some(true), None, autoFreezeConfig) shouldBe 30
     calculateAutopauseThreshold(Some(true), Some(30), autoFreezeConfig) shouldBe 30
   }
 
@@ -789,7 +789,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       userJupyterExtensionConfig =
         Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
       defaultClientId = Some("ThisIsADefaultClientID"),
-      autopauseEnabled = Some(true),
+      autopause = Some(true),
       autopauseThreshold = Some(30 minutes)
     )
     runtimeService
