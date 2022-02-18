@@ -2104,6 +2104,7 @@ components:
         - runtimeConfig
         - status
         - labels
+        - autopause
         - autopauseThreshold
         - defaultClientId
         - scopes
@@ -2401,7 +2402,7 @@ components:
           deprecated: true
         runtimeConfig:
           $ref: "#/components/schemas/OneOfRuntimeConfig"
-        autopauseEnabled:
+        autopause:
           type: boolean
           description: Whether autopause feature is enabled for this specific cluster. If
             unset, autopause will be enabled and a system default threshold will
@@ -2519,7 +2520,7 @@ components:
           description: Whether leo should stop the runtime if it is necessary for the
             update. If false, an exception will be thrown in cases where a stop
             was required. Defaults to false.
-        autopauseEnabled:
+        autopause:
           type: boolean
           description: Whether autopause feature is enabled for this specific runtime.
         autopauseThreshold:

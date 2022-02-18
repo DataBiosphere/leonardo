@@ -81,7 +81,7 @@ object RuntimeRoutesTestJsonCodec {
     "startUserScriptUri",
     "runtimeConfig",
     "userJupyterExtensionConfig",
-    "autopauseEnabled",
+    "autopause",
     "autopauseThreshold",
     "defaultClientId",
     "toolDockerImage",
@@ -95,7 +95,7 @@ object RuntimeRoutesTestJsonCodec {
       x.startUserScriptUri,
       x.runtimeConfig,
       x.userJupyterExtensionConfig,
-      x.autopauseEnabled.getOrElse(false),
+      x.autopause.getOrElse(false),
       x.autopauseThreshold.map(_.toMinutes),
       x.defaultClientId,
       x.toolDockerImage,
@@ -136,13 +136,13 @@ object RuntimeRoutesTestJsonCodec {
   implicit val updateRuntimeRequestEncoder: Encoder[UpdateRuntimeRequest] = Encoder.forProduct4(
     "runtimeConfig",
     "allowStop",
-    "autopauseEnabled",
+    "autopause",
     "autopauseThreshold"
   )(x =>
     (
       x.updatedRuntimeConfig,
       x.allowStop,
-      x.updateAutopauseEnabled,
+      x.updateAutopause,
       x.updateAutopauseThreshold.map(_.toMinutes)
     )
   )
@@ -167,7 +167,7 @@ object RuntimeRoutesTestJsonCodec {
       jupyterStartUserScriptUri <- x.downField("jupyterStartUserScriptUri").as[Option[UserScriptPath]]
       errors <- x.downField("errors").as[List[RuntimeError]]
       userJupyterExtensionConfig <- x.downField("userJupyterExtensionConfig").as[Option[UserJupyterExtensionConfig]]
-      autopauseEnabled <- x.downField("autopauseEnabled").as[Boolean]
+      autopause <- x.downField("autopause").as[Boolean]
       autopauseThreshold <- x.downField("autopauseThreshold").as[Int]
       defaultClientId <- x.downField("defaultClientId").as[Option[String]]
       clusterImages <- x.downField("runtimeImages").as[Set[RuntimeImage]]
@@ -189,7 +189,7 @@ object RuntimeRoutesTestJsonCodec {
       jupyterStartUserScriptUri,
       errors,
       userJupyterExtensionConfig,
-      autopauseEnabled,
+      autopause,
       autopauseThreshold,
       defaultClientId,
       clusterImages,

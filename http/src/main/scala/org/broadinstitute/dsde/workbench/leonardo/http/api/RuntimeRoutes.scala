@@ -416,7 +416,7 @@ object RuntimeRoutes {
       sus <- c.downField("startUserScriptUri").as[Option[UserScriptPath]]
       rc <- c.downField("runtimeConfig").as[Option[RuntimeConfigRequest]]
       uje <- c.downField("userJupyterExtensionConfig").as[Option[UserJupyterExtensionConfig]]
-      a <- c.downField("autopauseEnabled").as[Option[Boolean]]
+      a <- c.downField("autopause").as[Option[Boolean]]
       apt <- c.downField("autopauseThreshold").as[Option[Int]]
       dc <- c.downField("defaultClientId").as[Option[String]]
       tdi <- c.downField("toolDockerImage").as[Option[ContainerImage]]
@@ -486,7 +486,7 @@ object RuntimeRoutes {
     for {
       rc <- x.downField("runtimeConfig").as[Option[UpdateRuntimeConfigRequest]]
       as <- x.downField("allowStop").as[Option[Boolean]]
-      ap <- x.downField("autopauseEnabled").as[Option[Boolean]]
+      ap <- x.downField("autopause").as[Option[Boolean]]
       at <- x.downField("autopauseThreshold").as[Option[Int]]
       ul <- x.downField("labelsToUpsert").as[Option[LabelMap]]
       dl <- x.downField("labelsToDelete").as[Option[Set[String]]]
@@ -547,7 +547,7 @@ object RuntimeRoutes {
       ("jupyterStartUserScriptUri", x.startUserScriptUri.asJson),
       ("errors", x.errors.asJson),
       ("userJupyterExtensionConfig", x.userJupyterExtensionConfig.asJson),
-      ("autopauseEnabled", x.autopauseEnabled.asJson),
+      ("autopause", x.autopause.asJson),
       ("autopauseThreshold", x.autopauseThreshold.asJson),
       ("defaultClientId", x.defaultClientId.asJson),
       ("runtimeImages", x.clusterImages.asJson),

@@ -531,17 +531,20 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         F.raiseError[Unit](RuntimeCannotBeUpdatedException(runtime.projectNameString, runtime.status))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       // Updating autopause is just a DB update, so we can do it here instead of sending a PubSub message
-      updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopauseEnabled,
+      updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopause,
                                                               req.updateAutopauseThreshold.map(_.toMinutes.toInt),
                                                               config.autoFreezeConfig)
 
+      // TODO make sure that this takes into account autopauseEnabled during testing
+      // test removing the or
       _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold
-               || runtime.autopauseEnabled != req.updateAutopauseEnabled.getOrElse(false))
+               || (runtime.autopauseThreshold != 0) != req.updateAutopause.getOrElse(false))
         clusterQuery
-          .updateAutopause(runtime.id, updatedAutopauseThreshold, req.updateAutopauseEnabled.getOrElse(false), ctx.now)
+          .updateAutopause(runtime.id, updatedAutopauseThreshold, ctx.now)
           .transaction
           .void
       else Async[F].unit
+      _ <- log.info(s"!!!!! ${runtime.autopauseThreshold != 0} | ${req.updateAutopause.getOrElse(false)}")
 
       _ <- DBIOAction
         .seq(
@@ -866,7 +869,7 @@ object RuntimeServiceInterp {
     val allLabels = req.labels ++ defaultLabels ++ req.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
 
     val autopauseThreshold = calculateAutopauseThreshold(
-      req.autopauseEnabled,
+      req.autopause,
       req.autopauseThreshold.map(_.toMinutes.toInt),
       config.autoFreezeConfig
     ) //TODO: use FiniteDuration for autopauseThreshold field in Cluster
@@ -903,7 +906,7 @@ object RuntimeServiceInterp {
       startUserScriptUri = req.startUserScriptUri,
       errors = List.empty,
       userJupyterExtensionConfig = req.userJupyterExtensionConfig,
-      autopauseEnabled = req.autopauseEnabled.getOrElse(false),
+      autopause = req.autopause.getOrElse(false),
       autopauseThreshold = autopauseThreshold,
       defaultClientId = req.defaultClientId,
       allowStop = false,
@@ -1015,17 +1018,18 @@ object RuntimeServiceInterp {
       }
     } yield disk
 
-  private[service] def calculateAutopauseThreshold(autopauseEnabled: Option[Boolean],
+  private[service] def calculateAutopauseThreshold(autopause: Option[Boolean],
                                                    autopauseThreshold: Option[Int],
                                                    autoFreezeConfig: AutoFreezeConfig): Int =
-    autopauseEnabled match {
+    autopause match {
       case None =>
-        autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+        autoPauseOffValue
       case Some(false) =>
         autoPauseOffValue
       case _ =>
-        if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        else Math.max(autoPauseOffValue, autopauseThreshold.get)
+        if (autopauseThreshold.isEmpty) 30 //TODO what behavior do we want when enabled but no threshold
+          // TODO make sure this behavior is still wanted
+        else autopauseThreshold.get
     }
 }
 

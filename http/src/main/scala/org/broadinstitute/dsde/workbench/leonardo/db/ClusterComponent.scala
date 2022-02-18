@@ -29,6 +29,7 @@ import java.sql.SQLDataException
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
+// TODO decide if we need to add autopause?
 final case class ClusterRecord(id: Long,
                                internalId: String,
                                runtimeName: RuntimeName,
@@ -44,7 +45,6 @@ final case class ClusterRecord(id: Long,
                                kernelFoundBusyDate: Option[Instant],
                                serviceAccountInfo: WorkbenchEmail,
                                stagingBucket: Option[String],
-                               autopauseEnabled: Boolean,
                                autopauseThreshold: Int,
                                defaultClientId: Option[String],
                                welderEnabled: Boolean,
@@ -75,7 +75,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def initBucket = column[Option[String]]("initBucket", O.Length(1024))
   def stagingBucket = column[Option[String]]("stagingBucket", O.Length(254))
   def dateAccessed = column[Instant]("dateAccessed", O.SqlType("TIMESTAMP(6)"))
-  def autopauseEnabled = column[Boolean]("autopauseEnabled")
   def autopauseThreshold = column[Int]("autopauseThreshold")
   def kernelFoundBusyDate = column[Option[Instant]]("kernelFoundBusyDate", O.SqlType("TIMESTAMP(6)"))
   def defaultClientId = column[Option[String]]("defaultClientId", O.Length(1024))
@@ -105,7 +104,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
       kernelFoundBusyDate,
       serviceAccount,
       stagingBucket,
-      autopauseEnabled,
       autopauseThreshold,
       defaultClientId,
       welderEnabled,
@@ -128,7 +126,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
             kernelFoundBusyDate,
             serviceAccountInfo,
             stagingBucket,
-            autopauseEnabled,
             autopauseThreshold,
             defaultClientId,
             welderEnabled,
@@ -163,7 +160,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           kernelFoundBusyDate,
           serviceAccountInfo,
           stagingBucket,
-          autopauseEnabled,
           autopauseThreshold,
           defaultClientId,
           welderEnabled,
@@ -200,7 +196,6 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
           c.kernelFoundBusyDate,
           c.serviceAccountInfo,
           c.stagingBucket,
-          c.autopauseEnabled,
           c.autopauseThreshold,
           c.defaultClientId,
           c.welderEnabled,
@@ -590,10 +585,10 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       case None    => DBIO.successful(0)
     }
 
-  def updateAutopause(id: Long, autopauseThreshold: Int, autopauseEnabled: Boolean, dateAccessed: Instant): DBIO[Int] =
+  def updateAutopause(id: Long, autopauseThreshold: Int, dateAccessed: Instant): DBIO[Int] =
     findByIdQuery(id)
-      .map(c => (c.autopauseThreshold, c.autopauseEnabled, c.dateAccessed))
-      .update((autopauseThreshold, autopauseEnabled, dateAccessed))
+      .map(c => (c.autopauseThreshold, c.dateAccessed))
+      .update((autopauseThreshold, dateAccessed))
 
   def updateWelder(id: Long, welderImage: RuntimeImage, dateAccessed: Instant)(
     implicit ec: ExecutionContext
@@ -629,7 +624,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.kernelFoundBusyDate,
       runtime.serviceAccount,
       runtime.asyncRuntimeFields.map(_.stagingBucket.value),
-      runtime.autopauseEnabled,
       runtime.autopauseThreshold,
       runtime.defaultClientId,
       runtime.welderEnabled,
@@ -765,7 +759,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       startUserScriptUri = clusterRecord.startUserScriptUri,
       errors = errors map clusterErrorQuery.unmarshallClusterErrorRecord,
       userJupyterExtensionConfig = extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
-      autopauseEnabled = clusterRecord.autopauseEnabled,
+      autopause = clusterRecord.autopauseThreshold != 0,
       autopauseThreshold = clusterRecord.autopauseThreshold,
       defaultClientId = clusterRecord.defaultClientId,
       allowStop = false,
