@@ -78,7 +78,8 @@ object BootSource {
 final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                              initBucket: GcsBucketName,
                                              bootSource: BootSource)
-final case class DeleteRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)
+final case class DeleteRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                     masterInstance: Option[DataprocInstance])
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                    now: Instant,

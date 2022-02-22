@@ -157,9 +157,9 @@ class LeoPubsubMessageSubscriberSpec
   val runningCluster = makeCluster(1).copy(
     serviceAccount = serviceAccount,
     asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),
-    status = RuntimeStatus.Running,
-    dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
+    status = RuntimeStatus.Running
   )
+  val runnningClusterInstances = List(masterInstance, workerInstance1, workerInstance2)
 
   val stoppedCluster = makeCluster(2).copy(serviceAccount = serviceAccount,
                                            asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(hostIp = None)),

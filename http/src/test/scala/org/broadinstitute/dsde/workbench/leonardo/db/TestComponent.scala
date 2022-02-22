@@ -8,6 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   App,
   CloudContext,
   CommonTestData,
+  DataprocInstance,
   DefaultNodepool,
   GcsPathUtils,
   KubernetesCluster,
@@ -134,31 +135,42 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     dbFutureValue(getIdByUniqueKey(cloudContext, clusterName, destroyedDateOpt)).get
 
   implicit class ClusterExtensions(cluster: Runtime) {
-    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)): Runtime =
+    def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId),
+             dataprocInstances: List[DataprocInstance] = List.empty): Runtime =
       dbFutureValue {
-        clusterQuery.save(
-          SaveCluster(
-            cluster,
-            Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
-            serviceAccountKeyId,
-            CommonTestData.defaultDataprocRuntimeConfig,
-            Instant.now
+        for {
+          saved <- clusterQuery.save(
+            SaveCluster(
+              cluster,
+              Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
+              serviceAccountKeyId,
+              CommonTestData.defaultDataprocRuntimeConfig,
+              Instant.now
+            )
           )
-        )
+          _ <- instanceQuery
+            .saveAllForCluster(saved.id, dataprocInstances)
+        } yield saved
+
       }
 
     def saveWithRuntimeConfig(
       runtimeConfig: RuntimeConfig,
-      serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId)
+      serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId),
+      dataprocInstances: List[DataprocInstance] = List.empty
     ): Runtime =
       dbFutureValue {
-        clusterQuery.save(
-          SaveCluster(cluster,
-                      Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
-                      serviceAccountKeyId,
-                      runtimeConfig,
-                      Instant.now)
-        )
+        for {
+          saved <- clusterQuery.save(
+            SaveCluster(cluster,
+                        Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
+                        serviceAccountKeyId,
+                        runtimeConfig,
+                        Instant.now)
+          )
+          _ <- instanceQuery
+            .saveAllForCluster(saved.id, dataprocInstances)
+        } yield saved
       }
   }
 

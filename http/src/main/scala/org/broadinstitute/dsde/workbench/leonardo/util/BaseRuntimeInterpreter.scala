@@ -158,9 +158,18 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(
         s"New machine config present. Changing machine type to ${params.machineType} for cluster ${params.runtimeAndRuntimeConfig.runtime.projectNameString}..."
       )
+      masterInstance <- params.runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
+        case CloudService.Dataproc =>
+          instanceQuery
+            .getMasterForCluster(params.runtimeAndRuntimeConfig.runtime.id)
+            .transaction
+            .map(_.some)
+        case _ => F.pure(none[DataprocInstance])
+      }
+
       // Update the machine type in Google
       _ <- setMachineTypeInGoogle(
-        SetGoogleMachineType(params.runtimeAndRuntimeConfig, params.machineType)
+        SetGoogleMachineType(params.runtimeAndRuntimeConfig, params.machineType, masterInstance)
       )
       // Update the DB
       _ <- dbRef.inTransaction {
@@ -249,4 +258,6 @@ final case class StartGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeCo
 
 final case class StopGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, isDataprocFullStop: Boolean)
 
-final case class SetGoogleMachineType(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, machineType: MachineTypeName)
+final case class SetGoogleMachineType(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                      machineType: MachineTypeName,
+                                      masterInstance: Option[DataprocInstance])

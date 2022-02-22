@@ -7,7 +7,6 @@ import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, RegionName, ZoneName}
-import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
@@ -33,7 +32,6 @@ final case class Runtime(id: Long,
                          userScriptUri: Option[UserScriptPath],
                          startUserScriptUri: Option[UserScriptPath],
                          errors: List[RuntimeError],
-                         dataprocInstances: Set[DataprocInstance],
                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                          autopauseThreshold: Int,
                          defaultClientId: Option[String],
@@ -45,7 +43,6 @@ final case class Runtime(id: Long,
                          runtimeConfigId: RuntimeConfigId,
                          patchInProgress: Boolean) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
-  def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
 }
 
 object Runtime {

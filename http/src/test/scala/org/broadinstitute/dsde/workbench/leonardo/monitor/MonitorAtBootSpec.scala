@@ -26,7 +26,6 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.
   CreateNodepool
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
-import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.ExecutionContext.Implicits.global
 

@@ -276,7 +276,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   private[leonardo] def fullClusterQuery(
     baseClusterQuery: Query[ClusterTable, ClusterRecord, Seq]
   ): Query[(ClusterTable,
-            Rep[Option[InstanceTable]],
             Rep[Option[ClusterErrorTable]],
             Rep[Option[LabelTable]],
             Rep[Option[ExtensionTable]],
@@ -284,7 +283,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
             Rep[Option[ScopeTable]],
             Rep[Option[PatchTable]]),
            (ClusterRecord,
-            Option[InstanceRecord],
             Option[ClusterErrorRecord],
             Option[LabelRecord],
             Option[ExtensionRecord],
@@ -293,17 +291,16 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
             Option[PatchRecord]),
            Seq] =
     for {
-      (((((((cluster, instance), error), label), extension), image), scopes), patch) <- baseClusterQuery joinLeft
-        instanceQuery on (_.id === _.clusterId) joinLeft
-        clusterErrorQuery on (_._1.id === _.clusterId) joinLeft
+      ((((((cluster, error), label), extension), image), scopes), patch) <- baseClusterQuery joinLeft
+        clusterErrorQuery on (_.id === _.clusterId) joinLeft
         labelQuery on {
-        case (c, lbl) => lbl.resourceId === c._1._1.id && lbl.resourceType === LabelResourceType.runtime
+        case (c, lbl) => lbl.resourceId === c._1.id && lbl.resourceType === LabelResourceType.runtime
       } joinLeft
-        extensionQuery on (_._1._1._1.id === _.clusterId) joinLeft
-        clusterImageQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
-        scopeQuery on (_._1._1._1._1._1.id === _.clusterId) joinLeft
-        patchQuery on (_._1._1._1._1._1._1.id === _.clusterId)
-    } yield (cluster, instance, error, label, extension, image, scopes, patch)
+        extensionQuery on (_._1._1.id === _.clusterId) joinLeft
+        clusterImageQuery on (_._1._1._1.id === _.clusterId) joinLeft
+        scopeQuery on (_._1._1._1._1.id === _.clusterId) joinLeft
+        patchQuery on (_._1._1._1._1._1.id === _.clusterId)
+    } yield (cluster, error, label, extension, image, scopes, patch)
 
   private def findByIdQuery(id: Long): Query[ClusterTable, ClusterRecord, Seq] =
     clusterQuery.filter(_.id === id)
@@ -317,15 +314,15 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
                                                                                    saveCluster.initBucket.map(_.toUri))
       _ <- labelQuery.saveAllForResource(clusterId, LabelResourceType.Runtime, cluster.labels)
-      _ <- instanceQuery.saveAllForCluster(clusterId, cluster.dataprocInstances.toSeq)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
       _ <- clusterImageQuery.saveAllForCluster(clusterId, cluster.runtimeImages.toSeq)
       _ <- scopeQuery.saveAllForCluster(clusterId, cluster.scopes)
     } yield cluster.copy(id = clusterId)
 
-  def mergeInstances(cluster: Runtime)(implicit ec: ExecutionContext): DBIO[Runtime] =
+  def mergeInstances(cluster: Runtime,
+                     dataprocInstances: Set[DataprocInstance])(implicit ec: ExecutionContext): DBIO[Runtime] =
     clusterQuery.filter(_.id === cluster.id).result.headOption.flatMap {
-      case Some(rec) => instanceQuery.mergeForCluster(rec.id, cluster.dataprocInstances.toSeq).map(_ => cluster)
+      case Some(rec) => instanceQuery.mergeForCluster(rec.id, dataprocInstances.toSeq).map(_ => cluster)
       case None      => DBIO.successful(cluster)
     }
 
@@ -410,7 +407,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
     res.map { recs =>
       recs.headOption.map { clusterRec =>
-        unmarshalCluster(clusterRec, Seq.empty, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
+        unmarshalCluster(clusterRec, List.empty, Map.empty, List.empty, List.empty, List.empty, List.empty)
       }
     }
   }
@@ -652,7 +649,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     clusterLabelMap.map {
       case (clusterRec, (labelMap, patch)) =>
         unmarshalCluster(clusterRec,
-                         Seq.empty,
                          List.empty,
                          labelMap.view.mapValues(_.toList.toSet.head).toMap,
                          List.empty,
@@ -679,7 +675,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   private[leonardo] def unmarshalFullCluster(
     clusterRecords: Seq[
       (ClusterRecord,
-       Option[InstanceRecord],
        Option[ClusterErrorRecord],
        Option[LabelRecord],
        Option[ExtensionRecord],
@@ -693,22 +688,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     // Note we use Chain instead of List inside the foldMap because the Chain monoid is much more efficient than the List monoid.
     // See: https://typelevel.org/cats/datatypes/chain.html
     val clusterRecordMap: Map[ClusterRecord,
-                              (Chain[InstanceRecord],
-                               Chain[ClusterErrorRecord],
+                              (Chain[ClusterErrorRecord],
                                Map[String, Chain[String]],
                                Chain[ExtensionRecord],
                                Chain[ClusterImageRecord],
                                Chain[ScopeRecord],
                                Chain[PatchRecord])] = clusterRecords.toList.foldMap {
-      case (clusterRecord,
-            instanceRecordOpt,
-            errorRecordOpt,
-            labelRecordOpt,
-            extensionOpt,
-            clusterImageOpt,
-            scopeOpt,
-            patchOpt) =>
-        val instanceList = instanceRecordOpt.toList
+      case (clusterRecord, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt, patchOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap
         val errorList = errorRecordOpt.toList
         val extList = extensionOpt.toList
@@ -716,16 +702,15 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         val scopeList = scopeOpt.toList
         val patchList = patchOpt.toList
         Map(
-          clusterRecord -> (Chain.fromSeq(instanceList), Chain.fromSeq(errorList), labelMap, Chain
+          clusterRecord -> (Chain.fromSeq(errorList), labelMap, Chain
             .fromSeq(extList), Chain.fromSeq(clusterImageList), Chain.fromSeq(scopeList), Chain.fromSeq(patchList))
         )
     }
 
     clusterRecordMap.map {
-      case (clusterRecord, (instanceRecords, errorRecords, labels, extensions, clusterImages, scopes, patch)) =>
+      case (clusterRecord, (errorRecords, labels, extensions, clusterImages, scopes, patch)) =>
         unmarshalCluster(
           clusterRecord,
-          instanceRecords.toList,
           errorRecords.toList.groupBy(_.timestamp).map(_._2.head).toList,
           labels.view.mapValues(_.toList.toSet.head).toMap,
           extensions.toList,
@@ -737,7 +722,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   }
 
   private def unmarshalCluster(clusterRecord: ClusterRecord,
-                               instanceRecords: Seq[InstanceRecord],
                                errors: List[ClusterErrorRecord],
                                labels: LabelMap,
                                userJupyterExtensionConfig: List[ExtensionRecord],
@@ -773,7 +757,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       userScriptUri = clusterRecord.userScriptUri,
       startUserScriptUri = clusterRecord.startUserScriptUri,
       errors = errors map clusterErrorQuery.unmarshallClusterErrorRecord,
-      dataprocInstances = instanceRecords map instanceQuery.unmarshalInstance toSet,
       userJupyterExtensionConfig = extensionQuery.unmarshallExtensions(userJupyterExtensionConfig),
       autopauseThreshold = clusterRecord.autopauseThreshold,
       defaultClientId = clusterRecord.defaultClientId,

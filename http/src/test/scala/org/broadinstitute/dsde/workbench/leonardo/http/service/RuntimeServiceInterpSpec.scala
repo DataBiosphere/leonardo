@@ -1367,19 +1367,21 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     )
     val res = for {
       ctx <- appContext.ask[AppContext]
-      cluster = testCluster.copy(dataprocInstances =
-        Set(
-          DataprocInstance(
-            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
-            1,
-            GceInstanceStatus.Running,
-            Some(IP("")),
-            DataprocRole.Master,
-            ctx.now
+      _ <- IO(
+        testCluster.saveWithRuntimeConfig(
+          defaultDataprocRuntimeConfig,
+          dataprocInstances = List(
+            DataprocInstance(
+              DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
+              1,
+              GceInstanceStatus.Running,
+              Some(IP("")),
+              DataprocRole.Master,
+              ctx.now
+            )
           )
         )
       )
-      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
         .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -1424,19 +1426,23 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val res = for {
       ctx <- appContext.ask[AppContext]
       cluster = testCluster.copy(
-        status = RuntimeStatus.Running,
-        dataprocInstances = Set(
-          DataprocInstance(
-            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
-            1,
-            GceInstanceStatus.Running,
-            Some(IP("")),
-            DataprocRole.Master,
-            ctx.now
+        status = RuntimeStatus.Running
+      )
+      _ <- IO(
+        cluster.saveWithRuntimeConfig(
+          defaultDataprocRuntimeConfig,
+          dataprocInstances = List(
+            DataprocInstance(
+              DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
+              1,
+              GceInstanceStatus.Running,
+              Some(IP("")),
+              DataprocRole.Master,
+              ctx.now
+            )
           )
         )
       )
-      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
         .getActiveClusterRecordByName(cluster.cloudContext, cluster.runtimeName)
         .transaction
@@ -1461,19 +1467,21 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
       ctx <- appContext.ask[AppContext]
-      cluster = testCluster.copy(dataprocInstances =
-        Set(
-          DataprocInstance(
-            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
-            1,
-            GceInstanceStatus.Running,
-            Some(IP("")),
-            DataprocRole.Master,
-            ctx.now
+      _ <- IO(
+        testCluster.saveWithRuntimeConfig(
+          defaultDataprocRuntimeConfig,
+          dataprocInstances = List(
+            DataprocInstance(
+              DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
+              1,
+              GceInstanceStatus.Running,
+              Some(IP("")),
+              DataprocRole.Master,
+              ctx.now
+            )
           )
         )
       )
-      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
         .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -1500,19 +1508,21 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = UpdateRuntimeConfigRequest.DataprocConfig(Some(MachineTypeName("n1-micro-2")), None, None, None)
     val res = for {
       ctx <- appContext.ask[AppContext]
-      cluster = testCluster.copy(dataprocInstances =
-        Set(
-          DataprocInstance(
-            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
-            1,
-            GceInstanceStatus.Running,
-            Some(IP("")),
-            DataprocRole.Master,
-            ctx.now
+      _ <- IO(
+        testCluster.saveWithRuntimeConfig(
+          defaultDataprocRuntimeConfig,
+          dataprocInstances = List(
+            DataprocInstance(
+              DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
+              1,
+              GceInstanceStatus.Running,
+              Some(IP("")),
+              DataprocRole.Master,
+              ctx.now
+            )
           )
         )
       )
-      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
         .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -1570,12 +1580,12 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         DataprocRole.Master,
         ctx.now
       )
-      cluster = testCluster.copy(dataprocInstances =
-        Set(
-          masterInstance
-        )
+      _ <- IO(
+        testCluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig,
+                                          dataprocInstances = List(
+                                            masterInstance
+                                          ))
       )
-      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
         .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -1599,19 +1609,21 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     val req = UpdateRuntimeConfigRequest.DataprocConfig(None, Some(DiskSize(50)), None, None)
     val res = for {
       ctx <- appContext.ask[AppContext]
-      cluster = testCluster.copy(dataprocInstances =
-        Set(
-          DataprocInstance(
-            DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
-            1,
-            GceInstanceStatus.Running,
-            Some(IP("")),
-            DataprocRole.Master,
-            ctx.now
+      _ <- IO(
+        testCluster.saveWithRuntimeConfig(
+          defaultDataprocRuntimeConfig,
+          dataprocInstances = List(
+            DataprocInstance(
+              DataprocInstanceKey(GoogleProject(testCluster.cloudContext.asString), zone, InstanceName("instance-0")),
+              1,
+              GceInstanceStatus.Running,
+              Some(IP("")),
+              DataprocRole.Master,
+              ctx.now
+            )
           )
         )
       )
-      _ <- IO(cluster.saveWithRuntimeConfig(defaultDataprocRuntimeConfig))
       clusterRecord <- clusterQuery
         .getActiveClusterRecordByName(testCluster.cloudContext, testCluster.runtimeName)(
           scala.concurrent.ExecutionContext.global
