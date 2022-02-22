@@ -103,7 +103,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def failedRuntime(monitorContext: MonitorContext,
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                     errorDetails: RuntimeErrorDetails,
-                    masterInstance: Option[DataprocInstance])(
+                    mainInstance: Option[DataprocInstance])(
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
@@ -112,7 +112,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
-            DeleteRuntimeParams(runtimeAndRuntimeConfig, masterInstance)
+            DeleteRuntimeParams(runtimeAndRuntimeConfig, mainInstance)
           )
           .void, //TODO is this right when deleting or stopping fails?
         //save cluster error in the DB
@@ -165,10 +165,10 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def readyRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                    publicIp: IP,
                    monitorContext: MonitorContext,
-                   masterDataprocInstance: Option[DataprocInstance]): F[CheckResult] =
+                   mainDataprocInstance: Option[DataprocInstance]): F[CheckResult] =
     for {
       now <- nowInstant
-      _ <- masterDataprocInstance.traverse(i => instanceQuery.upsert(runtimeAndRuntimeConfig.runtime.id, i).transaction)
+      _ <- mainDataprocInstance.traverse(i => instanceQuery.upsert(runtimeAndRuntimeConfig.runtime.id, i).transaction)
       _ <- clusterQuery.setToRunning(runtimeAndRuntimeConfig.runtime.id, publicIp, now).transaction
       _ <- runtimeAndRuntimeConfig.runtimeConfig match {
         case x: RuntimeConfig.GceWithPdConfig =>
@@ -444,7 +444,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def handleCheckTools(monitorContext: MonitorContext,
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
-                                        masterDataprocInstance: Option[DataprocInstance]) // only applies to dataproc
+                                        mainDataprocInstance: Option[DataprocInstance]) // only applies to dataproc
   (
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] = {
@@ -476,7 +476,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       ).interruptAfter(monitorConfig.checkTools.interruptAfter).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
-          readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, masterDataprocInstance)
+          readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, mainDataprocInstance)
         case a =>
           val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
           failedRuntime(
@@ -487,7 +487,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               None,
               Some("tool_start_up")
             ),
-            masterDataprocInstance
+            mainDataprocInstance
           )
       }
     } yield r

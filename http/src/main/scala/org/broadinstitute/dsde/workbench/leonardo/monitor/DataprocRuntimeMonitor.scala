@@ -278,10 +278,10 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                        Some(fetchInstances),
                        Some(s"Not all instances for this cluster is Running yet"))
           case DataprocClusterStatus.Running =>
-            val master = dataprocAndComputeInstances
+            val main = dataprocAndComputeInstances
               .find(_._1.dataprocRole == DataprocRole.Master)
             // Check output if start user script, if defined
-            val userStartupScriptOutputFile = master.map(_._2).flatMap(getUserScript)
+            val userStartupScriptOutputFile = main.map(_._2).flatMap(getUserScript)
             for {
               validationResult <- validateUserStartupScript(userStartupScriptOutputFile,
                                                             runtimeAndRuntimeConfig.runtime.startUserScriptUri)
@@ -297,13 +297,13 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                 ),
                                 None)
                 case UserScriptsValidationResult.Success =>
-                  master.flatMap(_._1.ip) match {
+                  main.flatMap(_._1.ip) match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       F.sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                              runtimeAndRuntimeConfig,
                                                              ip,
-                                                             master.map(_._1))
+                                                             main.map(_._1))
                     case None =>
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
@@ -410,11 +410,11 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                        Some(fetchInstances),
                        Some(s"Not all instances for this cluster is Running yet"))
           case DataprocClusterStatus.Running => //TODO: is this right? we can only start runtime if it's a Running dataproc cluster
-            val master = instances.find(_.dataprocRole == DataprocRole.Master)
-            master.flatMap(_.ip) match {
+            val main = instances.find(_.dataprocRole == DataprocRole.Master)
+            main.flatMap(_.ip) match {
               case Some(ip) =>
                 // It takes a bit for jupyter to startup, hence wait a few seconds before we check jupyter
-                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, master)
+                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main)
               case None =>
                 checkAgain(monitorContext,
                            runtimeAndRuntimeConfig,
