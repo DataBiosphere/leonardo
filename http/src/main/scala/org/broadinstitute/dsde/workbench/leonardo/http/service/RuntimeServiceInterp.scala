@@ -791,14 +791,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
           else Async[F].pure((mt, true))
       }
-      masterInstance <- instanceQuery.getMasterForCluster(runtime.id).transaction
+      mainInstance <- instanceQuery.getMasterForCluster(runtime.id).transaction
       // should master disk size be updated?
       targetMasterDiskSize <- traverseIfChanged(req.updatedMasterDiskSize, dataprocConfig.masterDiskSize) { d =>
         if (d.gb < dataprocConfig.masterDiskSize.gb)
           Async[F].raiseError[DiskUpdate](RuntimeDiskSizeCannotBeDecreasedException(runtime.projectNameString))
         else
           Async[F].pure(
-            DiskUpdate.Dataproc(d, masterInstance): DiskUpdate
+            DiskUpdate.Dataproc(d, mainInstance): DiskUpdate
           )
       }
       // if any of the above is defined, send a PubSub message
