@@ -789,7 +789,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       userJupyterExtensionConfig =
         Some(UserJupyterExtensionConfig(Map("abc" -> "def"), Map("pqr" -> "pqr"), Map("xyz" -> "xyz"))),
       defaultClientId = Some("ThisIsADefaultClientID"),
-      autopause = Some(true),
+      autopauseEnabled = Some(true),
       autopauseThreshold = Some(30 minutes)
     )
     runtimeService

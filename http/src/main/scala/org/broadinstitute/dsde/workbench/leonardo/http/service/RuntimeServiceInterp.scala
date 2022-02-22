@@ -534,8 +534,10 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       updatedAutopauseThreshold = calculateAutopauseThreshold(req.updateAutopauseEnabled,
                                                               req.updateAutopauseThreshold.map(_.toMinutes.toInt),
                                                               config.autoFreezeConfig)
-      _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold)
-        clusterQuery.updateAutopauseThreshold(runtime.id, updatedAutopauseThreshold, ctx.now).transaction.void
+
+      _ <- if (updatedAutopauseThreshold != runtime.autopauseThreshold
+        || runtime.autopauseEnabled != req.updateAutopauseEnabled.getOrElse(false))
+        clusterQuery.updateAutopause(runtime.id, updatedAutopauseThreshold, req.updateAutopauseEnabled.getOrElse(false) , ctx.now).transaction.void
       else Async[F].unit
 
       _ <- DBIOAction
@@ -861,7 +863,7 @@ object RuntimeServiceInterp {
     val allLabels = req.labels ++ defaultLabels ++ req.userJupyterExtensionConfig.map(_.asLabels).getOrElse(Map.empty)
 
     val autopauseThreshold = calculateAutopauseThreshold(
-      req.autopause,
+      req.autopauseEnabled,
       req.autopauseThreshold.map(_.toMinutes.toInt),
       config.autoFreezeConfig
     ) //TODO: use FiniteDuration for autopauseThreshold field in Cluster
@@ -898,6 +900,7 @@ object RuntimeServiceInterp {
       startUserScriptUri = req.startUserScriptUri,
       errors = List.empty,
       userJupyterExtensionConfig = req.userJupyterExtensionConfig,
+      autopauseEnabled = req.autopauseEnabled.getOrElse(false),
       autopauseThreshold = autopauseThreshold,
       defaultClientId = req.defaultClientId,
       allowStop = false,
@@ -1009,10 +1012,10 @@ object RuntimeServiceInterp {
       }
     } yield disk
 
-  private[service] def calculateAutopauseThreshold(autopause: Option[Boolean],
+  private[service] def calculateAutopauseThreshold(autopauseEnabled: Option[Boolean],
                                                    autopauseThreshold: Option[Int],
-                                                   autoFreezeConfig: AutoFreezeConfig): Int =
-    autopause match {
+                                                   autoFreezeConfig: AutoFreezeConfig): Int = {
+    autopauseEnabled match {
       case None =>
         autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
       case Some(false) =>
@@ -1021,6 +1024,7 @@ object RuntimeServiceInterp {
         if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
         else Math.max(autoPauseOffValue, autopauseThreshold.get)
     }
+  }
 }
 
 final case class PersistentDiskRequestResult(disk: PersistentDisk, creationNeeded: Boolean)

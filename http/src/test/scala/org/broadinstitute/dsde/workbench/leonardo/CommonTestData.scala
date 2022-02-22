@@ -107,7 +107,7 @@ object CommonTestData {
                                             Some(Instant.now.plusSeconds(300)))
   val initBucketName = GcsBucketName("init-bucket-path")
   val stagingBucketName = GcsBucketName("staging-bucket-name")
-  val autopause = true
+  val autopause = Some(true)
   val autopauseThreshold = 30
   val defaultScopes = Set(
     "https://www.googleapis.com/auth/userinfo.email",
@@ -282,6 +282,7 @@ object CommonTestData {
       startUserScriptUri = None,
       errors = List.empty,
       userJupyterExtensionConfig = None,
+      autopauseEnabled = true,
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
       allowStop = false,
@@ -313,7 +314,8 @@ object CommonTestData {
     errors = List.empty,
     userJupyterExtensionConfig =
       Some(UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://bucket-name/extension"))),
-    autopauseThreshold = if (autopause) autopauseThreshold else 0,
+    autopauseThreshold = autopauseThreshold,
+    autopauseEnabled = true,
     defaultClientId = Some("clientId"),
     allowStop = false,
     runtimeImages = Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage),
@@ -337,7 +339,8 @@ object CommonTestData {
     hostIp = None,
     userScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
     startUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
-    autopauseThreshold = if (autopause) autopauseThreshold else 0,
+    autopauseEnabled = true,
+    autopauseThreshold = autopauseThreshold,
     defaultClientId = Some("clientId"),
     initBucket = Some(initBucketName.value),
     serviceAccountInfo = serviceAccount,

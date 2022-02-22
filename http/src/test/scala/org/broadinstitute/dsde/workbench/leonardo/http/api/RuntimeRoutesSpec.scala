@@ -147,8 +147,8 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       userJupyterExtensionConfig = Some(
         UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://extension_bucket/extension_path"))
       ),
+      autopauseEnabled = None,
       autopauseThreshold = None,
-      autopause = None,
       toolDockerImage = None,
       welderRegistry = None,
       userScriptUri =
@@ -267,6 +267,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "errors": [],
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
+        |  "autopauseEnabled": true,
         |  "autopauseThreshold": 30,
         |  "defaultClientId": "defaultClientId",
         |  "clusterImages": [
@@ -307,7 +308,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Some(
         UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://extension_bucket/extension_path"))
       ),
-      None,
+      Some(true),
       Some(30 minutes),
       Some("defaultClientId"),
       None,
@@ -394,6 +395,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
       Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
       List.empty[RuntimeError],
       None,
+      true,
       30,
       Some("clientId"),
       Set(jupyterImage, welderImage, proxyImage, cryptoDetectorImage).map(_.copy(timestamp = date)),
@@ -444,6 +446,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "jupyterStartUserScriptUri" : "gs://bucket-name/startScript",
         |  "errors" : [
         |  ],
+        |  "autopauseEnabled" : true,
         |  "autopauseThreshold" : 30,
         |  "defaultClientId" : "clientId",
         |  "runtimeImages" : [

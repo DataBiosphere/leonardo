@@ -182,11 +182,11 @@ object RuntimeFixtureSpec {
     CreateRuntime2Request(
       runtimeConfig = Some(machineConfig),
       toolDockerImage = toolDockerImage,
-      autopause = Some(false),
       labels = Map.empty,
       userScriptUri = None,
       startUserScriptUri = None,
       userJupyterExtensionConfig = None,
+      autopauseEnabled = None,
       autopauseThreshold = None,
       defaultClientId = None,
       welderRegistry = welderRegistry,

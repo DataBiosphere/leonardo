@@ -145,6 +145,7 @@ object RuntimeServiceDbQueries {
             .map(_._2.head)
             .toList map clusterErrorQuery.unmarshallClusterErrorRecord,
           extensionQuery.unmarshallExtensions(extensions.toList),
+          clusterRecord.autopauseEnabled,
           clusterRecord.autopauseThreshold,
           clusterRecord.defaultClientId,
           clusterImages,
