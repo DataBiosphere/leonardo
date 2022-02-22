@@ -345,7 +345,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .on(_._1.id === _.clusterId)
       .result map { recs =>
       recs.map { rec =>
-        val asyncFileds = (rec._1._1.googleId, rec._1._1.operationName, rec._1._1.stagingBucket).mapN {
+        val asyncFields = (rec._1._1.googleId, rec._1._1.operationName, rec._1._1.stagingBucket).mapN {
           (googleId, operationName, stagingBucket) =>
             AsyncRuntimeFields(googleId,
                                OperationName(operationName),
@@ -360,7 +360,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
           rec._2.map(_.inProgress).getOrElse(false),
           rec._1._2.runtimeConfig,
           rec._1._1.serviceAccountInfo,
-          asyncFileds,
+          asyncFields,
           rec._1._1.auditInfo,
           rec._1._1.userScriptUri,
           rec._1._1.startUserScriptUri,

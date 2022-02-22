@@ -214,7 +214,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
           case x: RuntimeConfig.GceConfig =>
             for {
               bootDiskSize <- x.bootDiskSize.toRight(
-                s"disk Size field not found for ${runtime.id}. This should never happen"
+                s"Disk Size field not found for ${runtime.id}. This should never happen"
               )
             } yield RuntimeConfigInCreateRuntimeMessage.GceConfig(
               x.machineType,
