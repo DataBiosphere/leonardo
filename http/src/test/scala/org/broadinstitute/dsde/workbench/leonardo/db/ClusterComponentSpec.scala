@@ -115,11 +115,9 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       .map(stripFieldsForListCluster)
 
     val cluster1status = dbFutureValue(clusterQuery.getClusterById(savedCluster1.id)).get
-    val cluster1DataprocInstances = dbFutureValue(instanceQuery.getAllForCluster(savedCluster1.id))
     cluster1status.status shouldEqual RuntimeStatus.Deleting
     cluster1status.auditInfo.destroyedDate shouldBe None
     cluster1status.asyncRuntimeFields.flatMap(_.hostIp) shouldBe None
-    cluster1DataprocInstances should contain theSameElementsAs cluster1Instances
 
     dbFutureValue(clusterQuery.markPendingDeletion(savedCluster2.id, Instant.now)) shouldEqual 1
     dbFutureValue(clusterQuery.listActiveWithLabels)
@@ -163,30 +161,6 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     runningCluster
       .copy(auditInfo = runningCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedRunningCluster
     runningCluster.auditInfo.dateAccessed should be > stoppedCluster.auditInfo.dateAccessed
-  }
-
-  it should "merge instances" in isolatedDbTest {
-    val savedCluster1 = makeCluster(1).save(dataprocInstances = List(masterInstance))
-
-    val dataprocInstances = Set(
-      masterInstance.copy(status = GceInstanceStatus.Provisioning),
-      workerInstance1.copy(status = GceInstanceStatus.Provisioning),
-      workerInstance2.copy(status = GceInstanceStatus.Provisioning)
-    )
-
-    dbFutureValue(
-      clusterQuery.mergeInstances(
-        savedCluster1,
-        dataprocInstances
-      )
-    )
-    dbFutureValue(instanceQuery.getAllForCluster(savedCluster1.id)) should contain theSameElementsAs dataprocInstances
-
-    val newInstances = Set(masterInstance.copy(status = GceInstanceStatus.Terminated),
-                           workerInstance1.copy(status = GceInstanceStatus.Terminated))
-
-    dbFutureValue(clusterQuery.mergeInstances(savedCluster1, newInstances))
-    dbFutureValue(instanceQuery.getAllForCluster(savedCluster1.id)) should contain theSameElementsAs newInstances
   }
 
   it should "get list of clusters to auto freeze" in isolatedDbTest {
