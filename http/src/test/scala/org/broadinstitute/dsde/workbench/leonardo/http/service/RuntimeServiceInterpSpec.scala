@@ -96,7 +96,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   }
 
   it should "calculate autopause threshold properly" in {
-    calculateAutopauseThreshold(None, None, autoFreezeConfig) shouldBe 30
+    calculateAutopauseThreshold(None, None, autoFreezeConfig) shouldBe 0
     calculateAutopauseThreshold(Some(false), None, autoFreezeConfig) shouldBe autoPauseOffValue
     calculateAutopauseThreshold(Some(true), None, autoFreezeConfig) shouldBe 30
     calculateAutopauseThreshold(Some(true), Some(30), autoFreezeConfig) shouldBe 30
