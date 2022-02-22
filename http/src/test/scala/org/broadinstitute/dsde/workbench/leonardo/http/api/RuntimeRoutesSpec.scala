@@ -267,7 +267,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "errors": [],
         |  "instances": [],
         |  "dateAccessed": "2018-08-07T10:12:35Z",
-        |  "autopauseEnabled": true,
+        |  "autopause": true,
         |  "autopauseThreshold": 30,
         |  "defaultClientId": "defaultClientId",
         |  "clusterImages": [
@@ -446,7 +446,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
         |  "jupyterStartUserScriptUri" : "gs://bucket-name/startScript",
         |  "errors" : [
         |  ],
-        |  "autopauseEnabled" : true,
+        |  "autopause" : true,
         |  "autopauseThreshold" : 30,
         |  "defaultClientId" : "clientId",
         |  "runtimeImages" : [
