@@ -51,21 +51,6 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
   def saveAllForCluster(clusterId: Long, instances: Seq[DataprocInstance]) =
     instanceQuery ++= instances map { marshalInstance(clusterId, _) }
 
-  def mergeForCluster(clusterId: Long, instances: Seq[DataprocInstance])(implicit ec: ExecutionContext): DBIO[Int] =
-    for {
-      // upsert all incoming instances passed to this method
-      upserted <- upsertAllForCluster(clusterId, instances)
-
-      // delete all instances that exist in the DB but were NOT passed to this method
-      existing <- getAllForCluster(clusterId)
-      instancesToDelete = {
-        val incoming = instances.map(_.googleId).toSet
-        existing.filterNot(i => incoming.contains(i.googleId))
-      }
-      deleted <- deleteAllForCluster(clusterId, instancesToDelete)
-
-    } yield upserted + deleted
-
   def upsert(clusterId: Long, instance: DataprocInstance): DBIO[Int] =
     instanceQuery.insertOrUpdate(marshalInstance(clusterId, instance))
 
@@ -77,9 +62,6 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
 
   def deleteAllForCluster(clusterId: Long, instances: Seq[DataprocInstance])(implicit ec: ExecutionContext): DBIO[Int] =
     DBIO.fold(instances map { delete }, 0)(_ + _)
-
-  def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[DataprocInstance]] =
-    instanceQuery.filter(_.clusterId === clusterId).result map { recs => recs.map(unmarshalInstance) }
 
   def getMasterForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[DataprocInstance] =
     instanceQuery

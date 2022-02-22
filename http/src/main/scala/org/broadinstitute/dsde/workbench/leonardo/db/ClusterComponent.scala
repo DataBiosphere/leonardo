@@ -319,13 +319,6 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       _ <- scopeQuery.saveAllForCluster(clusterId, cluster.scopes)
     } yield cluster.copy(id = clusterId)
 
-  def mergeInstances(cluster: Runtime,
-                     dataprocInstances: Set[DataprocInstance])(implicit ec: ExecutionContext): DBIO[Runtime] =
-    clusterQuery.filter(_.id === cluster.id).result.headOption.flatMap {
-      case Some(rec) => instanceQuery.mergeForCluster(rec.id, dataprocInstances.toSeq).map(_ => cluster)
-      case None      => DBIO.successful(cluster)
-    }
-
   // note: list* methods don't query the INSTANCE table
 
   def listWithLabels(implicit ec: ExecutionContext): DBIO[Seq[Runtime]] =

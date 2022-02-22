@@ -101,7 +101,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
         case RuntimeStatus.Deleting =>
           deletedRuntime(monitorContext, runtimeAndRuntimeConfig)
         case RuntimeStatus.Stopping =>
-          stopRuntime(runtimeAndRuntimeConfig, None, monitorContext)
+          stopRuntime(runtimeAndRuntimeConfig, monitorContext)
         case x =>
           F.raiseError(new Exception(s"Monitoring ${x} with pollOperation is not supported"))
       }
@@ -119,7 +119,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
         RuntimeErrorDetails(
           s"${monitorContext.action} ${runtimeAndRuntimeConfig.runtime.projectNameString} fail to complete in a timely manner"
         ),
-        Set.empty
+        None
       )
     } yield ()
 
@@ -212,7 +212,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                 "Creation may have failed due to temporary resource unavailability in Google Cloud Platform (`ZONE_RESOURCE_POOL_EXHAUSTED` error). Please try again later or refer to http://broad.io/different-zone for creating a cloud environment in a different zone.",
                 shortMessage = Some("fail_to_create")
               ),
-              Set.empty
+              None
             )
           else
             checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(s"Can't retrieve instance yet"))
@@ -251,14 +251,14 @@ class GceRuntimeMonitor[F[_]: Parallel](
                     monitorContext,
                     runtimeAndRuntimeConfig,
                     RuntimeErrorDetails(msg, shortMessage = Some("user_startup_script")),
-                    Set.empty
+                    None
                   )
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       Temporal[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty)
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, None)
                     case None =>
                       checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))
                   }
@@ -271,7 +271,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
               monitorContext,
               runtimeAndRuntimeConfig,
               RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to creating an instance"),
-              Set.empty
+              None
             )
         }
       } yield r
@@ -337,13 +337,13 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                   msg,
                                   shortMessage = Some("user_startup_script")
                                 ),
-                                Set.empty)
+                                None)
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       Temporal[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, Set.empty)
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, None)
                     case None =>
                       checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))
                   }
@@ -354,7 +354,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
               monitorContext,
               runtimeAndRuntimeConfig,
               RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to start an instance"),
-              Set.empty
+              None
             )
         }
       } yield r
@@ -376,7 +376,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       case Some(s) =>
         s match {
           case Stopped | Terminated =>
-            stopRuntime(runtimeAndRuntimeConfig, None, monitorContext)
+            stopRuntime(runtimeAndRuntimeConfig, monitorContext)
           case _ =>
             checkAgain(
               monitorContext,
