@@ -544,7 +544,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           .transaction
           .void
       else Async[F].unit
-      _ <- log.info(s"!!!!! ${runtime.autopauseThreshold != 0} | ${req.updateAutopause.getOrElse(false)}")
 
       _ <- DBIOAction
         .seq(
@@ -1028,7 +1027,7 @@ object RuntimeServiceInterp {
         autoPauseOffValue
       case _ =>
         if (autopauseThreshold.isEmpty) 30 //TODO what behavior do we want when enabled but no threshold
-          // TODO make sure this behavior is still wanted
+        // TODO make sure this behavior is still wanted
         else autopauseThreshold.get
     }
 }
