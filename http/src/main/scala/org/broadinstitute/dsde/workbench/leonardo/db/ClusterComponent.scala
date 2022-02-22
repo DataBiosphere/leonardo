@@ -379,7 +379,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       extention <- extensionQuery.getAllForCluster(runtimeId)
       images <- clusterImageQuery.getAllImagesForCluster(runtimeId)
       scopes <- scopeQuery.getAllForCluster(runtimeId)
-    } yield ExtraInfoForCreateRuntime(images.toSet, Some(extention), scopes)
+    } yield ExtraInfoForCreateRuntime(images.toSet, extention, scopes)
 
   def listRunningOnly(implicit ec: ExecutionContext): DBIO[Seq[RunningRuntime]] =
     clusterJoinClusterImageQuery.filter(_._1.status === (RuntimeStatus.Running: RuntimeStatus)).result map {

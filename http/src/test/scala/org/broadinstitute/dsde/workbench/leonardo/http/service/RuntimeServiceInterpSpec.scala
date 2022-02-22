@@ -443,17 +443,20 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .getActiveClusterByNameMinimal(cloudContext, runtimeName1)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime1 = runtimeOpt1.get
-      welder1 = runtime1.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
+      runtime1Images <- clusterImageQuery.getAllImagesForCluster(runtime1.id).transaction
+      welder1 = runtime1Images.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
 
       runtimeOpt2 <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName2).transaction
       runtime2 = runtimeOpt2.get
-      welder2 = runtime2.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
+      runtime2Images <- clusterImageQuery.getAllImagesForCluster(runtime2.id).transaction
+      welder2 = runtime2Images.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
 
       runtimeOpt3 <- clusterQuery.getActiveClusterByNameMinimal(cloudContext, runtimeName3).transaction
       runtime3 = runtimeOpt3.get
-      welder3 = runtime3.runtimeImages.filter(_.imageType == RuntimeImageType.Welder).headOption
+      runtime2Images <- clusterImageQuery.getAllImagesForCluster(runtime3.id).transaction
+      welder3 = runtime2Images.filter(_.imageType == RuntimeImageType.Welder).headOption
       _ <- publisherQueue.take
     } yield {
       r1 shouldBe Right(())
@@ -503,22 +506,27 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         .getActiveClusterByNameMinimal(cloudContext, runtimeName1)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime1 = runtimeOpt1.get
+      runtime1Images <- clusterImageQuery.getAllImagesForCluster(runtime1.id).transaction
       _ <- publisherQueue.take
 
       runtimeOpt2 <- clusterQuery
         .getActiveClusterByNameMinimal(cloudContext, runtimeName2)(scala.concurrent.ExecutionContext.global)
         .transaction
       runtime2 = runtimeOpt2.get
+      runtime2Images <- clusterImageQuery.getAllImagesForCluster(runtime2.id).transaction
       _ <- publisherQueue.take
     } yield {
       // Crypto detector not supported on DockerHub
       r1 shouldBe Right(())
       runtime1.runtimeName shouldBe runtimeName1
-      runtime1.runtimeImages.map(_.imageType) shouldBe Set(Jupyter, Welder, RuntimeImageType.Proxy)
+      runtime1Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter, Welder, RuntimeImageType.Proxy)
 
       r2 shouldBe Right(())
       runtime2.runtimeName shouldBe runtimeName2
-      runtime2.runtimeImages.map(_.imageType) shouldBe Set(Jupyter, Welder, RuntimeImageType.Proxy, CryptoDetector)
+      runtime2Images.map(_.imageType) should contain theSameElementsAs Set(Jupyter,
+                                                                           Welder,
+                                                                           RuntimeImageType.Proxy,
+                                                                           CryptoDetector)
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

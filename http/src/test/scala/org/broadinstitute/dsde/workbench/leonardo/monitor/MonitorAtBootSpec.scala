@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.
   CreateNodepool
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
+import org.broadinstitute.dsde.workbench.model.TraceId
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -101,12 +102,13 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       msg <- queue.tryTake
     } yield {
       val runtimeConfigInCreateRuntimeMessage = LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get
+      val expectedMessage = LeoPubsubMessage.CreateRuntimeMessage.fromRuntime(
+        runtime,
+        runtimeConfigInCreateRuntimeMessage,
+        None
+      )
       (msg eqv Some(
-        LeoPubsubMessage.CreateRuntimeMessage.fromRuntime(
-          runtime,
-          runtimeConfigInCreateRuntimeMessage,
-          None
-        )
+        expectedMessage
       )) shouldBe (true)
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
