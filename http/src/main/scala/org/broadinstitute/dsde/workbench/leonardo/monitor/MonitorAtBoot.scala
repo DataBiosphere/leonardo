@@ -11,7 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
-import org.broadinstitute.dsde.workbench.model.TraceId
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 
@@ -210,46 +210,56 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
           )
         )
       case RuntimeStatus.Creating =>
-        for {
-          fullRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-          rt <- F.fromOption(fullRuntime, new Exception(s"can't find ${runtime.id} in DB"))
-          rtConfig <- RuntimeConfigQueries.getRuntimeConfig(rt.runtimeConfigId).transaction
-          r = rtConfig match {
-            case x: RuntimeConfig.GceConfig =>
-              for {
-                bootDiskSize <- x.bootDiskSize.toRight(
-                  s"disk Size field not found for ${rt.id}. This should never happen"
-                )
-              } yield RuntimeConfigInCreateRuntimeMessage.GceConfig(
-                x.machineType,
-                x.diskSize,
-                bootDiskSize,
-                x.zone,
-                x.gpuConfig
-              ): RuntimeConfigInCreateRuntimeMessage
-            case x: RuntimeConfig.GceWithPdConfig =>
-              for {
-                diskId <- x.persistentDiskId.toRight(
-                  s"disk id field not found for ${rt.id}. This should never happen"
-                )
-              } yield RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
-                x.machineType,
-                diskId,
-                x.bootDiskSize,
-                x.zone,
-                x.gpuConfig
-              ): RuntimeConfigInCreateRuntimeMessage
-            case _: RuntimeConfig.DataprocConfig =>
-              Right(
-                LeoLenses.runtimeConfigPrism.getOption(rtConfig).get: RuntimeConfigInCreateRuntimeMessage
+        val message: Either[String, RuntimeConfigInCreateRuntimeMessage] = runtime.runtimeConfig match {
+          case x: RuntimeConfig.GceConfig =>
+            for {
+              bootDiskSize <- x.bootDiskSize.toRight(
+                s"Disk Size field not found for ${runtime.id}. This should never happen"
               )
-            case _: RuntimeConfig.AzureVmConfig =>
-              throw AzureUnimplementedException("Azure are not yet handled with existing monitor at boot code")
-          }
-          rtConfigInMessage <- F.fromEither(r.leftMap(s => MonitorAtBootException(s, traceId)))
+            } yield RuntimeConfigInCreateRuntimeMessage.GceConfig(
+              x.machineType,
+              x.diskSize,
+              bootDiskSize,
+              x.zone,
+              x.gpuConfig
+            ): RuntimeConfigInCreateRuntimeMessage
+          case x: RuntimeConfig.GceWithPdConfig =>
+            for {
+              diskId <- x.persistentDiskId.toRight(
+                s"disk id field not found for ${runtime.id}. This should never happen"
+              )
+            } yield RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(
+              x.machineType,
+              diskId,
+              x.bootDiskSize,
+              x.zone,
+              x.gpuConfig
+            ): RuntimeConfigInCreateRuntimeMessage
+          case _: RuntimeConfig.DataprocConfig =>
+            Right(
+              LeoLenses.runtimeConfigPrism.getOption(runtime.runtimeConfig).get: RuntimeConfigInCreateRuntimeMessage
+            )
+          case _: RuntimeConfig.AzureVmConfig =>
+            "Azure are not yet handled with existing monitor at boot code".asLeft[RuntimeConfigInCreateRuntimeMessage]
+        }
+        for {
+          rtConfigInMessage <- F.fromEither(message.leftMap(s => MonitorAtBootException(s, traceId)))
+          extra <- clusterQuery.getExtraInfo(runtime.id).transaction
         } yield {
-          LeoPubsubMessage.CreateRuntimeMessage.fromRuntime(
-            rt,
+          LeoPubsubMessage.CreateRuntimeMessage(
+            runtime.id,
+            RuntimeProjectAndName(runtime.cloudContext, runtime.runtimeName),
+            runtime.serviceAccount,
+            runtime.asyncRuntimeFields,
+            runtime.auditInfo,
+            runtime.userScriptUri,
+            runtime.startUserScriptUri,
+            extra.userJupyterExtensionConfig,
+            runtime.defaultClientId,
+            extra.runtimeImages,
+            extra.scopes,
+            runtime.welderEnabled,
+            runtime.customEnvironmentVariables,
             rtConfigInMessage,
             Some(traceId)
           )
@@ -260,10 +270,24 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
 
 final case class RuntimeToMonitor(
   id: Long,
-  cloudService: CloudService,
+  cloudContext: CloudContext,
+  runtimeName: RuntimeName,
   status: RuntimeStatus,
-  patchInProgress: Boolean
+  patchInProgress: Boolean,
+  runtimeConfig: RuntimeConfig,
+  serviceAccount: WorkbenchEmail,
+  asyncRuntimeFields: Option[AsyncRuntimeFields],
+  auditInfo: AuditInfo,
+  userScriptUri: Option[UserScriptPath],
+  startUserScriptUri: Option[UserScriptPath],
+  defaultClientId: Option[String],
+  welderEnabled: Boolean,
+  customEnvironmentVariables: Map[String, String]
 )
+
+final case class ExtraInfoForCreateRuntime(runtimeImages: Set[RuntimeImage],
+                                           userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
+                                           scopes: Set[String])
 
 final case class MonitorAtBootException(msg: String, traceId: TraceId)
     extends Exception(s"MonitorAtBoot: $msg | trace id: ${traceId.asString}")

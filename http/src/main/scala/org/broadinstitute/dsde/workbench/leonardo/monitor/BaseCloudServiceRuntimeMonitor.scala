@@ -8,7 +8,7 @@ import com.google.cloud.storage.BucketInfo
 import fs2.Stream
 import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DataprocRole, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -107,11 +108,12 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
+      masterInstance = instances.find(_.dataprocRole == DataprocRole.Master)
       _ <- List(
         // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
-            DeleteRuntimeParams(runtimeAndRuntimeConfig)
+            DeleteRuntimeParams(runtimeAndRuntimeConfig, masterInstance)
           )
           .void, //TODO is this right when deleting or stopping fails?
         //save cluster error in the DB
@@ -121,7 +123,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         ),
         if (instances.nonEmpty)
           clusterQuery
-            .mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = instances))
+            .mergeInstances(runtimeAndRuntimeConfig.runtime, instances)
             .transaction
             .void
         else F.unit
@@ -280,12 +282,19 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     monitorContext: MonitorContext
   )(implicit ct: Ask[F, AppContext]): F[CheckResult] =
     for {
-      runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig(monitorContext.runtimeId)
-      next <- runtimeAndRuntimeConfig.runtime.status match {
+      statusOpt <- clusterQuery.getClusterStatus(monitorContext.runtimeId).transaction
+      status <- Sync[F].fromEither(
+        statusOpt.toRight(new Exception(s"Cluster with id ${monitorContext.runtimeId} not found in the database"))
+      )
+      next <- status match {
         case status if status.isMonitored =>
-          logger.info(monitorContext.loggingContext)(
-            s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
-          ) >> handleCheck(monitorContext, runtimeAndRuntimeConfig)
+          for {
+            runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig(monitorContext.runtimeId)
+            _ <- logger.info(monitorContext.loggingContext)(
+              s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
+            )
+            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig)
+          } yield res
         case _ =>
           F.pure(((), None): CheckResult)
       }
@@ -564,7 +573,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       case CloudService.GCE => F.unit
       case CloudService.Dataproc =>
         dbRef.inTransaction {
-          clusterQuery.mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = dataprocInstances))
+          clusterQuery.mergeInstances(runtimeAndRuntimeConfig.runtime, dataprocInstances)
         }.void
       case CloudService.AzureVm =>
         throw new RuntimeException("This should never happen, we should not be persisting instances for CloudService")

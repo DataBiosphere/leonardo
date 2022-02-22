@@ -473,10 +473,6 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                          config.runtimeBucketConfig.stagingBucketExpiration)
 
           _ <- dbRef.inTransaction {
-            clusterQuery.mergeInstances(runtimeAndRuntimeConfig.runtime)
-          }.void //TODO: confirm this is reasonable
-
-          _ <- dbRef.inTransaction {
             clusterQuery.completeDeletion(runtimeAndRuntimeConfig.runtime.id, ctx.now)
           }
 

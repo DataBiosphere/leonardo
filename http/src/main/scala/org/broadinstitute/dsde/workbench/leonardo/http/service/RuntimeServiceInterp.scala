@@ -201,7 +201,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
             runtimeConfigToSave = LeoLenses.runtimeConfigPrism.reverseGet(runtimeConfig)
-            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
+            saveRuntime = SaveCluster(
+              cluster = runtime,
+              runtimeConfig = runtimeConfigToSave,
+              now = context.now
+            )
             runtime <- clusterQuery.save(saveRuntime).transaction
             _ <- publisherQueue.offer(
               CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
@@ -893,7 +897,6 @@ object RuntimeServiceInterp {
       userScriptUri = req.userScriptUri,
       startUserScriptUri = req.startUserScriptUri,
       errors = List.empty,
-      dataprocInstances = Set.empty,
       userJupyterExtensionConfig = req.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
       defaultClientId = req.defaultClientId,

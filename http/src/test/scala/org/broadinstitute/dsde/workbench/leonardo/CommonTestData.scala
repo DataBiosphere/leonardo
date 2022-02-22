@@ -281,7 +281,6 @@ object CommonTestData {
       userScriptUri = None,
       startUserScriptUri = None,
       errors = List.empty,
-      dataprocInstances = Set.empty,
       userJupyterExtensionConfig = None,
       autopauseThreshold = 30,
       defaultClientId = Some("defaultClientId"),
@@ -312,7 +311,6 @@ object CommonTestData {
     userScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
     startUserScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("startScript")))),
     errors = List.empty,
-    dataprocInstances = Set.empty,
     userJupyterExtensionConfig =
       Some(UserJupyterExtensionConfig(nbExtensions = Map("notebookExtension" -> "gs://bucket-name/extension"))),
     autopauseThreshold = if (autopause) autopauseThreshold else 0,
