@@ -81,7 +81,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         .transaction
       clusterRec = clusterRecOpt.get
       clusterOpt <- clusterQuery
-        .getActiveClusterByName(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
+        .getActiveClusterByNameMinimal(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
         .transaction
       cluster = clusterOpt.get
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
@@ -169,7 +169,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
       clusterOpt <- clusterQuery
-        .getActiveClusterByName(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -237,7 +237,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
       clusterOpt <- clusterQuery
-        .getActiveClusterByName(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -271,7 +271,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
       _ <- publisherQueue.tryTake //clean out create msg
       azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
       preDeleteClusterOpt <- clusterQuery
-        .getActiveClusterByName(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -322,7 +322,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
       preDeleteClusterOpt <- clusterQuery
-        .getActiveClusterByName(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -356,7 +356,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
       clusterOpt <- clusterQuery
-        .getActiveClusterByName(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
