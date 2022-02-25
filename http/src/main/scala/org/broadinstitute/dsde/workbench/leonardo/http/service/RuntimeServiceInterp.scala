@@ -1013,14 +1013,13 @@ object RuntimeServiceInterp {
                                                    autopauseThreshold: Option[Int],
                                                    autoFreezeConfig: AutoFreezeConfig): Int =
     autopause match {
-      case None =>
-        if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        else autopauseThreshold.get
       case Some(false) =>
         autoPauseOffValue
       case _ =>
-        if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        else autopauseThreshold.get
+        autopauseThreshold match {
+          case Some(v) => v
+          case None    => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+        }
     }
 }
 
