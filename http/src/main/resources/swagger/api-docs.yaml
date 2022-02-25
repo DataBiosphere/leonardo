@@ -2404,8 +2404,8 @@ components:
         autopause:
           type: boolean
           description: Whether autopause feature is enabled for this specific cluster. If
-            unset, autopause will be enabled and the threshold value will be set to the one 
-            specified or a system default if unset.
+            unset, autopause will be enabled and the threshold value will be set to either the autopauseThreshold value
+            or the system default if autopauseThreshold is also unset.
         autopauseThreshold:
           type: integer
           description: The number of minutes of idle time to elapse before the cluster is
