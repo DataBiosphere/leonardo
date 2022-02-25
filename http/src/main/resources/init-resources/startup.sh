@@ -69,6 +69,7 @@ export WELDER_MEM_LIMIT=$(welderMemLimit)
 export MEM_LIMIT=$(memLimit)
 export INIT_BUCKET_NAME=$(initBucketName)
 export USE_GCE_STARTUP_SCRIPT=$(useGceStartupScript)
+JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 GPU_ENABLED=$(gpuEnabled)
 export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
 #if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
@@ -84,6 +85,8 @@ ROOT_CA=$(rootCaPem)
 FILE=/var/certs/jupyter-server.crt
 USER_DISK_DEVICE_ID=$(lsblk -o name,serial | grep 'user-disk' | awk '{print $1}')
 DISK_DEVICE_ID=${USER_DISK_DEVICE_ID:-sdb}
+JUPYTER_HOME=/etc/jupyter
+RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
 if [ "${GPU_ENABLED}" == "true" ] ; then
   log 'Installing GPU driver...'
@@ -128,10 +131,13 @@ then
         # what was previously under $HOME will now appear in new $HOME as well
         docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && [ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
 
-        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
-        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
+        NEED_MIGRATE=$(docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && echo 'true' || echo 'false'")
 
-        tee /var/variables.env << END
+        if [ "$NEED_MIGRATE" == "true" ] ; then
+          # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
+          $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
+
+          tee /var/variables.env << END
 JUPYTER_SERVER_NAME=${JUPYTER_SERVER_NAME}
 JUPYTER_DOCKER_IMAGE=${JUPYTER_DOCKER_IMAGE}
 NOTEBOOKS_DIR=${NOTEBOOKS_DIR}
@@ -142,9 +148,16 @@ WELDER_ENABLED=${WELDER_ENABLED}
 MEM_LIMIT=${MEM_LIMIT}
 END
 
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
-        ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
+          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
+          ${DOCKER_COMPOSE} --env-file=/var/variables.env -f ${JUPYTER_DOCKER_COMPOSE} up -d
+
+          log 'Copy Jupyter frontend notebook config...'
+          $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
+          JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+          retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
+          docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+        fi
     fi
 else
     CERT_DIRECTORY='/certs'
@@ -223,9 +236,6 @@ function validateCert() {
 }
 
 validateCert ${CERT_DIRECTORY}
-
-JUPYTER_HOME=/etc/jupyter
-RSTUDIO_SCRIPTS=/etc/rstudio/scripts
 
 # TODO: remove this block once data syncing is rolled out to Terra
 if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
