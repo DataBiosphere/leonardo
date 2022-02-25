@@ -87,6 +87,8 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(cluster.runtimeConfigId).transaction
       message <- publisherQueue.take
       azureRuntimeConfig = runtimeConfig.asInstanceOf[RuntimeConfig.AzureConfig]
+      fullClusterOpt <- clusterQuery.getClusterById(cluster.id).transaction
+
       diskOpt <- persistentDiskQuery.getById(azureRuntimeConfig.persistentDiskId).transaction
       disk = diskOpt.get
     } yield {
@@ -107,7 +109,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         context.now
       )
 
-      clusterOpt.map(_.runtimeImages) shouldBe Some(Set(expectedRuntimeImage))
+      fullClusterOpt.map(_.runtimeImages) shouldBe Some(Set(expectedRuntimeImage))
 
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
