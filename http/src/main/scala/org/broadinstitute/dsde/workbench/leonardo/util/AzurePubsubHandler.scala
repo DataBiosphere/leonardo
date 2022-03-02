@@ -252,7 +252,9 @@ class AzureInterpreter[F[_]](
           s"Azure vm still exists after ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
         )
         _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-        _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(msg.diskId, DiskStatus.Deleted, ctx.now))
+        _ <- msg.diskId.traverse(diskId =>
+          dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
+        )
         - <- dbRef.inTransaction(controlledResourceQuery.deleteAllForRuntime(runtime.id))
       } yield ()
 

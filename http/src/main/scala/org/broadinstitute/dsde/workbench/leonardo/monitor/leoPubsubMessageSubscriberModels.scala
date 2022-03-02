@@ -320,7 +320,7 @@ object LeoPubsubMessage {
   }
 
   final case class DeleteAzureRuntimeMessage(runtimeId: Long,
-                                             diskId: DiskId,
+                                             diskId: Option[DiskId],
                                              workspaceId: WorkspaceId,
                                              wsmResourceId: WsmControlledResourceId,
                                              traceId: Option[TraceId])

@@ -1699,7 +1699,7 @@ class LeoPubsubMessageSubscriberSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, disk.id, workspaceId, wsmResourceId, None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, wsmResourceId, None)
 
         //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery

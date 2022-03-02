@@ -231,7 +231,7 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- publisherQueue.offer(
         DeleteAzureRuntimeMessage(runtime.id,
-                                  diskId,
+                                  Some(diskId),
                                   workspaceId,
                                   azureRuntimeControlledResource.resourceId,
                                   Some(context.traceId))
