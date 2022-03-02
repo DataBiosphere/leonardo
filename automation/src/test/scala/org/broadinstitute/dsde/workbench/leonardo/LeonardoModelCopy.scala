@@ -98,7 +98,8 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
                              serviceAccount: Option[WorkbenchEmail],
                              notebookUserScript: Option[String],
                              notebookStartUserScript: Option[String],
-                             tool: String) {
+                             tool: String,
+                             cloudContext: CloudContext) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
@@ -116,6 +117,7 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
       "clusterName" -> runtimeName.asString,
       "runtimeName" -> runtimeName.asString,
       "googleProject" -> googleProject.value,
+      "cloudContext" -> cloudContext.asStringWithProvider,
       "creator" -> creator.value,
       "tool" -> tool
     ) ++ userScr ++ startScr ++ clusterSa
