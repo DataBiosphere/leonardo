@@ -10,6 +10,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.{
   TerraAppSetupChartConfig
 }
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeConfig
 
 object ConfigReader {
   lazy val appConfig =
@@ -22,7 +23,8 @@ final case class AzureConfig(
   monitor: AzureMonitorConfig,
   runtimeDefaults: AzureInterpretorConfig,
   wsm: HttpWsmDaoConfig,
-  appRegistration: AzureAppRegistrationConfig
+  appRegistration: AzureAppRegistrationConfig,
+  service: AzureRuntimeConfig
 )
 
 // Note: pureconfig supports reading kebab case into camel case in code by default

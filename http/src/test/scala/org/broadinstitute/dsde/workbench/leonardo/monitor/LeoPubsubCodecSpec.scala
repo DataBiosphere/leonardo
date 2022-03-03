@@ -133,7 +133,7 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   it should "encode/decode CreateAzureRuntimeMessage properly" in {
     val originalMessage = CreateAzureRuntimeMessage(1,
                                                     WorkspaceId(UUID.randomUUID()),
-                                                    RuntimeImage(RuntimeImageType.AzureVm, "test", None, Instant.now),
+                                                    RuntimeImage(RuntimeImageType.Azure, "test", None, Instant.now),
                                                     None)
 
     val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))

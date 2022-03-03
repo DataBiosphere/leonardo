@@ -8,7 +8,7 @@ import com.google.cloud.storage.BucketInfo
 import fs2.Stream
 import monocle.macros.syntax.lens._
 import org.broadinstitute.dsde.workbench.DoneCheckable
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, GcsBlobName, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, DataprocRole, GcsBlobName, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
@@ -25,6 +25,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
@@ -102,7 +103,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def failedRuntime(monitorContext: MonitorContext,
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                     errorDetails: RuntimeErrorDetails,
-                    instances: Set[DataprocInstance])(
+                    mainInstance: Option[DataprocInstance])(
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
@@ -111,20 +112,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         // Delete the cluster in Google
         runtimeAlg
           .deleteRuntime(
-            DeleteRuntimeParams(runtimeAndRuntimeConfig)
+            DeleteRuntimeParams(runtimeAndRuntimeConfig, mainInstance)
           )
           .void, //TODO is this right when deleting or stopping fails?
         //save cluster error in the DB
         saveRuntimeError(
           runtimeAndRuntimeConfig.runtime.id,
           errorDetails
-        ),
-        if (instances.nonEmpty)
-          clusterQuery
-            .mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = instances))
-            .transaction
-            .void
-        else F.unit
+        )
       ).parSequence_
 
       // Record metrics in NewRelic
@@ -170,10 +165,10 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def readyRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                    publicIp: IP,
                    monitorContext: MonitorContext,
-                   dataprocInstances: Set[DataprocInstance]): F[CheckResult] =
+                   mainDataprocInstance: Option[DataprocInstance]): F[CheckResult] =
     for {
       now <- nowInstant
-      _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances)
+      _ <- mainDataprocInstance.traverse(i => instanceQuery.upsert(runtimeAndRuntimeConfig.runtime.id, i).transaction)
       _ <- clusterQuery.setToRunning(runtimeAndRuntimeConfig.runtime.id, publicIp, now).transaction
       _ <- runtimeAndRuntimeConfig.runtimeConfig match {
         case x: RuntimeConfig.GceWithPdConfig =>
@@ -256,7 +251,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
                   RuntimeErrorDetails(
                     s"Failed to transition ${runtimeAndRuntimeConfig.runtime.projectNameString} from status ${runtimeAndRuntimeConfig.runtime.status} within the time limit: ${timeLimit.toMinutes} minutes"
                   ),
-                  dataprocInstances.getOrElse(Set.empty)
+                  dataprocInstances.flatMap(_.find(_.dataprocRole == DataprocRole.Master))
                 )
               } yield r
             }
@@ -280,12 +275,19 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     monitorContext: MonitorContext
   )(implicit ct: Ask[F, AppContext]): F[CheckResult] =
     for {
-      runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig(monitorContext.runtimeId)
-      next <- runtimeAndRuntimeConfig.runtime.status match {
+      statusOpt <- clusterQuery.getClusterStatus(monitorContext.runtimeId).transaction
+      status <- Sync[F].fromEither(
+        statusOpt.toRight(new Exception(s"Cluster with id ${monitorContext.runtimeId} not found in the database"))
+      )
+      next <- status match {
         case status if status.isMonitored =>
-          logger.info(monitorContext.loggingContext)(
-            s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
-          ) >> handleCheck(monitorContext, runtimeAndRuntimeConfig)
+          for {
+            runtimeAndRuntimeConfig <- getDbRuntimeAndRuntimeConfig(monitorContext.runtimeId)
+            _ <- logger.info(monitorContext.loggingContext)(
+              s"Start monitor runtime ${runtimeAndRuntimeConfig.runtime.projectNameString}'s ${status} process."
+            )
+            res <- handleCheck(monitorContext, runtimeAndRuntimeConfig)
+          } yield res
         case _ =>
           F.pure(((), None): CheckResult)
       }
@@ -320,15 +322,11 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         }
     }
 
-  protected def stopRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                            fetchDataprocInstances: Option[F[Set[DataprocInstance]]],
-                            monitorContext: MonitorContext)(
+  protected def stopRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, monitorContext: MonitorContext)(
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
-      dataprocInstances <- fetchDataprocInstances.traverse(identity)
-      _ <- persistInstances(runtimeAndRuntimeConfig, dataprocInstances.getOrElse(Set.empty))
       stoppingDuration = (ctx.now.toEpochMilli - monitorContext.start.toEpochMilli).millis
       // this sets the cluster status to stopped and clears the cluster IP
       _ <- clusterQuery
@@ -446,7 +444,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def handleCheckTools(monitorContext: MonitorContext,
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
-                                        dataprocInstances: Set[DataprocInstance]) // only applies to dataproc
+                                        mainDataprocInstance: Option[DataprocInstance]) // only applies to dataproc
   (
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] = {
@@ -478,7 +476,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       ).interruptAfter(monitorConfig.checkTools.interruptAfter).compile.lastOrError
       r <- availableTools match {
         case a if a.forall(_._2) =>
-          readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, dataprocInstances)
+          readyRuntime(runtimeAndRuntimeConfig, ip, monitorContext, mainDataprocInstance)
         case a =>
           val toolsStillNotAvailable = a.collect { case x if x._2 == false => x._1 }
           failedRuntime(
@@ -489,7 +487,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               None,
               Some("tool_start_up")
             ),
-            dataprocInstances
+            mainDataprocInstance
           )
       }
     } yield r
@@ -557,18 +555,6 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           } yield ()
       }
     } yield ()
-
-  private def persistInstances(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                               dataprocInstances: Set[DataprocInstance]): F[Unit] =
-    runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
-      case CloudService.GCE => F.unit
-      case CloudService.Dataproc =>
-        dbRef.inTransaction {
-          clusterQuery.mergeInstances(runtimeAndRuntimeConfig.runtime.copy(dataprocInstances = dataprocInstances))
-        }.void
-      case CloudService.AzureVm =>
-        throw new RuntimeException("This should never happen, we should not be persisting instances for CloudService")
-    }
 }
 
 final case class InvalidMonitorRequest(msg: String) extends RuntimeException {

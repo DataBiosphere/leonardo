@@ -65,6 +65,12 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
       .result
       .map(_.map(_.imageType))
 
+  def getAllImagesForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Seq[RuntimeImage]] =
+    clusterImageQuery
+      .filter(_.clusterId === clusterId)
+      .result
+      .map(_.map(x => unmarshalClusterImage(x)))
+
   def marshallClusterImage(clusterId: Long, clusterImage: RuntimeImage): ClusterImageRecord =
     ClusterImageRecord(
       clusterId,

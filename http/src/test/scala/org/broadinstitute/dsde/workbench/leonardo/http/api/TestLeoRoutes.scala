@@ -13,7 +13,13 @@ import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, MockDockerDAO, MockJupyterDAO, MockWelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  HostStatus,
+  MockDockerDAO,
+  MockJupyterDAO,
+  MockWelderDAO,
+  MockWsmDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{
   KubernetesDnsCache,
@@ -31,9 +37,9 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Seconds, Span}
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
-
 import java.io.ByteArrayInputStream
 import java.time.Instant
+
 import scala.concurrent.duration._
 import scala.util.matching.Regex
 trait TestLeoRoutes {
@@ -105,6 +111,16 @@ trait TestLeoRoutes {
     FakeGoogleComputeService
   )
 
+  val serviceConfig = RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
+                                           imageConfig,
+                                           autoFreezeConfig,
+                                           dataprocConfig,
+                                           Config.gceConfig,
+                                           azureServiceConfig)
+
+  val azureService =
+    new AzureServiceInterp[IO](serviceConfig, whitelistAuthProvider, new MockWsmDAO, QueueFactory.makePublisherQueue())
+
   val underlyingRuntimeDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
   val runtimeDnsCaffeineCache: Cache[IO, RuntimeDnsCacheKey, HostStatus] =
@@ -150,11 +166,7 @@ trait TestLeoRoutes {
   }
 
   val runtimeService = RuntimeService(
-    RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
-                         imageConfig,
-                         autoFreezeConfig,
-                         dataprocConfig,
-                         Config.gceConfig),
+    serviceConfig,
     ConfigReader.appConfig.persistentDisk,
     whitelistAuthProvider,
     serviceAccountProvider,
@@ -173,6 +185,7 @@ trait TestLeoRoutes {
       runtimeService,
       MockDiskServiceInterp,
       leoKubernetesService,
+      azureService,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -185,6 +198,7 @@ trait TestLeoRoutes {
                    runtimeService,
                    MockDiskServiceInterp,
                    leoKubernetesService,
+                   azureService,
                    timedUserInfoDirectives,
                    contentSecurityPolicy,
                    refererConfig)

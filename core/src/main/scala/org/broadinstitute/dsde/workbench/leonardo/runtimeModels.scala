@@ -7,7 +7,6 @@ import enumeratum.{Enum, EnumEntry}
 import monocle.Prism
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, OperationName, RegionName, ZoneName}
-import org.broadinstitute.dsde.workbench.google2.DataprocRole.SecondaryWorker
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeContainerServiceType.JupyterService
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{BootSource, Jupyter, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.model.google.{parseGcsPath, GcsBucketName, GcsPath, GoogleProject}
@@ -33,7 +32,6 @@ final case class Runtime(id: Long,
                          userScriptUri: Option[UserScriptPath],
                          startUserScriptUri: Option[UserScriptPath],
                          errors: List[RuntimeError],
-                         dataprocInstances: Set[DataprocInstance],
                          userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                          autopauseThreshold: Int,
                          defaultClientId: Option[String],
@@ -45,7 +43,6 @@ final case class Runtime(id: Long,
                          runtimeConfigId: RuntimeConfigId,
                          patchInProgress: Boolean) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
-  def nonPreemptibleInstances: Set[DataprocInstance] = dataprocInstances.filterNot(_.dataprocRole == SecondaryWorker)
 }
 
 object Runtime {
@@ -280,9 +277,9 @@ object RuntimeConfig {
   }
 
   //Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
-  final case class AzureVmConfig(machineType: MachineTypeName,
-                                 persistentDiskId: DiskId,
-                                 region: com.azure.core.management.Region)
+  final case class AzureConfig(machineType: MachineTypeName,
+                               persistentDiskId: DiskId,
+                               region: com.azure.core.management.Region)
       extends RuntimeConfig {
     val cloudService: CloudService = CloudService.AzureVm
   }
@@ -347,7 +344,7 @@ object RuntimeImageType extends Enum[RuntimeImageType] {
   case object Proxy extends RuntimeImageType
   case object CryptoDetector extends RuntimeImageType
 
-  case object AzureVm extends RuntimeImageType
+  case object Azure extends RuntimeImageType
 
   def stringToRuntimeImageType: Map[String, RuntimeImageType] = values.map(c => c.toString -> c).toMap
 }
@@ -411,9 +408,10 @@ object RuntimeUI {
 
 /** Default runtime labels */
 case class DefaultRuntimeLabels(runtimeName: RuntimeName,
-                                googleProject: GoogleProject,
+                                googleProject: Option[GoogleProject],
+                                cloudContext: CloudContext,
                                 creator: WorkbenchEmail,
-                                serviceAccount: WorkbenchEmail,
+                                serviceAccount: Option[WorkbenchEmail],
                                 userScript: Option[UserScriptPath],
                                 startUserScript: Option[UserScriptPath],
                                 tool: Option[RuntimeImageType]) {
@@ -421,9 +419,14 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
     Map(
       "runtimeName" -> runtimeName.asString,
       "clusterName" -> runtimeName.asString, //TODO: potentially deprecate this once clients moves away from using this label (deprecated 3/5/2020)
-      "googleProject" -> googleProject.value,
+      "googleProject" -> googleProject
+        .map(_.value)
+        .getOrElse(
+          null
+        ), //TODO: potentially deprecate this once clients moves away from using this label (deprecated 3/5/2020)
+      "cloudContext" -> cloudContext.asStringWithProvider,
       "creator" -> creator.value,
-      "clusterServiceAccount" -> serviceAccount.value,
+      "clusterServiceAccount" -> serviceAccount.map(_.value).getOrElse(null),
       "userScript" -> userScript.map(_.asString).getOrElse(null),
       "startUserScript" -> startUserScript.map(_.asString).getOrElse(null),
       "tool" -> tool.map(_.toString).getOrElse(null)
@@ -433,9 +436,10 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
 object DefaultRuntimeLabels {
   // Creating a dummy instance to obtain the default label keys
   val defaultLabelKeys = DefaultRuntimeLabels(RuntimeName(""),
-                                              GoogleProject(""),
+                                              Some(GoogleProject("")),
+                                              CloudContext.Gcp(GoogleProject("")),
                                               WorkbenchEmail(""),
-                                              WorkbenchEmail(""),
+                                              Some(WorkbenchEmail("")),
                                               None,
                                               None,
                                               None).toMap.keySet

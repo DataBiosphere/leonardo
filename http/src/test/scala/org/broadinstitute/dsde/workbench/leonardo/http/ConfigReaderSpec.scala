@@ -2,9 +2,11 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.{
   AzureAppRegistrationConfig,
+  AzureImageUri,
   BlockSize,
   CidrIP,
   ClientId,
@@ -49,7 +51,13 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                                "Azure Disk",
                                "Azure Vm"),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
-        AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId(""))
+        AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
+        AzureRuntimeConfig(
+          AzureImageUri(
+            "/subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0"
+          ),
+          Set.empty
+        )
       )
     )
 

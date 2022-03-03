@@ -29,10 +29,12 @@ import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
 import scalacache.Cache
-
 import java.io.ByteArrayInputStream
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets.UTF_8
+
+import org.broadinstitute.dsde.workbench.leonardo.WorkspaceAction
+
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 import scala.util.control.NoStackTrace
@@ -364,6 +366,8 @@ object HttpSamDAO {
   implicit val runtimeActionEncoder: Encoder[RuntimeAction] = Encoder.encodeString.contramap(_.asString)
   implicit val persistentDiskActionEncoder: Encoder[PersistentDiskAction] = Encoder.encodeString.contramap(_.asString)
   implicit val appActionEncoder: Encoder[AppAction] = Encoder.encodeString.contramap(_.asString)
+  implicit val wsmAppActionEncoder: Encoder[WsmResourceAction] = Encoder.encodeString.contramap(_.asString)
+  implicit val azurRuntimeActionEncoder: Encoder[WorkspaceAction] = Encoder.encodeString.contramap(_.asString)
   implicit val policyDataEncoder: Encoder[SamPolicyData] =
     Encoder.forProduct3("memberEmails", "actions", "roles")(x => (x.memberEmails, List.empty[String], x.roles))
   implicit val samPolicyNameKeyEncoder: KeyEncoder[SamPolicyName] = new KeyEncoder[SamPolicyName] {
@@ -394,8 +398,16 @@ object HttpSamDAO {
     )
   implicit val appActionDecoder: Decoder[AppAction] =
     Decoder.decodeString.emap(x => AppAction.stringToAction.get(x).toRight(s"Unknown app action: $x"))
+  implicit val wsmApplicationActionDecoder: Decoder[WsmResourceAction] =
+    Decoder.decodeString.emap(x =>
+      WsmResourceAction.stringToAction.get(x).toRight(s"Unknown wsm application action: $x")
+    )
   implicit val samRoleDecoder: Decoder[SamRole] =
     Decoder.decodeString.map(x => SamRole.stringToRole.getOrElse(x, SamRole.Other(x)))
+  implicit val controlledResourceActionDecoder: Decoder[WorkspaceAction] =
+    Decoder.decodeString.emap(x =>
+      WorkspaceAction.stringToAction.get(x).toRight(s"Unknown controlledResource action: $x")
+    )
   implicit val samPolicyDataDecoder: Decoder[SamPolicyData] = Decoder.instance { x =>
     for {
       memberEmails <- x.downField("memberEmails").as[List[WorkbenchEmail]]

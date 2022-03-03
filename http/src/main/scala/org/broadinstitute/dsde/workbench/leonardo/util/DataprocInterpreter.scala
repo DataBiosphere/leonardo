@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
-import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
   CreateClusterConfig,
@@ -358,16 +357,14 @@ class DataprocInterpreter[F[_]: Parallel](
   )(implicit ev: Ask[F, AppContext]): F[Option[com.google.cloud.compute.v1.Operation]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
       for {
-        ctx <- ev.ask
         region <- F.fromOption(
           LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
           new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
         )
         metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
-        _ <- params.runtimeAndRuntimeConfig.runtime.dataprocInstances.find(_.dataprocRole == Master).traverse {
-          instance =>
-            googleComputeService
-              .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
+        _ <- params.masterInstance.traverse { instance =>
+          googleComputeService
+            .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
         }
         googleProject <- F.fromOption(
           LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
@@ -495,8 +492,7 @@ class DataprocInterpreter[F[_]: Parallel](
   override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
-    params.runtimeAndRuntimeConfig.runtime.dataprocInstances
-      .find(_.dataprocRole == Master)
+    params.masterInstance
       .traverse_(instance =>
         // Note: we don't support changing the machine type for worker instances. While this is possible
         // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,

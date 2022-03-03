@@ -172,7 +172,8 @@ trait LeonardoTestUtils
       Some(dummyClusterSa),
       clusterRequest.jupyterUserScriptUri,
       clusterRequest.jupyterStartUserScriptUri,
-      clusterRequest.toolDockerImage.map(getExpectedToolLabel).getOrElse("Jupyter")
+      clusterRequest.toolDockerImage.map(getExpectedToolLabel).getOrElse("Jupyter"),
+      CloudContext.Gcp(googleProject)
     ).toMap ++ jupyterExtensions
 
     (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
@@ -186,7 +187,8 @@ trait LeonardoTestUtils
                     userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                     jupyterUserScriptUri: Option[UserScriptPath],
                     jupyterStartUserScriptUri: Option[UserScriptPath],
-                    toolDockerImage: Option[ContainerImage]): Unit = {
+                    toolDockerImage: Option[ContainerImage],
+                    cloudContext: CloudContext): Unit = {
 
     // the SAs can vary here depending on which ServiceAccountProvider is used
     // set dummy values here and then remove them from the comparison
@@ -205,7 +207,8 @@ trait LeonardoTestUtils
       Some(dummyClusterSa),
       jupyterUserScriptUri.map(_.asString),
       jupyterStartUserScriptUri.map(_.asString),
-      toolDockerImage.map(c => getExpectedToolLabel(c.imageUrl)).getOrElse("Jupyter")
+      toolDockerImage.map(c => getExpectedToolLabel(c.imageUrl)).getOrElse("Jupyter"),
+      cloudContext
     ).toMap ++ jupyterExtensions
 
     (seen - "clusterServiceAccount") shouldBe (expected - "clusterServiceAccount")
@@ -274,7 +277,8 @@ trait LeonardoTestUtils
       userJupyterExtensionConfig,
       jupyterUserScriptUri,
       jupyterStartUserScriptUri,
-      toolDockerImage
+      toolDockerImage,
+      CloudContext.Gcp(runtime.googleProject)
     )
 
     if (bucketCheck) {

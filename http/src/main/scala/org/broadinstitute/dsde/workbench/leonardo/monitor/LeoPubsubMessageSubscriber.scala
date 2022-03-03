@@ -227,12 +227,20 @@ class LeoPubsubMessageSubscriber[F[_]](
         )
       else F.unit
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      masterInstance <- runtimeConfig.cloudService match {
+        case CloudService.Dataproc =>
+          instanceQuery
+            .getMasterForCluster(runtime.id)
+            .transaction
+            .map(_.some)
+        case _ => F.pure(none[DataprocInstance])
+      }
       op <- runtimeConfig.cloudService.interpreter.deleteRuntime(
-        DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+        DeleteRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), masterInstance)
       )
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
-        new AzureUnimplementedException("Azure runtime is not supported yet")
+        AzureUnimplementedException("Azure runtime is not supported yet")
       )
       poll = op match {
         case Some(o) =>

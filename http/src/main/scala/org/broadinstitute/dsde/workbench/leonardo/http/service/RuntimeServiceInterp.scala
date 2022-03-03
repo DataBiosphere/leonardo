@@ -79,7 +79,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       context <- as.ask
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        new AzureUnimplementedException("Azure runtime is not supported yet")
+        AzureUnimplementedException("Azure runtime is not supported yet")
       )
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateRuntime,
@@ -97,7 +97,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done DB query for active cluster")))
       _ <- runtimeOpt match {
-        case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, status))
+        case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
             samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
@@ -201,7 +201,11 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
             runtimeConfigToSave = LeoLenses.runtimeConfigPrism.reverseGet(runtimeConfig)
-            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
+            saveRuntime = SaveCluster(
+              cluster = runtime,
+              runtimeConfig = runtimeConfigToSave,
+              now = context.now
+            )
             runtime <- clusterQuery.save(saveRuntime).transaction
             _ <- publisherQueue.offer(
               CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
@@ -305,7 +309,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
       else
-        F.raiseError[Unit](RuntimeCannotBeDeletedException(req.googleProject, runtime.runtimeName, runtime.status))
+        F.raiseError[Unit](RuntimeCannotBeDeletedException(cloudContext, runtime.runtimeName, runtime.status))
       // delete the runtime
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       persistentDiskToDelete <- runtimeConfig match {
@@ -787,14 +791,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
           else Async[F].pure((mt, true))
       }
-      masterInstance <- instanceQuery.getMasterForCluster(runtime.id).transaction
+      mainInstance <- instanceQuery.getMasterForCluster(runtime.id).transaction
       // should master disk size be updated?
       targetMasterDiskSize <- traverseIfChanged(req.updatedMasterDiskSize, dataprocConfig.masterDiskSize) { d =>
         if (d.gb < dataprocConfig.masterDiskSize.gb)
           Async[F].raiseError[DiskUpdate](RuntimeDiskSizeCannotBeDecreasedException(runtime.projectNameString))
         else
           Async[F].pure(
-            DiskUpdate.Dataproc(d, masterInstance): DiskUpdate
+            DiskUpdate.Dataproc(d, mainInstance): DiskUpdate
           )
       }
       // if any of the above is defined, send a PubSub message
@@ -833,21 +837,22 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 }
 
 object RuntimeServiceInterp {
-  private def convertToRuntime(userInfo: UserInfo,
-                               serviceAccountInfo: WorkbenchEmail,
-                               cloudContext: CloudContext,
-                               runtimeName: RuntimeName,
-                               clusterInternalId: RuntimeSamResourceId,
-                               clusterImages: Set[RuntimeImage],
-                               config: RuntimeServiceConfig,
-                               req: CreateRuntime2Request,
-                               now: Instant): Runtime = {
+  private[service] def convertToRuntime(userInfo: UserInfo,
+                                        serviceAccountInfo: WorkbenchEmail,
+                                        cloudContext: CloudContext,
+                                        runtimeName: RuntimeName,
+                                        clusterInternalId: RuntimeSamResourceId,
+                                        clusterImages: Set[RuntimeImage],
+                                        config: RuntimeServiceConfig,
+                                        req: CreateRuntime2Request,
+                                        now: Instant): Runtime = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
-      GoogleProject(cloudContext.asString), //TODO: potentially support azure
+      Some(GoogleProject(cloudContext.asString)),
+      cloudContext,
       userInfo.userEmail,
-      serviceAccountInfo,
+      Some(serviceAccountInfo),
       req.userScriptUri,
       req.startUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
@@ -869,8 +874,7 @@ object RuntimeServiceInterp {
           case CloudService.Dataproc =>
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
           case CloudService.AzureVm =>
-            //TODO in https://broadworkbench.atlassian.net/browse/IA-3112
-            throw AzureUnimplementedException("cluster scopes not implemented for azure")
+            config.azureConfig.runtimeConfig.defaultScopes
 
         }
       case None =>
@@ -893,7 +897,6 @@ object RuntimeServiceInterp {
       userScriptUri = req.userScriptUri,
       startUserScriptUri = req.startUserScriptUri,
       errors = List.empty,
-      dataprocInstances = Set.empty,
       userJupyterExtensionConfig = req.userJupyterExtensionConfig,
       autopauseThreshold = autopauseThreshold,
       defaultClientId = req.defaultClientId,
@@ -1010,13 +1013,13 @@ object RuntimeServiceInterp {
                                                    autopauseThreshold: Option[Int],
                                                    autoFreezeConfig: AutoFreezeConfig): Int =
     autopause match {
-      case None =>
-        autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
       case Some(false) =>
         autoPauseOffValue
       case _ =>
-        if (autopauseThreshold.isEmpty) autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
-        else Math.max(autoPauseOffValue, autopauseThreshold.get)
+        autopauseThreshold match {
+          case Some(v) => v
+          case None    => autoFreezeConfig.autoFreezeAfter.toMinutes.toInt
+        }
     }
 }
 
@@ -1026,7 +1029,8 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       imageConfig: ImageConfig,
                                       autoFreezeConfig: AutoFreezeConfig,
                                       dataprocConfig: DataprocConfig,
-                                      gceConfig: GceConfig)
+                                      gceConfig: GceConfig,
+                                      azureConfig: AzureServiceConfig)
 
 final case class WrongCloudServiceException(runtimeCloudService: CloudService,
                                             updateCloudService: CloudService,

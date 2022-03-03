@@ -66,9 +66,9 @@ class AzurePubsubHandlerSpec
       for {
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
-        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                         disk.id,
-                                                         azureRegion)
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion)
         runtime = makeCluster(1)
           .copy(
             runtimeImages = Set(azureImage),
@@ -110,9 +110,9 @@ class AzurePubsubHandlerSpec
       for {
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
-        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                         disk.id,
-                                                         azureRegion)
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion)
         runtime = makeCluster(2)
           .copy(
             runtimeImages = Set(azureImage),
@@ -130,7 +130,7 @@ class AzurePubsubHandlerSpec
           controlledResources.length shouldBe 0
         }
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, workspaceId, wsmResourceId, None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, wsmResourceId, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)
@@ -155,9 +155,9 @@ class AzurePubsubHandlerSpec
       for {
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
-        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                         disk.id,
-                                                         azureRegion)
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion)
         runtime = makeCluster(1)
           .copy(
             runtimeImages = Set(azureImage),
@@ -199,9 +199,9 @@ class AzurePubsubHandlerSpec
       for {
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
-        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                         disk.id,
-                                                         azureRegion)
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion)
         runtime = makeCluster(2)
           .copy(
             runtimeImages = Set(azureImage),
@@ -227,7 +227,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, workspaceId, wsmResourceId, None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, wsmResourceId, None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)
