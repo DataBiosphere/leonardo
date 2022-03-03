@@ -16,13 +16,14 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
 
-@DoNotDiscover
+//@DoNotDiscover
 class AppCreationSpec
     extends GPAllocFixtureSpec
     with LeonardoTestUtils
     with GPAllocUtils
     with ParallelTestExecution
-    with TableDrivenPropertyChecks {
+    with TableDrivenPropertyChecks
+    with GPAllocBeforeAndAfterAll {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
   override def withFixture(test: NoArgTest) =

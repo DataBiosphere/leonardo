@@ -646,6 +646,44 @@ object LeonardoApiClient {
         }
     } yield r
 
+  def createAzureRuntime(
+                     runtimeName: RuntimeName,
+                     workspaceId: WorkspaceId,
+                     createRuntime2Request: CreateRuntime2Request = defaultCreateRuntime2Request
+                   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
+//      r <- client
+//        .run(
+//          Request[IO](
+//            method = Method.POST,
+//            headers = Headers(authHeader, defaultMediaType, traceIdHeader),
+//            uri = rootUri.withPath(
+//              Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
+//            ),
+//            body = createRuntime2Request
+//          )
+//        )
+//        .use { resp =>
+//          if (!resp.status.isSuccess) {
+//            onError(s"Failed to create runtime ${googleProject.value}/${runtimeName.asString}")(resp)
+//              .flatMap(IO.raiseError)
+//          } else
+//            IO.unit
+//        }
+    } yield ()
+
+//  def createAzureRuntimeWithWait(
+//                             googleProject: GoogleProject,
+//                             runtimeName: RuntimeName,
+//                             createRuntime2Request: CreateRuntime2Request
+//                           )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
+//    for {
+//      _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
+//      res <- waitUntilRunning(googleProject, runtimeName)
+//    } yield res
+
   def testSparkWebUi(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
