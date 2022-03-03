@@ -93,11 +93,6 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
   cos-extensions install gpu
   mount --bind /var/lib/nvidia /var/lib/nvidia
   mount -o remount,exec /var/lib/nvidia
-
-  # Containers will usually restart just fine. But when gpu is enabled,
-  # jupyter container will fail to start until the appropriate volume/device exists.
-  # Hence restart jupyter container here
-  docker restart jupyter-server
 fi
 
 # https://broadworkbench.atlassian.net/browse/IA-3186
@@ -123,6 +118,13 @@ then
     if [ ! -z "$JUPYTER_DOCKER_IMAGE" ] ; then
         echo "Restarting Jupyter Container $GOOGLE_PROJECT / $CLUSTER_NAME..."
 
+        if [ "${GPU_ENABLED}" == "true" ] ; then
+          # Containers will usually restart just fine. But when gpu is enabled,
+          # jupyter container will fail to start until the appropriate volume/device exists.
+          # Hence restart jupyter container here
+          docker restart jupyter-server
+          docker restart welder-server
+        fi
         # This line is only for migration (1/26/2022). Say you have an existing runtime where jupyter container's PD is mapped at $HOME/notebooks,
         # then all jupyter related files (.jupyter, .local) and things like bash history etc all lives under $HOME. The home diretory change will
         # make it so that next time this runtime starts up, PD will be mapped to $HOME, but this means that the previous files under $HOME (.jupyter, .local etc)
