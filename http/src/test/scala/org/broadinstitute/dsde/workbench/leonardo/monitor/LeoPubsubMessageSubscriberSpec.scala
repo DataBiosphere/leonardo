@@ -1642,9 +1642,9 @@ class LeoPubsubMessageSubscriberSpec
       for {
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
-        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                         disk.id,
-                                                         azureRegion)
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion)
         runtime = makeCluster(1)
           .copy(
             runtimeImages = Set(azureImage),
@@ -1688,9 +1688,9 @@ class LeoPubsubMessageSubscriberSpec
       for {
         disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
 
-        azureRuntimeConfig = RuntimeConfig.AzureVmConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                         disk.id,
-                                                         azureRegion)
+        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
+                                                       disk.id,
+                                                       azureRegion)
         runtime = makeCluster(2)
           .copy(
             runtimeImages = Set(azureImage),
@@ -1699,7 +1699,7 @@ class LeoPubsubMessageSubscriberSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, workspaceId, wsmResourceId, None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, wsmResourceId, None)
 
         //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery

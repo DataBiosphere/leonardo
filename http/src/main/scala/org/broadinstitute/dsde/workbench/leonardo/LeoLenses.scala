@@ -87,7 +87,7 @@ object LeoLenses {
       )
     case x: RuntimeConfig.DataprocConfig =>
       Some(dataprocRuntimeToDataprocInCreateRuntimeMsg(x))
-    case _: RuntimeConfig.AzureVmConfig =>
+    case _: RuntimeConfig.AzureConfig =>
       throw AzureUnimplementedException("Azure vms should not be handled with existing create runtime message")
   } {
     case x: RuntimeConfigInCreateRuntimeMessage.GceConfig =>

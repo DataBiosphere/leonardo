@@ -79,7 +79,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       context <- as.ask
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        new AzureUnimplementedException("Azure runtime is not supported yet")
+        AzureUnimplementedException("Azure runtime is not supported yet")
       )
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateRuntime,
@@ -97,7 +97,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done DB query for active cluster")))
       _ <- runtimeOpt match {
-        case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, status))
+        case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
             samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
@@ -309,7 +309,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
       else
-        F.raiseError[Unit](RuntimeCannotBeDeletedException(req.googleProject, runtime.runtimeName, runtime.status))
+        F.raiseError[Unit](RuntimeCannotBeDeletedException(cloudContext, runtime.runtimeName, runtime.status))
       // delete the runtime
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       persistentDiskToDelete <- runtimeConfig match {
@@ -837,21 +837,22 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 }
 
 object RuntimeServiceInterp {
-  private def convertToRuntime(userInfo: UserInfo,
-                               serviceAccountInfo: WorkbenchEmail,
-                               cloudContext: CloudContext,
-                               runtimeName: RuntimeName,
-                               clusterInternalId: RuntimeSamResourceId,
-                               clusterImages: Set[RuntimeImage],
-                               config: RuntimeServiceConfig,
-                               req: CreateRuntime2Request,
-                               now: Instant): Runtime = {
+  private[service] def convertToRuntime(userInfo: UserInfo,
+                                        serviceAccountInfo: WorkbenchEmail,
+                                        cloudContext: CloudContext,
+                                        runtimeName: RuntimeName,
+                                        clusterInternalId: RuntimeSamResourceId,
+                                        clusterImages: Set[RuntimeImage],
+                                        config: RuntimeServiceConfig,
+                                        req: CreateRuntime2Request,
+                                        now: Instant): Runtime = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
-      GoogleProject(cloudContext.asString), //TODO: potentially support azure
+      Some(GoogleProject(cloudContext.asString)),
+      cloudContext,
       userInfo.userEmail,
-      serviceAccountInfo,
+      Some(serviceAccountInfo),
       req.userScriptUri,
       req.startUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
@@ -873,8 +874,7 @@ object RuntimeServiceInterp {
           case CloudService.Dataproc =>
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
           case CloudService.AzureVm =>
-            //TODO in https://broadworkbench.atlassian.net/browse/IA-3112
-            throw AzureUnimplementedException("cluster scopes not implemented for azure")
+            config.azureConfig.runtimeConfig.defaultScopes
 
         }
       case None =>
@@ -1029,7 +1029,8 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       imageConfig: ImageConfig,
                                       autoFreezeConfig: AutoFreezeConfig,
                                       dataprocConfig: DataprocConfig,
-                                      gceConfig: GceConfig)
+                                      gceConfig: GceConfig,
+                                      azureConfig: AzureServiceConfig)
 
 final case class WrongCloudServiceException(runtimeCloudService: CloudService,
                                             updateCloudService: CloudService,

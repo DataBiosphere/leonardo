@@ -153,7 +153,12 @@ object Boot extends IOApp {
         imageConfig,
         autoFreezeConfig,
         dataprocConfig,
-        gceConfig
+        gceConfig,
+        AzureServiceConfig(
+          //For now azure disks share same defaults as normal disks
+          ConfigReader.appConfig.persistentDisk,
+          ConfigReader.appConfig.azure.service
+        )
       )
       val runtimeService = RuntimeService(
         runtimeServiceConfig,
@@ -180,6 +185,13 @@ object Boot extends IOApp {
                                 appDependencies.publisherQueue,
                                 appDependencies.googleDependencies.googleComputeService)
 
+      val azureService = new AzureServiceInterp[IO](
+        runtimeServiceConfig,
+        appDependencies.authProvider,
+        appDependencies.wsmDAO,
+        appDependencies.publisherQueue
+      )
+
       val httpRoutes = new HttpRoutes(
         swaggerConfig,
         statusService,
@@ -187,6 +199,7 @@ object Boot extends IOApp {
         runtimeService,
         diskService,
         leoKubernetesService,
+        azureService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig

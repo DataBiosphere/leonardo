@@ -7,6 +7,7 @@ import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   AzureCloudContext,
+  AzureDiskName,
   CidrIP,
   DiskSize,
   ManagedResourceGroupName,
@@ -21,6 +22,7 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import _root_.io.circe._
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
+  azureMachineTypeEncoder,
   azureRegionEncoder,
   runtimeNameEncoder,
   wsmControlledResourceIdEncoder
@@ -57,9 +59,6 @@ final case class CreateVmRequestData(name: RuntimeName,
                                      diskId: WsmControlledResourceId,
                                      networkId: WsmControlledResourceId)
 
-final case class AzureVmName(value: String) extends AnyVal
-final case class AzureImageUri(value: String) extends AnyVal
-
 final case class WsmVm(resourceId: WsmControlledResourceId)
 
 final case class DeleteVmRequest(workspaceId: WorkspaceId,
@@ -87,9 +86,6 @@ final case class CreateDiskRequest(workspaceId: WorkspaceId,
                                    diskData: CreateDiskRequestData)
 
 final case class CreateDiskRequestData(name: AzureDiskName, size: DiskSize, region: com.azure.core.management.Region)
-
-//TODO: delete this case class when current pd.diskName is no longer coupled to google2 diskService
-final case class AzureDiskName(value: String) extends AnyVal
 
 final case class CreateDiskResponse(resourceId: WsmControlledResourceId)
 
@@ -332,8 +328,6 @@ object WsmEncoders {
     )
   implicit val createNetworkRequestEncoder: Encoder[CreateNetworkRequest] =
     Encoder.forProduct2("common", "azureNetwork")(x => (x.common, x.networkData))
-
-  implicit val vmSizeEncoder: Encoder[VirtualMachineSizeTypes] = Encoder.encodeString.contramap(_.toString)
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
     Encoder.forProduct7("name", "region", "vmSize", "vmImageUri", "ipId", "diskId", "networkId")(x =>

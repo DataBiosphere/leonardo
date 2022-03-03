@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.dao.{
   AccessScope,
-  AzureDiskName,
   AzureIpName,
   AzureNetworkName,
   AzureSubnetName,
@@ -82,9 +81,9 @@ class AzureInterpreter[F[_]](
       runtimeConfig <- dbRef.inTransaction(RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId))
 
       azureRuntimeConfig <- runtimeConfig match {
-        case x: RuntimeConfig.AzureVmConfig => F.pure(x)
+        case x: RuntimeConfig.AzureConfig => F.pure(x)
         case _ =>
-          F.raiseError[RuntimeConfig.AzureVmConfig](
+          F.raiseError[RuntimeConfig.AzureConfig](
             PubsubHandleMessageError.AzureRuntimeError(
               msg.runtimeId,
               ctx.traceId,
@@ -102,7 +101,7 @@ class AzureInterpreter[F[_]](
       createAzureRuntimeResult <- createRuntime(params)
 
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId, runtime, createAzureRuntimeResult.jobReport.id)
+        PollRuntimeParams(msg.workspaceId, runtime, createAzureRuntimeResult.jobReport.id, pd)
       )
     } yield ()
 
@@ -195,6 +194,7 @@ class AzureInterpreter[F[_]](
                                            ctx.now)
         )
         _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(params.runtime.id, RuntimeStatus.Running, ctx.now))
+        _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(params.disk.id, DiskStatus.Ready, ctx.now))
       } yield ()
 
       _ <- asyncTasks.offer(
@@ -252,6 +252,9 @@ class AzureInterpreter[F[_]](
           s"Azure vm still exists after ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
         )
         _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+        _ <- msg.diskId.traverse(diskId =>
+          dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
+        )
         - <- dbRef.inTransaction(controlledResourceQuery.deleteAllForRuntime(runtime.id))
       } yield ()
 
@@ -299,7 +302,7 @@ class AzureInterpreter[F[_]](
   }
 
   private def createDisk(params: CreateAzureRuntimeParams)(implicit ev: Ask[F, AppContext]): F[CreateDiskResponse] = {
-    val common = getCommonFields(ControlledResourceName(params.pd.name.value),
+    val common = getCommonFields(ControlledResourceName(params.disk.name.value),
                                  config.diskControlledResourceDesc,
                                  params.runtime.auditInfo.creator)
 
@@ -308,8 +311,8 @@ class AzureInterpreter[F[_]](
       common,
       CreateDiskRequestData(
         //TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
-        AzureDiskName(params.pd.name.value),
-        params.pd.size,
+        AzureDiskName(params.disk.name.value),
+        params.disk.size,
         params.runtimeConfig.region
       )
     )

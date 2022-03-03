@@ -278,6 +278,9 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType
         .base[WsmControlledResourceId, String](_.value.toString, s => WsmControlledResourceId(UUID.fromString(s)))
 
+    implicit val workspaceIdColumnType: BaseColumnType[WorkspaceId] =
+      MappedColumnType
+        .base[WorkspaceId, String](_.value.toString, s => WorkspaceId(UUID.fromString(s)))
   }
 
   case class ColumnDecodingException(message: String) extends Exception

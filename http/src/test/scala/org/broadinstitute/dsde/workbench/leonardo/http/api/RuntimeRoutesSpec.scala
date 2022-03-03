@@ -25,6 +25,7 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration._
+import JsonCodec._
 
 class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   it should "decode RuntimeConfigRequest.DataprocConfig" in {

@@ -50,6 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
 import org.broadinstitute.dsde.workbench.leonardo.db.ClusterRecord
 import org.broadinstitute.dsde.workbench.leonardo.http.{
   userScriptStartupOutputUriMetadataKey,
+  ConfigReader,
   CreateRuntime2Request,
   RuntimeConfigRequest
 }
@@ -65,6 +66,9 @@ import java.nio.file.Paths
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
+
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureServiceConfig
 
 import scala.concurrent.duration._
 
@@ -144,6 +148,11 @@ object CommonTestData {
   val contentSecurityPolicy = Config.contentSecurityPolicy
   val refererConfig = Config.refererConfig
   val leoKubernetesConfig = Config.leoKubernetesConfig
+  val azureServiceConfig = AzureServiceConfig(
+    //For now azure disks share same defaults as normal disks
+    ConfigReader.appConfig.persistentDisk,
+    ConfigReader.appConfig.azure.service
+  )
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
     Some(singleNodeDefaultMachineConfig.numberOfWorkers),
@@ -187,7 +196,7 @@ object CommonTestData {
   val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now)
   val customDataprocImage = RuntimeImage(BootSource, "custom_dataproc", None, Instant.now)
   val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now)
-  val azureImage = RuntimeImage(RuntimeImageType.AzureVm, "test", None, Instant.now)
+  val azureImage = RuntimeImage(RuntimeImageType.Azure, "test", None, Instant.now)
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
   val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
@@ -345,7 +354,8 @@ object CommonTestData {
     welderEnabled = true,
     customClusterEnvironmentVariables = Map.empty,
     runtimeConfigId = RuntimeConfigId(-1),
-    deletedFrom = None
+    deletedFrom = None,
+    workspaceId = None
   )
 
   val readyInstance = Instance
@@ -454,6 +464,20 @@ object CommonTestData {
         userEmail,
         List(ControlledResourceIamRole.Editor)
       )
+    )
+  )
+
+  val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
+    Map.empty,
+    azureRegion,
+    VirtualMachineSizeTypes.STANDARD_A1,
+    Some(AzureImageUri(azureImage.imageUrl)),
+    Map.empty,
+    CreateAzureDiskRequest(
+      Map.empty,
+      AzureDiskName("diskName1"),
+      Some(DiskSize(100)),
+      None
     )
   )
 
