@@ -158,7 +158,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                           F.sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                                  runtimeAndRuntimeConfig,
                                                                  ip,
-                                                                 masterInstance)
+                                                                 masterInstance,
+                                                                 true)
                         case None =>
                           checkAgain(monitorContext,
                                      runtimeAndRuntimeConfig,
@@ -303,7 +304,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                       F.sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                              runtimeAndRuntimeConfig,
                                                              ip,
-                                                             main.map(_._1))
+                                                             main.map(_._1),
+                                                             false)
                     case None =>
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
@@ -414,7 +416,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             main.flatMap(_.ip) match {
               case Some(ip) =>
                 // It takes a bit for jupyter to startup, hence wait a few seconds before we check jupyter
-                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main)
+                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main, false)
               case None =>
                 checkAgain(monitorContext,
                            runtimeAndRuntimeConfig,

@@ -143,9 +143,9 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           new Exception(s"Cluster with id ${runtimeAndRuntimeConfig.runtime.id} not found in the database")
         )
         _ <- curStatus match {
-          case RuntimeStatus.Deleted =>
+          case RuntimeStatus.Deleted | RuntimeStatus.Stopped =>
             logger.info(ctx.loggingCtx)(
-              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in Deleted status."
+              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in ${curStatus} status."
             )
           case _ =>
             logger.info(ctx.loggingCtx)(
@@ -446,7 +446,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def handleCheckTools(monitorContext: MonitorContext,
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
-                                        mainDataprocInstance: Option[DataprocInstance]) // only applies to dataproc
+                                        mainDataprocInstance: Option[DataprocInstance],
+                                        deleteRuntimeOnFail: Boolean) // only applies to dataproc
   (
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] = {
@@ -489,7 +490,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               None,
               Some("tool_start_up")
             ),
-            mainDataprocInstance
+            mainDataprocInstance,
+            deleteRuntimeOnFail
           )
       }
     } yield r
