@@ -75,7 +75,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       // Check if welder should be deployed or updated
       updatedRuntime <- welderAction
         .traverse {
-          case UpdateWelder => updateWelder(params.runtimeAndRuntimeConfig.runtime, ctx.now)
+          case UpdateWelder => updateWelder(params.runtimeAndRuntimeConfig.runtime, params.initBucket, ctx.now)
           case DisableDelocalization =>
             labelQuery
               .save(params.runtimeAndRuntimeConfig.runtime.id, LabelResourceType.Runtime, "welderInstallFailed", "true")
@@ -123,12 +123,15 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       isClusterBeforeCutoffDate = runtime.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(runtime: Runtime, now: Instant)(implicit ev: Ask[F, AppContext]): F[Runtime] =
+  private def updateWelder(runtime: Runtime, initBukcet: GcsBucketName, now: Instant)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Runtime] =
     for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(s"Will deploy welder to runtime ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/upgrade")
 
+      _ <- bucketHelper.uploadFileToInitBucket(initBukcet, config.clusterResourcesConfig.welderDockerCompose)
       newWelderImageUrl <- Async[F].fromEither(
         runtime.runtimeImages
           .find(_.imageType == Welder)

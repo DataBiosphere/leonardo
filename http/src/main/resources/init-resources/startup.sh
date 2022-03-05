@@ -165,7 +165,8 @@ END
     if [ "$UPDATE_WELDER" == "true" ] ; then
         echo "Upgrading welder..."
 
-        docker network create -d bridge app_network || true
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
+        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${WELDER_DOCKER_COMPOSE}` $WELDER_DOCKER_COMPOSE
 
 tee /var/welder-variables.env << END
 WORK_DIRECTORY=${WORK_DIRECTORY}
