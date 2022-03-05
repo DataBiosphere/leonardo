@@ -337,7 +337,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                   msg,
                                   shortMessage = Some("user_startup_script")
                                 ),
-                                None)
+                                None,
+                                false)
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
@@ -354,7 +355,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
               monitorContext,
               runtimeAndRuntimeConfig,
               RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to start an instance"),
-              None
+              None,
+              false
             )
         }
       } yield r

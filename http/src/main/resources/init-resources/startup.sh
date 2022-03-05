@@ -179,7 +179,6 @@ STAGING_BUCKET=${STAGING_BUCKET}
 WELDER_MEM_LIMIT=${WELDER_MEM_LIMIT}
 END
 
-        retry 5 ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} pull
         ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop
         ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} rm -f
         ${DOCKER_COMPOSE} --env-file=/var/welder-variables.env -f ${WELDER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?

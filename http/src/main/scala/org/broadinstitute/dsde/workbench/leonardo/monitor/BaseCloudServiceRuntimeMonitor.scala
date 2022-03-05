@@ -103,7 +103,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def failedRuntime(monitorContext: MonitorContext,
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                     errorDetails: RuntimeErrorDetails,
-                    mainInstance: Option[DataprocInstance])(
+                    mainInstance: Option[DataprocInstance],
+                    deleteRuntime: Boolean = true)(
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
@@ -114,7 +115,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           .deleteRuntime(
             DeleteRuntimeParams(runtimeAndRuntimeConfig, mainInstance)
           )
-          .void, //TODO is this right when deleting or stopping fails?
+          .void
+          .whenA(deleteRuntime),
         //save cluster error in the DB
         saveRuntimeError(
           runtimeAndRuntimeConfig.runtime.id,
@@ -159,7 +161,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
         "errorCode" -> errorDetails.shortMessage.getOrElse("leonardo")
       )
-      _ <- openTelemetry.incrementCounter(s"runtimeCreationFailure", 1, tags)
+      _ <- openTelemetry.incrementCounter(s"runtimeFailure", 1, tags)
     } yield ((), None): CheckResult
 
   def readyRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
