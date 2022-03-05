@@ -117,6 +117,12 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           )
           .void
           .whenA(deleteRuntime),
+        runtimeAlg
+          .stopRuntime(
+            StopRuntimeParams(runtimeAndRuntimeConfig, ctx.now, true)
+          )
+          .void
+          .whenA(!deleteRuntime), //When we don't delete runtime, we should stop the runtime
         //save cluster error in the DB
         saveRuntimeError(
           runtimeAndRuntimeConfig.runtime.id,
@@ -143,9 +149,13 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           new Exception(s"Cluster with id ${runtimeAndRuntimeConfig.runtime.id} not found in the database")
         )
         _ <- curStatus match {
-          case RuntimeStatus.Deleted | RuntimeStatus.Stopped =>
+          case RuntimeStatus.Deleted =>
             logger.info(ctx.loggingCtx)(
               s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in ${curStatus} status."
+            )
+          case _ if deleteRuntime != true =>
+            logger.info(ctx.loggingCtx)(
+              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because we're not going to delete it."
             )
           case _ =>
             logger.info(ctx.loggingCtx)(
