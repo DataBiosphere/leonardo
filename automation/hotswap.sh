@@ -13,10 +13,17 @@ fi
 
 FIAB=$1
 ENV=${2:-dev}
+GENERATING_JAR=${3:-true}
 
-printf "Generating the Leo jar...\n\n"
 # Example: /Users/qi/workspace/leonardo/http/target/scala-2.12/http-assembly-0.1-437ee4a9-SNAPSHOT.jar
-sbt -J-Xmx4g -J-Xss2M -J-Xms4G -Dsbt.log.noformat=true "project http" clean assembly
+if [ $GENERATING_JAR = "true" ]; then
+  printf "Generating the Leo jar...\n\n"
+
+  sbt -J-Xmx4g -J-Xss2M -J-Xms4G -Dsbt.log.noformat=true "project http" clean assembly
+
+  printf "\n\nJar successfully generated."
+fi
+
 LEO_JAR_PATH=$(ls http/target/scala-2.13/http*)
 
 printf "\n\nJar successfully generated."
