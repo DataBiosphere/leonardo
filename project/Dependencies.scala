@@ -55,7 +55,7 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.10"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.11"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "4.1.3"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
