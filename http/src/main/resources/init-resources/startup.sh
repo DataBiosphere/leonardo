@@ -163,8 +163,9 @@ END
     fi
 
     if [ "$UPDATE_WELDER" == "true" ] ; then
-        # Run welder-docker-compose
-        ${GCLOUD_CMD} auth configure-docker
+#        # Run welder-docker-compose
+#        ${GCLOUD_CMD} auth configure-docker
+#        docker network create -d bridge app_network || true
 
 tee /var/welder-variables.env << END
 WORK_DIRECTORY=${WORK_DIRECTORY}
