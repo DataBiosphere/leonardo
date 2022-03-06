@@ -433,7 +433,7 @@ class GceRuntimeMonitorSpec
       error <- clusterErrorQuery.get(savedRuntime.id).transaction
     } yield {
       (afterMonitor.toEpochMilli - start.toEpochMilli < 5000) shouldBe true // initial delay in tests is 2 seconds and 1 second polling interval, the stream should terminate after a few more checks
-      status shouldBe Some(RuntimeStatus.Error)
+      status shouldBe Some(RuntimeStatus.Stopped)
       error.head.errorMessage shouldBe s"User startup script failed. See output in gs://staging_bucket/failed_userstartupscript_output.txt"
     }
 

@@ -156,7 +156,10 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           case _ if deleteRuntime != true =>
             logger.info(ctx.loggingCtx)(
               s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because we're not going to delete it."
-            )
+            ) >> clusterQuery
+              .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopped, ctx.now)
+              .transaction
+              .void
           case _ =>
             logger.info(ctx.loggingCtx)(
               s"failedRuntime: moving runtime with id  ${runtimeAndRuntimeConfig.runtime.id} to Error status because ${errorDetails.longMessage}"
