@@ -258,7 +258,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       Temporal[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, None)
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, None, true)
                     case None =>
                       checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))
                   }
@@ -337,13 +337,14 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                   msg,
                                   shortMessage = Some("user_startup_script")
                                 ),
-                                None)
+                                None,
+                                false)
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
                       // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
                       Temporal[F]
-                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, None)
+                        .sleep(8 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, None, false)
                     case None =>
                       checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some("Could not retrieve instance IP"))
                   }
@@ -354,7 +355,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
               monitorContext,
               runtimeAndRuntimeConfig,
               RuntimeErrorDetails(s"unexpected GCE instance status ${ss} when trying to start an instance"),
-              None
+              None,
+              false
             )
         }
       } yield r

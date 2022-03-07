@@ -103,7 +103,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   def failedRuntime(monitorContext: MonitorContext,
                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                     errorDetails: RuntimeErrorDetails,
-                    mainInstance: Option[DataprocInstance])(
+                    mainInstance: Option[DataprocInstance],
+                    deleteRuntime: Boolean = true)(
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
@@ -114,7 +115,14 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
           .deleteRuntime(
             DeleteRuntimeParams(runtimeAndRuntimeConfig, mainInstance)
           )
-          .void, //TODO is this right when deleting or stopping fails?
+          .void
+          .whenA(deleteRuntime),
+        runtimeAlg
+          .stopRuntime(
+            StopRuntimeParams(runtimeAndRuntimeConfig, ctx.now, true)
+          )
+          .void
+          .whenA(!deleteRuntime), //When we don't delete runtime, we should stop the runtime
         //save cluster error in the DB
         saveRuntimeError(
           runtimeAndRuntimeConfig.runtime.id,
@@ -143,8 +151,15 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         _ <- curStatus match {
           case RuntimeStatus.Deleted =>
             logger.info(ctx.loggingCtx)(
-              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in Deleted status."
+              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because it is in ${curStatus} status."
             )
+          case _ if deleteRuntime != true =>
+            logger.info(ctx.loggingCtx)(
+              s"failedRuntime: not moving runtime with id ${runtimeAndRuntimeConfig.runtime.id} because we're not going to delete it."
+            ) >> clusterQuery
+              .updateClusterStatus(runtimeAndRuntimeConfig.runtime.id, RuntimeStatus.Stopped, ctx.now)
+              .transaction
+              .void
           case _ =>
             logger.info(ctx.loggingCtx)(
               s"failedRuntime: moving runtime with id  ${runtimeAndRuntimeConfig.runtime.id} to Error status because ${errorDetails.longMessage}"
@@ -159,7 +174,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
         "cloudService" -> runtimeAndRuntimeConfig.runtimeConfig.cloudService.asString,
         "errorCode" -> errorDetails.shortMessage.getOrElse("leonardo")
       )
-      _ <- openTelemetry.incrementCounter(s"runtimeCreationFailure", 1, tags)
+      _ <- openTelemetry.incrementCounter(s"runtimeFailure", 1, tags)
     } yield ((), None): CheckResult
 
   def readyRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
@@ -444,7 +459,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
   private[monitor] def handleCheckTools(monitorContext: MonitorContext,
                                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                         ip: IP,
-                                        mainDataprocInstance: Option[DataprocInstance]) // only applies to dataproc
+                                        mainDataprocInstance: Option[DataprocInstance],
+                                        deleteRuntimeOnFail: Boolean) // only applies to dataproc
   (
     implicit ev: Ask[F, AppContext]
   ): F[CheckResult] = {
@@ -487,7 +503,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               None,
               Some("tool_start_up")
             ),
-            mainDataprocInstance
+            mainDataprocInstance,
+            deleteRuntimeOnFail
           )
       }
     } yield r

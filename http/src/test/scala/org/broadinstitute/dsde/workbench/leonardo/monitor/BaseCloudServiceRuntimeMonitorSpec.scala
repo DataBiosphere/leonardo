@@ -67,7 +67,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
@@ -92,7 +92,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
@@ -118,7 +118,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
 
       runCheckTools = Stream.eval(
-        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None)
+        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
       )
       deleteRuntime = Stream.sleep[IO](2 seconds) ++ Stream.eval(
         clusterQuery.completeDeletion(runtime.id, start).transaction

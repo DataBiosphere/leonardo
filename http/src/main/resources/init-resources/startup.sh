@@ -161,6 +161,30 @@ END
           docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
         fi
     fi
+
+    if [ "$UPDATE_WELDER" == "true" ] ; then
+        echo "Upgrading welder..."
+
+        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
+        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${WELDER_DOCKER_COMPOSE}` $WELDER_DOCKER_COMPOSE
+
+tee /var/welder-variables.env << END
+WORK_DIRECTORY=${WORK_DIRECTORY}
+GOOGLE_PROJECT=${GOOGLE_PROJECT}
+RUNTIME_NAME=${RUNTIME_NAME}
+OWNER_EMAIL=${OWNER_EMAIL}
+WELDER_ENABLED=${WELDER_ENABLED}
+WELDER_SERVER_NAME=${WELDER_SERVER_NAME}
+WELDER_DOCKER_IMAGE=${WELDER_DOCKER_IMAGE}
+STAGING_BUCKET=${STAGING_BUCKET}
+WELDER_MEM_LIMIT=${WELDER_MEM_LIMIT}
+IS_RSTUDIO_RUNTIME=${IS_RSTUDIO_RUNTIME}
+END
+
+        ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop
+        ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} rm -f
+        ${DOCKER_COMPOSE} --env-file=/var/welder-variables.env -f ${WELDER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
+    fi
 else
     CERT_DIRECTORY='/certs'
     DOCKER_COMPOSE_FILES_DIRECTORY='/etc'
@@ -245,17 +269,6 @@ if [ "$DISABLE_DELOCALIZATION" == "true" ] ; then
     docker exec -i jupyter-server bash -c "find $JUPYTER_USER_HOME -name .cache -prune -or -name .delocalize.json -exec rm -f {} \;"
 fi
 
-if [ "$UPDATE_WELDER" == "true" ] ; then
-    # Run welder-docker-compose
-    ${GCLOUD_CMD} auth configure-docker
-
-    retry 5 ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} pull
-    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} stop
-    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} rm -f
-    ${DOCKER_COMPOSE} -f ${WELDER_DOCKER_COMPOSE} up -d &> /var/start_output.txt || EXIT_CODE=$?
-
-    failScriptIfError
-fi
 
 # If a start user script was specified, execute it now. It should already be in the docker container
 # via initialization in init-actions.sh (we explicitly do not want to recopy it from GCS on every cluster resume).
