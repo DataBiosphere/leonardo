@@ -17,17 +17,17 @@ set -e -x
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
-terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.3"
-terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.0.4"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.0.4"
-terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.0.7"
-terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.11"
-welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:76263d2"
+terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.4"
+terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.0.5"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.0.5"
+terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.0.8"
+terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.12"
+welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:342aff2"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
 anvil_rstudio_bioconductor="us.gcr.io/anvil-gcr-public/anvil-rstudio-bioconductor:3.14.0"
 
 # The _old variables are NOT replaced by the Jenkins job; they must be manually updated
-terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.8"
+terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.11"
 
 # Not replaced by Jenkins
 cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.3"
