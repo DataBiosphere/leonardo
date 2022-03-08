@@ -16,7 +16,7 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.typelevel.log4cats.{Logger, StructuredLogger}
+import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
 
 import scala.concurrent.duration._
