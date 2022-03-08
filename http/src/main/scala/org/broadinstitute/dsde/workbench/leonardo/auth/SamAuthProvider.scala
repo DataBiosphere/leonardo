@@ -16,17 +16,17 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
-import org.typelevel.log4cats.Logger
+import org.typelevel.log4cats.{Logger, StructuredLogger}
 import scalacache.Cache
 
 import scala.concurrent.duration._
 
-class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](
+class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   samDao: SamDAO[F],
   config: SamAuthProviderConfig,
   saProvider: ServiceAccountProvider[F],
   authCache: Cache[F, AuthCacheKey, Boolean]
-)(implicit F: Async[F])
+)(implicit F: Async[F], logger: StructuredLogger[F])
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
@@ -56,8 +56,8 @@ class SamAuthProvider[F[_]: Logger: OpenTelemetryMetrics](
       traceId <- ev.ask
       res <- samDao.hasResourcePermissionUnchecked(samResourceType, samResource, action, authHeader).recoverWith {
         case e =>
-          Logger[F]
-            .info(e)(s"${traceId} | $action is not allowed for resource $samResource")
+          logger
+            .info(Map("traceId" -> traceId.asString), e)(s"$action is not allowed for resource $samResource")
             .as(false)
       }
     } yield res
