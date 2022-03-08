@@ -326,7 +326,7 @@ object Boot extends IOApp {
 
         val frontLeoOnlyProcesses = List(
           dateAccessedUpdater.process // We only need to update dateAccessed in front leo
-        ) // ++ appDependencies.recordCacheMetrics TODO: uncomment this
+        ) ++ appDependencies.recordCacheMetrics
 
         val extraProcesses = leoExecutionModeConfig match {
           case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
