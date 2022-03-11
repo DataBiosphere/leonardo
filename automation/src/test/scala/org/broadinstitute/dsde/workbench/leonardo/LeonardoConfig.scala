@@ -25,11 +25,19 @@ object LeonardoConfig extends CommonConfig {
     val location: Location = Location(leonardo.getString("location"))
 
     val publisherConfig: PublisherConfig = PublisherConfig(GCS.pathToQAJson, topic)
+
+    val tenantId: String = leonardo.getString("tenantId")
+    val subscriptionId: String = leonardo.getString("subscriptionId")
+    val managedResourceGroup: String = leonardo.getString("managedResourceGroup")
   }
 
   // for qaEmail and pathToQAPem and pathToQAJson
   object GCS extends CommonGCS {
     val pathToQAJson = gcs.getString("qaJsonFile")
+  }
+
+  object WSM {
+    val wsmUri: String = "https://workspace.dsde-dev.broadinstitute.org"
   }
 
   // for NotebooksWhitelisted

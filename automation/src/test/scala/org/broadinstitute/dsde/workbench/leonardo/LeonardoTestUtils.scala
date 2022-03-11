@@ -27,6 +27,8 @@ import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpe
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
+import org.http4s.{AuthScheme, Credentials}
+import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -35,11 +37,26 @@ import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Minutes, Seconds, Span}
-
-import java.io.{ByteArrayInputStream, File, FileOutputStream}
+import java.io.{ByteArrayInputStream, File, FileInputStream, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
+import java.util.UUID
+
+import bio.terra.workspace.api.WorkspaceApi
+import bio.terra.workspace.client.ApiClient
+import bio.terra.workspace.model.{
+  AzureContext,
+  CloudPlatform,
+  CreateCloudContextRequest,
+  CreateCloudContextResult,
+  CreateWorkspaceRequestBody,
+  JobControl,
+  WorkspaceStageModel
+}
+import com.google.auth.oauth2.ServiceAccountCredentials
+
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Random, Success, Try}
 
 case class KernelNotReadyException(timeElapsed: Timeout)
@@ -437,6 +454,26 @@ trait LeonardoTestUtils
   def stopAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit =
     stopRuntime(googleProject, runtimeName, monitor = true)(token)
 
+  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
+    implicit token: AuthToken,
+    authorization: IO[Authorization]
+  ): Unit = {
+    // verify with get()
+    val waitForRunning = LeonardoApiClient.client.use { implicit c =>
+      LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
+    }
+
+    waitForRunning.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
+    val getResult = Try(Notebook.getApi(googleProject, runtimeName))
+    getResult.isSuccess shouldBe true
+    getResult.get should not include "ProxyException"
+
+    // Grab the jupyter.log and welder.log files for debugging.
+    saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")
+  }
+
   def randomClusterName: RuntimeName = RuntimeName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
   def defaultClusterRequest: ClusterRequest =
@@ -697,6 +734,65 @@ trait LeonardoTestUtils
   def appInStateOrError(status: AppStatus): DoneCheckable[GetAppResponse] =
     x => x.status == status || x.status == AppStatus.Error
 
+  def runtimeInStateOrError(status: ClusterStatus): DoneCheckable[GetRuntimeResponseCopy] =
+    x => x.status == ClusterStatus.Running || x.status == ClusterStatus.Running
+
+  def withNewWorkspace[T](testCode: WorkspaceId => IO[T]): T = {
+    val test = for {
+      _ <- loggerIO.info("Allocating a new single-test workspace")
+      workspaceId <- createWsmWorkspace()
+      cloudContextResult <- createAzureCloudContext(workspaceId)
+      t <- testCode(workspaceId)
+      _ <- loggerIO.info("Deleting wsm workspace")
+      _ <- IO(wsmWorkspaceClient.deleteWorkspace(workspaceId.value))
+    } yield t
+
+    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  protected def createWsmWorkspace(): IO[WorkspaceId] = {
+    val workspaceId: UUID = UUID.randomUUID
+    val requestBody: CreateWorkspaceRequestBody =
+      new CreateWorkspaceRequestBody().id(workspaceId).stage(WorkspaceStageModel.MC_WORKSPACE)
+    for {
+      _ <- loggerIO.info(s"calling wsm createWorkspace")
+      _ <- IO(wsmWorkspaceClient.createWorkspace(requestBody))
+    } yield WorkspaceId(workspaceId)
+  }
+
+  protected def createAzureCloudContext(workspaceId: WorkspaceId): IO[CreateCloudContextResult] = {
+    val jobControl = new JobControl().id(UUID.randomUUID().toString)
+
+    val azureContext = new AzureContext()
+      .tenantId(LeonardoConfig.Leonardo.tenantId)
+      .subscriptionId(LeonardoConfig.Leonardo.subscriptionId)
+      .resourceGroupId(LeonardoConfig.Leonardo.managedResourceGroup)
+
+    val requestBody: CreateCloudContextRequest = new CreateCloudContextRequest()
+      .jobControl(jobControl)
+      .azureContext(azureContext)
+      .cloudPlatform(CloudPlatform.AZURE)
+
+    for {
+      _ <- loggerIO.info(s"calling wsm create cloud context")
+      result <- IO(wsmWorkspaceClient.createCloudContext(requestBody, workspaceId.value))
+    } yield result
+  }
+
+  //THIS CLIENT IS VALID FOR 1 HR
+  private def buildWsmClient(): WorkspaceApi = {
+    val apiClient = new ApiClient
+    apiClient.setBasePath(LeonardoConfig.WSM.wsmUri)
+
+    val creds = ServiceAccountCredentials
+      .fromStream(new FileInputStream(LeonardoConfig.GCS.pathToQAJson))
+      .createScoped(
+        List("openid", "email", "profile", "https://www.googleapis.com/auth/cloud-platform").asJava
+      )
+
+    apiClient.setAccessToken(creds.getAccessToken.getTokenValue)
+    new WorkspaceApi(apiClient)
+  }
 }
 
 // Ron and Hermione are on the dev Leo's allowed list, and Hermione is a Project Owner
