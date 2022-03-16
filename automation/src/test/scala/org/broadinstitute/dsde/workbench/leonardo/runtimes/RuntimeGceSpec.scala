@@ -141,6 +141,7 @@ class RuntimeGceSpec
   private def testStartupScripts(project: GoogleProject, image: Option[ContainerImage] = None): IO[Unit] = {
     dependencies.use { deps =>
       implicit val client = deps.httpClient
+      val checkJupyerSetup = !image.contains(LeonardoConfig.Leonardo.rstudioBioconductorImage)
       for {
         // Set up test bucket for startup script
         implicit0(authToken: AuthToken) <- Ron.authToken()
@@ -215,7 +216,7 @@ class RuntimeGceSpec
 
         // stop/start the runtime
         _ <- IO(stopAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
-        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
+        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName, checkJupyerSetup))
 
         getRuntimeResponse <- getRuntime(runtime.googleProject, runtime.clusterName)
         runtime = ClusterCopy.fromGetRuntimeResponseCopy(getRuntimeResponse)

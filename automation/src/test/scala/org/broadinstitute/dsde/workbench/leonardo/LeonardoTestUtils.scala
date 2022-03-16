@@ -27,9 +27,9 @@ import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpe
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
-import org.http4s.{AuthScheme, Credentials}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
+import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.TestSuite
 import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
@@ -436,26 +436,6 @@ trait LeonardoTestUtils
 
   def stopAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit =
     stopRuntime(googleProject, runtimeName, monitor = true)(token)
-
-  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit token: AuthToken,
-    authorization: IO[Authorization]
-  ): Unit = {
-    // verify with get()
-    val waitForRunning = LeonardoApiClient.client.use { implicit c =>
-      LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
-    }
-
-    waitForRunning.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
-    val getResult = Try(Notebook.getApi(googleProject, runtimeName))
-    getResult.isSuccess shouldBe true
-    getResult.get should not include "ProxyException"
-
-    // Grab the jupyter.log and welder.log files for debugging.
-    saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")
-  }
 
   def randomClusterName: RuntimeName = RuntimeName(s"automation-test-a${makeRandomId().toLowerCase}z")
 

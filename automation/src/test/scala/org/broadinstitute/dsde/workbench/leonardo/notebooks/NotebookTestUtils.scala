@@ -3,12 +3,14 @@ package org.broadinstitute.dsde.workbench.leonardo.notebooks
 import cats.data.NonEmptyList
 import cats.effect.IO
 import com.google.cloud.Identity
+import jdk.jshell.spi.ExecutionControl.NotImplementedException
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.google2.StorageRole.ObjectAdmin
 import org.broadinstitute.dsde.workbench.google2.{GcsBlobName, GetMetadataResponse, RemoveObjectResult, StorageRole}
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.model.google._
 import org.broadinstitute.dsde.workbench.service.Sam
+import org.http4s.headers.Authorization
 import org.openqa.selenium.WebDriver
 import org.scalatest.TestSuite
 
@@ -17,6 +19,7 @@ import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
+import scala.util.Try
 
 trait NotebookTestUtils extends LeonardoTestUtils {
   this: TestSuite =>
@@ -25,18 +28,24 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     case _                          => false
   }
 
-  def withNotebooksListPage[T](cluster: ClusterCopy)(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver,
-                                                                                       token: AuthToken): T = {
-    val notebooksListPage = Notebook.get(cluster.googleProject, cluster.clusterName)
+  def withNotebooksListPage[T](
+    runtimeProjectAndName: RuntimeProjectAndName
+  )(testCode: NotebooksListPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
+    val googleProject = runtimeProjectAndName.cloudContext match {
+      case CloudContext.Gcp(v)   => v
+      case CloudContext.Azure(_) => throw new NotImplementedException("Azure runtime is not supported yet")
+    }
+    val notebooksListPage = Notebook.get(googleProject, runtimeProjectAndName.runtimeName)
     testCode(notebooksListPage.open)
   }
 
   def withFileUpload[T](cluster: ClusterCopy, file: File)(
     testCode: NotebooksListPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
-    withNotebooksListPage(cluster) { notebooksListPage =>
-      notebooksListPage.upload(file)
-      testCode(notebooksListPage)
+    withNotebooksListPage(RuntimeProjectAndName(CloudContext.Gcp(cluster.googleProject), cluster.clusterName)) {
+      notebooksListPage =>
+        notebooksListPage.upload(file)
+        testCode(notebooksListPage)
     }
 
   def withNotebookUpload[T](cluster: ClusterCopy, file: File, timeout: FiniteDuration = 2.minutes)(
@@ -51,16 +60,25 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def withNewNotebook[T](cluster: ClusterCopy, kernel: NotebookKernel = Python3, timeout: FiniteDuration = 3.minutes)(
     testCode: NotebookPage => T
+  )(implicit webDriver: WebDriver, token: AuthToken): T =
+    withNewNotebookWithCheck(RuntimeProjectAndName(CloudContext.Gcp(cluster.googleProject), cluster.clusterName),
+                             kernel,
+                             timeout)(testCode)
+
+  def withNewNotebookWithCheck[T](runtimeProjectAndName: RuntimeProjectAndName,
+                                  kernel: NotebookKernel = Python3,
+                                  timeout: FiniteDuration = 3.minutes)(
+    testCode: NotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T = {
     // Note we retry the entire notebook creation when we encounter KernelNotReadyException
     val result = retryUntilSuccessOrTimeout(
       whenKernelNotReady,
       failureLogMessage =
-        s"Cannot make new notebook on ${cluster.googleProject.value} / ${cluster.clusterName.asString} for ${kernel}"
+        s"Cannot make new notebook on ${runtimeProjectAndName.cloudContext.asStringWithProvider} / ${runtimeProjectAndName.runtimeName.asString} for ${kernel}"
     )(30 seconds, 10 minutes) { () =>
-      withNotebooksListPage(cluster) { notebooksListPage =>
+      withNotebooksListPage(runtimeProjectAndName) { notebooksListPage =>
         logger.info(
-          s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
+          s"Creating new ${kernel.string} notebook on cluster ${runtimeProjectAndName.cloudContext.asStringWithProvider} / ${runtimeProjectAndName.runtimeName.asString}..."
         )
         Future(
           notebooksListPage.withNewNotebook(kernel, timeout) { notebookPage =>
@@ -88,17 +106,18 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     val result =
       retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
                                                                                                       2 minutes) { () =>
-        withNotebooksListPage(cluster) { notebooksListPage =>
-          notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
+        withNotebooksListPage(RuntimeProjectAndName(CloudContext.Gcp(cluster.googleProject), cluster.clusterName)) {
+          notebooksListPage =>
             notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
-              logger.info(
-                s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
-              )
-              Future(
-                notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
-              )
+              notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
+                logger.info(
+                  s"Creating new ${kernel.string} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
+                )
+                Future(
+                  notebooksListPage.withNewNotebook(kernel, timeout)(notebookPage => testCode(notebookPage))
+                )
+              }
             }
-          }
         }
       }
     Await.result(result, 10 minutes)
@@ -107,11 +126,12 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def withOpenNotebook[T](cluster: ClusterCopy, notebookPath: File, timeout: FiniteDuration = 2.minutes)(
     testCode: NotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T =
-    withNotebooksListPage(cluster) { notebooksListPage =>
-      logger.info(
-        s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
-      )
-      notebooksListPage.withOpenNotebook(notebookPath, timeout)(notebookPage => testCode(notebookPage))
+    withNotebooksListPage(RuntimeProjectAndName(CloudContext.Gcp(cluster.googleProject), cluster.clusterName)) {
+      notebooksListPage =>
+        logger.info(
+          s"Opening notebook ${notebookPath.getAbsolutePath} notebook on cluster ${cluster.googleProject.value} / ${cluster.clusterName.asString}..."
+        )
+        notebooksListPage.withOpenNotebook(notebookPath, timeout)(notebookPage => testCode(notebookPage))
     }
 
   def uploadDownloadTest(cluster: ClusterCopy, uploadFile: File, timeout: FiniteDuration, fileDownloadDir: String)(
@@ -242,4 +262,36 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     }
   }
 
+  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, checkJupyterSetup: Boolean)(
+    implicit token: AuthToken,
+    authorization: IO[Authorization]
+  ): Unit = {
+    // verify with get()
+    val waitForRunning = LeonardoApiClient.client.use { implicit c =>
+      LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
+    }
+
+    waitForRunning.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
+    val getResult = Try(Notebook.getApi(googleProject, runtimeName))
+    getResult.isSuccess shouldBe true
+    getResult.get should not include "ProxyException"
+
+    if (checkJupyterSetup)
+      withWebDriver { implicit driver =>
+        withNewNotebookWithCheck(RuntimeProjectAndName(CloudContext.Gcp(googleProject), runtimeName)) { notebookPage =>
+          val query =
+            """! [ -d "/etc/jupyter/nbconfig" ] && echo 'true' || echo 'false' """
+
+          // Verify that /etc/jupyter/nbconfig/notebook.json exists so that welder can be enabled properly
+          val result = notebookPage.executeCell(query, timeout = 5.minutes).get
+          result should include("true")
+        }
+      }
+    else ()
+
+    // Grab the jupyter.log and welder.log files for debugging.
+    saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")
+  }
 }
