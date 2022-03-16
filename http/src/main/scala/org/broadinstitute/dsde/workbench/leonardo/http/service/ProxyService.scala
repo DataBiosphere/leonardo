@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, SamDAO, TerminalName}
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, KubernetesServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
@@ -30,6 +30,7 @@ import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
@@ -94,7 +95,8 @@ class ProxyService(
 )(implicit val system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
-  loggerIO: StructuredLogger[IO])
+  loggerIO: StructuredLogger[IO],
+  metrics: OpenTelemetryMetrics[IO])
     extends LazyLogging {
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
   val clientConnectionSettings =
@@ -213,6 +215,17 @@ class ProxyService(
       }
       hostContext = HostContext(hostStatus, s"${cloudContext.asStringWithProvider}/${runtimeName.asString}")
       r <- proxyInternal(hostContext, request)
+      result = if (r.status.isSuccess()) "success" else "failure"
+
+      tool = RuntimeContainerServiceType.values
+        .find(s => request.uri.toString.contains(s.proxySegment))
+        .map(_.imageType.entryName)
+        .getOrElse("other")
+
+      _ <- metrics.incrementCounter(
+        "proxyRequest",
+        tags = Map("result" -> result, "action" -> "runtimeRequest", "tool" -> s"${tool}")
+      )
     } yield r
 
   def openTerminal(userInfo: UserInfo,
@@ -227,6 +240,17 @@ class ProxyService(
       else
         jupyterDAO.createTerminal(googleProject, runtimeName)
       r <- proxyRequest(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
+      result = if (r.status.isSuccess()) "success" else "failure"
+
+      tool = RuntimeContainerServiceType.values
+        .find(s => request.uri.toString.contains(s.proxySegment))
+        .map(_.imageType.entryName)
+        .getOrElse("other")
+
+      _ <- metrics.incrementCounter(
+        "proxyRequest",
+        tags = Map("result" -> result, "action" -> "openTerminal", "tool" -> s"${tool}")
+      )
     } yield r
 
   def proxyAppRequest(userInfo: UserInfo,
@@ -251,6 +275,12 @@ class ProxyService(
       hostStatus <- getAppTargetHost(googleProject, appName)
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
       r <- proxyInternal(hostContext, request)
+      appType <- appQuery.getAppType(appName).transaction
+      result = if (r.status.isSuccess()) "success" else "failure"
+      _ <- metrics.incrementCounter(
+        "proxyRequest",
+        tags = Map("result" -> result, "action" -> "appRequest", "tool" -> s"${appType.getOrElse("unknown")}")
+      )
     } yield r
 
   private[service] def getRuntimeTargetHost(cloudContext: CloudContext, runtimeName: RuntimeName): IO[HostStatus] =

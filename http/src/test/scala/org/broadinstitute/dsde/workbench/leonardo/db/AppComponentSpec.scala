@@ -1,10 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.sql.SQLIntegrityConstraintViolationException
-
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, NodepoolLeoId}
+import org.broadinstitute.dsde.workbench.leonardo.{AppName, AppStatus, AppType, NodepoolLeoId}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -33,6 +32,9 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     savedApp2 shouldEqual app2
     savedApp3 shouldEqual app3
     savedApp4 shouldEqual app4
+
+    val appType = dbFutureValue(appQuery.getAppType(app1.appName))
+    appType shouldBe Some(AppType.Galaxy)
   }
 
   it should "save complex app" in isolatedDbTest {

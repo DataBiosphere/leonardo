@@ -2,16 +2,15 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import cats.effect.Async
 import cats.syntax.all._
-import fs2.Stream
 import com.github.benmanes.caffeine.cache.stats.CacheStats
+import fs2.Stream
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
 
 import scala.concurrent.duration._
 
 class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implicit F: Async[F],
-                                                                          metrics: OpenTelemetryMetrics[F],
-                                                                          logger: Logger[F]) {
+                                                                          metrics: OpenTelemetryMetrics[F]) {
   def process(sizeF: () => F[Long], statsF: () => F[CacheStats]): Stream[F, Unit] =
     (Stream.sleep[F](interval) ++ Stream.eval(recordMetrics(sizeF, statsF))).repeat
 
