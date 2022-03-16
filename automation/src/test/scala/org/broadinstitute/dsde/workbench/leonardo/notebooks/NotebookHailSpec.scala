@@ -45,7 +45,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           // Note: hl.init() displays several cell outputs. The 'Welcome to Hail' string should be the last output.
           notebookPage
             .executeCellWithCellOutput(importHail, timeout = 2.minutes, cellNumberOpt = Some(1))
-            .map(_.output.tail.last)
+            .map(_.output.last)
             .get should include(importHailOutput)
 
           // Run the Hail tutorial and verify
