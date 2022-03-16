@@ -166,7 +166,6 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             result shouldBe defined
             result.get should not include ("FatalError")
             result.get should not include ("PythonException")
-            result.get should include("Coerced sorted dataset")
 
             // Verify the Hail table
             val tableResult = notebookPage.executeCellWithCellOutput("samples.count()").map(_.output.last)
