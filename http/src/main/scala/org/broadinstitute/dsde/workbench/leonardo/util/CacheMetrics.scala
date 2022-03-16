@@ -24,9 +24,7 @@ class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implic
     for {
       size <- sizeF()
       _ <- metrics.gauge(s"cache/$name/size", size.toDouble)
-      _ <- logger.info(s"CacheMetrics: $name size: ${size.toDouble}")
       stats <- statsF()
-      _ <- logger.info(s"CacheMetrics: $name stats: ${stats.toString}")
       _ <- metrics.gauge(s"cache/$name/hitCount", stats.hitCount.toDouble)
       _ <- metrics.gauge(s"cache/$name/missCount", stats.missCount.toDouble)
       _ <- metrics.gauge(s"cache/$name/loadSuccessCount", stats.loadSuccessCount.toDouble)
