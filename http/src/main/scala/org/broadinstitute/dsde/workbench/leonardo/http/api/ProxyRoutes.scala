@@ -223,15 +223,6 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
               .fromFuture(IO(request.entity.discardBytes().future))
         }
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
-
-      _ <- if (resp.status.isSuccess()) {
-        metrics.incrementCounter("proxyRequest",
-                                 tags = Map("result" -> "success", "action" -> "appRequest", "tool" -> s"${appName}"))
-      } else {
-        metrics.incrementCounter("proxyRequest",
-                                 tags = Map("result" -> "failure", "action" -> "appRequest", "tool" -> s"${appName}"))
-      }
-
     } yield resp
 
   private[api] def openTerminalHandler(
@@ -245,18 +236,6 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.openTerminal(userInfo, googleProject, runtimeName, terminalName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "openTerminal").use(_ => apiCall))
-      tool = RuntimeContainerServiceType.values
-        .find(s => request.uri.toString.contains(s.proxySegment))
-        .map(_.imageType.entryName)
-        .getOrElse("other")
-
-      _ <- if (resp.status.isSuccess()) {
-        metrics.incrementCounter("proxyRequest",
-                                 tags = Map("result" -> "success", "action" -> "openTerminal", "tool" -> s"${tool}"))
-      } else {
-        metrics.incrementCounter("proxyRequest",
-                                 tags = Map("result" -> "failure", "action" -> "openTerminal", "tool" -> s"${tool}"))
-      }
     } yield resp
 
   private[api] def proxyRuntimeHandler(
@@ -269,26 +248,11 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, cloudContext, runtimeName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
-
-      tool = RuntimeContainerServiceType.values
-        .find(s => request.uri.toString.contains(s.proxySegment))
-        .map(_.imageType.entryName)
-        .getOrElse("other")
-
       _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
         request.entity.contentLengthOption.traverse(size =>
           metrics.gauge("notebooksSize", size.toDouble, tags = Map("source" -> "proxy"))
         )
       } else IO.unit
-
-      _ <- if (resp.status.isSuccess()) {
-        metrics.incrementCounter("proxyRequest",
-                                 tags = Map("result" -> "success", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
-
-      } else {
-        metrics.incrementCounter("proxyRequest",
-                                 tags = Map("result" -> "failure", "action" -> "runtimeRequest", "tool" -> s"${tool}"))
-      }
     } yield resp
 
   private[api] def setCookieHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =

@@ -131,11 +131,11 @@ then
         # will be lost....So this one line is to before we restart jupyter container with updated home directory mapping,
         # we will copy all files under $HOME to $HOME/notebooks first, which will live on PD...So when it starts up,
         # what was previously under $HOME will now appear in new $HOME as well
-        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && [ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
-
         NEED_MIGRATE=$(docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && echo 'true' || echo 'false'")
 
         if [ "$NEED_MIGRATE" == "true" ] ; then
+          docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -av --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
+
           # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
           $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
 
@@ -204,15 +204,24 @@ else
         # will be lost....So this one line is to before we restart jupyter container with updated home directory mapping,
         # we will copy all files under $HOME to $HOME/notebooks first, which will live on PD...So when it starts up,
         # what was previously under $HOME will now appear in new $HOME as well
-        docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && [ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -avr --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
+        NEED_MIGRATE=$(docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ -d $JUPYTER_USER_HOME/notebooks ] && echo 'true' || echo 'false'")
 
-        # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
-        $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
+        if [ "$NEED_MIGRATE" == "true" ] ; then
+          docker exec $JUPYTER_SERVER_NAME /bin/bash -c "[ ! -d $JUPYTER_USER_HOME/notebooks/.jupyter ] && rsync -avr --progress --exclude notebooks . $JUPYTER_USER_HOME/notebooks || true"
 
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
-        ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d
+          # Make sure when runtimes restarts, they'll get a new version of jupyter docker compose file
+          $GSUTIL_CMD cp gs://${INIT_BUCKET_NAME}/`basename ${JUPYTER_DOCKER_COMPOSE}` $JUPYTER_DOCKER_COMPOSE
 
+          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} stop
+          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} rm -f
+          ${DOCKER_COMPOSE} -f ${JUPYTER_DOCKER_COMPOSE} up -d
+
+          log 'Copy Jupyter frontend notebook config...'
+          $GSUTIL_CMD cp ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI} /var
+          JUPYTER_NOTEBOOK_FRONTEND_CONFIG=`basename ${JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI}`
+          retry 3 docker exec -u root ${JUPYTER_SERVER_NAME} /bin/bash -c "mkdir -p $JUPYTER_HOME/nbconfig"
+          docker cp /var/${JUPYTER_NOTEBOOK_FRONTEND_CONFIG} ${JUPYTER_SERVER_NAME}:${JUPYTER_HOME}/nbconfig/
+        fi
         # jupyter_delocalize.py now assumes welder's url is `http://welder:8080`, but on dataproc, we're still using host network
         # A better to do this might be to take welder host as an argument to the script
         docker exec $JUPYTER_SERVER_NAME /bin/bash -c "sed -i 's/http:\/\/welder/http:\/\/127.0.0.1/g' /etc/jupyter/custom/jupyter_delocalize.py"

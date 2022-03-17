@@ -251,6 +251,9 @@ object appQuery extends TableQuery(new AppTable(_)) {
       .map(_.kubernetesServiceAccount)
       .update(Option(ksa))
 
+  def getAppType(appName: AppName): DBIO[Option[AppType]] =
+    findActiveByNameQuery(appName).map(_.appType).result.headOption
+
   private[db] def getByIdQuery(id: AppId) =
     appQuery.filter(_.id === id)
 
