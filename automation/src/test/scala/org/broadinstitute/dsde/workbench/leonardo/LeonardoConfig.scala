@@ -4,8 +4,11 @@ import com.google.pubsub.v1.ProjectTopicName
 import org.broadinstitute.dsde.workbench.config.CommonConfig
 import org.broadinstitute.dsde.workbench.google2.{Location, PublisherConfig}
 
+import java.util.UUID
+
 object LeonardoConfig extends CommonConfig {
   private val leonardo = config.getConfig("leonardo")
+  private val azure = config.getConfig("azure")
   private val gcs = config.getConfig("gcs")
 
   object Leonardo {
@@ -26,9 +29,10 @@ object LeonardoConfig extends CommonConfig {
 
     val publisherConfig: PublisherConfig = PublisherConfig(GCS.pathToQAJson, topic)
 
-    val tenantId: String = leonardo.getString("tenantId")
-    val subscriptionId: String = leonardo.getString("subscriptionId")
-    val managedResourceGroup: String = leonardo.getString("managedResourceGroup")
+    val tenantId = azure.getString("tenantId")
+    val subscriptionId = azure.getString("subscriptionId")
+    val managedResourceGroup = azure.getString("managedResourceGroup")
+    val workspaceId = WorkspaceId(UUID.fromString(azure.getString("workspaceId")))
   }
 
   // for qaEmail and pathToQAPem and pathToQAJson

@@ -24,7 +24,6 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
 import org.http4s._
-import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
@@ -32,8 +31,7 @@ import scalacache.Cache
 import java.io.ByteArrayInputStream
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets.UTF_8
-
-import org.broadinstitute.dsde.workbench.leonardo.WorkspaceAction
+import org.http4s.circe.CirceEntityDecoder._
 
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -48,6 +46,25 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
 ) extends SamDAO[F]
     with Http4sClientDsl[F] {
   private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_READ_ONLY)
+
+  def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =
+    for {
+      isRegistered <- httpClient.expectOr[RegisterInfoResponse](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info"))
+        )
+      )(onError)
+      _ <- httpClient
+        .successful(
+          Request[F](
+            method = Method.POST,
+            uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self")),
+            body = Stream.emits("app.terra.bio/#terms-of-service".getBytes(UTF_8))
+          )
+        )
+        .whenA(!isRegistered.enabled)
+    } yield ()
 
   def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse] =
     metrics.incrementCounter("sam/status") >>
@@ -448,6 +465,8 @@ object HttpSamDAO {
   }
   implicit val getGoogleSubjectIdResponseDecoder: Decoder[GetGoogleSubjectIdResponse] =
     Decoder.forProduct1("userSubjectId")(GetGoogleSubjectIdResponse.apply)
+  implicit val registerInfoResponseDecoder: Decoder[RegisterInfoResponse] =
+    Decoder.forProduct1("enabled")(RegisterInfoResponse.apply)
 }
 
 final case class CreateSamResourceRequest[R](samResourceId: R,
@@ -472,3 +491,4 @@ final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
     extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))
     with NoStackTrace
+final case class RegisterInfoResponse(enabled: Boolean)
