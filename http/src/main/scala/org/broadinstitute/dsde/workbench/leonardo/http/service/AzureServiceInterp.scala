@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 package service
 
 import java.time.Instant
-
 import akka.http.scaladsl.model.StatusCodes
 
 import scala.concurrent.ExecutionContext
@@ -37,7 +36,7 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   WorkspaceResourceSamResourceId,
   WsmResourceSamResourceId
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDao
+import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   AuditInfo,
@@ -71,6 +70,7 @@ import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                          authProvider: LeoAuthProvider[F],
                                          wsmDao: WsmDao[F],
+                                         samDAO: SamDAO[F],
                                          publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   dbReference: DbReference[F],
@@ -83,12 +83,14 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- as.ask
 
-      azureContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
+      leoAuth <- samDAO.getLeoAuthToken
+
+      azureContext <- wsmDao.getWorkspace(workspaceId, leoAuth).map(_.azureContext)
       cloudContext = CloudContext.Azure(azureContext)
 
       samResource = WorkspaceResourceSamResourceId(workspaceId.value.toString)
 
-      hasPermission <- authProvider.hasPermission(samResource, WorkspaceAction.CreateControlledResource, userInfo)
+      hasPermission <- authProvider.hasPermission(samResource, WorkspaceAction.CreateControlledUserResource, userInfo)
 
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
       _ <- F
@@ -153,8 +155,9 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     implicit as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
+      leoAuth <- samDAO.getLeoAuthToken
       context <- as.ask
-      azureContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
+      azureContext <- wsmDao.getWorkspace(workspaceId, leoAuth).map(_.azureContext)
       cloudContext = CloudContext.Azure(azureContext)
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
@@ -190,8 +193,9 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     implicit as: Ask[F, AppContext]
   ): F[Unit] =
     for {
+      leoAuth <- samDAO.getLeoAuthToken
       context <- as.ask
-      azureContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
+      azureContext <- wsmDao.getWorkspace(workspaceId, leoAuth).map(_.azureContext)
       cloudContext = CloudContext.Azure(azureContext)
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction

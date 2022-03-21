@@ -27,8 +27,6 @@ import org.broadinstitute.dsde.workbench.service.test.{RandomUtil, WebBrowserSpe
 import org.broadinstitute.dsde.workbench.service.{RestException, Sam}
 import org.broadinstitute.dsde.workbench.util._
 import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
-import org.http4s.{AuthScheme, Credentials}
-import org.broadinstitute.dsde.workbench.{DoneCheckable, ResourceFile}
 import org.http4s.client.Client
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
@@ -37,26 +35,11 @@ import org.scalatest.concurrent.PatienceConfiguration.Timeout
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Minutes, Seconds, Span}
-import java.io.{ByteArrayInputStream, File, FileInputStream, FileOutputStream}
+
+import java.io.{ByteArrayInputStream, File, FileOutputStream}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
-import java.util.UUID
-
-import bio.terra.workspace.api.WorkspaceApi
-import bio.terra.workspace.client.ApiClient
-import bio.terra.workspace.model.{
-  AzureContext,
-  CloudPlatform,
-  CreateCloudContextRequest,
-  CreateCloudContextResult,
-  CreateWorkspaceRequestBody,
-  JobControl,
-  WorkspaceStageModel
-}
-import com.google.auth.oauth2.ServiceAccountCredentials
-
 import scala.concurrent.duration._
-import scala.jdk.CollectionConverters._
 import scala.util.{Failure, Random, Success, Try}
 
 case class KernelNotReadyException(timeElapsed: Timeout)

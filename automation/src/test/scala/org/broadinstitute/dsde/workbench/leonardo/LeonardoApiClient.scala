@@ -1,12 +1,17 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
-import java.io.FileInputStream
-import java.util
-
 import cats.effect.{IO, Resource}
+import com.azure.core.management.Region
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
-import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout, DiskName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  streamFUntilDone,
+  streamUntilDoneOrTimeout,
+  DiskName,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.ApiJsonDecoder._
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
@@ -18,16 +23,13 @@ import org.http4s._
 import org.http4s.blaze.client.BlazeClientBuilder
 import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
-import org.http4s.client.middleware.{Retry, Logger, RetryPolicy}
+import org.http4s.client.middleware.{Logger, Retry, RetryPolicy}
 import org.http4s.headers._
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
+
 import java.util.UUID
 import java.util.concurrent.TimeoutException
-
-import com.azure.core.management.Region
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
@@ -118,13 +120,13 @@ object LeonardoApiClient {
 
   val defaultCreateAzureRuntimeRequest = CreateAzureRuntimeRequest(
     Map.empty,
-    Region.US_EAST2,
-    VirtualMachineSizeTypes.STANDARD_A1,
+    Region.US_WEST_CENTRAL,
+    VirtualMachineSizeTypes.STANDARD_D1_V2, //Standard_D1_v2
     None,
     Map.empty,
     CreateAzureDiskRequest(
       Map.empty,
-      AzureDiskName(UUID.randomUUID().toString.substring(0,8)),
+      AzureDiskName(UUID.randomUUID().toString.substring(0, 8)),
       None,
       None
     )
@@ -660,10 +662,11 @@ object LeonardoApiClient {
         }
     } yield r
 
-  def createAzureRuntime(workspaceId: WorkspaceId,
-                     runtimeName: RuntimeName,
-                     createAzureRuntimeRequest: CreateAzureRuntimeRequest = defaultCreateAzureRuntimeRequest
-                   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
+  def createAzureRuntime(
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName,
+    createAzureRuntimeRequest: CreateAzureRuntimeRequest = defaultCreateAzureRuntimeRequest
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
     for {
       traceIdHeader <- genTraceIdHeader()
       authHeader <- authorization
@@ -687,44 +690,48 @@ object LeonardoApiClient {
         }
     } yield ()
 
-  def getAzureRuntime(workspaceId: WorkspaceId,
-                         runtimeName: RuntimeName
-                        )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
+  def getAzureRuntime(
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
     for {
       traceIdHeader <- genTraceIdHeader()
       authHeader <- authorization
       r <- client.expectOr[GetRuntimeResponseCopy](
-          Request[IO](
-            method = Method.GET,
-            headers = Headers(authHeader, traceIdHeader),
-            uri = rootUri.withPath(
-              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
-            )
-          )
-        )(onError(s"Failed to get runtime ${workspaceId.value.toString}/${runtimeName.asString}"))
-    } yield r
-
-  def deleteAzureRuntime(workspaceId: WorkspaceId,
-                      runtimeName: RuntimeName
-                     )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
-    for {
-      traceIdHeader <- genTraceIdHeader()
-      authHeader <- authorization
-      r <- client.run(
         Request[IO](
-          method = Method.DELETE,
+          method = Method.GET,
           headers = Headers(authHeader, traceIdHeader),
           uri = rootUri.withPath(
             Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
           )
         )
-      ).use { resp =>
-        if (!resp.status.isSuccess) {
-          onError(s"Failed to create runtime ${workspaceId.value.toString}/${runtimeName.asString}")(resp)
-            .flatMap(IO.raiseError)
-        } else
-          IO.unit
-      }
+      )(onError(s"Failed to get runtime ${workspaceId.value.toString}/${runtimeName.asString}"))
+    } yield r
+
+  def deleteAzureRuntime(
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
+      r <- client
+        .run(
+          Request[IO](
+            method = Method.DELETE,
+            headers = Headers(authHeader, traceIdHeader),
+            uri = rootUri.withPath(
+              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+            )
+          )
+        )
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to create runtime ${workspaceId.value.toString}/${runtimeName.asString}")(resp)
+              .flatMap(IO.raiseError)
+          } else
+            IO.unit
+        }
     } yield r
 
 //  def createAzureRuntimeWithWait(
@@ -770,7 +777,7 @@ object LeonardoApiClient {
     IO(uuid + "/" + digitString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
   }
 
- }
+}
 
 final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {
   override def getMessage: String = s"message: ${message}, status: ${statusCode} body: ${body.getOrElse("")}"

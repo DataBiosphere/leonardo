@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.util.UUID
-
 import cats.effect.IO
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.{
@@ -13,16 +12,21 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   WorkspaceId,
   WsmControlledResourceId
 }
+import org.http4s.headers.Authorization
+
+import java.time.ZonedDateTime
 
 class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDao[IO] {
-  override def createIp(request: CreateIpRequest)(implicit ev: Ask[IO, AppContext]): IO[CreateIpResponse] =
+  override def createIp(request: CreateIpRequest,
+                        authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[CreateIpResponse] =
     IO.pure(
       CreateIpResponse(
         WsmControlledResourceId(UUID.randomUUID())
       )
     )
 
-  override def createDisk(request: CreateDiskRequest)(implicit ev: Ask[IO, AppContext]): IO[CreateDiskResponse] =
+  override def createDisk(request: CreateDiskRequest,
+                          authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[CreateDiskResponse] =
     IO.pure(
       CreateDiskResponse(
         WsmControlledResourceId(UUID.randomUUID())
@@ -30,7 +34,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     )
 
   override def createNetwork(
-    request: CreateNetworkRequest
+    request: CreateNetworkRequest,
+    authorization: Authorization
   )(implicit ev: Ask[IO, AppContext]): IO[CreateNetworkResponse] =
     IO.pure(
       CreateNetworkResponse(
@@ -38,17 +43,17 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def createVm(request: CreateVmRequest)(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
+  override def createVm(request: CreateVmRequest,
+                        authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
     IO.pure(
       CreateVmResult(
-        WsmVm(WsmControlledResourceId(UUID.randomUUID())),
         WsmJobReport(
           WsmJobId(UUID.randomUUID()),
           "desc",
           jobStatus,
           200,
-          "submittedTimestamp",
-          "completedTimestamp",
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
           "resultUrl"
         ),
         if (jobStatus.equals(WsmJobStatus.Failed))
@@ -64,18 +69,19 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     )
 
   override def getCreateVmJobResult(
-    request: GetJobResultRequest
-  )(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
+    request: GetJobResultRequest,
+    authorization: Authorization
+  )(implicit ev: Ask[IO, AppContext]): IO[GetCreateVmJobResult] =
     IO.pure(
-      CreateVmResult(
-        WsmVm(WsmControlledResourceId(UUID.randomUUID())),
+      GetCreateVmJobResult(
+        Some(WsmVm(WsmControlledResourceId(UUID.randomUUID()))),
         WsmJobReport(
           request.jobId,
           "desc",
           jobStatus,
           200,
-          "submittedTimestamp",
-          "completedTimestamp",
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
           "resultUrl"
         ),
         if (jobStatus.equals(WsmJobStatus.Failed))
@@ -90,7 +96,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def deleteVm(request: DeleteVmRequest)(implicit ev: Ask[IO, AppContext]): IO[DeleteVmResult] =
+  override def deleteVm(request: DeleteVmRequest,
+                        authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[DeleteVmResult] =
     IO.pure(
       DeleteVmResult(
         WsmJobReport(
@@ -98,8 +105,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
           "desc",
           jobStatus,
           200,
-          "submittedTimestamp",
-          "completedTimestamp",
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
           "resultUrl"
         ),
         if (jobStatus.equals(WsmJobStatus.Failed))
@@ -114,7 +121,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def getWorkspace(workspaceId: WorkspaceId)(implicit ev: Ask[IO, AppContext]): IO[WorkspaceDescription] =
+  override def getWorkspace(workspaceId: WorkspaceId,
+                            authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[WorkspaceDescription] =
     IO.pure(
       WorkspaceDescription(
         workspaceId,

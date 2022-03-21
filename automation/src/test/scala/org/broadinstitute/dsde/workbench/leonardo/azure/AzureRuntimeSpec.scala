@@ -32,20 +32,16 @@ class AzureRuntimeSpec
         _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
 
         rat <- Ron.authToken()
-        implicit0(auth: Authorization) = Authorization(Credentials.Token(AuthScheme.Bearer, rat.value))
-
 //           Create the app
-        _ <- LeonardoApiClient.createAzureRuntime(workspaceId, runtimeName)
-
         _ <- LeonardoApiClient.createAzureRuntime(workspaceId, runtimeName)
 
         // Verify the initial getApp call
         getRuntime = LeonardoApiClient.getAzureRuntime(workspaceId, runtimeName)
-        getRuntimeResponse <- getRuntime
-        _ = getRuntimeResponse.status should (be(ClusterStatus.Creating) or be(ClusterStatus.PreCreating))
+//        getRuntimeResponse <- getRuntime
+//        _ = getRuntimeResponse.status should (be(ClusterStatus.Creating) or be(ClusterStatus.PreCreating))
 
         // Verify the runtime eventually becomes Running
-        _ <- IO.sleep(120 seconds)
+        _ <- IO.sleep(300 seconds)
         monitorCreateResult <- streamUntilDoneOrTimeout(
           getRuntime,
           120,

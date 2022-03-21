@@ -3,7 +3,6 @@ package monitor
 
 import java.time.Instant
 import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.Kleisli
@@ -61,6 +60,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   MockAppDAO,
   MockAppDescriptorDAO,
   MockComputeManagerDao,
+  MockSamDAO,
   MockWsmDAO,
   WelderDAO
 }
@@ -85,6 +85,7 @@ import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Left, Random}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.http4s.headers.Authorization
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -1630,7 +1631,8 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in create azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def createVm(request: CreateVmRequest)(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
+      override def createVm(request: CreateVmRequest,
+                            authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
         IO.raiseError(new Exception(exceptionMsg))
     }
     val mockAckConsumer = mock[AckReplyConsumer]
@@ -1676,7 +1678,8 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in delete azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def deleteVm(request: DeleteVmRequest)(implicit ev: Ask[IO, AppContext]): IO[DeleteVmResult] =
+      override def deleteVm(request: DeleteVmRequest,
+                            authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[DeleteVmResult] =
         IO.raiseError(new Exception(exceptionMsg))
     }
     val mockAckConsumer = mock[AckReplyConsumer]
@@ -1777,6 +1780,7 @@ class LeoPubsubMessageSubscriberSpec
       ConfigReader.appConfig.azure.monitor,
       asyncTaskQueue,
       wsmDAO,
+      new MockSamDAO(),
       computeManagerDao
     )
 

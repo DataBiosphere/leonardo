@@ -189,6 +189,7 @@ object Boot extends IOApp {
         runtimeServiceConfig,
         appDependencies.authProvider,
         appDependencies.wsmDAO,
+        appDependencies.samDAO,
         appDependencies.publisherQueue
       )
 
@@ -209,6 +210,7 @@ object Boot extends IOApp {
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
           AppContext(TraceId(s"Boot_${start}"), start)
         )
+        _ <- appDependencies.samDAO.registerLeo
 
         _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
           dataprocInterp.setupDataprocImageGoogleGroup
@@ -285,6 +287,7 @@ object Boot extends IOApp {
                                                   ConfigReader.appConfig.azure.monitor,
                                                   appDependencies.asyncTasksQueue,
                                                   appDependencies.wsmDAO,
+                                                  appDependencies.samDAO,
                                                   appDependencies.computeManagerDao)
 
           val pubsubSubscriber =
@@ -397,7 +400,9 @@ object Boot extends IOApp {
         // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false)(httpClient)
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = true)(
+        httpClient
+      ) //TODO: revert logBody to false
       httpClientWithRetryAndLogging = Retry(retryPolicy)(httpClientWithLogging)
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.

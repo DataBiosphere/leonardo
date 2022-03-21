@@ -2,71 +2,34 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
-import java.util.UUID
-
 import cats.effect.Async
-import cats.mtl.Ask
 import cats.effect.std.Queue
+import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
-import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
+import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  AccessScope,
-  AzureIpName,
-  AzureNetworkName,
-  AzureSubnetName,
-  CloningInstructions,
-  ComputeManagerDao,
-  ControlledResourceCommonFields,
-  ControlledResourceDescription,
-  ControlledResourceIamRole,
-  ControlledResourceName,
-  CreateDiskRequest,
-  CreateDiskRequestData,
-  CreateDiskResponse,
-  CreateIpRequest,
-  CreateIpRequestData,
-  CreateIpResponse,
-  CreateNetworkRequest,
-  CreateNetworkRequestData,
-  CreateNetworkResponse,
-  CreateVmRequest,
-  CreateVmRequestData,
-  CreateVmResult,
-  DeleteControlledAzureResourceRequest,
-  DeleteVmRequest,
-  GetJobResultRequest,
-  ManagedBy,
-  PrivateResourceUser,
-  WsmDao,
-  WsmJobControl,
-  WsmJobId,
-  WsmJobStatus
-}
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterErrorQuery,
-  clusterQuery,
-  controlledResourceQuery,
-  persistentDiskQuery,
-  DbReference,
-  RuntimeConfigQueries,
-  WsmResourceType
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{PollMonitorConfig, PubsubHandleMessageError}
-import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.http4s.headers.Authorization
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
 
 class AzureInterpreter[F[_]](
   config: AzureInterpretorConfig,
   monitorConfig: AzureMonitorConfig,
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
+  samDAO: SamDAO[F],
   azureComputeManager: ComputeManagerDao[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], F: Async[F])
     extends AzureAlgebra[F] {
@@ -98,21 +61,26 @@ class AzureInterpreter[F[_]](
 
       params = CreateAzureRuntimeParams(msg.workspaceId, runtime, azureRuntimeConfig, pd, msg.vmImage)
 
-      createAzureRuntimeResult <- createRuntime(params)
+      jobUUID <- F.delay(UUID.randomUUID()).map(WsmJobId)
+      jobControl = WsmJobControl(jobUUID)
+      _ <- createRuntime(params, jobControl)
 
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId, runtime, createAzureRuntimeResult.jobReport.id, pd)
+        PollRuntimeParams(msg.workspaceId, runtime, jobControl.id, pd)
       )
     } yield ()
 
   /** Creates an Azure VM but doesn't wait for its completion.
    * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
    * */
-  private def createRuntime(params: CreateAzureRuntimeParams)(implicit ev: Ask[F, AppContext]): F[CreateVmResult] =
+  private def createRuntime(params: CreateAzureRuntimeParams,
+                            jobControl: WsmJobControl)(implicit ev: Ask[F, AppContext]): F[CreateVmResult] =
     for {
-      createIpResp <- createIp(params)
-      createDiskResp <- createDisk(params)
-      createNetworkResp <- createNetwork(params)
+      auth <- samDAO.getLeoAuthToken
+
+      createIpResp <- createIp(params, auth, params.runtime.runtimeName.asString)
+      createDiskResp <- createDisk(params, auth)
+      createNetworkResp <- createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       vmCommon = getCommonFields(ControlledResourceName(params.runtime.runtimeName.asString),
                                  config.vmControlledResourceDesc,
@@ -128,36 +96,34 @@ class AzureInterpreter[F[_]](
           createIpResp.resourceId,
           createDiskResp.resourceId,
           createNetworkResp.resourceId
-        )
+        ),
+        jobControl
       )
 
-      createVmResp <- wsmDao.createVm(vmRequest)
-
-      _ <- dbRef.inTransaction(
-        controlledResourceQuery.save(
-          params.runtime.id,
-          createVmResp.vm.resourceId,
-          WsmResourceType.AzureVm
-        )
-      )
+      createVmResp <- wsmDao.createVm(vmRequest, auth)
     } yield createVmResp
+//      CreateVmResult(
+//      WsmJobReport(WsmJobId(UUID.randomUUID()), "", WsmJobStatus.Running, 202, ZonedDateTime.now(), None, ""),
+//      None
+//    )
 
   private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
     implicit val azureRuntimeCreatingDoneCheckable: DoneCheckable[VirtualMachine] = (v: VirtualMachine) =>
       v.powerState().toString.equals(PowerState.RUNNING.toString)
-    implicit val wsmCreateVmDoneCheckable: DoneCheckable[CreateVmResult] = (v: CreateVmResult) =>
-      v.jobReport.status.equals(WsmJobStatus.Succeeded)
+    implicit val wsmCreateVmDoneCheckable: DoneCheckable[GetCreateVmJobResult] = (v: GetCreateVmJobResult) =>
+      v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
     for {
       ctx <- ev.ask
 
-      getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId))
+      auth <- samDAO.getLeoAuthToken
+      getWsmJobResult = wsmDao.getCreateVmJobResult(GetJobResultRequest(params.workspaceId, params.jobId), auth)
 
       cloudContext = params.runtime.cloudContext match {
         case _: CloudContext.Gcp =>
           throw PubsubHandleMessageError.AzureRuntimeError(params.runtime.id,
                                                            ctx.traceId,
                                                            None,
-                                                           "Azure runtime should oto have GCP cloud context")
+                                                           "Azure runtime should not have GCP cloud context")
         case x: CloudContext.Azure => x
       }
 
@@ -172,29 +138,59 @@ class AzureInterpreter[F[_]](
         )
 
       taskToRun = for {
+        _ <- F.sleep(
+          150 seconds
+        ) //it takes a while to create Azure VM. Hence sleep sometime before we start polling WSM
         // first poll the WSM createVm job for completion
-        _ <- streamUntilDoneOrTimeout(
+        resp <- streamFUntilDone(
           getWsmJobResult,
           monitorConfig.pollStatus.maxAttempts,
-          monitorConfig.pollStatus.interval,
-          s"Wsm createVm job was not completed within ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
-        )
-        // then poll the azure VM for Running status, retrieving the final azure representation
-        azureRuntime <- streamUntilDoneOrTimeout(
-          getRuntime,
-          monitorConfig.pollStatus.maxAttempts,
-          monitorConfig.pollStatus.interval,
-          s"Azure runtime was not running within ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
-        )
+          monitorConfig.pollStatus.interval
+        ).compile.lastOrError
 
-        // update host ip from azure response and set the runtime to running
-        _ <- dbRef.inTransaction(
-          clusterQuery.updateClusterHostIp(params.runtime.id,
-                                           Some(IP(azureRuntime.getPrimaryPublicIPAddress.ipAddress())),
-                                           ctx.now)
-        )
-        _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(params.runtime.id, RuntimeStatus.Running, ctx.now))
-        _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(params.disk.id, DiskStatus.Ready, ctx.now))
+        _ <- resp.jobReport.status match {
+          case WsmJobStatus.Failed =>
+            F.raiseError[Unit](
+              AzureRuntimeError(
+                params.runtime.id,
+                ctx.traceId,
+                None,
+                s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+              )
+            )
+          case WsmJobStatus.Running =>
+            F.raiseError[Unit](
+              AzureRuntimeError(
+                params.runtime.id,
+                ctx.traceId,
+                None,
+                s"Wsm createVm job was not completed within ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
+              )
+            )
+          case WsmJobStatus.Succeeded =>
+            for {
+              _ <- resp.vm.traverse { x =>
+                dbRef.inTransaction(
+                  controlledResourceQuery.save(
+                    params.runtime.id,
+                    x.resourceId,
+                    WsmResourceType.AzureVm
+                  )
+                )
+              }
+              // then poll the azure VM for Running status, retrieving the final azure representation
+              _ <- streamUntilDoneOrTimeout(
+                getRuntime,
+                monitorConfig.pollStatus.maxAttempts,
+                monitorConfig.pollStatus.interval,
+                s"Azure runtime was not running within ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
+              )
+              _ <- dbRef.inTransaction(
+                clusterQuery.updateClusterStatus(params.runtime.id, RuntimeStatus.Running, ctx.now)
+              )
+              _ <- dbRef.inTransaction(persistentDiskQuery.updateStatus(params.disk.id, DiskStatus.Ready, ctx.now))
+            } yield ()
+        }
       } yield ()
 
       _ <- asyncTasks.offer(
@@ -224,13 +220,16 @@ class AzureInterpreter[F[_]](
 
       runtimeOpt <- dbRef.inTransaction(clusterQuery.getClusterById(msg.runtimeId))
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
+      auth <- samDAO.getLeoAuthToken
 
+      jobId <- F.delay(UUID.randomUUID()).map(WsmJobId)
       _ <- wsmDao.deleteVm(
         DeleteVmRequest(
           msg.workspaceId,
           msg.wsmResourceId,
-          DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(UUID.randomUUID())))
-        )
+          DeleteControlledAzureResourceRequest(WsmJobControl(jobId))
+        ),
+        auth
       )
 
       cloudContext = runtime.cloudContext match {
@@ -266,7 +265,7 @@ class AzureInterpreter[F[_]](
             dbRef
               .inTransaction(
                 clusterErrorQuery
-                  .save(runtime.id, RuntimeError(e.getMessage, None, ctx.now, Some(ctx.traceId))) >>
+                  .save(runtime.id, RuntimeError(e.getMessage.take(1024), None, ctx.now, Some(ctx.traceId))) >>
                   clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Error, ctx.now)
               )
               .void
@@ -277,35 +276,35 @@ class AzureInterpreter[F[_]](
     } yield ()
   }
 
-  private def createIp(params: CreateAzureRuntimeParams)(implicit ev: Ask[F, AppContext]): F[CreateIpResponse] = {
-    val common = getCommonFields(ControlledResourceName(uniqueName(config.ipNamePrefix)),
+  private def createIp(params: CreateAzureRuntimeParams, leoAuth: Authorization, nameSuffix: String)(
+    implicit ev: Ask[F, AppContext]
+  ): F[CreateIpResponse] = {
+    val common = getCommonFields(ControlledResourceName(s"ip-${nameSuffix}"),
                                  config.ipControlledResourceDesc,
                                  params.runtime.auditInfo.creator)
-
-    val azureIpName = uniqueName(config.ipNamePrefix)
 
     val request: CreateIpRequest = CreateIpRequest(
       params.workspaceId,
       common,
       CreateIpRequestData(
-        AzureIpName(azureIpName),
+        AzureIpName(s"ip-${nameSuffix}"),
         params.runtimeConfig.region
       )
     )
     for {
-      ipResp <- wsmDao.createIp(request)
+      ipResp <- wsmDao.createIp(request, leoAuth)
       _ <- dbRef.inTransaction(
         controlledResourceQuery.save(params.runtime.id, ipResp.resourceId, WsmResourceType.AzureIp)
       )
-      //TODO: update runtime hostIp after WSM return update
     } yield ipResp
   }
 
-  private def createDisk(params: CreateAzureRuntimeParams)(implicit ev: Ask[F, AppContext]): F[CreateDiskResponse] = {
+  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[CreateDiskResponse] = {
     val common = getCommonFields(ControlledResourceName(params.disk.name.value),
                                  config.diskControlledResourceDesc,
                                  params.runtime.auditInfo.creator)
-
     val request: CreateDiskRequest = CreateDiskRequest(
       params.workspaceId,
       common,
@@ -316,9 +315,9 @@ class AzureInterpreter[F[_]](
         params.runtimeConfig.region
       )
     )
-
     for {
-      diskResp <- wsmDao.createDisk(request)
+
+      diskResp <- wsmDao.createDisk(request, leoAuth)
       _ <- dbRef.inTransaction(
         controlledResourceQuery
           .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
@@ -327,27 +326,26 @@ class AzureInterpreter[F[_]](
   }
 
   private def createNetwork(
-    params: CreateAzureRuntimeParams
+    params: CreateAzureRuntimeParams,
+    leoAuth: Authorization,
+    nameSuffix: String
   )(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] = {
-    val networkName = uniqueName(config.networkNamePrefix)
-    val common = getCommonFields(ControlledResourceName(networkName),
+    val common = getCommonFields(ControlledResourceName(s"network-${nameSuffix}"),
                                  config.networkControlledResourceDesc,
                                  params.runtime.auditInfo.creator)
-
     val request: CreateNetworkRequest = CreateNetworkRequest(
       params.workspaceId,
       common,
       CreateNetworkRequestData(
-        AzureNetworkName(networkName),
-        AzureSubnetName(uniqueName(config.subnetNamePrefix)),
+        AzureNetworkName(s"vNet-${nameSuffix}"),
+        AzureSubnetName(s"subnet-${nameSuffix}"),
         config.addressSpaceCidr,
         config.subnetAddressCidr,
         params.runtimeConfig.region
       )
     )
-
     for {
-      networkResp <- wsmDao.createNetwork(request)
+      networkResp <- wsmDao.createNetwork(request, leoAuth)
       _ <- dbRef.inTransaction(
         controlledResourceQuery
           .save(params.runtime.id, networkResp.resourceId, WsmResourceType.AzureNetwork)
@@ -365,18 +363,10 @@ class AzureInterpreter[F[_]](
       Some(
         PrivateResourceUser(
           userEmail,
-          //Editor gives user Writer and Reader.
-          //TODO: should we restrict this to just reader?
-          List(ControlledResourceIamRole.Editor)
+          List(ControlledResourceIamRole.Writer)
         )
       )
     )
-
-  private def uniqueName(prefix: String): String = {
-    val s1 = prefix + "-"
-    val s2 = UUID.randomUUID().toString
-    s1 + s2.substring(0, s2.length - s1.length).replaceAll("\\-", "")
-  }
 }
 
 final case class AzureInterpretorConfig(ipControlledResourceDesc: String,

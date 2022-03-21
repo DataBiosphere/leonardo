@@ -1,42 +1,29 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package util
 
-import java.util.UUID
-
-import org.scalatest.flatspec.AnyFlatSpecLike
-import org.scalatest.matchers.should.Matchers
 import akka.actor.ActorSystem
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterErrorQuery,
-  clusterQuery,
-  controlledResourceQuery,
-  TestComponent,
-  WsmResourceType
-}
-import org.scalatestplus.mockito.MockitoSugar
-import org.scalatest.concurrent.Eventually
 import akka.testkit.TestKit
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  ComputeManagerDao,
-  CreateVmResult,
-  GetJobResultRequest,
-  MockComputeManagerDao,
-  MockWsmDAO
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
 import com.azure.resourcemanager.network.models.PublicIpAddress
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import org.broadinstitute.dsde.workbench.leonardo.http._
+import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.http.{ConfigReader, _}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
+import org.http4s.headers.Authorization
 import org.mockito.Mockito.when
+import org.scalatest.concurrent.Eventually
+import org.scalatest.flatspec.AnyFlatSpecLike
+import org.scalatest.matchers.should.Matchers
+import org.scalatestplus.mockito.MockitoSugar
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class AzurePubsubHandlerSpec
@@ -145,9 +132,9 @@ class AzurePubsubHandlerSpec
     val queue = makeTaskQueue()
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest)(
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
         implicit ev: Ask[IO, AppContext]
-      ): IO[CreateVmResult] = IO.raiseError(new Exception(exceptionMsg))
+      ): IO[GetCreateVmJobResult] = IO.raiseError(new Exception(exceptionMsg))
     }
     val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
 
@@ -250,6 +237,7 @@ class AzurePubsubHandlerSpec
       ConfigReader.appConfig.azure.monitor,
       asyncTaskQueue,
       wsmDAO,
+      new MockSamDAO(),
       computeManagerDao
     )
 

@@ -2,40 +2,31 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.util.UUID
-
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
-import org.scalatest.flatspec.AnyFlatSpec
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  controlledResourceQuery,
-  persistentDiskQuery,
-  RuntimeConfigQueries,
-  TestComponent,
-  WsmResourceType
-}
-import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.whitelistAuthProvider
 import cats.effect.std.Queue
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWsmDAO
+import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   ForbiddenError,
   RuntimeAlreadyExistsException,
   RuntimeCannotBeDeletedException,
   RuntimeNotFoundException
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
 }
+import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.scalatest.flatspec.AnyFlatSpec
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
@@ -50,10 +41,14 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
 
   //used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
-    new AzureServiceInterp[IO](serviceConfig, whitelistAuthProvider, wsmDao, queue)
+    new AzureServiceInterp[IO](serviceConfig, whitelistAuthProvider, wsmDao, mockSamDAO, queue)
 
   val defaultAzureService =
-    new AzureServiceInterp[IO](serviceConfig, whitelistAuthProvider, new MockWsmDAO, QueueFactory.makePublisherQueue())
+    new AzureServiceInterp[IO](serviceConfig,
+                               whitelistAuthProvider,
+                               new MockWsmDAO,
+                               mockSamDAO,
+                               QueueFactory.makePublisherQueue())
 
   it should "submit a create azure runtime message properly" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
@@ -74,7 +69,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           defaultCreateAzureRuntimeReq
         )
         .attempt
-      workspaceDesc <- wsmDao.getWorkspace(workspaceId)
+      workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
       cloudContext = CloudContext.Azure(workspaceDesc.azureContext)
       clusterRecOpt <- clusterQuery
         .getActiveClusterRecordByName(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
@@ -169,7 +164,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           workspaceId,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -237,7 +232,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           workspaceId,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -271,7 +266,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           defaultCreateAzureRuntimeReq
         )
       _ <- publisherQueue.tryTake //clean out create msg
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       preDeleteClusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -322,7 +317,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           workspaceId,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       preDeleteClusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global
@@ -356,7 +351,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           workspaceId,
           defaultCreateAzureRuntimeReq
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       clusterOpt <- clusterQuery
         .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
           scala.concurrent.ExecutionContext.global

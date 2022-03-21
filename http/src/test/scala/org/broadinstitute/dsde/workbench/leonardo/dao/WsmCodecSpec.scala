@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.dao
 
 import java.util.UUID
-
 import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.leonardo.{
   AzureDiskName,
@@ -18,6 +17,8 @@ import io.circe.parser._
 import WsmDecoders._
 import WsmEncoders._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+
+import java.time.ZonedDateTime
 
 class WsmCodecSpec extends AnyFlatSpec with Matchers {
   it should "encode CreateIpRequest" in {
@@ -84,7 +85,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         |    }
         |  },
         |  "azureNetwork" : {
-        |    "networkName" : "network",
+        |    "name" : "network",
         |    "subnetName": "subnet",
         |    "addressSpaceCidr": "0.0.0.0/16",
         |    "subnetAddressCidr": "0.0.0.0/24",
@@ -144,7 +145,8 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
-      )
+      ),
+      WsmJobControl(WsmJobId(fixedUUID))
     ).asJson.deepDropNullValues.noSpaces
 
     req shouldBe
@@ -171,6 +173,9 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |    "ipId": "${fixedUUID.toString}",
          |    "diskId": "${fixedUUID.toString}",
          |    "networkId": "${fixedUUID.toString}"
+         |  },
+         |  "jobControl": {
+         |    "id": "${fixedUUID.toString}"
          |  }
          |}
          |""".stripMargin.replaceAll("\\s", "")
@@ -248,14 +253,13 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
   it should "decode CreateVmResult" in {
     val fixedUUID = UUID.randomUUID()
     val expected = CreateVmResult(
-      WsmVm(WsmControlledResourceId(fixedUUID)),
       WsmJobReport(
         WsmJobId(fixedUUID),
         "desc",
-        WsmJobStatus.Succeeded,
+        WsmJobStatus.Running,
         200,
-        "submittedTimestamp",
-        "completedTimestamp",
+        ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+        Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
         "resultUrl"
       ),
       Some(
@@ -270,17 +274,13 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
     val decodedResp = decode[CreateVmResult](
       s"""
          |{
-         |  "azureVm": {
-         |    "resourceId": "${fixedUUID.toString}",
-         |    "fillerFieldsThatAreNotDecoded": "filler"
-         |  },
          |  "jobReport": {
          |    "id": "${fixedUUID.toString}",
          |    "description": "desc",
-         |    "status": "SUCCEEDED",
+         |    "status": "RUNNING",
          |    "statusCode": 200,
-         |    "submitted": "submittedTimestamp",
-         |    "completed": "completedTimestamp",
+         |    "submitted": "2022-03-18T15:02:29.264756Z",
+         |    "completed": "2022-03-18T15:02:29.264756Z",
          |    "resultURL": "resultUrl"
          |  },
          |  "errorReport": {
@@ -293,18 +293,49 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
     )
 
     decodedResp shouldBe Right(expected)
+
+    val decodedResp2 = decode[CreateVmResult](
+      s"""
+         |{
+         |    "jobReport":
+         |    {
+         |        "id": "1bf4d89f-53ac-4ad4-ab8e-0131c6494a69",
+         |        "description": "Create controlled resource CONTROLLED_AZURE_VM; id 635e25e1-c793-4ca9-b9fe-9055cdae2f26; name automation-test-aswsimhjz",
+         |        "status": "RUNNING",
+         |        "statusCode": 202,
+         |        "submitted": "2022-03-18T15:02:29.264756Z",
+         |        "resultURL": "https://workspace.dsde-dev.broadinstitute.org/api/workspaces/v1/e1aaf25b-b298-46eb-891b-e4c326f29b0c/resources/controlled/azure/vm/create-result/1bf4d89f-53ac-4ad4-ab8e-0131c6494a69"
+         |    }
+         |}
+         |""".stripMargin
+    )
+
+    val expected2 = CreateVmResult(
+      WsmJobReport(
+        WsmJobId(UUID.fromString("1bf4d89f-53ac-4ad4-ab8e-0131c6494a69")),
+        "Create controlled resource CONTROLLED_AZURE_VM; id 635e25e1-c793-4ca9-b9fe-9055cdae2f26; name automation-test-aswsimhjz",
+        WsmJobStatus.Running,
+        202,
+        ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+        None,
+        "https://workspace.dsde-dev.broadinstitute.org/api/workspaces/v1/e1aaf25b-b298-46eb-891b-e4c326f29b0c/resources/controlled/azure/vm/create-result/1bf4d89f-53ac-4ad4-ab8e-0131c6494a69"
+      ),
+      None
+    )
+    decodedResp2 shouldBe Right(expected2)
   }
 
   it should "decode DeleteVmResult" in {
     val fixedUUID = UUID.randomUUID()
+    val now = ZonedDateTime.now()
     val expected = DeleteVmResult(
       WsmJobReport(
         WsmJobId(fixedUUID),
         "desc",
         WsmJobStatus.Succeeded,
         200,
-        "submittedTimestamp",
-        "completedTimestamp",
+        now,
+        Some(now),
         "resultUrl"
       ),
       Some(
@@ -324,8 +355,8 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |    "description": "desc",
          |    "status": "SUCCEEDED",
          |    "statusCode": 200,
-         |    "submitted": "submittedTimestamp",
-         |    "completed": "completedTimestamp",
+         |    "submitted": "${now.toString}",
+         |    "completed": "${now.toString}",
          |    "resultURL": "resultUrl"
          |  },
          |  "errorReport": {

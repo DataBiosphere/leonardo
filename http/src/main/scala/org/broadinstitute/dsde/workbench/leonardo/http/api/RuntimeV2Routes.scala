@@ -101,7 +101,6 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      _ = println("routes here1")
       apiCall = azureService.createRuntime(userInfo, runtimeName, workspaceId, req)
       _ <- metrics.incrementCounter("createAzureRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
