@@ -352,7 +352,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       )
     )
 
-    val decodedResp = decode[CreateVmResult](
+    val decodedResp = decode[GetCreateVmJobResult](
       s"""
          |{
          |   "azureVm": {

@@ -163,9 +163,16 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       region <- c.downField("region").as[Region]
       machineSize <- c.downField("machineSize").as[VirtualMachineSizeTypes]
       imageUri <- c.downField("imageUri").as[Option[AzureImageUri]]
-      customEnvVars <- c.downField("customEnvironmentVariables").as[Map[String, String]]
+      customEnvVars <- c
+        .downField("customEnvironmentVariables")
+        .as[Option[Map[String, String]]]
       azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
-    } yield CreateAzureRuntimeRequest(labels, region, machineSize, imageUri, customEnvVars, azureDiskReq)
+    } yield CreateAzureRuntimeRequest(labels,
+                                      region,
+                                      machineSize,
+                                      imageUri,
+                                      customEnvVars.getOrElse(Map.empty),
+                                      azureDiskReq)
   }
 
   implicit val updateAzureRuntimeRequestDecoder: Decoder[UpdateAzureRuntimeRequest] =

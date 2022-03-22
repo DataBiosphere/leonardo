@@ -4,6 +4,7 @@ import cats.effect.IO
 import cats.effect.std.Queue
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.google2.Event
+import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 
 object QueueFactory {
@@ -14,4 +15,6 @@ object QueueFactory {
 
   def makeSubscriberQueue() =
     Queue.bounded[IO, Event[LeoPubsubMessage]](queueSize).unsafeRunSync()
+
+  def asyncTaskQueue = Queue.bounded[IO, Task[IO]](queueSize).unsafeRunSync()
 }

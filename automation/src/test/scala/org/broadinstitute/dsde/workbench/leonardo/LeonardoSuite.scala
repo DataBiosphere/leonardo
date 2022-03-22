@@ -19,8 +19,6 @@ import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 import java.util.UUID
 
-import bio.terra.workspace.model.{CreateWorkspaceRequestBody, WorkspaceStageModel}
-
 trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {

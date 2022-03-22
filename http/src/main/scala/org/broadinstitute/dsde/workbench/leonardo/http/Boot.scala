@@ -185,6 +185,7 @@ object Boot extends IOApp {
         appDependencies.authProvider,
         appDependencies.wsmDAO,
         appDependencies.samDAO,
+        appDependencies.asyncTasksQueue,
         appDependencies.publisherQueue
       )
 

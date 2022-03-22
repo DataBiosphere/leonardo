@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.monitor
+package org.broadinstitute.dsde.workbench.leonardo
+package monitor
 
 import java.time.Instant
 import java.util.UUID
@@ -8,28 +9,11 @@ import io.circe.Printer
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmJobControl
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
   CreateAzureRuntimeMessage,
   CreateRuntimeMessage
-}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppId,
-  AppName,
-  AuditInfo,
-  CloudContext,
-  DiskId,
-  DiskSize,
-  KubernetesClusterLeoId,
-  NodepoolLeoId,
-  RuntimeImage,
-  RuntimeImageType,
-  RuntimeName,
-  RuntimeProjectAndName,
-  WorkspaceId,
-  WsmJobId
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}

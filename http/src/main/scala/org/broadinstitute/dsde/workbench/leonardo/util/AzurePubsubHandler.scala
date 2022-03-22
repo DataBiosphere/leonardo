@@ -198,7 +198,7 @@ class AzureInterpreter[F[_]](
             dbRef
               .inTransaction(
                 clusterErrorQuery
-                  .save(runtime.id, RuntimeError(e.getMessage.take(1024), None, ctx.now, Some(ctx.traceId))) >>
+                  .save(runtime.id, RuntimeError(e.getMessage, None, ctx.now, Some(ctx.traceId))) >>
                   clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Error, ctx.now)
               )
               .void

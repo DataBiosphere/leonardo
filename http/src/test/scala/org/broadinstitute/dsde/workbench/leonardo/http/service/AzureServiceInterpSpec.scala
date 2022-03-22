@@ -44,13 +44,19 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
 
   //used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
-    new AzureServiceInterp[IO](serviceConfig, whitelistAuthProvider, wsmDao, mockSamDAO, queue)
+    new AzureServiceInterp[IO](serviceConfig,
+                               whitelistAuthProvider,
+                               wsmDao,
+                               mockSamDAO,
+                               QueueFactory.asyncTaskQueue,
+                               queue)
 
   val defaultAzureService =
     new AzureServiceInterp[IO](serviceConfig,
                                whitelistAuthProvider,
                                new MockWsmDAO,
                                mockSamDAO,
+                               QueueFactory.asyncTaskQueue,
                                QueueFactory.makePublisherQueue())
 
   it should "submit a create azure runtime message properly" in isolatedDbTest {
