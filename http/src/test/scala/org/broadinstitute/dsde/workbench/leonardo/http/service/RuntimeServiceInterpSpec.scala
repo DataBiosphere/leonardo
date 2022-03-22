@@ -46,12 +46,15 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   val publisherQueue = QueueFactory.makePublisherQueue()
   def makeRuntimeService(publisherQueue: Queue[IO, LeoPubsubMessage]) =
     new RuntimeServiceInterp(
-      RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
-                           imageConfig,
-                           autoFreezeConfig,
-                           dataprocConfig,
-                           Config.gceConfig,
-                           azureServiceConfig),
+      RuntimeServiceConfig(
+        Config.proxyConfig.proxyUrlBase,
+        imageConfig,
+        autoFreezeConfig,
+        dataprocConfig,
+        Config.gceConfig,
+        azureServiceConfig,
+        ConfigReader.appConfig.azure.runtimeDefaults
+      ),
       ConfigReader.appConfig.persistentDisk,
       whitelistAuthProvider,
       serviceAccountProvider,

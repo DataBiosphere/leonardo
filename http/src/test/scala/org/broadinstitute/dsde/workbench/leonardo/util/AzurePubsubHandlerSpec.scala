@@ -71,7 +71,7 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, azureImage, None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(UUID.randomUUID()), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -162,7 +162,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, azureImage, None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(UUID.randomUUID()), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -233,7 +233,6 @@ class AzurePubsubHandlerSpec
                       computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
                       wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
     new AzureInterpreter[IO](
-      ConfigReader.appConfig.azure.runtimeDefaults,
       ConfigReader.appConfig.azure.monitor,
       asyncTaskQueue,
       wsmDAO,

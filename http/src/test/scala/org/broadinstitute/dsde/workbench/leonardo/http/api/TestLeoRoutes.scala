@@ -112,12 +112,15 @@ trait TestLeoRoutes {
     FakeGoogleComputeService
   )
 
-  val serviceConfig = RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
-                                           imageConfig,
-                                           autoFreezeConfig,
-                                           dataprocConfig,
-                                           Config.gceConfig,
-                                           azureServiceConfig)
+  val serviceConfig = RuntimeServiceConfig(
+    Config.proxyConfig.proxyUrlBase,
+    imageConfig,
+    autoFreezeConfig,
+    dataprocConfig,
+    Config.gceConfig,
+    azureServiceConfig,
+    ConfigReader.appConfig.azure.runtimeDefaults
+  )
 
   val azureService =
     new AzureServiceInterp[IO](serviceConfig,

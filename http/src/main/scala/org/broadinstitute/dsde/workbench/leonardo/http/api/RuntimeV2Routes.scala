@@ -16,9 +16,10 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import JsonCodec._
-
 import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+
+import java.util.UUID
 
 class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       azureService: AzureService[IO],
@@ -101,7 +102,9 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = azureService.createRuntime(userInfo, runtimeName, workspaceId, req)
+
+      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+      apiCall = azureService.createRuntime(userInfo, runtimeName, workspaceId, req, jobUUID)
       _ <- metrics.incrementCounter("createAzureRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createAzureRuntime")
@@ -161,7 +164,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       machineSize <- c.downField("machineSize").as[VirtualMachineSizeTypes]
       imageUri <- c.downField("imageUri").as[Option[AzureImageUri]]
       customEnvVars <- c.downField("customEnvironmentVariables").as[Map[String, String]]
-      azureDiskReq <- c.downField("azureDiskConfig").as[CreateAzureDiskRequest]
+      azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
     } yield CreateAzureRuntimeRequest(labels, region, machineSize, imageUri, customEnvVars, azureDiskReq)
   }
 

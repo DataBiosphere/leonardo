@@ -4,11 +4,11 @@ package http
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
-import cats.Parallel
 import cats.effect._
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.mtl.Ask
 import cats.syntax.all._
+import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
@@ -40,13 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{
-  KubernetesDnsCache,
-  KubernetesDnsCacheKey,
-  ProxyResolver,
-  RuntimeDnsCache,
-  RuntimeDnsCacheKey
-}
+import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
@@ -62,11 +56,11 @@ import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
+
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -158,7 +152,8 @@ object Boot extends IOApp {
           //For now azure disks share same defaults as normal disks
           ConfigReader.appConfig.persistentDisk,
           ConfigReader.appConfig.azure.service
-        )
+        ),
+        ConfigReader.appConfig.azure.runtimeDefaults
       )
       val runtimeService = RuntimeService(
         runtimeServiceConfig,
@@ -283,8 +278,7 @@ object Boot extends IOApp {
             googleDependencies.googleResourceService
           )
 
-          val azureAlg = new AzureInterpreter[IO](ConfigReader.appConfig.azure.runtimeDefaults,
-                                                  ConfigReader.appConfig.azure.monitor,
+          val azureAlg = new AzureInterpreter[IO](ConfigReader.appConfig.azure.monitor,
                                                   appDependencies.asyncTasksQueue,
                                                   appDependencies.wsmDAO,
                                                   appDependencies.samDAO,
@@ -352,9 +346,12 @@ object Boot extends IOApp {
     }
   }
 
-  private def createDependencies[F[_]: StructuredLogger: Parallel](
+  private def createDependencies[F[_]: Parallel](
     pathToCredentialJson: String
-  )(implicit ec: ExecutionContext, as: ActorSystem, F: Async[F]): Resource[F, AppDependencies[F]] =
+  )(implicit logger: StructuredLogger[F],
+    ec: ExecutionContext,
+    as: ActorSystem,
+    F: Async[F]): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
@@ -400,9 +397,9 @@ object Boot extends IOApp {
         // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = true)(
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
-      ) //TODO: revert logBody to false
+      )
       httpClientWithRetryAndLogging = Retry(retryPolicy)(httpClientWithLogging)
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
@@ -600,6 +597,9 @@ object Boot extends IOApp {
       googleTokenCache,
       samResourceCache
     )
+
+  private def logAction[F[_]: Monad: StructuredLogger](s: String): F[Unit] =
+    StructuredLogger[F].info(s)
 
   private def buildCache[K, V](maxSize: Int,
                                expiresIn: FiniteDuration): com.github.benmanes.caffeine.cache.Cache[K, V] =

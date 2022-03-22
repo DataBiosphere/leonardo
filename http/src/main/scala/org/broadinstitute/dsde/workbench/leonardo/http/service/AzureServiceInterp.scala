@@ -1,34 +1,14 @@
-package org.broadinstitute.dsde.workbench.leonardo.http
+package org.broadinstitute.dsde.workbench.leonardo
+package http
 package service
 
-import java.time.Instant
 import akka.http.scaladsl.model.StatusCodes
-
-import scala.concurrent.ExecutionContext
-import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
-import cats.effect.Async
-import cats.implicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  controlledResourceQuery,
-  persistentDiskQuery,
-  DbReference,
-  RuntimeServiceDbQueries,
-  SaveCluster,
-  WsmResourceType
-}
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  ForbiddenError,
-  IllegalLabelKeyException,
-  LeoAuthProvider,
-  LeoException,
-  RuntimeAlreadyExistsException,
-  RuntimeCannotBeDeletedException,
-  RuntimeNotFoundException
-}
-import cats.effect.std.Queue
 import cats.Parallel
+import cats.effect.Async
+import cats.effect.std.Queue
+import cats.implicits._
 import cats.mtl.Ask
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
@@ -36,36 +16,21 @@ import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   WorkspaceResourceSamResourceId,
   WsmResourceSamResourceId
 }
-import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AuditInfo,
-  AzureUnimplementedException,
-  CloudContext,
-  CreateAzureRuntimeRequest,
-  DefaultRuntimeLabels,
-  DiskId,
-  DiskStatus,
-  LabelMap,
-  PersistentDisk,
-  Runtime,
-  RuntimeConfig,
-  RuntimeConfigId,
-  RuntimeImage,
-  RuntimeImageType,
-  RuntimeName,
-  RuntimeStatus,
-  UpdateAzureRuntimeRequest,
-  WorkspaceAction,
-  WorkspaceId,
-  WsmResourceAction
-}
+import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao._
+import org.broadinstitute.dsde.workbench.leonardo.db._
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
 }
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.leonardo.util.CreateAzureRuntimeParams
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
+import org.http4s.headers.Authorization
+
+import java.time.Instant
+import scala.concurrent.ExecutionContext
 
 class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                          authProvider: LeoAuthProvider[F],
@@ -79,7 +44,8 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
-                             req: CreateAzureRuntimeRequest)(implicit as: Ask[F, AppContext]): F[Unit] =
+                             req: CreateAzureRuntimeRequest,
+                             createVmJobId: WsmJobId)(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       context <- as.ask
 
@@ -131,20 +97,24 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                        context.now)
 
             disk <- persistentDiskQuery.save(diskToSave).transaction
-
+            runtimeConfig = RuntimeConfig.AzureConfig(
+              MachineTypeName(req.machineSize.toString),
+              disk.id,
+              req.region
+            )
             runtimeToSave = SaveCluster(
               cluster = runtime,
-              runtimeConfig = RuntimeConfig.AzureConfig(
-                MachineTypeName(req.machineSize.toString),
-                disk.id,
-                req.region
-              ),
+              runtimeConfig = runtimeConfig,
               now = context.now,
               workspaceId = Some(workspaceId)
             )
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
+
+            _ <- createRuntime(CreateAzureRuntimeParams(workspaceId, savedRuntime, runtimeConfig, disk, runtimeImage),
+                               WsmJobControl(createVmJobId))
+
             _ <- publisherQueue.offer(
-              CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, runtimeImage, Some(context.traceId))
+              CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, createVmJobId, Some(context.traceId))
             )
           } yield ()
       }
@@ -162,24 +132,25 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
-      controlledResourceOpt <- controlledResourceQuery
-        .getResourceTypeForRuntime(runtime.id, WsmResourceType.AzureVm)
-        .transaction
-      azureRuntimeControlledResource <- F.fromOption(
-        controlledResourceOpt,
-        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, context.traceId)
-      )
-
-      hasPermission <- authProvider.hasPermission(WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),
-                                                  WsmResourceAction.Read,
-                                                  userInfo)
+      //TODO: add this back once WSM is refactored
+//      controlledResourceOpt <- controlledResourceQuery
+//        .getResourceTypeForRuntime(runtime.id, WsmResourceType.AzureVm)
+//        .transaction
+//      azureRuntimeControlledResource <- F.fromOption(
+//        controlledResourceOpt,
+//        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, context.traceId)
+//      )
+//
+//      hasPermission <- authProvider.hasPermission(WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),
+//                                                  WsmResourceAction.Read,
+//                                                  userInfo)
 
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
-      _ <- F
-        .raiseError[Unit](
-          RuntimeNotFoundException(cloudContext, runtimeName, "permission denied", Some(context.traceId))
-        )
-        .whenA(!hasPermission)
+//      _ <- F
+//        .raiseError[Unit](
+//          RuntimeNotFoundException(cloudContext, runtimeName, "permission denied", Some(context.traceId))
+//        )
+//        .whenA(!hasPermission)
 
     } yield runtime
 
@@ -284,6 +255,127 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     )
   }
 
+  /** Creates an Azure VM but doesn't wait for its completion.
+   * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
+   * */
+  private def createRuntime(params: CreateAzureRuntimeParams,
+                            jobControl: WsmJobControl)(implicit ev: Ask[F, AppContext]): F[CreateVmResult] =
+    for {
+      auth <- samDAO.getLeoAuthToken
+
+      createIpResp <- createIp(params, auth, params.runtime.runtimeName.asString)
+      createDiskResp <- createDisk(params, auth)
+      createNetworkResp <- createNetwork(params, auth, params.runtime.runtimeName.asString)
+
+      vmCommon = getCommonFields(ControlledResourceName(params.runtime.runtimeName.asString),
+                                 config.azureRuntimeDefaults.vmControlledResourceDesc,
+                                 params.runtime.auditInfo.creator)
+      vmRequest: CreateVmRequest = CreateVmRequest(
+        params.workspaceId,
+        vmCommon,
+        CreateVmRequestData(
+          params.runtime.runtimeName,
+          params.runtimeConfig.region,
+          VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
+          params.vmImage,
+          createIpResp.resourceId,
+          createDiskResp.resourceId,
+          createNetworkResp.resourceId
+        ),
+        jobControl
+      )
+
+      createVmResp <- wsmDao.createVm(vmRequest, auth)
+    } yield createVmResp
+
+  private def createIp(params: CreateAzureRuntimeParams, leoAuth: Authorization, nameSuffix: String)(
+    implicit ev: Ask[F, AppContext]
+  ): F[CreateIpResponse] = {
+    val common = getCommonFields(ControlledResourceName(s"ip-${nameSuffix}"),
+                                 config.azureRuntimeDefaults.ipControlledResourceDesc,
+                                 params.runtime.auditInfo.creator)
+
+    val request: CreateIpRequest = CreateIpRequest(
+      params.workspaceId,
+      common,
+      CreateIpRequestData(
+        AzureIpName(s"ip-${nameSuffix}"),
+        params.runtimeConfig.region
+      )
+    )
+    for {
+      ipResp <- wsmDao.createIp(request, leoAuth)
+      _ <- controlledResourceQuery.save(params.runtime.id, ipResp.resourceId, WsmResourceType.AzureIp).transaction
+    } yield ipResp
+  }
+
+  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[CreateDiskResponse] = {
+    val common = getCommonFields(ControlledResourceName(params.disk.name.value),
+                                 config.azureRuntimeDefaults.diskControlledResourceDesc,
+                                 params.runtime.auditInfo.creator)
+    val request: CreateDiskRequest = CreateDiskRequest(
+      params.workspaceId,
+      common,
+      CreateDiskRequestData(
+        //TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
+        AzureDiskName(params.disk.name.value),
+        params.disk.size,
+        params.runtimeConfig.region
+      )
+    )
+    for {
+      ctx <- ev.ask
+      diskResp <- wsmDao.createDisk(request, leoAuth)
+      _ <- controlledResourceQuery
+        .save(params.runtime.id, diskResp.resourceId, WsmResourceType.AzureDisk)
+        .transaction
+      _ <- persistentDiskQuery.updateStatus(params.disk.id, DiskStatus.Ready, ctx.now).transaction
+    } yield diskResp
+  }
+
+  private def createNetwork(
+    params: CreateAzureRuntimeParams,
+    leoAuth: Authorization,
+    nameSuffix: String
+  )(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] = {
+    val common = getCommonFields(ControlledResourceName(s"network-${nameSuffix}"),
+                                 config.azureRuntimeDefaults.networkControlledResourceDesc,
+                                 params.runtime.auditInfo.creator)
+    val request: CreateNetworkRequest = CreateNetworkRequest(
+      params.workspaceId,
+      common,
+      CreateNetworkRequestData(
+        AzureNetworkName(s"vNet-${nameSuffix}"),
+        AzureSubnetName(s"subnet-${nameSuffix}"),
+        config.azureRuntimeDefaults.addressSpaceCidr,
+        config.azureRuntimeDefaults.subnetAddressCidr,
+        params.runtimeConfig.region
+      )
+    )
+    for {
+      networkResp <- wsmDao.createNetwork(request, leoAuth)
+      _ <- controlledResourceQuery
+        .save(params.runtime.id, networkResp.resourceId, WsmResourceType.AzureNetwork)
+        .transaction
+    } yield networkResp
+  }
+
+  private def getCommonFields(name: ControlledResourceName, resourceDesc: String, userEmail: WorkbenchEmail) =
+    ControlledResourceCommonFields(
+      name,
+      ControlledResourceDescription(resourceDesc),
+      CloningInstructions.Nothing, //TODO: these resources will not be cloned with clone-workspace. Is this correct?
+      AccessScope.PrivateAccess,
+      ManagedBy.Application,
+      Some(
+        PrivateResourceUser(
+          userEmail,
+          List(ControlledResourceIamRole.Writer)
+        )
+      )
+    )
   private def convertToRuntime(runtimeName: RuntimeName,
                                cloudContext: CloudContext,
                                userInfo: UserInfo,

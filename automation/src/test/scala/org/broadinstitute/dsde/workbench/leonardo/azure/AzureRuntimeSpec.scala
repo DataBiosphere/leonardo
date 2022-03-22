@@ -6,12 +6,8 @@ import org.broadinstitute.dsde.workbench.google2.streamUntilDoneOrTimeout
 import org.broadinstitute.dsde.workbench.leonardo.LeonardoConfig.Leonardo.workspaceId
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, LeonardoApiClient, LeonardoTestUtils}
-import org.broadinstitute.dsde.workbench.service.util.Tags
-import org.http4s.headers.Authorization
-import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.tagobjects.Retryable
 import org.scalatest.{ParallelTestExecution, Retries}
 
 import scala.concurrent.duration._
@@ -30,15 +26,14 @@ class AzureRuntimeSpec
     val res = LeonardoApiClient.client.use { implicit client =>
       for {
         _ <- loggerIO.info(s"AzureRuntimeSpec: About to create runtime")
-
-        rat <- Ron.authToken()
+//        rat <- Ron.authToken()
 //           Create the app
         _ <- LeonardoApiClient.createAzureRuntime(workspaceId, runtimeName)
 
         // Verify the initial getApp call
         getRuntime = LeonardoApiClient.getAzureRuntime(workspaceId, runtimeName)
-//        getRuntimeResponse <- getRuntime
-//        _ = getRuntimeResponse.status should (be(ClusterStatus.Creating) or be(ClusterStatus.PreCreating))
+        getRuntimeResponse <- getRuntime
+        _ = getRuntimeResponse.status should (be(ClusterStatus.Creating) or be(ClusterStatus.PreCreating))
 
         // Verify the runtime eventually becomes Running
         _ <- IO.sleep(300 seconds)

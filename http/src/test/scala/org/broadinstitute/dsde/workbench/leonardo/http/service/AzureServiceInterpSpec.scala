@@ -30,12 +30,15 @@ import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
-  val serviceConfig = RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
-                                           imageConfig,
-                                           autoFreezeConfig,
-                                           dataprocConfig,
-                                           Config.gceConfig,
-                                           azureServiceConfig)
+  val serviceConfig = RuntimeServiceConfig(
+    Config.proxyConfig.proxyUrlBase,
+    imageConfig,
+    autoFreezeConfig,
+    dataprocConfig,
+    Config.gceConfig,
+    azureServiceConfig,
+    ConfigReader.appConfig.azure.runtimeDefaults
+  )
 
   val wsmDao = new MockWsmDAO
 
@@ -61,12 +64,15 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       context <- appContext.ask[AppContext]
+
+      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
       r <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq
+          defaultCreateAzureRuntimeReq,
+          jobUUID
         )
         .attempt
       workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
@@ -109,7 +115,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        expectedRuntimeImage,
+        jobUUID,
         Some(context.traceId)
       )
       message shouldBe expectedMessage
@@ -121,10 +127,11 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
+    val jobUUID = WsmJobId(UUID.randomUUID())
 
     val thrown = the[ForbiddenError] thrownBy {
       defaultAzureService
-        .createRuntime(userInfo, runtimeName, workspaceId, defaultCreateAzureRuntimeReq)
+        .createRuntime(userInfo, runtimeName, workspaceId, defaultCreateAzureRuntimeReq, jobUUID)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
@@ -132,12 +139,15 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
   }
 
   it should "throw RuntimeAlreadyExistsException when creating a runtime with same name and context as an existing runtime" in isolatedDbTest {
+    val jobId = WsmJobId(UUID.randomUUID())
     defaultAzureService
-      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
+      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq, jobId)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
+    val jobId2 = WsmJobId(UUID.randomUUID())
+
     val exc = defaultAzureService
-      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
+      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq, jobId2)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -157,12 +167,15 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       context <- appContext.ask[AppContext]
+      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+
       _ <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq
+          defaultCreateAzureRuntimeReq,
+          jobUUID
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       clusterOpt <- clusterQuery
@@ -199,12 +212,15 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+
       _ <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq
+          defaultCreateAzureRuntimeReq,
+          jobUUID
         )
       _ <- azureService.getRuntime(userInfo, runtimeName, workspaceId)
     } yield ()
@@ -225,12 +241,15 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+
       _ <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq
+          defaultCreateAzureRuntimeReq,
+          jobUUID
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       clusterOpt <- clusterQuery
@@ -258,12 +277,15 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
 
     val res = for {
       context <- appContext.ask[AppContext]
+      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+
       _ <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq
+          defaultCreateAzureRuntimeReq,
+          jobUUID
         )
       _ <- publisherQueue.tryTake //clean out create msg
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
@@ -310,12 +332,15 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     val azureService = makeInterp(publisherQueue)
 
     val res = for {
+      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+
       _ <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq
+          defaultCreateAzureRuntimeReq,
+          jobUUID
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       preDeleteClusterOpt <- clusterQuery
@@ -344,12 +369,15 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+
       _ <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq
+          defaultCreateAzureRuntimeReq,
+          jobUUID
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       clusterOpt <- clusterQuery

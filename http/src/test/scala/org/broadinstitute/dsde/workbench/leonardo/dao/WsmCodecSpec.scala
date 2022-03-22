@@ -1,4 +1,5 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import java.util.UUID
 import com.azure.core.management.Region
@@ -323,6 +324,88 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       None
     )
     decodedResp2 shouldBe Right(expected2)
+  }
+
+  it should "decode getCreateVmResult" in {
+    val fixedUUID = UUID.randomUUID()
+    val expected = GetCreateVmJobResult(
+      Some(
+        WsmVm(
+          WsmVMMetadata(WsmControlledResourceId(UUID.fromString("dcfa6fa4-ab46-465e-a8dd-76705cbdb4ec")))
+        )
+      ),
+      WsmJobReport(
+        WsmJobId(fixedUUID),
+        "desc",
+        WsmJobStatus.Running,
+        200,
+        ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+        Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+        "resultUrl"
+      ),
+      Some(
+        WsmErrorReport(
+          "error",
+          500,
+          List("testCause")
+        )
+      )
+    )
+
+    val decodedResp = decode[CreateVmResult](
+      s"""
+         |{
+         |   "azureVm": {
+         |        "metadata":
+         |        {
+         |            "workspaceId": "e1aaf25b-b298-46eb-891b-e4c326f29b0c",
+         |            "resourceId": "dcfa6fa4-ab46-465e-a8dd-76705cbdb4ec",
+         |            "name": "automation-test-afalskknz",
+         |            "description": "Azure Vm",
+         |            "resourceType": "AZURE_VM",
+         |            "stewardshipType": "CONTROLLED",
+         |            "cloningInstructions": "COPY_NOTHING",
+         |            "controlledResourceMetadata":
+         |            {
+         |                "accessScope": "PRIVATE_ACCESS",
+         |                "managedBy": "APPLICATION",
+         |                "privateResourceUser":
+         |                {
+         |                    "userName": "ron.weasley@test.firecloud.org"
+         |                },
+         |                "privateResourceState": "ACTIVE"
+         |            }
+         |        },
+         |        "attributes":
+         |        {
+         |            "vmName": "automation-test-afalskknz",
+         |            "region": "westcentralus",
+         |            "vmSize": "Standard_D1_v2",
+         |            "vmImageUri": "/subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0",
+         |            "ipId": "62e6dec2-94c5-4806-8594-eb6020344cbe",
+         |            "diskId": "2eddd6aa-bb94-4027-aeca-0de34a583808",
+         |            "networkId": "b414a42b-a27d-4072-8a03-44283f4c07f6"
+         |        }
+         |    },
+         |  "jobReport": {
+         |    "id": "${fixedUUID.toString}",
+         |    "description": "desc",
+         |    "status": "RUNNING",
+         |    "statusCode": 200,
+         |    "submitted": "2022-03-18T15:02:29.264756Z",
+         |    "completed": "2022-03-18T15:02:29.264756Z",
+         |    "resultURL": "resultUrl"
+         |  },
+         |  "errorReport": {
+         |     "message": "error",
+         |     "statusCode": 500,
+         |     "causes": ["testCause"]
+         |  }
+         |}
+         |""".stripMargin.replaceAll("\\s", "")
+    )
+
+    decodedResp shouldBe Right(expected)
   }
 
   it should "decode DeleteVmResult" in {

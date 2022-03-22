@@ -1,17 +1,9 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AzureCloudContext,
-  ManagedResourceGroupName,
-  SubscriptionId,
-  TenantId,
-  WorkspaceId,
-  WsmControlledResourceId
-}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -74,7 +66,7 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
   )(implicit ev: Ask[IO, AppContext]): IO[GetCreateVmJobResult] =
     IO.pure(
       GetCreateVmJobResult(
-        Some(WsmVm(WsmControlledResourceId(UUID.randomUUID()))),
+        Some(WsmVm(WsmVMMetadata(WsmControlledResourceId(UUID.randomUUID())))),
         WsmJobReport(
           request.jobId,
           "desc",

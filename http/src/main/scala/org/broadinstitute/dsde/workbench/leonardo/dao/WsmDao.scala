@@ -1,32 +1,20 @@
-package org.broadinstitute.dsde.workbench.leonardo.dao
+package org.broadinstitute.dsde.workbench.leonardo
+package dao
 
 import java.util.UUID
 import ca.mrvisser.sealerate
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AzureCloudContext,
-  AzureDiskName,
-  CidrIP,
-  DiskSize,
-  ManagedResourceGroupName,
-  RuntimeImage,
-  RuntimeName,
-  SubscriptionId,
-  TenantId,
-  WorkspaceId,
-  WsmControlledResourceId
-}
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import _root_.io.circe._
-import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureMachineTypeEncoder,
   azureRegionEncoder,
   runtimeNameEncoder,
-  uuidDecoder,
-  wsmControlledResourceIdEncoder
+  wsmControlledResourceIdEncoder,
+  wsmJobIdDecoder,
+  wsmJobIdEncoder
 }
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -77,7 +65,8 @@ final case class CreateVmRequestData(name: RuntimeName,
                                      diskId: WsmControlledResourceId,
                                      networkId: WsmControlledResourceId)
 
-final case class WsmVm(resourceId: WsmControlledResourceId)
+final case class WsmVMMetadata(resourceId: WsmControlledResourceId)
+final case class WsmVm(metadata: WsmVMMetadata)
 
 final case class DeleteVmRequest(workspaceId: WorkspaceId,
                                  resourceId: WsmControlledResourceId,
@@ -137,7 +126,6 @@ final case class ControlledResourceName(value: String) extends AnyVal
 final case class ControlledResourceDescription(value: String) extends AnyVal
 final case class PrivateResourceUser(userName: WorkbenchEmail, privateResourceIamRoles: List[ControlledResourceIamRole])
 
-final case class WsmJobId(value: UUID) extends AnyVal
 final case class WsmErrorReport(message: String, statusCode: Int, causes: List[String])
 final case class WsmJobReport(id: WsmJobId,
                               description: String,
@@ -258,10 +246,16 @@ object WsmDecoders {
     } yield CreateNetworkResponse(WsmControlledResourceId(id))
   }
 
-  implicit val createVmResponseDecoder: Decoder[WsmVm] = Decoder.instance { c =>
+  implicit val metadataDecoder: Decoder[WsmVMMetadata] = Decoder.instance { c =>
     for {
       id <- c.downField("resourceId").as[UUID]
-    } yield WsmVm(WsmControlledResourceId(id))
+    } yield WsmVMMetadata(WsmControlledResourceId(id))
+  }
+
+  implicit val createVmResponseDecoder: Decoder[WsmVm] = Decoder.instance { c =>
+    for {
+      m <- c.downField("metadata").as[WsmVMMetadata]
+    } yield WsmVm(m)
   }
 
   implicit val azureContextDecoder: Decoder[AzureCloudContext] = Decoder.instance { c =>
@@ -284,9 +278,6 @@ object WsmDecoders {
 
   implicit val wsmJobStatusDecoder: Decoder[WsmJobStatus] =
     Decoder.decodeString.emap(s => WsmJobStatus.stringToObject.get(s).toRight(s"Invalid WsmJobStatus found: $s"))
-
-  implicit val wsmJobIdDecoder: Decoder[WsmJobId] =
-    uuidDecoder.map(uuid => WsmJobId(uuid))
 
   implicit val wsmJobReportDecoder: Decoder[WsmJobReport] = Decoder.instance { c =>
     for {
@@ -358,7 +349,6 @@ object WsmEncoders {
     Encoder.forProduct7("name", "region", "vmSize", "vmImageUri", "ipId", "diskId", "networkId")(x =>
       (x.name, x.region, x.vmSize, x.vmImageUri.imageUrl, x.ipId, x.diskId, x.networkId)
     )
-  implicit val wsmJobIdEncoder: Encoder[WsmJobId] = Encoder.encodeString.contramap(_.value.toString)
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 
   implicit val createVmRequestEncoder: Encoder[CreateVmRequest] =

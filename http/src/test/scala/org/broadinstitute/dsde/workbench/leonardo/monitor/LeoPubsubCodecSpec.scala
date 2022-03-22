@@ -2,13 +2,13 @@ package org.broadinstitute.dsde.workbench.leonardo.monitor
 
 import java.time.Instant
 import java.util.UUID
-
 import _root_.io.circe.parser.decode
 import _root_.io.circe.syntax._
 import io.circe.Printer
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AppType.Galaxy
+import org.broadinstitute.dsde.workbench.leonardo.dao.WsmJobControl
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAppMessage,
@@ -28,7 +28,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   RuntimeImageType,
   RuntimeName,
   RuntimeProjectAndName,
-  WorkspaceId
+  WorkspaceId,
+  WsmJobId
 }
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -131,10 +132,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "encode/decode CreateAzureRuntimeMessage properly" in {
-    val originalMessage = CreateAzureRuntimeMessage(1,
-                                                    WorkspaceId(UUID.randomUUID()),
-                                                    RuntimeImage(RuntimeImageType.Azure, "test", None, Instant.now),
-                                                    None)
+    val originalMessage =
+      CreateAzureRuntimeMessage(1, WorkspaceId(UUID.randomUUID()), WsmJobId(UUID.randomUUID()), None)
 
     val res = decode[CreateAzureRuntimeMessage](originalMessage.asJson.printWith(Printer.noSpaces))
 

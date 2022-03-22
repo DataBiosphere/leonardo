@@ -1654,7 +1654,8 @@ class LeoPubsubMessageSubscriberSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, azureImage, None)
+        jobId <- IO.delay(UUID.randomUUID())
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(jobId), None)
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
@@ -1776,7 +1777,6 @@ class LeoPubsubMessageSubscriberSpec
                       computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
                       wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
     new AzureInterpreter[IO](
-      ConfigReader.appConfig.azure.runtimeDefaults,
       ConfigReader.appConfig.azure.monitor,
       asyncTaskQueue,
       wsmDAO,
