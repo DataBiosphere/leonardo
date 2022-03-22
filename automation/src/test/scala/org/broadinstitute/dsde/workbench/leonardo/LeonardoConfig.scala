@@ -40,6 +40,7 @@ object LeonardoConfig extends CommonConfig {
     val pathToQAJson = gcs.getString("qaJsonFile")
   }
 
+  //TODO: this should be updated once we're able to run azure automation tests as part of CI
   object WSM {
     val wsmUri: String = "https://workspace.dsde-dev.broadinstitute.org"
   }

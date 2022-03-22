@@ -437,26 +437,6 @@ trait LeonardoTestUtils
   def stopAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): Unit =
     stopRuntime(googleProject, runtimeName, monitor = true)(token)
 
-  def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit token: AuthToken,
-    authorization: IO[Authorization]
-  ): Unit = {
-    // verify with get()
-    val waitForRunning = LeonardoApiClient.client.use { implicit c =>
-      LeonardoApiClient.startRuntimeWithWait(googleProject, runtimeName)
-    }
-
-    waitForRunning.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
-    logger.info(s"Checking if ${googleProject.value}/${runtimeName.asString} is proxyable yet")
-    val getResult = Try(Notebook.getApi(googleProject, runtimeName))
-    getResult.isSuccess shouldBe true
-    getResult.get should not include "ProxyException"
-
-    // Grab the jupyter.log and welder.log files for debugging.
-    saveClusterLogFiles(googleProject, runtimeName, List("jupyter.log", "welder.log"), "start")
-  }
-
   def randomClusterName: RuntimeName = RuntimeName(s"automation-test-a${makeRandomId().toLowerCase}z")
 
   def defaultClusterRequest: ClusterRequest =

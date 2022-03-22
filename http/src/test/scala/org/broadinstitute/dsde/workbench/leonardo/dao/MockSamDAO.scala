@@ -35,6 +35,8 @@ class MockSamDAO extends SamDAO[IO] {
   var runtimeCreators: Map[Authorization, Set[(RuntimeSamResourceId, SamPolicyName)]] = Map.empty
   var diskCreators: Map[Authorization, Set[(PersistentDiskSamResourceId, SamPolicyName)]] = Map.empty
   var appCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
+  var wmsResourceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
+  var workspaceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
 
   //we don't care much about traceId in unit tests, hence providing a constant UUID here
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
@@ -103,6 +105,14 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
       case SamResourceType.App =>
         IO.pure(appCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
+      case SamResourceType.Workspace =>
+        IO.pure(
+          workspaceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
+        )
+      case SamResourceType.WsmResource =>
+        IO.pure(
+          wmsResourceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
+        )
     }
 
   override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
@@ -257,6 +267,20 @@ class MockSamDAO extends SamDAO[IO] {
       case SamResourceType.App =>
         val res = apps
           .get((resource.asInstanceOf[AppSamResourceId], authHeader))
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .asInstanceOf[List[sr.ActionCategory]]
+        IO.pure(res)
+      case SamResourceType.Workspace =>
+        val res = workspaces
+          .get((resource.asInstanceOf[WorkspaceResourceSamResourceId], authHeader))
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .asInstanceOf[List[sr.ActionCategory]]
+        IO.pure(res)
+      case SamResourceType.WsmResource =>
+        val res = wsmResources
+          .get((resource.asInstanceOf[WsmResourceSamResourceId], authHeader))
           .map(_.toList)
           .getOrElse(List.empty)
           .asInstanceOf[List[sr.ActionCategory]]
