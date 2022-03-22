@@ -164,7 +164,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     override def monitorConfig: MonitorConfig = MonitorConfig.GceMonitorConfig(
       2 seconds,
-      PollMonitorConfig(5, 1 second),
+      PollMonitorConfig(2 seconds, 5, 1 second),
       timeouts,
       InterruptablePollMonitorConfig(60, 1 second, 10 seconds),
       RuntimeBucketConfig(3 seconds),

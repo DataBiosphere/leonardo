@@ -20,10 +20,9 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{PollMonitorConfig, Pu
 
 import java.util.UUID
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.DurationInt
 
 class AzureInterpreter[F[_]](
-  monitorConfig: AzureMonitorConfig,
+  config: AzureMonitorConfig,
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
   samDAO: SamDAO[F],
@@ -73,15 +72,14 @@ class AzureInterpreter[F[_]](
 
       taskToRun = for {
         _ <- F.sleep(
-          120 seconds
+          config.createVmPollConfig.initialDelay
         ) //it takes a while to create Azure VM. Hence sleep sometime before we start polling WSM
         // first poll the WSM createVm job for completion
         resp <- streamFUntilDone(
           getWsmJobResult,
-          monitorConfig.pollStatus.maxAttempts,
-          monitorConfig.pollStatus.interval
+          config.createVmPollConfig.maxAttempts,
+          config.createVmPollConfig.interval
         ).compile.lastOrError
-
         _ <- resp.jobReport.status match {
           case WsmJobStatus.Failed =>
             F.raiseError[Unit](
@@ -98,7 +96,7 @@ class AzureInterpreter[F[_]](
                 params.runtime.id,
                 ctx.traceId,
                 None,
-                s"Wsm createVm job was not completed within ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
+                s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
             )
           case WsmJobStatus.Succeeded =>
@@ -115,9 +113,9 @@ class AzureInterpreter[F[_]](
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(
                 getRuntime,
-                monitorConfig.pollStatus.maxAttempts,
-                monitorConfig.pollStatus.interval,
-                s"Azure runtime was not running within ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
+                config.createVmPollConfig.maxAttempts,
+                config.createVmPollConfig.interval,
+                s"Azure runtime was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
               _ <- dbRef.inTransaction(
                 clusterQuery.updateClusterStatus(params.runtime.id, RuntimeStatus.Running, ctx.now)
@@ -179,9 +177,9 @@ class AzureInterpreter[F[_]](
       taskToRun = for {
         _ <- streamUntilDoneOrTimeout(
           getDeleteResult,
-          monitorConfig.pollStatus.maxAttempts,
-          monitorConfig.pollStatus.interval,
-          s"Azure vm still exists after ${monitorConfig.pollStatus.maxAttempts} attempts with ${monitorConfig.pollStatus.interval} delay"
+          config.deleteVmPollConfig.maxAttempts,
+          config.deleteVmPollConfig.interval,
+          s"Azure vm still exists after ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
         )
         _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
         _ <- msg.diskId.traverse(diskId =>
@@ -210,4 +208,4 @@ class AzureInterpreter[F[_]](
   }
 }
 
-final case class AzureMonitorConfig(pollStatus: PollMonitorConfig)
+final case class AzureMonitorConfig(createVmPollConfig: PollMonitorConfig, deleteVmPollConfig: PollMonitorConfig)

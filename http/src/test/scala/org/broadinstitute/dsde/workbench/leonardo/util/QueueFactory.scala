@@ -16,5 +16,5 @@ object QueueFactory {
   def makeSubscriberQueue() =
     Queue.bounded[IO, Event[LeoPubsubMessage]](queueSize).unsafeRunSync()
 
-  def asyncTaskQueue = Queue.bounded[IO, Task[IO]](queueSize).unsafeRunSync()
+  def asyncTaskQueue() = Queue.bounded[IO, Task[IO]](queueSize).unsafeRunSync()
 }

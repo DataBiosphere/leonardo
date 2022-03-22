@@ -741,7 +741,7 @@ class GceRuntimeMonitorSpec
     monitorStatusTimeouts: Option[Map[RuntimeStatus, FiniteDuration]] = None
   ): GceRuntimeMonitor[IO] = {
     val config =
-      Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollStatus = PollMonitorConfig(5, 1 second))
+      Config.gceMonitorConfig.copy(initialDelay = 2 seconds, pollStatus = PollMonitorConfig(2 seconds, 5, 1 second))
     val configWithCustomTimeouts =
       monitorStatusTimeouts.fold(config)(timeouts => config.copy(monitorStatusTimeouts = timeouts))
     new GceRuntimeMonitor[IO](

@@ -57,6 +57,8 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   CreateVmResult,
   DeleteVmRequest,
   DeleteVmResult,
+  GetCreateVmJobResult,
+  GetJobResultRequest,
   MockAppDAO,
   MockAppDescriptorDAO,
   MockComputeManagerDao,
@@ -1631,8 +1633,9 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in create azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def createVm(request: CreateVmRequest,
-                            authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
         IO.raiseError(new Exception(exceptionMsg))
     }
     val mockAckConsumer = mock[AckReplyConsumer]
@@ -1659,19 +1662,17 @@ class LeoPubsubMessageSubscriberSpec
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
-        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
-        getRuntime = getRuntimeOpt.get
-        error <- clusterErrorQuery.get(runtime.id).transaction
-        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
-      } yield {
-        getRuntime.status shouldBe RuntimeStatus.Error
-        //This check is mainly here to ensure nothing unintended is happening with controlled resource saving
-        //At the time of writing, leo controlled resources are saved sequentially, and the mock for this test makes it error before the 4th vm controlled resource is saved
-        //This check isn't essential if it becomes problematic with restructuring
-        controlledResources.length shouldBe 3
-        error.length shouldBe 1
-        error.map(_.errorMessage).head should include(exceptionMsg)
-      }
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        } yield {
+          getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

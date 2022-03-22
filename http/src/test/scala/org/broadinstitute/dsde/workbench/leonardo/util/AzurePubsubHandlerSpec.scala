@@ -23,6 +23,7 @@ import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 
+import java.time.ZonedDateTime
 import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 
@@ -45,9 +46,30 @@ class AzurePubsubHandlerSpec
     when(vmReturn.getPrimaryPublicIPAddress()).thenReturn(ipReturn)
     when(ipReturn.ipAddress()).thenReturn(stubIp)
 
-    val queue = makeTaskQueue()
+    val queue = QueueFactory.asyncTaskQueue()
+    val resourceId = WsmControlledResourceId(UUID.randomUUID())
+    val mockWsmDAO = new MockWsmDAO {
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
+        IO.pure(
+          GetCreateVmJobResult(
+            Some(WsmVm(WsmVMMetadata(resourceId))),
+            WsmJobReport(WsmJobId(UUID.randomUUID()),
+                         "",
+                         WsmJobStatus.Succeeded,
+                         200,
+                         ZonedDateTime.now(),
+                         None,
+                         "url"),
+            None
+          )
+        )
+    }
     val azureInterp =
-      makeAzureInterp(computeManagerDao = new MockComputeManagerDao(Some(vmReturn)), asyncTaskQueue = queue)
+      makeAzureInterp(computeManagerDao = new MockComputeManagerDao(Some(vmReturn)),
+                      asyncTaskQueue = queue,
+                      wsmDAO = mockWsmDAO)
 
     val res =
       for {
@@ -76,21 +98,19 @@ class AzurePubsubHandlerSpec
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
 
-        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
       } yield {
-        controlledResources.length shouldBe 4
+        controlledResources.length shouldBe 1
         controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureVm)
-        controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureNetwork)
-        controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureDisk)
-        controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureIp)
+        controlledResources.map(_.resourceId) shouldBe List(resourceId)
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "delete azure vm properly" in isolatedDbTest {
-    val queue = makeTaskQueue()
+    val queue = QueueFactory.asyncTaskQueue()
     val azureInterp = makeAzureInterp(asyncTaskQueue = queue)
 
     val res =
@@ -129,7 +149,7 @@ class AzurePubsubHandlerSpec
   }
 
   it should "handle error in create azure vm async task properly" in isolatedDbTest {
-    val queue = makeTaskQueue()
+    val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
       override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
@@ -179,7 +199,7 @@ class AzurePubsubHandlerSpec
       override def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): IO[Option[VirtualMachine]] =
         IO.raiseError(new Exception(exceptionMsg))
     }
-    val queue = makeTaskQueue()
+    val queue = QueueFactory.asyncTaskQueue()
     val azureInterp = makeAzureInterp(asyncTaskQueue = queue, computeManagerDao = mockComputeManagerDao)
 
     val res =
@@ -224,12 +244,8 @@ class AzurePubsubHandlerSpec
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
-
-  def makeTaskQueue(): Queue[IO, Task[IO]] =
-    Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-
   // Needs to be made for each test its used in, otherwise queue will overlap
-  def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),
+  def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
                       computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
                       wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
     new AzureInterpreter[IO](

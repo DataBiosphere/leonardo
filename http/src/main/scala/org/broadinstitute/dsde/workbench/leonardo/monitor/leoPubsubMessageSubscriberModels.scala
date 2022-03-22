@@ -903,8 +903,8 @@ object PubsubHandleMessageError {
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
 
-final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration) {
-  def totalDuration: FiniteDuration = interval * maxAttempts
+final case class PollMonitorConfig(initialDelay: FiniteDuration, maxAttempts: Int, interval: FiniteDuration) {
+  def totalDuration: FiniteDuration = initialDelay + interval * maxAttempts
 }
 
 final case class InterruptablePollMonitorConfig(maxAttempts: Int,

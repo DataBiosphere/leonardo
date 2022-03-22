@@ -26,7 +26,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         DiskSize(250)
       ),
       AzureConfig(
-        AzureMonitorConfig(PollMonitorConfig(120, 1 seconds)),
+        AzureMonitorConfig(PollMonitorConfig(1 seconds, 120, 1 seconds), PollMonitorConfig(1 seconds, 120, 1 seconds)),
         AzureRuntimeDefaults("Azure Ip",
                              "ip",
                              "Azure Network",
