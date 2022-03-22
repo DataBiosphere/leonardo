@@ -1,0 +1,12 @@
+az group deployment create --subscription <SUBSCRIPTION ID> ^
+-g <RESORUCE_GROUP_NAME ^
+--template-uri <TEMPLATE_JSON_LOCATION> ^
+--parameters <PARAMETERS_JSON_LOCATION> ^
+--parameters location=<REGION> ^
+--parameters virtualNetworkId=/subscriptions/<SUBSCRIPTION ID>/resourceGroups/<RESOURCE_GROUP_NAME>/providers/Microsoft.Network/virtualNetworks/<RESOURCE_GROUP_NAME> ^
+--parameters adminPassword=<VM PASSWORD> ^
+--parameters virtualMachineSize=Standard_D8s_v3 ^
+--parameters networkInterfaceName1=<NETWORK_INTERFACE_NAME> ^
+--parameters networkSecurityGroupName=<NETWORK_SECURITY_GROUP> ^
+--parameters virtualMachineName=<VMNAME>^
+--parameters adminUsername=azureuserec 
