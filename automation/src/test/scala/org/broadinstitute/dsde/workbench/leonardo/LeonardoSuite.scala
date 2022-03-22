@@ -7,14 +7,14 @@ import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
 import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
 import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
-import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Ron, Hermione}
-import org.broadinstitute.dsde.workbench.leonardo.apps.{AppLifecycleSpec, AppCreationSpec}
+import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
+import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, AppLifecycleSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
 import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.{Rawls, Orchestration, BillingProject}
+import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, Rawls}
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 import java.util.UUID
