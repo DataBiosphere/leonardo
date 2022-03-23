@@ -708,7 +708,7 @@ object LeonardoApiClient {
       )(onError(s"Failed to get runtime ${workspaceId.value.toString}/${runtimeName.asString}"))
     } yield r
 
-  def deleteAzureRuntime(
+  def deleteRuntimeV2(
     workspaceId: WorkspaceId,
     runtimeName: RuntimeName
   )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
@@ -733,6 +733,18 @@ object LeonardoApiClient {
             IO.unit
         }
     } yield r
+
+  def deleteRuntimeV2WithWait(
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
+    for {
+      _ <- deleteRuntimeV2(workspaceId, runtimeName)
+      ioa = getAzureRuntime(workspaceId, runtimeName).attempt
+      res <- IO.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
+      _ <- if (res.isDone) IO.unit
+      else IO.raiseError(new TimeoutException(s"delete runtime ${workspaceId}/${runtimeName.asString}"))
+    } yield ()
 
 //  def createAzureRuntimeWithWait(
 //                             googleProject: GoogleProject,

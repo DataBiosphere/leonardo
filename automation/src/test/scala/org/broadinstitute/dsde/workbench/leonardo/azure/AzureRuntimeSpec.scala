@@ -48,17 +48,16 @@ class AzureRuntimeSpec
         )
         _ = monitorCreateResult.status shouldBe ClusterStatus.Running
 
-        _ <- IO.sleep(1 minute)
+        _ <- IO.sleep(1 minutes)
 
         // Delete the app
-        _ <- LeonardoApiClient.deleteAzureRuntime(workspaceId, runtimeName)
+        _ <- LeonardoApiClient.deleteRuntimeV2WithWait(workspaceId, runtimeName)
 
         // Verify getApp again
         getRuntimeResponse <- getRuntime
-        _ = getRuntimeResponse.status should (be(ClusterStatus.Deleting) or be(ClusterStatus.PreDeleting))
-
-        //TODO: eventually with list we can verify deleted
-      } yield ()
+      } yield {
+        getRuntimeResponse.status shouldBe ClusterStatus.Deleted
+      }
     }
     res.unsafeRunSync()
   }

@@ -11,6 +11,7 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.deletableStatuses
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   RuntimeSamResourceId,
@@ -139,25 +140,17 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
-      //TODO: add this back once WSM is refactored
-//      controlledResourceOpt <- controlledResourceQuery
-//        .getResourceTypeForRuntime(runtime.id, WsmResourceType.AzureVm)
-//        .transaction
-//      azureRuntimeControlledResource <- F.fromOption(
-//        controlledResourceOpt,
-//        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, context.traceId)
-//      )
-//
-//      hasPermission <- authProvider.hasPermission(WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),
-//                                                  WsmResourceAction.Read,
-//                                                  userInfo)
+      // If user is creator of the runtime, they should definitely be able to see the runtime.
+      hasPermission <- if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
+      else
+        checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo).map(_._1)
 
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
-//      _ <- F
-//        .raiseError[Unit](
-//          RuntimeNotFoundException(cloudContext, runtimeName, "permission denied", Some(context.traceId))
-//        )
-//        .whenA(!hasPermission)
+      _ <- F
+        .raiseError[Unit](
+          RuntimeNotFoundException(cloudContext, runtimeName, "permission denied", Some(context.traceId))
+        )
+        .whenA(!hasPermission)
 
     } yield runtime
 
@@ -185,17 +178,10 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           )
       }
 
-      controlledResourceOpt <- controlledResourceQuery
-        .getResourceTypeForRuntime(runtime.id, WsmResourceType.AzureVm)
-        .transaction
-      azureRuntimeControlledResource <- F.fromOption(
-        controlledResourceOpt,
-        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, context.traceId)
+      _ <- F.raiseUnless(deletableStatuses.contains(runtime.status))(
+        BadRequestException(s"${runtimeName} is not deletable because it's in ${runtime.status}", Some(context.traceId))
       )
-
-      hasPermission <- authProvider.hasPermission(WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),
-                                                  WsmResourceAction.Write,
-                                                  userInfo)
+      (hasPermission, wmsResourceId) <- checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo)
 
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
@@ -212,11 +198,7 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- persistentDiskQuery.markPendingDeletion(diskId, context.now).transaction
 
       _ <- publisherQueue.offer(
-        DeleteAzureRuntimeMessage(runtime.id,
-                                  Some(diskId),
-                                  workspaceId,
-                                  azureRuntimeControlledResource.resourceId,
-                                  Some(context.traceId))
+        DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wmsResourceId, Some(context.traceId))
       )
     } yield ()
 
@@ -383,6 +365,28 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         )
       )
     )
+
+  private def checkSamPermission(cloudContext: CloudContext.Azure,
+                                 runtimeId: Long,
+                                 runtimeName: RuntimeName,
+                                 userInfo: UserInfo)(
+    implicit ctx: Ask[F, AppContext]
+  ): F[(Boolean, WsmControlledResourceId)] =
+    for {
+      context <- ctx.ask
+      controlledResourceOpt <- controlledResourceQuery
+        .getResourceTypeForRuntime(runtimeId, WsmResourceType.AzureVm)
+        .transaction
+      azureRuntimeControlledResource <- F.fromOption(
+        controlledResourceOpt,
+        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, context.traceId)
+      )
+      res <- authProvider.hasPermission(
+        WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),
+        WsmResourceAction.Read,
+        userInfo
+      )
+    } yield (res, azureRuntimeControlledResource.resourceId)
 
   private def errorHandler(runtimeId: Long, ctx: AppContext): Throwable => F[Unit] =
     e =>

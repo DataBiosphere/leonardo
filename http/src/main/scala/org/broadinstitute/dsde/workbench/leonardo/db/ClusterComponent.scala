@@ -549,8 +549,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       .map(c => (c.initBucket, c.proxyHostName, c.operationName, c.stagingBucket, c.dateAccessed))
       .update((None, None, None, None, dateAccessed))
 
-  def updateClusterStatus(id: Long, newStatus: RuntimeStatus, dateAccessed: Instant): DBIO[Int] =
-    findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update((newStatus, dateAccessed))
+  def updateClusterStatus(id: Long, newStatus: RuntimeStatus, now: Instant): DBIO[Int] =
+    if (newStatus == RuntimeStatus.Deleted)
+      findByIdQuery(id)
+        .map(c => (c.status, c.hostIp, c.dateAccessed, c.destroyedDate))
+        .update((RuntimeStatus.Deleted, None, now, now))
+    else
+      findByIdQuery(id).map(c => (c.status, c.dateAccessed)).update((newStatus, now))
 
   // for testing only
   def updateClusterCreatedDate(id: Long, createdDate: Instant): DBIO[Int] =
