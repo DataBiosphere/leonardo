@@ -73,14 +73,14 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       context <- appContext.ask[AppContext]
 
-      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+      jobId = WsmJobId("job1")
       r <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
           defaultCreateAzureRuntimeReq,
-          jobUUID
+          jobId
         )
         .attempt
       workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
@@ -135,7 +135,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        jobUUID,
+        jobId,
         Some(context.traceId)
       )
       message shouldBe expectedMessage
@@ -147,7 +147,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
-    val jobUUID = WsmJobId(UUID.randomUUID())
+    val jobUUID = WsmJobId("job")
 
     val thrown = the[ForbiddenError] thrownBy {
       defaultAzureService
@@ -159,12 +159,12 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
   }
 
   it should "throw RuntimeAlreadyExistsException when creating a runtime with same name and context as an existing runtime" in isolatedDbTest {
-    val jobId = WsmJobId(UUID.randomUUID())
+    val jobId = WsmJobId("job")
     defaultAzureService
       .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq, jobId)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val jobId2 = WsmJobId(UUID.randomUUID())
+    val jobId2 = WsmJobId("job2")
 
     val exc = defaultAzureService
       .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq, jobId2)
@@ -187,7 +187,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       context <- appContext.ask[AppContext]
-      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+      jobUUID <- IO.delay(UUID.randomUUID().toString).map(WsmJobId)
 
       _ <- azureService
         .createRuntime(
@@ -300,7 +300,6 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
 
     val res = for {
       context <- appContext.ask[AppContext]
-      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
 
       _ <- azureService
         .createRuntime(
@@ -308,7 +307,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           runtimeName,
           workspaceId,
           defaultCreateAzureRuntimeReq,
-          jobUUID
+          WsmJobId("job")
         )
       _ <- publisherQueue.tryTake //clean out create msg
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
@@ -355,15 +354,13 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     val azureService = makeInterp(publisherQueue)
 
     val res = for {
-      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
-
       _ <- azureService
         .createRuntime(
           userInfo,
           runtimeName,
           workspaceId,
           defaultCreateAzureRuntimeReq,
-          jobUUID
+          WsmJobId("job1")
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
       preDeleteClusterOpt <- clusterQuery
@@ -392,7 +389,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
 
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+      jobUUID <- IO.delay(UUID.randomUUID().toString()).map(WsmJobId)
 
       _ <- azureService
         .createRuntime(

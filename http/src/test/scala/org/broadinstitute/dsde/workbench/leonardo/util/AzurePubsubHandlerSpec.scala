@@ -55,13 +55,7 @@ class AzurePubsubHandlerSpec
         IO.pure(
           GetCreateVmJobResult(
             Some(WsmVm(WsmVMMetadata(resourceId))),
-            WsmJobReport(WsmJobId(UUID.randomUUID()),
-                         "",
-                         WsmJobStatus.Succeeded,
-                         200,
-                         ZonedDateTime.now(),
-                         None,
-                         "url"),
+            WsmJobReport(WsmJobId("job1"), "", WsmJobStatus.Succeeded, 200, ZonedDateTime.now(), None, "url"),
             None
           )
         )
@@ -93,7 +87,7 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(UUID.randomUUID()), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId("job1"), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -182,7 +176,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(UUID.randomUUID()), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId("job1"), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)

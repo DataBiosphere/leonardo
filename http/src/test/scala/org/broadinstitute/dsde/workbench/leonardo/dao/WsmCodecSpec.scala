@@ -147,7 +147,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
       ),
-      WsmJobControl(WsmJobId(fixedUUID))
+      WsmJobControl(WsmJobId("job1"))
     ).asJson.deepDropNullValues.noSpaces
 
     req shouldBe
@@ -176,14 +176,14 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |    "networkId": "${fixedUUID.toString}"
          |  },
          |  "jobControl": {
-         |    "id": "${fixedUUID.toString}"
+         |    "id": "job1"
          |  }
          |}
          |""".stripMargin.replaceAll("\\s", "")
   }
 
   it should "encode DeleteVmRequest" in {
-    val fixedUUID = UUID.randomUUID()
+    val fixedUUID = UUID.randomUUID().toString
     val req = DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(fixedUUID)))
 
     req.asJson.deepDropNullValues.noSpaces shouldBe
@@ -252,10 +252,10 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "decode CreateVmResult" in {
-    val fixedUUID = UUID.randomUUID()
+    val jobId = WsmJobId("job1")
     val expected = CreateVmResult(
       WsmJobReport(
-        WsmJobId(fixedUUID),
+        jobId,
         "desc",
         WsmJobStatus.Running,
         200,
@@ -276,7 +276,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       s"""
          |{
          |  "jobReport": {
-         |    "id": "${fixedUUID.toString}",
+         |    "id": "${jobId.value}",
          |    "description": "desc",
          |    "status": "RUNNING",
          |    "statusCode": 200,
@@ -300,7 +300,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |{
          |    "jobReport":
          |    {
-         |        "id": "1bf4d89f-53ac-4ad4-ab8e-0131c6494a69",
+         |        "id": "job2",
          |        "description": "Create controlled resource CONTROLLED_AZURE_VM; id 635e25e1-c793-4ca9-b9fe-9055cdae2f26; name automation-test-aswsimhjz",
          |        "status": "RUNNING",
          |        "statusCode": 202,
@@ -313,7 +313,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
 
     val expected2 = CreateVmResult(
       WsmJobReport(
-        WsmJobId(UUID.fromString("1bf4d89f-53ac-4ad4-ab8e-0131c6494a69")),
+        WsmJobId("job2"),
         "Create controlled resource CONTROLLED_AZURE_VM; id 635e25e1-c793-4ca9-b9fe-9055cdae2f26; name automation-test-aswsimhjz",
         WsmJobStatus.Running,
         202,
@@ -327,7 +327,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "decode getCreateVmResult" in {
-    val fixedUUID = UUID.randomUUID()
+    val jobId = WsmJobId("job1")
     val expected = GetCreateVmJobResult(
       Some(
         WsmVm(
@@ -335,7 +335,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         )
       ),
       WsmJobReport(
-        WsmJobId(fixedUUID),
+        jobId,
         "desc",
         WsmJobStatus.Running,
         200,
@@ -388,7 +388,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |        }
          |    },
          |  "jobReport": {
-         |    "id": "${fixedUUID.toString}",
+         |    "id": "${jobId.toString}",
          |    "description": "desc",
          |    "status": "RUNNING",
          |    "statusCode": 200,
@@ -409,7 +409,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
   }
 
   it should "decode DeleteVmResult" in {
-    val fixedUUID = UUID.randomUUID()
+    val fixedUUID = UUID.randomUUID().toString
     val now = ZonedDateTime.now()
     val expected = DeleteWsmResourceResult(
       WsmJobReport(

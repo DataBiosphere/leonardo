@@ -1637,7 +1637,7 @@ class LeoPubsubMessageSubscriberSpec
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
         jobId <- IO.delay(UUID.randomUUID())
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(jobId), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(jobId.toString), None)
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
@@ -1659,7 +1659,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in delete azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def deleteVm(request: DeleteVmRequest, authorization: Authorization)(
+      override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
         implicit ev: Ask[IO, AppContext]
       ): IO[DeleteWsmResourceResult] =
         IO.raiseError(new Exception(exceptionMsg))
