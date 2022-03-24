@@ -1659,8 +1659,9 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in delete azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def deleteVm(request: DeleteVmRequest,
-                            authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[DeleteVmResult] =
+      override def deleteVm(request: DeleteVmRequest, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[DeleteWsmResourceResult] =
         IO.raiseError(new Exception(exceptionMsg))
     }
     val mockAckConsumer = mock[AckReplyConsumer]

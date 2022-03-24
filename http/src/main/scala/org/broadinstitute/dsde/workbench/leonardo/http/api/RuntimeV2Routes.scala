@@ -19,8 +19,6 @@ import JsonCodec._
 import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
-import java.util.UUID
-
 class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       azureService: AzureService[IO],
                       userInfoDirectives: UserInfoDirectives)(
@@ -103,7 +101,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
     for {
       ctx <- ev.ask[AppContext]
 
-      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
+      jobUUID = WsmJobId(s"create-${runtimeName.asString}")
       apiCall = azureService.createRuntime(userInfo, runtimeName, workspaceId, req, jobUUID)
       _ <- metrics.incrementCounter("createAzureRuntime")
       _ <- ctx.span.fold(apiCall)(span =>

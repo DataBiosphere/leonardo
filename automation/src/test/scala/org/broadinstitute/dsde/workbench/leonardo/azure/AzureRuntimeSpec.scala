@@ -36,7 +36,7 @@ class AzureRuntimeSpec
         _ = getRuntimeResponse.status should (be(ClusterStatus.Creating) or be(ClusterStatus.PreCreating))
 
         // Verify the runtime eventually becomes Running
-        _ <- IO.sleep(300 seconds)
+        _ <- IO.sleep(60 seconds)
         monitorCreateResult <- streamUntilDoneOrTimeout(
           getRuntime,
           120,
@@ -48,16 +48,11 @@ class AzureRuntimeSpec
         )
         _ = monitorCreateResult.status shouldBe ClusterStatus.Running
 
-        _ <- IO.sleep(1 minutes)
+        _ <- IO.sleep(3 seconds)
 
         // Delete the app
         _ <- LeonardoApiClient.deleteRuntimeV2WithWait(workspaceId, runtimeName)
-
-        // Verify getApp again
-        getRuntimeResponse <- getRuntime
-      } yield {
-        getRuntimeResponse.status shouldBe ClusterStatus.Deleted
-      }
+      } yield ()
     }
     res.unsafeRunSync()
   }

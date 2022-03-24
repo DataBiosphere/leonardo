@@ -746,16 +746,6 @@ object LeonardoApiClient {
       else IO.raiseError(new TimeoutException(s"delete runtime ${workspaceId}/${runtimeName.asString}"))
     } yield ()
 
-//  def createAzureRuntimeWithWait(
-//                             googleProject: GoogleProject,
-//                             runtimeName: RuntimeName,
-//                             createRuntime2Request: CreateRuntime2Request
-//                           )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
-//    for {
-//      _ <- createRuntime(googleProject, runtimeName, createRuntime2Request)
-//      res <- waitUntilRunning(googleProject, runtimeName)
-//    } yield res
-
   def testSparkWebUi(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,

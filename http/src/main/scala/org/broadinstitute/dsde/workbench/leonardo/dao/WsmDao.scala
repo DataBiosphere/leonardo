@@ -40,10 +40,19 @@ trait WsmDao[F[_]] {
     implicit ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
 
-  def deleteVm(request: DeleteVmRequest, authorization: Authorization)(
+  def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteVmResult]
+  ): F[DeleteWsmResourceResult]
 
+  def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[DeleteWsmResourceResult]
+  def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[DeleteWsmResourceResult]
+  def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[DeleteWsmResourceResult]
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
   ): F[WorkspaceDescription]
@@ -68,9 +77,9 @@ final case class CreateVmRequestData(name: RuntimeName,
 final case class WsmVMMetadata(resourceId: WsmControlledResourceId)
 final case class WsmVm(metadata: WsmVMMetadata)
 
-final case class DeleteVmRequest(workspaceId: WorkspaceId,
-                                 resourceId: WsmControlledResourceId,
-                                 deleteRequest: DeleteControlledAzureResourceRequest)
+final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
+                                          resourceId: WsmControlledResourceId,
+                                          deleteRequest: DeleteControlledAzureResourceRequest)
 
 final case class CreateVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class GetCreateVmJobResult(vm: Option[WsmVm], jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
@@ -138,7 +147,7 @@ final case class WsmJobReport(id: WsmJobId,
 final case class WsmJobControl(id: WsmJobId)
 final case class DeleteControlledAzureResourceRequest(jobControl: WsmJobControl)
 
-final case class DeleteVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
+final case class DeleteWsmResourceResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 
 sealed abstract class WsmJobStatus
 object WsmJobStatus {
@@ -294,11 +303,11 @@ object WsmDecoders {
   implicit val wsmErrorReportDecoder: Decoder[WsmErrorReport] =
     Decoder.forProduct3("message", "statusCode", "causes")(WsmErrorReport.apply)
 
-  implicit val deleteControlledAzureResourceResponseDecoder: Decoder[DeleteVmResult] = Decoder.instance { c =>
+  implicit val deleteControlledAzureResourceResponseDecoder: Decoder[DeleteWsmResourceResult] = Decoder.instance { c =>
     for {
       jobReport <- c.downField("jobReport").as[WsmJobReport]
       errorReport <- c.downField("errorReport").as[Option[WsmErrorReport]]
-    } yield DeleteVmResult(jobReport, errorReport)
+    } yield DeleteWsmResourceResult(jobReport, errorReport)
   }
 
   implicit val createVmResultDecoder: Decoder[CreateVmResult] =

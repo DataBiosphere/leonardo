@@ -30,8 +30,8 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
   def save(runtimeId: Long, resourceId: WsmControlledResourceId, resourceType: WsmResourceType): DBIO[Int] =
     controlledResourceQuery += RuntimeControlledResourceRecord(runtimeId, resourceId, resourceType)
 
-  def getResourceTypeForRuntime(runtimeId: Long,
-                                resourceType: WsmResourceType): DBIO[Option[RuntimeControlledResourceRecord]] =
+  def getWsmRecordForRuntime(runtimeId: Long,
+                             resourceType: WsmResourceType): DBIO[Option[RuntimeControlledResourceRecord]] =
     controlledResourceQuery
       .filter(_.runtimeId === runtimeId)
       .filter(_.resourceType === resourceType)

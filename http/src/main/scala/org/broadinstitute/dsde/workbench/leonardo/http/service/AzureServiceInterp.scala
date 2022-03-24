@@ -375,7 +375,7 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- ctx.ask
       controlledResourceOpt <- controlledResourceQuery
-        .getResourceTypeForRuntime(runtimeId, WsmResourceType.AzureVm)
+        .getWsmRecordForRuntime(runtimeId, WsmResourceType.AzureVm)
         .transaction
       azureRuntimeControlledResource <- F.fromOption(
         controlledResourceOpt,

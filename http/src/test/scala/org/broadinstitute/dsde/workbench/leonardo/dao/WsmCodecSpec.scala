@@ -411,7 +411,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
   it should "decode DeleteVmResult" in {
     val fixedUUID = UUID.randomUUID()
     val now = ZonedDateTime.now()
-    val expected = DeleteVmResult(
+    val expected = DeleteWsmResourceResult(
       WsmJobReport(
         WsmJobId(fixedUUID),
         "desc",
@@ -430,7 +430,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       )
     )
 
-    val decodedResp = decode[DeleteVmResult](
+    val decodedResp = decode[DeleteWsmResourceResult](
       s"""
          |{
          |  "jobReport": {

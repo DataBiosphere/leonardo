@@ -40,4 +40,4 @@ object AzureCloudContext {
   }
 }
 
-final case class WsmJobId(value: UUID) extends AnyVal
+final case class WsmJobId(value: String) extends AnyVal

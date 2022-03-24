@@ -89,9 +89,9 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     )
 
   override def deleteVm(request: DeleteVmRequest,
-                        authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[DeleteVmResult] =
+                        authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[DeleteWsmResourceResult] =
     IO.pure(
-      DeleteVmResult(
+      DeleteWsmResourceResult(
         WsmJobReport(
           request.deleteRequest.jobControl.id,
           "desc",

@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 package leonardo
 package util
 
+import cats.Parallel
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
@@ -17,11 +18,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{PollMonitorConfig, PubsubHandleMessageError}
-
-import java.util.UUID
+import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import scala.concurrent.ExecutionContext
 
-class AzureInterpreter[F[_]](
+class AzureInterpreter[F[_]: Parallel](
   config: AzureMonitorConfig,
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
@@ -153,16 +153,45 @@ class AzureInterpreter[F[_]](
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       auth <- samDAO.getLeoAuthToken
 
-      jobId <- F.delay(UUID.randomUUID()).map(WsmJobId)
       _ <- wsmDao.deleteVm(
-        DeleteVmRequest(
+        DeleteWsmResourceRequest(
           msg.workspaceId,
           msg.wsmResourceId,
-          DeleteControlledAzureResourceRequest(WsmJobControl(jobId))
+          DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${msg.runtimeId}-vm")))
         ),
         auth
       )
 
+      ipResourceId <- getResourceId(msg.runtimeId, WsmResourceType.AzureIp)
+      deleteIp = wsmDao.deleteIp(
+        DeleteWsmResourceRequest(
+          msg.workspaceId,
+          ipResourceId,
+          DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${msg.runtimeId}-ip")))
+        ),
+        auth
+      )
+
+      diskResourceId <- getResourceId(msg.runtimeId, WsmResourceType.AzureDisk)
+      deleteDisk = wsmDao.deleteDisk(
+        DeleteWsmResourceRequest(
+          msg.workspaceId,
+          diskResourceId,
+          DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${msg.runtimeId}-disk")))
+        ),
+        auth
+      )
+
+      networkResourceId <- getResourceId(msg.runtimeId, WsmResourceType.AzureNetwork)
+      deleteNetworks = wsmDao.deleteNetworks(
+        DeleteWsmResourceRequest(
+          msg.workspaceId,
+          networkResourceId,
+          DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${msg.runtimeId}-networks")))
+        ),
+        auth
+      )
+      _ <- List(deleteDisk, deleteNetworks, deleteIp).parSequence
       cloudContext = runtime.cloudContext match {
         case _: CloudContext.Gcp =>
           throw PubsubHandleMessageError.AzureRuntimeError(runtime.id,
@@ -206,6 +235,17 @@ class AzureInterpreter[F[_]](
       )
     } yield ()
   }
+
+  private def getResourceId(runtimeId: Long, wsmResourceType: WsmResourceType): F[WsmControlledResourceId] =
+    for {
+      controlledResourceOpt <- controlledResourceQuery
+        .getWsmRecordForRuntime(runtimeId, wsmResourceType)
+        .transaction
+      azureRuntimeControlledResource <- F.fromOption(
+        controlledResourceOpt,
+        new Exception(s"WSM resource(${wsmResourceType}) Id is not found ${runtimeId}")
+      )
+    } yield azureRuntimeControlledResource.resourceId
 }
 
 final case class AzureMonitorConfig(createVmPollConfig: PollMonitorConfig, deleteVmPollConfig: PollMonitorConfig)
