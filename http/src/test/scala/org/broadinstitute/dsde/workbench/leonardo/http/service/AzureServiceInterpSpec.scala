@@ -223,6 +223,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
   }
 
   it should "fail to get a runtime when no controlled resource is saved for runtime" in isolatedDbTest {
+    val badUserInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
@@ -246,8 +247,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         )
         .transaction
       cluster = clusterOpt.get
-      _ <- updateCreator(cluster.id, WorkbenchEmail("randomUser")).transaction
-      _ <- azureService.getRuntime(userInfo, runtimeName, workspaceId)
+      _ <- azureService.getRuntime(badUserInfo, runtimeName, workspaceId)
     } yield ()
 
     the[AzureRuntimeControlledResourceNotFoundException] thrownBy {

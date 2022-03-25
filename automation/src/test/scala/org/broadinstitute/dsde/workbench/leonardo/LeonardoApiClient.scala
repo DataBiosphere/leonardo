@@ -121,7 +121,7 @@ object LeonardoApiClient {
   val defaultCreateAzureRuntimeRequest = CreateAzureRuntimeRequest(
     Map.empty,
     Region.US_WEST_CENTRAL,
-    VirtualMachineSizeTypes.STANDARD_D1_V2, //Standard_D1_v2
+    VirtualMachineSizeTypes.STANDARD_D1_V2,
     None,
     Map.empty,
     CreateAzureDiskRequest(
@@ -727,7 +727,7 @@ object LeonardoApiClient {
         )
         .use { resp =>
           if (!resp.status.isSuccess) {
-            onError(s"Failed to create runtime ${workspaceId.value.toString}/${runtimeName.asString}")(resp)
+            onError(s"Failed to delete runtime ${workspaceId.value.toString}/${runtimeName.asString}")(resp)
               .flatMap(IO.raiseError)
           } else
             IO.unit

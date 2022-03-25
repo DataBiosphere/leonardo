@@ -117,12 +117,6 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
     }
   }
 
-  def updateCreator(id: Long, creator: WorkbenchEmail): DBIO[Int] =
-    clusterQuery
-      .filter(x => x.id === id)
-      .map(c => (c.creator))
-      .update(creator)
-
   def fullClusterQueryByUniqueKey(cloudContext: CloudContext,
                                   clusterName: RuntimeName,
                                   destroyedDateOpt: Option[Instant]) = {
