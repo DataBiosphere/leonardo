@@ -222,73 +222,74 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-// TODO: re-enable this after https://broadworkbench.atlassian.net/browse/IA-3255
-//  it should "fail to get a runtime when no controlled resource is saved for runtime" in isolatedDbTest {
-//    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-//    val runtimeName = RuntimeName("clusterName1")
-//    val workspaceId = WorkspaceId(UUID.randomUUID())
-//
-//    val publisherQueue = QueueFactory.makePublisherQueue()
-//    val azureService = makeInterp(publisherQueue)
-//
-//    val res = for {
-//      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-//      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
-//
-//      _ <- azureService
-//        .createRuntime(
-//          userInfo,
-//          runtimeName,
-//          workspaceId,
-//          defaultCreateAzureRuntimeReq,
-//          jobUUID
-//        )
-//      _ <- azureService.getRuntime(userInfo, runtimeName, workspaceId)
-//    } yield ()
-//
-//    the[AzureRuntimeControlledResourceNotFoundException] thrownBy {
-//      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//    }
-//  }
+  it should "fail to get a runtime when no controlled resource is saved for runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
 
-  // TODO: re-enable this after https://broadworkbench.atlassian.net/browse/IA-3255
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
 
-//  it should "fail to get a runtime when caller has no permission" in isolatedDbTest {
-//    val badUserInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
-//    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
-//    val runtimeName = RuntimeName("clusterName1")
-//    val workspaceId = WorkspaceId(UUID.randomUUID())
-//
-//    val publisherQueue = QueueFactory.makePublisherQueue()
-//    val azureService = makeInterp(publisherQueue)
-//
-//    val res = for {
-//      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-//      jobUUID <- IO.delay(UUID.randomUUID()).map(WsmJobId)
-//
-//      _ <- azureService
-//        .createRuntime(
-//          userInfo,
-//          runtimeName,
-//          workspaceId,
-//          defaultCreateAzureRuntimeReq,
-//          jobUUID
-//        )
-//      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
-//      clusterOpt <- clusterQuery
-//        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
-//          scala.concurrent.ExecutionContext.global
-//        )
-//        .transaction
-//      cluster = clusterOpt.get
-//      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
-//      _ <- azureService.getRuntime(badUserInfo, runtimeName, workspaceId)
-//    } yield ()
-//
-//    the[RuntimeNotFoundException] thrownBy {
-//      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-//    }
-//  }
+    val res = for {
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          defaultCreateAzureRuntimeReq,
+          WsmJobId("job1")
+        )
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      cluster = clusterOpt.get
+      _ <- updateCreator(cluster.id, WorkbenchEmail("randomUser")).transaction
+      _ <- azureService.getRuntime(userInfo, runtimeName, workspaceId)
+    } yield ()
+
+    the[AzureRuntimeControlledResourceNotFoundException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
+
+  it should "fail to get a runtime when caller has no permission" in isolatedDbTest {
+    val badUserInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
+
+    val res = for {
+      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          defaultCreateAzureRuntimeReq,
+          WsmJobId("job")
+        )
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      cluster = clusterOpt.get
+      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
+      _ <- azureService.getRuntime(badUserInfo, runtimeName, workspaceId)
+    } yield ()
+
+    the[RuntimeNotFoundException] thrownBy {
+      res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    }
+  }
 
   it should "delete a runtime" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
@@ -406,6 +407,8 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         )
         .transaction
       cluster = clusterOpt.get
+      now <- IO.realTimeInstant
+      _ <- clusterQuery.updateClusterStatus(cluster.id, RuntimeStatus.Running, now).transaction
       _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
       _ <- azureService.deleteRuntime(badUserInfo, runtimeName, workspaceId)
     } yield ()

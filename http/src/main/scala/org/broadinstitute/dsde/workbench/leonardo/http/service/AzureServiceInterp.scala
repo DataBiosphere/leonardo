@@ -11,7 +11,6 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.deletableStatuses
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
   PersistentDiskSamResourceId,
   RuntimeSamResourceId,
@@ -63,8 +62,7 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for azure runtime permission")))
       _ <- F
-        .raiseError[Unit](ForbiddenError(userInfo.userEmail))
-        .whenA(!hasPermission)
+        .raiseUnless(hasPermission)(ForbiddenError(userInfo.userEmail))
 
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done DB query for azure runtime")))
@@ -166,10 +164,17 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       leoAuth <- samDAO.getLeoAuthToken
       context <- as.ask
+
       azureContext <- wsmDao.getWorkspace(workspaceId, leoAuth).map(_.azureContext)
       cloudContext = CloudContext.Azure(azureContext)
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
+
+      _ <- F
+        .raiseUnless(runtime.status.isDeletable)(
+          RuntimeCannotBeDeletedException(cloudContext, runtime.clusterName, runtime.status)
+        )
+
       diskId <- runtime.runtimeConfig match {
         case config: RuntimeConfig.AzureConfig => F.pure(config.persistentDiskId)
         case _ =>
@@ -178,19 +183,12 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           )
       }
 
-      _ <- F.raiseUnless(deletableStatuses.contains(runtime.status))(
-        BadRequestException(s"${runtimeName} is not deletable because it's in ${runtime.status}", Some(context.traceId))
-      )
       (hasPermission, wmsResourceId) <- checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo)
 
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
         .raiseError[Unit](RuntimeNotFoundException(cloudContext, runtimeName, "permission denied"))
         .whenA(!hasPermission)
-
-      _ <- F
-        .raiseError[Unit](RuntimeCannotBeDeletedException(cloudContext, runtime.clusterName, runtime.status))
-        .whenA(!runtime.status.isDeletable)
 
       _ <- clusterQuery.markPendingDeletion(runtime.id, context.now).transaction
 
@@ -252,29 +250,31 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       auth <- samDAO.getLeoAuthToken
 
-      createIpResp <- createIp(params, auth, params.runtime.runtimeName.asString)
-      createDiskResp <- createDisk(params, auth)
-      createNetworkResp <- createNetwork(params, auth, params.runtime.runtimeName.asString)
+      createIpAction = createIp(params, auth, params.runtime.runtimeName.asString)
+      createDiskAction = createDisk(params, auth)
+      createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
-      vmCommon = getCommonFields(ControlledResourceName(params.runtime.runtimeName.asString),
-                                 config.azureRuntimeDefaults.vmControlledResourceDesc,
-                                 params.runtime.auditInfo.creator)
-      vmRequest: CreateVmRequest = CreateVmRequest(
-        params.workspaceId,
-        vmCommon,
-        CreateVmRequestData(
-          params.runtime.runtimeName,
-          params.runtimeConfig.region,
-          VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
-          params.vmImage,
-          createIpResp.resourceId,
-          createDiskResp.resourceId,
-          createNetworkResp.resourceId
-        ),
-        jobControl
-      )
-
-      _ <- wsmDao.createVm(vmRequest, auth)
+      createVmRequest <- (createIpAction, createDiskAction, createNetworkAction).parMapN {
+        (ipResp, diskResp, networkResp) =>
+          val vmCommon = getCommonFields(ControlledResourceName(params.runtime.runtimeName.asString),
+                                         config.azureRuntimeDefaults.vmControlledResourceDesc,
+                                         params.runtime.auditInfo.creator)
+          CreateVmRequest(
+            params.workspaceId,
+            vmCommon,
+            CreateVmRequestData(
+              params.runtime.runtimeName,
+              params.runtimeConfig.region,
+              VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
+              params.vmImage,
+              ipResp.resourceId,
+              diskResp.resourceId,
+              networkResp.resourceId
+            ),
+            jobControl
+          )
+      }
+      _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
 
   private def createIp(params: CreateAzureRuntimeParams, leoAuth: Authorization, nameSuffix: String)(

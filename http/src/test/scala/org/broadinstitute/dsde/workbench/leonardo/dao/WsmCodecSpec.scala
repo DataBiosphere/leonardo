@@ -388,7 +388,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |        }
          |    },
          |  "jobReport": {
-         |    "id": "${jobId.toString}",
+         |    "id": "${jobId.value}",
          |    "description": "desc",
          |    "status": "RUNNING",
          |    "statusCode": 200,
