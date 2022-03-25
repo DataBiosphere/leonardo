@@ -8,11 +8,11 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAutho
 import org.broadinstitute.dsde.workbench.leonardo.{ClusterStatus, LeonardoApiClient, LeonardoTestUtils}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.prop.TableDrivenPropertyChecks
-import org.scalatest.{ParallelTestExecution, Retries}
+import org.scalatest.{DoNotDiscover, ParallelTestExecution, Retries}
 
 import scala.concurrent.duration._
 
-//@DoNotDiscover
+@DoNotDiscover
 class AzureRuntimeSpec
     extends AnyFlatSpec
     with LeonardoTestUtils
@@ -21,7 +21,7 @@ class AzureRuntimeSpec
     with Retries {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
 
-  it should "create, get, delete azure runtime" in {
+  it should "create, get, delete azure runtime" ignore {
     val runtimeName = randomClusterName
     val res = LeonardoApiClient.client.use { implicit client =>
       for {
