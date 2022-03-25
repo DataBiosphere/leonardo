@@ -276,6 +276,7 @@ object Config {
 
   implicit private val pollMonitorConfigReader: ValueReader[PollMonitorConfig] = ValueReader.relative { config =>
     PollMonitorConfig(
+      config.as[Option[FiniteDuration]]("initial-delay").getOrElse(2 seconds),
       config.as[Int]("max-attempts"),
       config.as[FiniteDuration]("interval")
     )

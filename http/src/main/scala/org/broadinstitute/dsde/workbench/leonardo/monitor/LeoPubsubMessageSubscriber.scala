@@ -1254,7 +1254,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           Some(s"Failed to create cluster ${runtimeId} due to ${e.getMessage}")
       }
       _ <- errorMessage.traverse(m =>
-        (clusterErrorQuery.save(runtimeId, RuntimeError(m, None, now)) >>
+        (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now)) >>
           clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
     } yield ()

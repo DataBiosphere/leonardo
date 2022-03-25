@@ -17,7 +17,6 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, Rawls}
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
-
 import java.util.UUID
 
 trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {

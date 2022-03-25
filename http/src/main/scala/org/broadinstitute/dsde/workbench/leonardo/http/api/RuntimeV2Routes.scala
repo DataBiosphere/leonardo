@@ -16,7 +16,6 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureService
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import JsonCodec._
-
 import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
@@ -101,8 +100,9 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      _ = println("routes here1")
-      apiCall = azureService.createRuntime(userInfo, runtimeName, workspaceId, req)
+
+      jobUUID = WsmJobId(s"create-${runtimeName.asString}")
+      apiCall = azureService.createRuntime(userInfo, runtimeName, workspaceId, req, jobUUID)
       _ <- metrics.incrementCounter("createAzureRuntime")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createAzureRuntime")
@@ -161,9 +161,16 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       region <- c.downField("region").as[Region]
       machineSize <- c.downField("machineSize").as[VirtualMachineSizeTypes]
       imageUri <- c.downField("imageUri").as[Option[AzureImageUri]]
-      customEnvVars <- c.downField("customEnvironmentVariables").as[Map[String, String]]
-      azureDiskReq <- c.downField("azureDiskConfig").as[CreateAzureDiskRequest]
-    } yield CreateAzureRuntimeRequest(labels, region, machineSize, imageUri, customEnvVars, azureDiskReq)
+      customEnvVars <- c
+        .downField("customEnvironmentVariables")
+        .as[Option[Map[String, String]]]
+      azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
+    } yield CreateAzureRuntimeRequest(labels,
+                                      region,
+                                      machineSize,
+                                      imageUri,
+                                      customEnvVars.getOrElse(Map.empty),
+                                      azureDiskReq)
   }
 
   implicit val updateAzureRuntimeRequestDecoder: Decoder[UpdateAzureRuntimeRequest] =

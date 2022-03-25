@@ -2111,7 +2111,7 @@ components:
           example:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             region: "eastus"
-            machineSize: "Standard_A1"
+            machineSize: "Standard_D1_v2"
             azureDiskConfig: { labels: {}, name: "disk1", size: 50 }
 
   securitySchemes:

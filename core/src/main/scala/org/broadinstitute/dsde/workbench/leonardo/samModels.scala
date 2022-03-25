@@ -190,8 +190,11 @@ sealed trait WorkspaceAction extends Product with Serializable {
   def asString: String
 }
 object WorkspaceAction {
-  final case object CreateControlledResource extends WorkspaceAction {
+  final case object CreateControlledApplicationResource extends WorkspaceAction {
     val asString = "create_controlled_application_private"
+  }
+  final case object CreateControlledUserResource extends WorkspaceAction {
+    val asString = "create_controlled_user_private"
   }
 
   val allActions = sealerate.values[WorkspaceAction]

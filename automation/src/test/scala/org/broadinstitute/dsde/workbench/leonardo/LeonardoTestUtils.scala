@@ -697,6 +697,65 @@ trait LeonardoTestUtils
   def appInStateOrError(status: AppStatus): DoneCheckable[GetAppResponse] =
     x => x.status == status || x.status == AppStatus.Error
 
+  def runtimeInStateOrError(status: ClusterStatus): DoneCheckable[GetRuntimeResponseCopy] =
+    x => x.status == ClusterStatus.Running || x.status == ClusterStatus.Running
+//  def withNewWorkspace[T](testCode: WorkspaceId => IO[T]): T = {
+//    val test = for {
+//      _ <- loggerIO.info("Allocating a new single-test workspace")
+//      workspaceId <- createWsmWorkspace()
+//      cloudContextResult <- createAzureCloudContext(workspaceId)
+//      t <- testCode(workspaceId)
+//      _ <- loggerIO.info("Deleting wsm workspace")
+//      _ <- IO(wsmWorkspaceClient.deleteWorkspace(workspaceId.value))
+//    } yield t
+//
+//    test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+//  }
+
+//  protected def createWsmWorkspace(): IO[WorkspaceId] = {
+//    val workspaceId: UUID = UUID.randomUUID
+//    val requestBody: CreateWorkspaceRequestBody =
+//      new CreateWorkspaceRequestBody().id(workspaceId).stage(WorkspaceStageModel.MC_WORKSPACE)
+//    for {
+//      _ <- loggerIO.info(s"calling wsm createWorkspace")
+//      _ <- IO(wsmWorkspaceClient.createWorkspace(requestBody))
+//    } yield WorkspaceId(workspaceId)
+//  }
+
+//  protected def createAzureCloudContext(workspaceId: WorkspaceId): IO[CreateCloudContextResult] = {
+//    val jobControl = new JobControl().id(UUID.randomUUID().toString)
+//
+//    val azureContext = new AzureContext()
+//      .tenantId(LeonardoConfig.Leonardo.tenantId)
+//      .subscriptionId(LeonardoConfig.Leonardo.subscriptionId)
+//      .resourceGroupId(LeonardoConfig.Leonardo.managedResourceGroup)
+//
+//    val requestBody: CreateCloudContextRequest = new CreateCloudContextRequest()
+//      .jobControl(jobControl)
+//      .azureContext(azureContext)
+//      .cloudPlatform(CloudPlatform.AZURE)
+//
+//    for {
+//      _ <- loggerIO.info(s"calling wsm create cloud context")
+//      result <- IO(wsmWorkspaceClient.createCloudContext(requestBody, workspaceId.value))
+//    } yield result
+//  }
+
+//  //THIS CLIENT IS VALID FOR 1 HR
+//  private def buildWsmClient(): WorkspaceApi = {
+//    val apiClient = new ApiClient
+//    apiClient.setBasePath(LeonardoConfig.WSM.wsmUri)
+//
+//    val creds = ServiceAccountCredentials
+//      .fromStream(new FileInputStream(LeonardoConfig.GCS.pathToQAJson))
+//      .createScoped(
+//        List("openid", "email", "profile", "https://www.googleapis.com/auth/cloud-platform").asJava
+//      )
+//
+//    val token = creds.getAccessToken
+//    apiClient.setAccessToken(token.getTokenValue)
+//    new WorkspaceApi(apiClient)
+//  }
 }
 
 // Ron and Hermione are on the dev Leo's allowed list, and Hermione is a Project Owner

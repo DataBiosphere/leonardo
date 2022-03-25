@@ -39,3 +39,5 @@ object AzureCloudContext {
     res.leftMap(t => s"Fail to decode $s as Azure Cloud Context due to ${t.getMessage}")
   }
 }
+
+final case class WsmJobId(value: String) extends AnyVal

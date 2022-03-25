@@ -1,34 +1,24 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.time.Instant
-import java.util.UUID
-
 import akka.actor.ActorSystem
 import akka.testkit.TestKit
 import cats.data.Kleisli
 import cats.effect.IO
+import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import com.google.cloud.compute.v1.Operation.Status
 import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
 import fs2.Stream
-import cats.effect.std.Queue
-import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import com.google.cloud.compute.v1.Operation.Status
 import org.broadinstitute.dsde.workbench.google.GoogleStorageDAO
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
-import org.broadinstitute.dsde.workbench.google2.mock.{
-  FakeGoogleComputeService,
-  FakeGoogleDataprocService,
-  FakeGoogleResourceService,
-  MockComputePollOperation,
-  MockGKEService,
-  MockGoogleDiskService
-}
+import org.broadinstitute.dsde.workbench.google2.mock.{MockKubernetesService => _, _}
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
   DiskName,
@@ -51,19 +41,9 @@ import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{
   makeService
 }
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.BootSource
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{
-  ComputeManagerDao,
-  CreateVmRequest,
-  CreateVmResult,
-  DeleteVmRequest,
-  DeleteVmResult,
-  MockAppDAO,
-  MockAppDescriptorDAO,
-  MockComputeManagerDao,
-  MockWsmDAO,
-  WelderDAO
-}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
@@ -72,19 +52,21 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageErr
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
-import org.broadinstitute.dsp.mocks.MockHelm
 import org.broadinstitute.dsp._
-import org.mockito.Mockito.{verify, _}
+import org.broadinstitute.dsp.mocks.MockHelm
+import org.http4s.headers.Authorization
+import org.mockito.Mockito._
 import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
 
+import java.time.Instant
+import java.util.UUID
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.util.{Left, Random}
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 class LeoPubsubMessageSubscriberSpec
     extends TestKit(ActorSystem("leonardotest"))
@@ -1630,7 +1612,9 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in create azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def createVm(request: CreateVmRequest)(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[GetCreateVmJobResult] =
         IO.raiseError(new Exception(exceptionMsg))
     }
     val mockAckConsumer = mock[AckReplyConsumer]
@@ -1652,23 +1636,22 @@ class LeoPubsubMessageSubscriberSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, azureImage, None)
+        jobId <- IO.delay(UUID.randomUUID())
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(jobId.toString), None)
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
-        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
-        getRuntime = getRuntimeOpt.get
-        error <- clusterErrorQuery.get(runtime.id).transaction
-        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
-      } yield {
-        getRuntime.status shouldBe RuntimeStatus.Error
-        //This check is mainly here to ensure nothing unintended is happening with controlled resource saving
-        //At the time of writing, leo controlled resources are saved sequentially, and the mock for this test makes it error before the 4th vm controlled resource is saved
-        //This check isn't essential if it becomes problematic with restructuring
-        controlledResources.length shouldBe 3
-        error.length shouldBe 1
-        error.map(_.errorMessage).head should include(exceptionMsg)
-      }
+        assertions = for {
+          error <- clusterErrorQuery.get(runtime.id).transaction
+          getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
+        } yield {
+          getRuntimeOpt.map(_.status) shouldBe Some(RuntimeStatus.Error)
+          error.length shouldBe 1
+          error.map(_.errorMessage).head should include(exceptionMsg)
+        }
+        asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
+        _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
+      } yield ()
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1676,7 +1659,9 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle top-level error in delete azure vm properly" in isolatedDbTest {
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def deleteVm(request: DeleteVmRequest)(implicit ev: Ask[IO, AppContext]): IO[DeleteVmResult] =
+      override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[DeleteWsmResourceResult] =
         IO.raiseError(new Exception(exceptionMsg))
     }
     val mockAckConsumer = mock[AckReplyConsumer]
@@ -1773,10 +1758,10 @@ class LeoPubsubMessageSubscriberSpec
                       computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
                       wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
     new AzureInterpreter[IO](
-      ConfigReader.appConfig.azure.runtimeDefaults,
       ConfigReader.appConfig.azure.monitor,
       asyncTaskQueue,
       wsmDAO,
+      new MockSamDAO(),
       computeManagerDao
     )
 

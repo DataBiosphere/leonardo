@@ -17,6 +17,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{
   HostStatus,
   MockDockerDAO,
   MockJupyterDAO,
+  MockSamDAO,
   MockWelderDAO,
   MockWsmDAO
 }
@@ -37,9 +38,9 @@ import org.scalatest.matchers.should.Matchers
 import org.scalatest.time.{Seconds, Span}
 import scalacache.Cache
 import scalacache.caffeine.CaffeineCache
+
 import java.io.ByteArrayInputStream
 import java.time.Instant
-
 import scala.concurrent.duration._
 import scala.util.matching.Regex
 trait TestLeoRoutes {
@@ -111,15 +112,23 @@ trait TestLeoRoutes {
     FakeGoogleComputeService
   )
 
-  val serviceConfig = RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
-                                           imageConfig,
-                                           autoFreezeConfig,
-                                           dataprocConfig,
-                                           Config.gceConfig,
-                                           azureServiceConfig)
+  val serviceConfig = RuntimeServiceConfig(
+    Config.proxyConfig.proxyUrlBase,
+    imageConfig,
+    autoFreezeConfig,
+    dataprocConfig,
+    Config.gceConfig,
+    azureServiceConfig,
+    ConfigReader.appConfig.azure.runtimeDefaults
+  )
 
   val azureService =
-    new AzureServiceInterp[IO](serviceConfig, whitelistAuthProvider, new MockWsmDAO, QueueFactory.makePublisherQueue())
+    new AzureServiceInterp[IO](serviceConfig,
+                               whitelistAuthProvider,
+                               new MockWsmDAO,
+                               new MockSamDAO,
+                               QueueFactory.asyncTaskQueue,
+                               QueueFactory.makePublisherQueue())
 
   val underlyingRuntimeDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()

@@ -4,13 +4,9 @@ package http
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.util.{
-  AzureInterpretorConfig,
-  AzureMonitorConfig,
-  TerraAppSetupChartConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.util.{AzureMonitorConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeConfig
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeConfig, AzureRuntimeDefaults}
 
 object ConfigReader {
   lazy val appConfig =
@@ -21,7 +17,7 @@ object ConfigReader {
 
 final case class AzureConfig(
   monitor: AzureMonitorConfig,
-  runtimeDefaults: AzureInterpretorConfig,
+  runtimeDefaults: AzureRuntimeDefaults,
   wsm: HttpWsmDaoConfig,
   appRegistration: AzureAppRegistrationConfig,
   service: AzureRuntimeConfig

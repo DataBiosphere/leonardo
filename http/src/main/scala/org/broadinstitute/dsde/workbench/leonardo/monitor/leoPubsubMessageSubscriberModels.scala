@@ -313,7 +313,7 @@ object LeoPubsubMessage {
 
   final case class CreateAzureRuntimeMessage(runtimeId: Long,
                                              workspaceId: WorkspaceId,
-                                             vmImage: RuntimeImage,
+                                             jobId: WsmJobId,
                                              traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
@@ -472,8 +472,8 @@ object LeoPubsubCodec {
   implicit val startAppDecoder: Decoder[StartAppMessage] =
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
-  implicit val createAzureRuntimeDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct4("runtimeId", "workspaceId", "vmImage", "traceId")(CreateAzureRuntimeMessage.apply)
+  implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
+    Decoder.forProduct4("runtimeId", "workspaceId", "jobId", "traceId")(CreateAzureRuntimeMessage.apply)
 
   implicit val deleteAzureRuntimeDecoder: Decoder[DeleteAzureRuntimeMessage] =
     Decoder.forProduct5("runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(
@@ -802,9 +802,9 @@ object LeoPubsubCodec {
       (x.messageType, x.appId, x.appName, x.project, x.traceId)
     )
 
-  implicit val createAzureMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "vmImage", "traceId")(x =>
-      (x.messageType, x.runtimeId, x.workspaceId, x.vmImage, x.traceId)
+  implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
+    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "jobId", "traceId")(x =>
+      (x.messageType, x.runtimeId, x.workspaceId, x.jobId, x.traceId)
     )
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
@@ -903,8 +903,8 @@ object PubsubHandleMessageError {
 
 final case class PersistentDiskMonitor(maxAttempts: Int, interval: FiniteDuration)
 
-final case class PollMonitorConfig(maxAttempts: Int, interval: FiniteDuration) {
-  def totalDuration: FiniteDuration = interval * maxAttempts
+final case class PollMonitorConfig(initialDelay: FiniteDuration, maxAttempts: Int, interval: FiniteDuration) {
+  def totalDuration: FiniteDuration = initialDelay + interval * maxAttempts
 }
 
 final case class InterruptablePollMonitorConfig(maxAttempts: Int,

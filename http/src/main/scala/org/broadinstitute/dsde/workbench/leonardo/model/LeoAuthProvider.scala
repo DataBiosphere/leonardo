@@ -113,7 +113,8 @@ object SamResourceAction {
       type ActionCategory = WorkspaceAction
       val decoder = Decoder[WorkspaceAction]
       val allActions = WorkspaceAction.allActions.toList
-      val cacheableActions = List(WorkspaceAction.CreateControlledResource)
+      val cacheableActions =
+        List(WorkspaceAction.CreateControlledUserResource, WorkspaceAction.CreateControlledApplicationResource)
       def actionAsString(a: A): String = a.asString
     }
 

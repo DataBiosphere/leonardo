@@ -1030,7 +1030,8 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       autoFreezeConfig: AutoFreezeConfig,
                                       dataprocConfig: DataprocConfig,
                                       gceConfig: GceConfig,
-                                      azureConfig: AzureServiceConfig)
+                                      azureConfig: AzureServiceConfig,
+                                      azureRuntimeDefaults: AzureRuntimeDefaults)
 
 final case class WrongCloudServiceException(runtimeCloudService: CloudService,
                                             updateCloudService: CloudService,
