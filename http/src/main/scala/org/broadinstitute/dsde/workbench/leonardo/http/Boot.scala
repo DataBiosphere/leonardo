@@ -206,7 +206,9 @@ object Boot extends IOApp {
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
           AppContext(TraceId(s"Boot_${start}"), start)
         )
-        _ <- appDependencies.samDAO.registerLeo
+//       TODO: this will be needed once we support more environments.
+//        Disable for now since this causes fiab start to fail
+//        _ <- appDependencies.samDAO.registerLeo
 
         _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
           dataprocInterp.setupDataprocImageGoogleGroup
