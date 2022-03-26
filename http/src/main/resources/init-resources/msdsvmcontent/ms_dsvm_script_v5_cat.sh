@@ -10,16 +10,32 @@ apt-get update
 
 apt-get install -y --no-install-recommends apt-utils
 
+#Read script arguments
+
+RELAY_NAME=$1
+RELAY_CONNECTION_NAME=$2
+RELAY_TARGET_HOST=$3
+RELAY_CONNECTION_POLICY_NAME=$4
+RELAY_CONNECTION_POLICY_KEY=$5
+DOCKER_USER_NAME=$6
+DOCKER_USER_PASSWORD=$7
+LISTENER_DOCKER_IMAGE=$8
+
 # Define environment variables for Jupyter Server customization
 
 SERVER_APP_PORT=8080
 SERVER_APP_TOKEN=''
 SERVER_APP_IP=''
+SERVER_APP_CERTFILE=''
+SERVER_APP_KEYFILE=''
 
-# Variables for listener
-#SERVER_APP_BASE_URL=''
-#SERVER_APP_ALLOW_ORIGIN='*'
-#SERVER_APP_WEBSOCKET_URL=''
+# Jupyter variables for listener
+SERVER_APP_BASE_URL="/${RELAY_CONNECTION_NAME}/"
+SERVER_APP_ALLOW_ORIGIN="*"
+SERVER_APP_WEBSOCKET_URL="wss://${RELAY_NAME}.servicebus.windows.net/\$hc/${RELAY_CONNECTION_NAME}"
+
+#Relay listener configuration
+RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;SharedAccessKeyName=${RELAY_CONNECTION_POLICY_NAME};SharedAccessKey=${RELAY_CONNECTION_POLICY_KEY};EntityPath=${RELAY_CONNECTION_NAME}"
 
 # Install relevant libraries
 
@@ -33,8 +49,29 @@ SERVER_APP_IP=''
 
 # Start Jupyter server with custom parameters
 
-/anaconda/bin/jupyter server --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --autoreload --ServerApp.ip=$SERVER_APP_IP --allow-root >/dev/null 2>&1&
+/anaconda/bin/jupyter server \
+--ServerApp.certfile=$SERVER_APP_CERTFILE \
+--ServerApp.keyfile=$SERVER_APP_KEYFILE \
+--ServerApp.port=$SERVER_APP_PORT \
+--ServerApp.token=$SERVER_APP_TOKEN \
+--ServerApp.ip=$SERVER_APP_IP \
+--ServerApp.base_url=$SERVER_APP_BASE_URL \
+--ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL \
+--ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN \
+--autoreload --allow-root >/dev/null 2>&1&
 
 # Store Jupyter Server parameters for reboot process
 
-sudo crontab -l 2>/dev/null| cat - <(echo "@reboot /anaconda/bin/jupyter server --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --autoreload --ServerApp.ip=$SERVER_APP_IP --allow-root >/dev/null 2>&1&") | crontab -
+sudo crontab -l 2>/dev/null| cat - <(echo "@reboot /anaconda/bin/jupyter server --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN --autoreload --allow-root >/dev/null 2>&1&") | crontab -
+
+# Login to ACR repo to pull the image for Relay Listener
+
+docker login terradevacrpublic.azurecr.io -u $DOCKER_USER_NAME -p $DOCKER_USER_PASSWORD
+
+#Run docker container with Relay Listener
+
+docker run -d --restart always --name RelayListener \
+--env LISTENER_RELAYCONNECTIONSTRING=$RELAY_CONNECTIONSTRING \
+--env LISTENER_RELAYCONNECTIONNAME=$RELAY_CONNECTION_NAME \
+--env LISTENER_TARGETPROPERTIES_TARGETHOST="http://${RELAY_TARGET_HOST}:8080" \
+$LISTENER_DOCKER_IMAGE
