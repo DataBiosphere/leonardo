@@ -588,7 +588,7 @@ class DataprocRuntimeMonitorSpec extends AnyFlatSpec with TestComponent with Leo
       ): IO[Option[Instance]] = {
         val instanceBuilder = Instance
           .newBuilder()
-          .setStatus(status.instanceStatus)
+          .setStatus(status.instanceStatus.name())
           .setId(100)
         val instance = ip.fold(instanceBuilder.build()) { i =>
           instanceBuilder

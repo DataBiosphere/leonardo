@@ -360,7 +360,7 @@ object CommonTestData {
 
   val readyInstance = Instance
     .newBuilder()
-    .setStatus(Status.RUNNING)
+    .setStatus(Status.RUNNING.toString)
     .setMetadata(
       Metadata
         .newBuilder()

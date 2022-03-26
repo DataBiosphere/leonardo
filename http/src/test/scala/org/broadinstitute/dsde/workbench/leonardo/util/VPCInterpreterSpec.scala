@@ -4,10 +4,12 @@ package util
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Firewall, Network, Operation}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGoogleResourceService,
+  FakeOperationFuture,
   MockComputePollOperation
 }
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, RegionName, SubnetworkName}
@@ -18,6 +20,7 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+
 import scala.jdk.CollectionConverters._
 
 class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
@@ -169,13 +172,14 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
     override def addFirewallRule(project: GoogleProject, firewall: Firewall)(
       implicit ev: Ask[IO, TraceId]
-    ): IO[Operation] =
-      IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall)) >> super
-        .addFirewallRule(project, firewall)(ev)
+    ): IO[OperationFuture[Operation, Operation]] =
+      IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall))
+        .as(new FakeOperationFuture)
 
     override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
       implicit ev: Ask[IO, TraceId]
-    ): IO[Unit] = IO(firewallMap.remove(firewallRuleName)).void
+    ): IO[Option[OperationFuture[Operation, Operation]]] =
+      IO(firewallMap.remove(firewallRuleName)).as(Some(new FakeOperationFuture))
 
     override def getNetwork(project: GoogleProject, networkName: NetworkName)(
       implicit ev: Ask[IO, TraceId]

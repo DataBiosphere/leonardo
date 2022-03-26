@@ -522,7 +522,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                     (DataprocInstance(
                        DataprocInstanceKey(googleProject, z, i),
                        BigInt(instance.getId),
-                       GceInstanceStatus.withNameInsensitive(instance.getStatus.name()),
+                       GceInstanceStatus.withNameInsensitive(instance.getStatus()),
                        getInstanceIP(instance),
                        role,
                        parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(ctx.now)

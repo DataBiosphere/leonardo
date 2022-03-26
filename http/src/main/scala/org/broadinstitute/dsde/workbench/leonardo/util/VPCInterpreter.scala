@@ -5,9 +5,13 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1._
+import org.broadinstitute.dsde.workbench.DoneCheckableInstances
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
+  isSuccess,
+  streamUntilDoneOrTimeout,
   tracedRetryF,
   ComputePollOperation,
   FirewallRuleName,
@@ -132,10 +136,11 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
           _ <- createIfAbsent(
             params.project,
             googleComputeService.getFirewallRule(params.project, firewallName),
-            googleComputeService.addFirewallRule(
-              params.project,
-              buildFirewall(params.project, params.networkName, firewallName, fw, firewallRegionalIprange)
-            ),
+            googleComputeService
+              .addFirewallRule(
+                params.project,
+                buildFirewall(params.project, params.networkName, firewallName, fw, firewallRegionalIprange)
+              ),
             FirewallNotReadyException(params.project, firewallName, ctx),
             s"get or create firewall rule (${params.project} / ${firewallName.value})"
           )
@@ -158,22 +163,24 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
   }
   private def createIfAbsent[A](project: GoogleProject,
                                 get: F[Option[A]],
-                                create: F[Operation],
+                                create: F[OperationFuture[Operation, Operation]],
                                 fail: Throwable,
                                 msg: String)(
     implicit ev: Ask[F, TraceId]
   ): F[Unit] = {
+    implicit val trueDoneCheckable = DoneCheckableInstances.trueBooleanDoneCheckable
+
     val getAndCreate = for {
       existing <- get
       _ <- if (existing.isEmpty) {
         for {
-          initialOp <- create
-          _ <- computePollOperation
-            .pollOperation(project, initialOp, config.vpcConfig.pollPeriod, config.vpcConfig.maxAttempts, None)(
-              F.unit,
-              F.raiseError[Unit](fail),
-              F.unit
-            )
+          opFuture <- create
+          _ <- streamUntilDoneOrTimeout(F.delay(opFuture.isDone),
+                                        config.vpcConfig.maxAttempts,
+                                        config.vpcConfig.pollPeriod,
+                                        fail.getMessage)
+          res <- F.delay(opFuture.get())
+          _ <- F.raiseUnless(!isSuccess(res.getHttpErrorStatusCode))(new Exception(s"setDiskAutoDeleteAsync failed"))
         } yield ()
       } else F.unit
     } yield ()

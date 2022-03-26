@@ -221,7 +221,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       for {
         context <- ev.ask
         gceStatus <- F.fromOption(GceInstanceStatus
-                                    .withNameInsensitiveOption(i.getStatus.name()),
+                                    .withNameInsensitiveOption(i.getStatus),
                                   new SQLDataException(s"Unknown GCE instance status ${i.getStatus}"))
         r <- gceStatus match {
           case GceInstanceStatus.Provisioning | GceInstanceStatus.Staging =>
@@ -292,7 +292,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       for {
         gceStatus <- F.fromEither(
           GceInstanceStatus
-            .withNameInsensitiveOption(i.getStatus.name())
+            .withNameInsensitiveOption(i.getStatus)
             .toRight(new Exception(s"Unknown GCE instance status ${i.getStatus}"))
         )
         startableStatuses = Set(
@@ -367,7 +367,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = {
-    val gceStatus = instance.flatMap(i => GceInstanceStatus.withNameInsensitiveOption(i.getStatus.name))
+    val gceStatus = instance.flatMap(i => GceInstanceStatus.withNameInsensitiveOption(i.getStatus))
     gceStatus match {
       case None =>
         logger

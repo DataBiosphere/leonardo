@@ -5,7 +5,10 @@ import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.{Operation, _}
+import org.broadinstitute.dsde.workbench
+import org.broadinstitute.dsde.workbench.{google2, DoneCheckableInstances}
 import org.broadinstitute.dsde.workbench.google2.{
+  streamUntilDoneOrTimeout,
   ComputePollOperation,
   GoogleComputeService,
   GoogleDiskService,
@@ -29,9 +32,9 @@ import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName,
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.ClusterError
 
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters._
 
 final case class InstanceResourceConstraintsException(project: GoogleProject, machineType: MachineTypeName)
@@ -297,7 +300,7 @@ class GceInterpreter[F[_]](
             .setScheduling(
               Scheduling
                 .newBuilder()
-                .setOnHostMaintenance(com.google.cloud.compute.v1.Scheduling.OnHostMaintenance.TERMINATE)
+                .setOnHostMaintenance(com.google.cloud.compute.v1.Scheduling.OnHostMaintenance.TERMINATE.toString)
                 .build()
             )
             //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
@@ -306,11 +309,13 @@ class GceInterpreter[F[_]](
 
       }
 
-      operation <- googleComputeService.createInstance(googleProject, zoneParam, instance)
+      operation <- googleComputeService
+        .createInstance(googleProject, zoneParam, instance)
+        .flatMap(_.traverse(x => F.delay(x.get())))
 
       res = operation.map(o =>
         CreateGoogleRuntimeResponse(
-          AsyncRuntimeFields(ProxyHostName(o.getTargetId.toString), OperationName(o.getName), stagingBucketName, None),
+          AsyncRuntimeFields(ProxyHostName(o.toString), OperationName(o.getName), stagingBucketName, None),
           initBucketName,
           BootSource.VmImage(config.gceConfig.sourceImage)
         )
@@ -338,14 +343,19 @@ class GceInterpreter[F[_]](
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadata
       )
-      r <- googleComputeService.stopInstance(googleProject,
-                                             zoneParam,
-                                             InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
-    } yield Some(r)
+      opFuture <- googleComputeService.stopInstance(
+        googleProject,
+        zoneParam,
+        InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+      )
+      res <- F.delay(opFuture.get())
+    } yield Some(res)
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
+  ): F[Unit] = {
+    implicit val trueDoneCheckable = DoneCheckableInstances.trueBooleanDoneCheckable
+
     for {
       _ <- ev.ask
       googleProject <- F.fromOption(
@@ -367,40 +377,35 @@ class GceInterpreter[F[_]](
                                    resourceConstraints,
                                    true)
       // remove the startup-script-url metadata entry if present which is only used at creation time
-      op <- googleComputeService.modifyInstanceMetadata(
+      opFutureOpt <- googleComputeService.modifyInstanceMetadata(
         googleProject,
         zoneParam,
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
-      _ <- op.traverse { o =>
-        computePollOperation
-          .pollOperation(googleProject,
-                         o,
-                         config.gceConfig.setMetadataPollDelay,
-                         config.gceConfig.setMetadataPollMaxAttempts,
-                         None)(
-            googleComputeService.startInstance(
+      _ <- opFutureOpt match {
+        case None =>
+          F.raiseError(new Exception(s"${params.runtimeAndRuntimeConfig.runtime.projectNameString} not found in GCP"))
+        case Some(value) =>
+          for {
+            _ <- streamUntilDoneOrTimeout(F.delay(value.isDone),
+                                          config.gceConfig.setMetadataPollMaxAttempts,
+                                          config.gceConfig.setMetadataPollDelay,
+                                          s"addInstanceMetadata timed out")
+            res <- F.delay(value.get())
+            _ <- F.raiseUnless(!workbench.google2.isSuccess(res.getHttpErrorStatusCode))(
+              new Exception(s"modifyInstanceMetadata failed ${res}")
+            )
+            _ <- googleComputeService.startInstance(
               googleProject,
               zoneParam,
               InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-            ),
-            F.raiseError(
-              ClusterError(
-                params.runtimeAndRuntimeConfig.runtime.id,
-                "SetMetadata timed out"
-              )
-            ),
-            F.raiseError(
-              ClusterError(
-                params.runtimeAndRuntimeConfig.runtime.id,
-                "This should never happen"
-              )
             )
-          )
+          } yield ()
       }
     } yield ()
+  }
 
   override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
@@ -428,6 +433,8 @@ class GceInterpreter[F[_]](
     params: DeleteRuntimeParams
   )(implicit ev: Ask[F, AppContext]): F[Option[Operation]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) {
+      implicit val doneCheckable = DoneCheckableInstances.trueBooleanDoneCheckable
+
       for {
         zoneParam <- F.fromOption(
           LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
@@ -440,24 +447,30 @@ class GceInterpreter[F[_]](
           LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
           new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
         )
-        _ <- googleComputeService
+        opFuture <- googleComputeService
           .addInstanceMetadata(
             googleProject,
             zoneParam,
             InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
             metadata
           )
-          .handleErrorWith {
-            case e: org.broadinstitute.dsde.workbench.model.WorkbenchException
-                if e.getMessage.contains("Instance not found") =>
-              F.pure(none[Operation])
-            case e => F.raiseError[Option[Operation]](e)
-          }
-        op <- googleComputeService
-          .deleteInstance(googleProject,
-                          zoneParam,
-                          InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
-      } yield op
+        opt <- opFuture match {
+          case None => F.pure(None)
+          case Some(v) =>
+            for {
+              _ <- streamUntilDoneOrTimeout(F.delay(v.isDone), 5, 4 seconds, s"addInstanceMetadata timed out")
+              res <- F.delay(v.get())
+              _ <- F.raiseUnless(!google2.isSuccess(res.getHttpErrorStatusCode))(
+                new Exception(s"addInstanceMetadata failed")
+              )
+              opFutureOpt <- googleComputeService
+                .deleteInstance(googleProject,
+                                zoneParam,
+                                InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
+              op <- opFutureOpt.traverse(op => F.delay(op.get()))
+            } yield op
+        }
+      } yield opt
     } else F.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -524,7 +537,7 @@ object GceInterpreter {
   def instanceStatusToRuntimeStatus(instance: Option[Instance]): RuntimeStatus =
     instance.fold[RuntimeStatus](RuntimeStatus.Deleted)(s =>
       GceInstanceStatus
-        .withNameInsensitiveOption(s.getStatus.name)
+        .withNameInsensitiveOption(s.getStatus)
         .map(RuntimeStatus.fromGceInstanceStatus)
         .getOrElse(RuntimeStatus.Unknown)
     )

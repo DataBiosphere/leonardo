@@ -12,6 +12,7 @@ import fs2.Stream
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.NamespaceName
 import org.broadinstitute.dsde.workbench.google2.{
+  isSuccess,
   streamUntilDoneOrTimeout,
   ComputePollOperation,
   DiskName,
@@ -723,27 +724,13 @@ class LeoPubsubMessageSubscriber[F[_]](
         s"Beginning postres disk deletion for app ${appName.value} in project ${project.value}"
       )
       operation <- deleteGalaxyPostgresDisk(dataDiskName, namespaceName, project, zone)
-      whenDone = logger.info(ctx.loggingCtx)(
-        s"Completed postgres disk deletion for app ${appName.value} in project ${project.value}"
-      )
-      whenTimeout = F.raiseError[Unit](
-        new TimeoutException(
-          s"Failed to delete postres disk in app ${appName.value} in project ${project.value} in a timely manner"
-        )
-      )
-      whenInterrupted = F.unit
-      task = operation match {
+      _ <- operation match {
+        case None => F.unit
         case Some(op) =>
-          computePollOperation.pollZoneOperation(project,
-                                                 zone,
-                                                 OperationName(op.getName),
-                                                 config.persistentDiskMonitorConfig.delete.interval,
-                                                 config.persistentDiskMonitorConfig.create.maxAttempts,
-                                                 None)(whenDone, whenTimeout, whenInterrupted)
-        case None =>
-          whenDone
+          F.raiseUnless(!isSuccess(op.getHttpErrorStatusCode))(
+            new Exception(s"Failed to delete postres disk in app ${appName.value} in project ${project.value} ${op}")
+          )
       }
-      _ <- task
     } yield ()
 
   private[monitor] def handleUpdateDiskMessage(msg: UpdateDiskMessage)(
@@ -1287,13 +1274,16 @@ class LeoPubsubMessageSubscriber[F[_]](
           getGalaxyPostgresDiskName(diskName, config.galaxyDiskConfig.postgresDiskNameSuffix)
         )
       res <- postgresDiskOpt match {
-        case Some(operation) => F.pure(Some(operation))
+        case Some(operation) => F.delay(operation.get()).map(_.some)
         case None =>
-          googleDiskService.deleteDisk(
-            project,
-            zone,
-            GKEAlgebra.getOldStyleGalaxyPostgresDiskName(namespaceName, config.galaxyDiskConfig.postgresDiskNameSuffix)
-          )
+          googleDiskService
+            .deleteDisk(
+              project,
+              zone,
+              GKEAlgebra.getOldStyleGalaxyPostgresDiskName(namespaceName,
+                                                           config.galaxyDiskConfig.postgresDiskNameSuffix)
+            )
+            .flatMap(_.traverse(x => F.delay(x.get())))
       }
     } yield res
 }

@@ -42,7 +42,7 @@ class GceRuntimeMonitorSpec
     with EitherValues {
   val readyInstance = Instance
     .newBuilder()
-    .setStatus(Status.RUNNING)
+    .setStatus(Status.RUNNING.name())
     .setMetadata(
       Metadata
         .newBuilder()
@@ -212,7 +212,7 @@ class GceRuntimeMonitorSpec
       ): IO[Option[Instance]] = {
         val runningInstance = Instance
           .newBuilder()
-          .setStatus(Status.RUNNING)
+          .setStatus(Status.RUNNING.name())
           .setMetadata(
             Metadata
               .newBuilder()
@@ -294,7 +294,7 @@ class GceRuntimeMonitorSpec
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val beforeInstance = Instance.newBuilder().setStatus(Status.STOPPING).build()
+        val beforeInstance = Instance.newBuilder().setStatus(Status.STOPPING.name()).build()
 
         for {
           now <- IO.realTimeInstant
@@ -325,8 +325,8 @@ class GceRuntimeMonitorSpec
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val beforeInstance = Instance.newBuilder().setStatus(Status.PROVISIONING).build()
-        val afterInstance = Instance.newBuilder().setStatus(Status.STOPPED).build()
+        val beforeInstance = Instance.newBuilder().setStatus(Status.PROVISIONING.name()).build()
+        val afterInstance = Instance.newBuilder().setStatus(Status.STOPPED.name()).build()
 
         for {
           now <- IO.realTimeInstant
@@ -359,8 +359,8 @@ class GceRuntimeMonitorSpec
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val beforeInstance = Instance.newBuilder().setStatus(Status.STOPPING).build()
-        val terminatedInstance = Instance.newBuilder().setStatus(Status.TERMINATED).build()
+        val beforeInstance = Instance.newBuilder().setStatus(Status.STOPPING.name()).build()
+        val terminatedInstance = Instance.newBuilder().setStatus(Status.TERMINATED.name()).build()
 
         for {
           now <- IO.realTimeInstant
@@ -405,7 +405,7 @@ class GceRuntimeMonitorSpec
       ): IO[Option[Instance]] = {
         val runningInstance = Instance
           .newBuilder()
-          .setStatus(Status.RUNNING)
+          .setStatus(Status.RUNNING.name())
           .setMetadata(
             Metadata
               .newBuilder()
@@ -492,7 +492,7 @@ class GceRuntimeMonitorSpec
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val instance = Instance.newBuilder().setStatus(Status.TERMINATED).build()
+        val instance = Instance.newBuilder().setStatus(Status.TERMINATED.name()).build()
         IO.pure(Some(instance))
       }
     }
@@ -566,7 +566,7 @@ class GceRuntimeMonitorSpec
       override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
         implicit ev: Ask[IO, TraceId]
       ): IO[Option[Instance]] = {
-        val runningInstance = Instance.newBuilder().setStatus(Status.RUNNING).build()
+        val runningInstance = Instance.newBuilder().setStatus(Status.RUNNING.name()).build()
 
         for {
           now <- IO.realTimeInstant
@@ -761,8 +761,8 @@ class GceRuntimeMonitorSpec
     override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
       implicit ev: Ask[IO, TraceId]
     ): IO[Option[Instance]] = {
-      val beforeInstance = beforeStatus.map(s => Instance.newBuilder().setStatus(s.instanceStatus).build())
-      val afterInstance = afterStatus.map(s => Instance.newBuilder().setStatus(s.instanceStatus).build())
+      val beforeInstance = beforeStatus.map(s => Instance.newBuilder().setStatus(s.instanceStatus.name()).build())
+      val afterInstance = afterStatus.map(s => Instance.newBuilder().setStatus(s.instanceStatus.name()).build())
 
       for {
         now <- IO.realTimeInstant
