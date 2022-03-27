@@ -98,8 +98,7 @@ object Boot extends IOApp {
       val vpcInterp =
         new VPCInterpreter(vpcInterpreterConfig,
                            googleDependencies.googleResourceService,
-                           googleDependencies.googleComputeService,
-                           googleDependencies.computePollOperation)
+                           googleDependencies.googleComputeService)
 
       val dataprocInterp = new DataprocInterpreter(
         dataprocInterpreterConfig,
@@ -116,7 +115,6 @@ object Boot extends IOApp {
 
       val gceInterp = new GceInterpreter(
         gceInterpreterConfig,
-        googleDependencies.computePollOperation,
         bucketHelper,
         vpcInterp,
         googleDependencies.googleComputeService,
@@ -292,7 +290,6 @@ object Boot extends IOApp {
               appDependencies.subscriber,
               appDependencies.asyncTasksQueue,
               googleDiskService,
-              googleDependencies.computePollOperation,
               appDependencies.authProvider,
               gkeAlg,
               azureAlg
@@ -473,7 +470,6 @@ object Boot extends IOApp {
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
-          computePollOperation,
           pathToCredentialJson,
           semaphore,
           dataprocConfig.supportedRegions,

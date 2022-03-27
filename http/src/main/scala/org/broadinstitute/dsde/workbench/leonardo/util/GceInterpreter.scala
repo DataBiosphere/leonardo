@@ -9,7 +9,6 @@ import org.broadinstitute.dsde.workbench
 import org.broadinstitute.dsde.workbench.{google2, DoneCheckableInstances}
 import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
-  ComputePollOperation,
   GoogleComputeService,
   GoogleDiskService,
   InstanceName,
@@ -34,7 +33,6 @@ import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
 import scala.concurrent.ExecutionContext
-import scala.concurrent.duration.DurationInt
 import scala.jdk.CollectionConverters._
 
 final case class InstanceResourceConstraintsException(project: GoogleProject, machineType: MachineTypeName)
@@ -48,7 +46,6 @@ final case class MissingServiceAccountException(projectAndName: RuntimeProjectAn
 
 class GceInterpreter[F[_]](
   config: GceInterpreterConfig,
-  computePollOperation: ComputePollOperation[F],
   bucketHelper: BucketHelper[F],
   vpcAlg: VPCAlgebra[F],
   googleComputeService: GoogleComputeService[F],
@@ -315,7 +312,7 @@ class GceInterpreter[F[_]](
 
       res = operation.map(o =>
         CreateGoogleRuntimeResponse(
-          AsyncRuntimeFields(ProxyHostName(o.toString), OperationName(o.getName), stagingBucketName, None),
+          AsyncRuntimeFields(ProxyHostName(o.getTargetId.toString), OperationName(o.getName), stagingBucketName, None),
           initBucketName,
           BootSource.VmImage(config.gceConfig.sourceImage)
         )
@@ -394,7 +391,7 @@ class GceInterpreter[F[_]](
                                           config.gceConfig.setMetadataPollDelay,
                                           s"addInstanceMetadata timed out")
             res <- F.delay(value.get())
-            _ <- F.raiseUnless(!workbench.google2.isSuccess(res.getHttpErrorStatusCode))(
+            _ <- F.raiseUnless(workbench.google2.isSuccess(res.getHttpErrorStatusCode))(
               new Exception(s"modifyInstanceMetadata failed ${res}")
             )
             _ <- googleComputeService.startInstance(
@@ -458,9 +455,8 @@ class GceInterpreter[F[_]](
           case None => F.pure(None)
           case Some(v) =>
             for {
-              _ <- streamUntilDoneOrTimeout(F.delay(v.isDone), 5, 4 seconds, s"addInstanceMetadata timed out")
               res <- F.delay(v.get())
-              _ <- F.raiseUnless(!google2.isSuccess(res.getHttpErrorStatusCode))(
+              _ <- F.raiseUnless(google2.isSuccess(res.getHttpErrorStatusCode))(
                 new Exception(s"addInstanceMetadata failed")
               )
               opFutureOpt <- googleComputeService

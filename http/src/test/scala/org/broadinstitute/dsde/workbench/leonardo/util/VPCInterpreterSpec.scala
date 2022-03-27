@@ -9,8 +9,7 @@ import com.google.cloud.compute.v1.{Firewall, Network, Operation}
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGoogleResourceService,
-  FakeOperationFuture,
-  MockComputePollOperation
+  FakeOperationFuture
 }
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, RegionName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -31,8 +30,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                     Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
                                         vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                   ),
-                                  FakeGoogleComputeService,
-                                  new MockComputePollOperation)
+                                  FakeGoogleComputeService)
 
     test
       .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
@@ -44,8 +42,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   stubResourceService(
                                     Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_network")
                                   ),
-                                  FakeGoogleComputeService,
-                                  new MockComputePollOperation)
+                                  FakeGoogleComputeService)
 
     test
       .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
@@ -58,8 +55,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                    stubResourceService(
                                      Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                    ),
-                                   FakeGoogleComputeService,
-                                   new MockComputePollOperation)
+                                   FakeGoogleComputeService)
 
     test2
       .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
@@ -70,10 +66,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
   }
 
   it should "create a new subnet if there are no project labels" in {
-    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubResourceService(Map.empty),
-                                  FakeGoogleComputeService,
-                                  new MockComputePollOperation)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubResourceService(Map.empty), FakeGoogleComputeService)
 
     test
       .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
@@ -82,10 +75,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
   it should "create firewall rules in the project network" in {
     val computeService = new MockGoogleComputeServiceWithFirewalls()
-    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubResourceService(Map.empty),
-                                  computeService,
-                                  new MockComputePollOperation)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubResourceService(Map.empty), computeService)
 
     test
       .setUpProjectFirewalls(
@@ -110,10 +100,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     vpcConfig.firewallsToRemove.foreach { fw =>
       computeService.firewallMap.putIfAbsent(fw, Firewall.newBuilder().setName(fw.value).build)
     }
-    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubResourceService(Map.empty),
-                                  computeService,
-                                  new MockComputePollOperation)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubResourceService(Map.empty), computeService)
     test
       .setUpProjectFirewalls(
         SetUpProjectFirewallsParams(project, vpcConfig.networkName, RegionName("us-central1"), Map.empty)
@@ -149,10 +136,7 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
         .toMap,
       List(Allowed("tcp", Some("22")))
     )
-    val test = new VPCInterpreter(Config.vpcInterpreterConfig,
-                                  stubResourceService(Map.empty),
-                                  computeService,
-                                  new MockComputePollOperation)
+    val test = new VPCInterpreter(Config.vpcInterpreterConfig, stubResourceService(Map.empty), computeService)
 
     test.firewallRulesToAdd(
       Map("leonardo-allow-internal-firewall-name" -> "leonardo-allow-internal",

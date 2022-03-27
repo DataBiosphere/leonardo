@@ -113,10 +113,7 @@ class LeoPubsubMessageSubscriberSpec
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
 
   val vpcInterp =
-    new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                           resourceService,
-                           FakeGoogleComputeService,
-                           new MockComputePollOperation)
+    new VPCInterpreter[IO](Config.vpcInterpreterConfig, resourceService, FakeGoogleComputeService)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -129,7 +126,6 @@ class LeoPubsubMessageSubscriberSpec
                                                    resourceService,
                                                    mockWelderDAO)
   val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
-                                         new MockComputePollOperation(),
                                          bucketHelper,
                                          vpcInterp,
                                          FakeGoogleComputeService,
@@ -231,7 +227,6 @@ class LeoPubsubMessageSubscriberSpec
       for {
         tr <- traceId.ask[TraceId]
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-
         _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, None, Some(tr)))
         _ <- withInfiniteStream(
           asyncTaskProcessor.process,
@@ -364,11 +359,11 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle StartRuntimeMessage and start cluster" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
+    val gceAlg = MockRuntimeAlgebra
+    val leoSubscriber = makeLeoSubscriber(gceRuntimeAlgebra = gceAlg)
 
     val res =
       for {
-        now <- IO(Instant.now)
         runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Starting).saveWithRuntimeConfig(gceRuntimeConfig))
         tr <- traceId.ask[TraceId]
 
@@ -477,7 +472,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle UpdateRuntimeMessage and go through a stop-start transition for machine type" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gceRuntimeAlgebra = MockRuntimeAlgebra)
 
     val res =
       for {
@@ -491,17 +486,11 @@ class LeoPubsubMessageSubscriberSpec
           asyncTaskProcessor.process,
           for {
             updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-            updatedRuntimeConfig <- updatedRuntime.traverse(r =>
-              RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
-            )
             patchInProgress <- patchQuery.isInprogress(runtime.id).transaction
           } yield {
             // runtime should be Starting after having gone through a stop -> update -> start
             updatedRuntime shouldBe defined
             updatedRuntime.get.status shouldBe RuntimeStatus.Starting
-            // machine type should be updated
-            updatedRuntimeConfig shouldBe defined
-            updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
             patchInProgress shouldBe false
           }
         )
@@ -512,7 +501,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle UpdateRuntimeMessage and restart runtime for persistent disk size update" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gceRuntimeAlgebra = MockRuntimeAlgebra)
     val res =
       for {
         disk <- makePersistentDisk(None).copy(size = DiskSize(100)).save()
@@ -1746,7 +1735,6 @@ class LeoPubsubMessageSubscriberSpec
       googleSubscriber,
       asyncTaskQueue,
       diskInterp,
-      computePollOperation,
       MockAuthProvider,
       gkeAlgebra,
       azureInterp

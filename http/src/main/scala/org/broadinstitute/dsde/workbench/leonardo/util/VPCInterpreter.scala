@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   isSuccess,
   streamUntilDoneOrTimeout,
   tracedRetryF,
-  ComputePollOperation,
   FirewallRuleName,
   GoogleComputeService,
   GoogleResourceService,
@@ -50,8 +49,7 @@ final case class FirewallNotReadyException(project: GoogleProject, firewall: Fir
 final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
   config: VPCInterpreterConfig,
   googleResourceService: GoogleResourceService[F],
-  googleComputeService: GoogleComputeService[F],
-  computePollOperation: ComputePollOperation[F]
+  googleComputeService: GoogleComputeService[F]
 )(implicit F: Async[F])
     extends VPCAlgebra[F] {
 
@@ -180,7 +178,7 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
                                         config.vpcConfig.pollPeriod,
                                         fail.getMessage)
           res <- F.delay(opFuture.get())
-          _ <- F.raiseUnless(!isSuccess(res.getHttpErrorStatusCode))(new Exception(s"setDiskAutoDeleteAsync failed"))
+          _ <- F.raiseUnless(isSuccess(res.getHttpErrorStatusCode))(new Exception(s"setDiskAutoDeleteAsync failed"))
         } yield ()
       } else F.unit
     } yield ()
