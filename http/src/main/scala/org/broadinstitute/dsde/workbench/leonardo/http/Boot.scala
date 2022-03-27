@@ -263,7 +263,6 @@ object Boot extends IOApp {
 
           val googleDiskService = googleDependencies.googleDiskService
 
-          // only needed for backleo
           val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
           val gkeAlg = new GKEInterpreter[IO](
@@ -325,7 +324,8 @@ object Boot extends IOApp {
         }
 
         val frontLeoOnlyProcesses = List(
-          dateAccessedUpdater.process // We only need to update dateAccessed in front leo
+          dateAccessedUpdater.process, // We only need to update dateAccessed in front leo
+          asyncTasks
         ) ++ appDependencies.recordCacheMetrics
 
         val extraProcesses = leoExecutionModeConfig match {
