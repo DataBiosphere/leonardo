@@ -29,6 +29,8 @@ trait RuntimeMonitor[F[_], A] {
                       runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                       operation: com.google.cloud.compute.v1.Operation,
                       action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit]
+  def handlePollCheckCompletion(a: A)(monitorContext: MonitorContext,
+                                      runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit]
 }
 
 object RuntimeMonitor {

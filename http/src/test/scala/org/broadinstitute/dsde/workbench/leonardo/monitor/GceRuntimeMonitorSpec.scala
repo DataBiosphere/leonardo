@@ -4,6 +4,7 @@ package monitor
 import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
@@ -781,7 +782,7 @@ class BaseFakeGceInterp extends RuntimeAlgebra[IO] {
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
-  ): IO[Option[Operation]] = IO.pure(None)
+  ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     IO.unit

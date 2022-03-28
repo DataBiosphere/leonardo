@@ -3,6 +3,7 @@ package monitor
 
 import cats.effect.IO
 import cats.mtl.Ask
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{AccessConfig, Instance, NetworkInterface, Operation}
 import com.google.cloud.dataproc.v1.ClusterStatus.State
 import com.google.cloud.dataproc.v1._
@@ -32,6 +33,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.scalatest.EitherValues
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.jdk.CollectionConverters._
@@ -613,7 +615,7 @@ class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
-  ): IO[Option[Operation]] = IO.pure(None)
+  ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     IO.unit

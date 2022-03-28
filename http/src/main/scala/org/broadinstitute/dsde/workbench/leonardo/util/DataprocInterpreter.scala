@@ -7,6 +7,7 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
 import com.google.cloud.compute.v1.Tags
@@ -354,7 +355,9 @@ class DataprocInterpreter[F[_]: Parallel](
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
-  )(implicit ev: Ask[F, AppContext]): F[Option[com.google.cloud.compute.v1.Operation]] =
+  )(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[OperationFuture[com.google.cloud.compute.v1.Operation, com.google.cloud.compute.v1.Operation]]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
       for {
         region <- F.fromOption(

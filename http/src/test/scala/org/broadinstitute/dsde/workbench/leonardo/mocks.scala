@@ -4,6 +4,7 @@ import cats.data.NonEmptyList
 import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.auth.Credentials
 import com.google.cloud.compute.v1.Operation
 import com.google.cloud.storage.Blob
@@ -140,7 +141,7 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
 
   override def deleteRuntime(params: DeleteRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
-  ): IO[Option[Operation]] = IO.pure(None)
+  ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(None)
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
 

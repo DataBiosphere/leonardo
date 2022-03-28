@@ -4,6 +4,7 @@ package util
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench
 import org.broadinstitute.dsde.workbench.google2
@@ -419,7 +420,7 @@ class GceInterpreter[F[_]](
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
-  )(implicit ev: Ask[F, AppContext]): F[Option[Operation]] =
+  )(implicit ev: Ask[F, AppContext]): F[Option[OperationFuture[Operation, Operation]]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) {
       for {
         zoneParam <- F.fromOption(
@@ -452,11 +453,10 @@ class GceInterpreter[F[_]](
                 .deleteInstance(googleProject,
                                 zoneParam,
                                 InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
-              op <- opFutureOpt.traverse(op => F.blocking(op.get()))
-            } yield op
+            } yield opFutureOpt
         }
       } yield opt
-    } else F.pure(None)
+    } else F.pure(none[OperationFuture[Operation, Operation]])
 
   override def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     F.unit

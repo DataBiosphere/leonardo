@@ -240,11 +240,13 @@ class LeoPubsubMessageSubscriber[F[_]](
         AzureUnimplementedException("Azure runtime is not supported yet")
       )
       poll = op match {
-        case Some(o) =>
-          runtimeConfig.cloudService.pollCheck(googleProject,
-                                               RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-                                               o,
-                                               RuntimeStatus.Deleting)
+        case Some(opFuture) =>
+          val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Deleting)
+          for {
+            _ <- F.blocking(opFuture.get())
+            _ <- runtimeConfig.cloudService
+              .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+          } yield ()
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Deleting).compile.drain
       }

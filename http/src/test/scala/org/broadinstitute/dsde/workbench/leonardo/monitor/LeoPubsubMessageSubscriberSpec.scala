@@ -212,12 +212,9 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime = makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(gceRuntimeConfig)
     val monitor = new MockRuntimeMonitor {
-      override def pollCheck(a: CloudService)(
-        googleProject: GoogleProject,
-        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-        operation: com.google.cloud.compute.v1.Operation,
-        action: RuntimeStatus
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+      override def handlePollCheckCompletion(
+        a: CloudService
+      )(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): IO[Unit] =
         clusterQuery.completeDeletion(runtime.id, Instant.now()).transaction
     }
     val leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
