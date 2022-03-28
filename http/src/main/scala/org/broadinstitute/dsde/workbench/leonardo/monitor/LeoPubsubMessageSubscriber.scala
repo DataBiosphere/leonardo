@@ -255,7 +255,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           diskOpt <- persistentDiskQuery.getPersistentDiskRecord(id).transaction
           disk <- F.fromEither(diskOpt.toRight(new RuntimeException(s"disk not found for ${id}")))
           deleteDiskOp <- googleDiskService.deleteDisk(googleProject, disk.zone, disk.name)
-          _ <- deleteDiskOp.traverse(x => F.delay(x.get()))
+          _ <- deleteDiskOp.traverse(x => F.blocking(x.get()))
           _ <- persistentDiskQuery.delete(id, now).transaction.void >> authProvider
             .notifyResourceDeleted(
               disk.samResource,

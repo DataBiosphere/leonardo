@@ -9,7 +9,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import com.google.cloud.compute.v1.Operation.Status
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
@@ -20,14 +20,12 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{MockKubernetesService => _, _}
 import org.broadinstitute.dsde.workbench.google2.{
-  ComputePollOperation,
   DiskName,
   Event,
   GKEModels,
   GoogleDiskService,
   KubernetesModels,
   MachineTypeName,
-  OperationName,
   RegionName,
   ZoneName
 }
@@ -272,15 +270,13 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "persist delete disk error when if fail to delete disk" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val pollOperation = new MockComputePollOperation {
-      override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(
-        implicit ev: Ask[IO, TraceId]
-      ): IO[Operation] = IO.pure(
-        Operation.newBuilder().setId(123).setName("opName").setTargetId(345).setStatus(Status.PENDING).build()
-      )
-    }
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, computePollOperation = pollOperation)
+    val diskService = new MockGoogleDiskService {
+      override def deleteDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[OperationFuture[Operation, Operation]]] = IO.raiseError(new Exception(s"Fail to delete ${diskName}"))
+    }
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = diskService)
     val res =
       for {
         disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
@@ -298,7 +294,7 @@ class LeoPubsubMessageSubscriberSpec
           clusterErrorQuery.get(runtime.id).transaction.map { error =>
             val dummyNow = Instant.now()
             error.head.copy(timestamp = dummyNow) shouldBe RuntimeError(
-              s"Fail to delete ${disk.name} in a timely manner",
+              s"Fail to delete ${disk.name}",
               None,
               dummyNow
             )
@@ -1714,7 +1710,6 @@ class LeoPubsubMessageSubscriberSpec
     runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
     asyncTaskQueue: Queue[IO, Task[IO]] =
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global),
-    computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     gkeAlgebra: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService,
     diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,

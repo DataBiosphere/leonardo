@@ -7,9 +7,9 @@ import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Firewall, Network, Operation}
 import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeComputeOperationFuture,
   FakeGoogleComputeService,
-  FakeGoogleResourceService,
-  FakeOperationFuture
+  FakeGoogleResourceService
 }
 import org.broadinstitute.dsde.workbench.google2.{FirewallRuleName, NetworkName, RegionName, SubnetworkName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -158,12 +158,12 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
       implicit ev: Ask[IO, TraceId]
     ): IO[OperationFuture[Operation, Operation]] =
       IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall))
-        .as(new FakeOperationFuture)
+        .as(new FakeComputeOperationFuture)
 
     override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
       implicit ev: Ask[IO, TraceId]
     ): IO[Option[OperationFuture[Operation, Operation]]] =
-      IO(firewallMap.remove(firewallRuleName)).as(Some(new FakeOperationFuture))
+      IO(firewallMap.remove(firewallRuleName)).as(Some(new FakeComputeOperationFuture))
 
     override def getNetwork(project: GoogleProject, networkName: NetworkName)(
       implicit ev: Ask[IO, TraceId]

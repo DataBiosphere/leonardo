@@ -463,7 +463,7 @@ class GceInterpreter[F[_]](
                 .deleteInstance(googleProject,
                                 zoneParam,
                                 InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
-              op <- opFutureOpt.traverse(op => F.delay(op.get()))
+              op <- opFutureOpt.traverse(op => F.blocking(op.get()))
             } yield op
         }
       } yield opt
