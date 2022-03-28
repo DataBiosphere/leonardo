@@ -179,7 +179,6 @@ trait TestLeoRoutes {
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,
     FakeGoogleComputeService,
-    new MockComputePollOperation,
     QueueFactory.makePublisherQueue()
   )
 

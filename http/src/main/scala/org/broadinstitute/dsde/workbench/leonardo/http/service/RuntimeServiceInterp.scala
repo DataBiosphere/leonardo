@@ -14,7 +14,6 @@ import com.google.cloud.BaseServiceException
 import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
-  ComputePollOperation,
   DiskName,
   GcsBlobName,
   GoogleComputeService,
@@ -57,7 +56,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            dockerDAO: DockerDAO[F],
                                            googleStorageService: GoogleStorageService[F],
                                            googleComputeService: GoogleComputeService[F],
-                                           computePollOperation: ComputePollOperation[F],
                                            publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   log: StructuredLogger[F],

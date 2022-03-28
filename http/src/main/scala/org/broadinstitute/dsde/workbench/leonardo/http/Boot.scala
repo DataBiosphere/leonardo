@@ -161,7 +161,6 @@ object Boot extends IOApp {
         appDependencies.dockerDAO,
         googleDependencies.googleStorageService,
         googleDependencies.googleComputeService,
-        googleDependencies.computePollOperation,
         appDependencies.publisherQueue
       )
       val diskService = new DiskServiceInterp[IO](
