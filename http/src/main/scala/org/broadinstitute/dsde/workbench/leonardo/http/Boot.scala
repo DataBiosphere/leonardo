@@ -323,15 +323,14 @@ object Boot extends IOApp {
           )
         }
 
-        val frontLeoOnlyProcesses = List(
-          dateAccessedUpdater.process, // We only need to update dateAccessed in front leo
-          asyncTasks.process
+        val uniquefrontLeoOnlyProcesses = List(
+          dateAccessedUpdater.process // We only need to update dateAccessed in front leo
         ) ++ appDependencies.recordCacheMetrics
 
         val extraProcesses = leoExecutionModeConfig match {
           case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
-          case LeoExecutionModeConfig.FrontLeoOnly => frontLeoOnlyProcesses
-          case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ frontLeoOnlyProcesses
+          case LeoExecutionModeConfig.FrontLeoOnly => asyncTasks.process :: uniquefrontLeoOnlyProcesses
+          case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ uniquefrontLeoOnlyProcesses
         }
 
         List(
