@@ -229,6 +229,8 @@ object Boot extends IOApp {
       } yield ()
 
       val allStreams = {
+        val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
+
         val backLeoOnlyProcesses = {
           implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
@@ -262,8 +264,6 @@ object Boot extends IOApp {
             new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.googleComputeService)
 
           val googleDiskService = googleDependencies.googleDiskService
-
-          val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
 
           val gkeAlg = new GKEInterpreter[IO](
             gkeInterpConfig,
@@ -325,7 +325,7 @@ object Boot extends IOApp {
 
         val frontLeoOnlyProcesses = List(
           dateAccessedUpdater.process, // We only need to update dateAccessed in front leo
-          asyncTasks
+          asyncTasks.process
         ) ++ appDependencies.recordCacheMetrics
 
         val extraProcesses = leoExecutionModeConfig match {
