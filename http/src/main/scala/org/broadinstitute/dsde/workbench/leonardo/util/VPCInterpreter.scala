@@ -7,11 +7,8 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.DoneCheckableInstances
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
-  isSuccess,
-  streamUntilDoneOrTimeout,
   tracedRetryF,
   FirewallRuleName,
   GoogleComputeService,
@@ -85,7 +82,6 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
             )
             // create the network
             _ <- createIfAbsent(
-              params.project,
               googleComputeService.getNetwork(params.project, config.vpcConfig.networkName),
               googleComputeService.createNetwork(params.project, buildNetwork(params.project)),
               NetworkNotReadyException(params.project, config.vpcConfig.networkName),
@@ -98,7 +94,6 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
             } else {
               // create the subnet
               createIfAbsent(
-                params.project,
                 googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName),
                 googleComputeService.createSubnetwork(params.project,
                                                       params.region,
@@ -132,7 +127,6 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
           )
           firewallName = buildFirewallName(fw.namePrefix, params.region)
           _ <- createIfAbsent(
-            params.project,
             googleComputeService.getFirewallRule(params.project, firewallName),
             googleComputeService
               .addFirewallRule(
@@ -159,26 +153,21 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
     val firewallRulesCreatedByRbs = List(rbsAllowHttpsFirewallRuleName, rbsAllowInternalFirewallruleName).flatten
     config.vpcConfig.firewallsToAdd.filterNot(rule => rule.rbsName.exists(n => firewallRulesCreatedByRbs.contains(n)))
   }
-  private def createIfAbsent[A](project: GoogleProject,
-                                get: F[Option[A]],
+  private def createIfAbsent[A](get: F[Option[A]],
                                 create: F[OperationFuture[Operation, Operation]],
                                 fail: Throwable,
                                 msg: String)(
     implicit ev: Ask[F, TraceId]
   ): F[Unit] = {
-    implicit val trueDoneCheckable = DoneCheckableInstances.trueBooleanDoneCheckable
-
     val getAndCreate = for {
       existing <- get
       _ <- if (existing.isEmpty) {
         for {
           opFuture <- create
-          _ <- streamUntilDoneOrTimeout(F.delay(opFuture.isDone),
-                                        config.vpcConfig.maxAttempts,
-                                        config.vpcConfig.pollPeriod,
-                                        fail.getMessage)
-          res <- F.delay(opFuture.get())
-          _ <- F.raiseUnless(isSuccess(res.getHttpErrorStatusCode))(new Exception(s"setDiskAutoDeleteAsync failed"))
+          res <- F.blocking(opFuture.get())
+          _ <- if (res.getHttpErrorStatusCode == 409 && res.getHttpErrorMessage.contains("already exists"))
+            F.unit
+          else F.raiseError(fail)
         } yield ()
       } else F.unit
     } yield ()

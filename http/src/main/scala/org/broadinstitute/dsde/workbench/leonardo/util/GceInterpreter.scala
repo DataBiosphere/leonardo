@@ -4,11 +4,10 @@ package util
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.google.cloud.compute.v1.{Operation, _}
+import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench
-import org.broadinstitute.dsde.workbench.{google2, DoneCheckableInstances}
+import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.{
-  streamUntilDoneOrTimeout,
   GoogleComputeService,
   GoogleDiskService,
   InstanceName,
@@ -22,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.ClusterResourcesConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google._
 import org.broadinstitute.dsde.workbench.leonardo.db.{persistentDiskQuery, DbReference}
-import org.broadinstitute.dsde.workbench.leonardo.http.{dbioToIO, userScriptStartupOutputUriMetadataKey}
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO, userScriptStartupOutputUriMetadataKey}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.GceInterpreterConfig
@@ -30,7 +29,6 @@ import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName, GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
@@ -350,9 +348,7 @@ class GceInterpreter[F[_]](
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
-  ): F[Unit] = {
-    implicit val trueDoneCheckable = DoneCheckableInstances.trueBooleanDoneCheckable
-
+  ): F[Unit] =
     for {
       _ <- ev.ask
       googleProject <- F.fromOption(
@@ -386,11 +382,7 @@ class GceInterpreter[F[_]](
           F.raiseError(new Exception(s"${params.runtimeAndRuntimeConfig.runtime.projectNameString} not found in GCP"))
         case Some(value) =>
           for {
-            _ <- streamUntilDoneOrTimeout(F.delay(value.isDone),
-                                          config.gceConfig.setMetadataPollMaxAttempts,
-                                          config.gceConfig.setMetadataPollDelay,
-                                          s"addInstanceMetadata timed out")
-            res <- F.delay(value.get())
+            res <- F.blocking(value.get())
             _ <- F.raiseUnless(workbench.google2.isSuccess(res.getHttpErrorStatusCode))(
               new Exception(s"modifyInstanceMetadata failed ${res}")
             )
@@ -402,7 +394,6 @@ class GceInterpreter[F[_]](
           } yield ()
       }
     } yield ()
-  }
 
   override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
@@ -430,8 +421,6 @@ class GceInterpreter[F[_]](
     params: DeleteRuntimeParams
   )(implicit ev: Ask[F, AppContext]): F[Option[Operation]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) {
-      implicit val doneCheckable = DoneCheckableInstances.trueBooleanDoneCheckable
-
       for {
         zoneParam <- F.fromOption(
           LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
