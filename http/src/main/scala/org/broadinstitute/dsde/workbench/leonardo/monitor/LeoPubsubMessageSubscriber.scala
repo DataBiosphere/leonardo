@@ -543,7 +543,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         case None => F.unit
         case Some(v) =>
           val task = for {
-            _ <- F.delay(v.get())
+            _ <- F.blocking(v.get())
             _ <- formattedBy match {
               case Some(value) =>
                 persistentDiskQuery

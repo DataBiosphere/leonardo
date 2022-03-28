@@ -324,38 +324,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                           disk.zone,
                                                           InstanceName(runtime.runtimeName.asString),
                                                           config.gceConfig.userDiskDeviceName)
-              _ <- detachOp.traverse(op =>
-                (
-                  computePollOperation
-                    .pollZoneOperation(
-                      req.googleProject,
-                      disk.zone,
-                      OperationName(op.getName),
-                      1 seconds,
-                      60,
-                      None
-                    )(
-                      F.unit,
-                      F.raiseError(
-                        LeoInternalServerError(
-                          s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner",
-                          Some(ctx.traceId)
-                        )
-                      ),
-                      F.unit
-                    )
-                  )
-                  .recoverWith {
-                    case e: PollError =>
-                      if (e.operation.getHttpErrorStatusCode == 400) {
-                        log.info(
-                          s"Detach Disk ${disk.name} failed with 400 Error. Continuing deleting Runtime ${runtime.runtimeName}"
-                        )
-                      } else F.raiseError(e)
-
-                  }
-              )
-
+              _ <- detachOp.traverse(op => F.blocking(op.get()))
               _ <- RuntimeConfigQueries.updatePersistentDiskId(runtime.runtimeConfigId, None, ctx.now).transaction
               res <- if (req.deleteDisk)
                 persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleting, ctx.now).transaction.as(Some(diskId))
