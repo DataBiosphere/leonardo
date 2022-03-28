@@ -9,6 +9,7 @@ import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
+  isSuccess,
   tracedRetryF,
   FirewallRuleName,
   GoogleComputeService,
@@ -165,7 +166,8 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
         for {
           opFuture <- create
           res <- F.blocking(opFuture.get())
-          _ <- if (res.getHttpErrorStatusCode == 409 && res.getHttpErrorMessage.contains("already exists"))
+          _ <- if (isSuccess(res.getHttpErrorStatusCode) || res.getHttpErrorStatusCode == 409 && res.getHttpErrorMessage
+                     .contains("already exists"))
             F.unit
           else F.raiseError(fail)
         } yield ()
