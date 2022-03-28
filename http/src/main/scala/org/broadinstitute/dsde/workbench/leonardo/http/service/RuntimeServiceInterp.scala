@@ -2,18 +2,16 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.time.Instant
-import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.std.Queue
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
-import org.typelevel.log4cats.StructuredLogger
+import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   ComputePollOperation,
@@ -23,34 +21,33 @@ import org.broadinstitute.dsde.workbench.google2.{
   GoogleStorageService,
   InstanceName,
   MachineTypeName,
-  OperationName,
-  PollError,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import com.rms.miu.slickcats.DBIOInstances._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,
   LeoPubsubMessage,
   RuntimeConfigInCreateRuntimeMessage,
   RuntimePatchDetails
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 import slick.dbio.DBIOAction
 
-import scala.concurrent.duration._
+import java.time.Instant
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
