@@ -6,10 +6,12 @@ import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   AzureImageUri,
+  CidrIP,
   CreateAzureRuntimeRequest,
   RuntimeName,
   UpdateAzureRuntimeRequest,
-  WorkspaceId
+  WorkspaceId,
+  WsmJobId
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
@@ -17,7 +19,8 @@ trait AzureService[F[_]] {
   def createRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
-                    req: CreateAzureRuntimeRequest)(
+                    req: CreateAzureRuntimeRequest,
+                    createVmJobId: WsmJobId)(
     implicit as: Ask[F, AppContext]
   ): F[Unit]
 
@@ -39,3 +42,13 @@ trait AzureService[F[_]] {
 
 final case class AzureServiceConfig(diskConfig: PersistentDiskConfig, runtimeConfig: AzureRuntimeConfig)
 final case class AzureRuntimeConfig(imageUri: AzureImageUri, defaultScopes: Set[String])
+
+final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,
+                                      ipNamePrefix: String,
+                                      networkControlledResourceDesc: String,
+                                      networkNamePrefix: String,
+                                      subnetNamePrefix: String,
+                                      addressSpaceCidr: CidrIP,
+                                      subnetAddressCidr: CidrIP,
+                                      diskControlledResourceDesc: String,
+                                      vmControlledResourceDesc: String)

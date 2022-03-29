@@ -13,7 +13,8 @@ class MockAzureServiceInterp extends AzureService[IO] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
-                             req: CreateAzureRuntimeRequest)(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.pure()
+                             req: CreateAzureRuntimeRequest,
+                             createVmJobId: WsmJobId)(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.pure()
 
   override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
     implicit as: Ask[IO, AppContext]

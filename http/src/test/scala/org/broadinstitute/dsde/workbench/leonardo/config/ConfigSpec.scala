@@ -22,9 +22,9 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       100,
       295 seconds,
       PersistentDiskMonitorConfig(
-        PollMonitorConfig(5, 3 seconds),
-        PollMonitorConfig(5, 3 seconds),
-        PollMonitorConfig(5, 3 seconds)
+        PollMonitorConfig(2 seconds, 5, 3 seconds),
+        PollMonitorConfig(2 seconds, 5, 3 seconds),
+        PollMonitorConfig(2 seconds, 5, 3 seconds)
       ),
       GalaxyDiskConfig(
         "nfs-disk",
@@ -42,7 +42,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
   it should "read gce.monitor properly" in {
     val expected = GceMonitorConfig(
       20 seconds,
-      PollMonitorConfig(120, 15 seconds),
+      PollMonitorConfig(2 seconds, 120, 15 seconds),
       Map(
         RuntimeStatus.Creating -> 30.minutes,
         RuntimeStatus.Starting -> 20.minutes,

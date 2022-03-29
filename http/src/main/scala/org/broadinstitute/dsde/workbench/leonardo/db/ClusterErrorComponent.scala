@@ -39,7 +39,7 @@ object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
   def save(clusterId: Long, clusterError: RuntimeError): DBIO[Int] =
     clusterErrorQuery += ClusterErrorRecord(0,
                                             clusterId,
-                                            clusterError.errorMessage,
+                                            clusterError.errorMessage.take(1024),
                                             clusterError.errorCode,
                                             Timestamp.from(clusterError.timestamp),
                                             clusterError.traceId)

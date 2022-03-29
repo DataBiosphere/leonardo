@@ -4,11 +4,11 @@ package http
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
-import cats.Parallel
 import cats.effect._
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.mtl.Ask
 import cats.syntax.all._
+import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
@@ -40,13 +40,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{
-  KubernetesDnsCache,
-  KubernetesDnsCacheKey,
-  ProxyResolver,
-  RuntimeDnsCache,
-  RuntimeDnsCacheKey
-}
+import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
@@ -62,11 +56,11 @@ import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
+
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -158,7 +152,8 @@ object Boot extends IOApp {
           //For now azure disks share same defaults as normal disks
           ConfigReader.appConfig.persistentDisk,
           ConfigReader.appConfig.azure.service
-        )
+        ),
+        ConfigReader.appConfig.azure.runtimeDefaults
       )
       val runtimeService = RuntimeService(
         runtimeServiceConfig,
@@ -189,6 +184,8 @@ object Boot extends IOApp {
         runtimeServiceConfig,
         appDependencies.authProvider,
         appDependencies.wsmDAO,
+        appDependencies.samDAO,
+        appDependencies.asyncTasksQueue,
         appDependencies.publisherQueue
       )
 
@@ -209,6 +206,9 @@ object Boot extends IOApp {
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
           AppContext(TraceId(s"Boot_${start}"), start)
         )
+//       TODO: this will be needed once we support more environments.
+//        Disable for now since this causes fiab start to fail
+//        _ <- appDependencies.samDAO.registerLeo
 
         _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
           dataprocInterp.setupDataprocImageGoogleGroup
@@ -229,6 +229,8 @@ object Boot extends IOApp {
       } yield ()
 
       val allStreams = {
+        val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
+
         val backLeoOnlyProcesses = {
           implicit val clusterToolToToolDao =
             ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
@@ -263,9 +265,6 @@ object Boot extends IOApp {
 
           val googleDiskService = googleDependencies.googleDiskService
 
-          // only needed for backleo
-          val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
-
           val gkeAlg = new GKEInterpreter[IO](
             gkeInterpConfig,
             vpcInterp,
@@ -281,10 +280,10 @@ object Boot extends IOApp {
             googleDependencies.googleResourceService
           )
 
-          val azureAlg = new AzureInterpreter[IO](ConfigReader.appConfig.azure.runtimeDefaults,
-                                                  ConfigReader.appConfig.azure.monitor,
+          val azureAlg = new AzureInterpreter[IO](ConfigReader.appConfig.azure.monitor,
                                                   appDependencies.asyncTasksQueue,
                                                   appDependencies.wsmDAO,
+                                                  appDependencies.samDAO,
                                                   appDependencies.computeManagerDao)
 
           val pubsubSubscriber =
@@ -324,14 +323,14 @@ object Boot extends IOApp {
           )
         }
 
-        val frontLeoOnlyProcesses = List(
+        val uniquefrontLeoOnlyProcesses = List(
           dateAccessedUpdater.process // We only need to update dateAccessed in front leo
         ) ++ appDependencies.recordCacheMetrics
 
         val extraProcesses = leoExecutionModeConfig match {
           case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
-          case LeoExecutionModeConfig.FrontLeoOnly => frontLeoOnlyProcesses
-          case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ frontLeoOnlyProcesses
+          case LeoExecutionModeConfig.FrontLeoOnly => asyncTasks.process :: uniquefrontLeoOnlyProcesses
+          case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ uniquefrontLeoOnlyProcesses
         }
 
         List(
@@ -349,9 +348,12 @@ object Boot extends IOApp {
     }
   }
 
-  private def createDependencies[F[_]: StructuredLogger: Parallel](
+  private def createDependencies[F[_]: Parallel](
     pathToCredentialJson: String
-  )(implicit ec: ExecutionContext, as: ActorSystem, F: Async[F]): Resource[F, AppDependencies[F]] =
+  )(implicit logger: StructuredLogger[F],
+    ec: ExecutionContext,
+    as: ActorSystem,
+    F: Async[F]): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
@@ -397,7 +399,9 @@ object Boot extends IOApp {
         // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false)(httpClient)
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
+        httpClient
+      )
       httpClientWithRetryAndLogging = Retry(retryPolicy)(httpClientWithLogging)
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
@@ -595,6 +599,9 @@ object Boot extends IOApp {
       googleTokenCache,
       samResourceCache
     )
+
+  private def logAction[F[_]: Monad: StructuredLogger](s: String): F[Unit] =
+    StructuredLogger[F].info(s)
 
   private def buildCache[K, V](maxSize: Int,
                                expiresIn: FiniteDuration): com.github.benmanes.caffeine.cache.Cache[K, V] =

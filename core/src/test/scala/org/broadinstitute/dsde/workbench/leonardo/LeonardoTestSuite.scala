@@ -6,6 +6,7 @@ import com.github.benmanes.caffeine.cache.Caffeine
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.openTelemetry.FakeOpenTelemetryMetricsInterpreter
+import org.http4s.{AuthScheme, Credentials}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.prop.Configuration
 import org.scalatest.{Assertion, Assertions}
@@ -22,6 +23,7 @@ trait LeonardoTestSuite extends Matchers {
   implicit val loggerIO: StructuredLogger[IO] = Slf4jLogger.getLogger[IO]
 
   def ioAssertion(test: => IO[Assertion]): Assertion = test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  val dummyAuth = org.http4s.headers.Authorization(Credentials.Token(AuthScheme.Bearer, ""))
 
   val semaphore = Semaphore[IO](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   val underlyingCache =

@@ -2,7 +2,6 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.URL
 import java.time.Instant
-
 import cats.syntax.all._
 import io.circe.syntax._
 import io.circe.{Decoder, DecodingFailure, Encoder, Json}
@@ -33,10 +32,10 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject
 }
 import org.http4s.Uri
+
 import java.nio.file.{Path, Paths}
 import java.util.UUID
 import java.util.stream.Collectors
-
 import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
@@ -261,6 +260,8 @@ object JsonCodec {
   implicit val networkNameEncoder: Encoder[NetworkName] = Encoder.encodeString.contramap(_.value)
   implicit val subNetworkNameEncoder: Encoder[SubnetworkName] = Encoder.encodeString.contramap(_.value)
   implicit val ipRangeEncoder: Encoder[IpRange] = Encoder.encodeString.contramap(_.value)
+  implicit val wsmJobIdEncoder: Encoder[WsmJobId] = Encoder.encodeString.contramap(_.value.toString)
+
   implicit val networkFieldsEncoder: Encoder[NetworkFields] =
     Encoder.forProduct3("networkName", "subNetworkName", "subNetworkIpRange")(x => NetworkFields.unapply(x).get)
   implicit val kubeAsyncFieldEncoder: Encoder[KubernetesClusterAsyncFields] =
@@ -634,6 +635,9 @@ object JsonCodec {
     Decoder.decodeString.emap(s => Uri.fromString(s).leftMap(_.getMessage()))
 
   implicit val uuidDecoder: Decoder[UUID] = Decoder.decodeString.map(s => UUID.fromString(s))
+
+  implicit val wsmJobIdDecoder: Decoder[WsmJobId] =
+    Decoder.decodeString.map(s => WsmJobId(s))
 
   implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
     Decoder.decodeString.map(x => WorkspaceId(UUID.fromString(x)))
