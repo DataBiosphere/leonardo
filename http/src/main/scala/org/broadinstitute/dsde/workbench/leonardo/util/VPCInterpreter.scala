@@ -175,6 +175,12 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
     } yield ()
 
     val res = getAndCreate.recoverWith {
+      case e: java.util.concurrent.ExecutionException =>
+        if (e.getCause != null && e.getCause.getMessage.contains(
+              "already exists"
+            ))
+          F.unit
+        else F.raiseError(e)
       case e: com.google.api.gax.rpc.ApiException =>
         if (e.getStatusCode.getCode == com.google.api.gax.rpc.StatusCode.Code.ABORTED && e.getMessage.contains(
               "already exists"
