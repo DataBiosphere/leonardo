@@ -30,9 +30,9 @@ anvil_rstudio_bioconductor="us.gcr.io/broad-dsp-gcr-public/anvil-rstudio-biocond
 terra_jupyter_aou_old="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.11"
 
 # Not replaced by Jenkins
-cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.3"
-google_cloud_toolbox="gcr.io/google-containers/toolbox:20200603-00"
-docker_composer="docker/compose:1.29.1"
+cos_gpu_installer="gcr.io/cos-cloud/cos-gpu-installer:v2.0.20"
+google_cloud_toolbox="gcr.io/google-containers/toolbox:20201104-00"
+docker_composer="docker/compose:1.29.2"
 docker_composer_with_auth="cryptopants/docker-compose-gcr"
 
 # Not replaced by Jenkins. If you change this you must also change Leo reference.conf!
