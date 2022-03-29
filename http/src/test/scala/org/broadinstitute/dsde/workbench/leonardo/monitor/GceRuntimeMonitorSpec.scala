@@ -789,10 +789,12 @@ class BaseFakeGceInterp extends RuntimeAlgebra[IO] {
 
   override def stopRuntime(
     params: StopRuntimeParams
-  )(implicit ev: Ask[IO, AppContext]): IO[Option[Operation]] =
+  )(implicit ev: Ask[IO, AppContext]): IO[Option[OperationFuture[Operation, Operation]]] =
     IO.pure(None)
 
-  override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = ???
+  override def startRuntime(params: StartRuntimeParams)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[Option[OperationFuture[Operation, Operation]]] = ???
 
   override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     ???

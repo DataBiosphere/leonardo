@@ -7,8 +7,8 @@ import cats.syntax.all._
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench
-import org.broadinstitute.dsde.workbench.google2
 import org.broadinstitute.dsde.workbench.google2.{
+  isSuccess,
   GoogleComputeService,
   GoogleDiskService,
   InstanceName,
@@ -31,6 +31,7 @@ import org.broadinstitute.dsde.workbench.model.google.{generateUniqueBucketName,
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 import scala.jdk.CollectionConverters._
 
@@ -307,11 +308,11 @@ class GceInterpreter[F[_]](
 
       operation <- googleComputeService
         .createInstance(googleProject, zoneParam, instance)
-        .flatMap(_.traverse(x => F.delay(x.get())))
 
+      hostname <- F.delay(UUID.randomUUID().getLeastSignificantBits.toHexString)
       res = operation.map(o =>
         CreateGoogleRuntimeResponse(
-          AsyncRuntimeFields(ProxyHostName(o.getTargetId.toString), OperationName(o.getName), stagingBucketName, None),
+          AsyncRuntimeFields(ProxyHostName(hostname), OperationName(o.getName), stagingBucketName, None),
           initBucketName,
           BootSource.VmImage(config.gceConfig.sourceImage)
         )
@@ -320,7 +321,7 @@ class GceInterpreter[F[_]](
 
   override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
-  ): F[Option[com.google.cloud.compute.v1.Operation]] =
+  ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       zoneParam <- F.fromOption(
         LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
@@ -344,12 +345,11 @@ class GceInterpreter[F[_]](
         zoneParam,
         InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
       )
-      res <- F.delay(opFuture.get())
-    } yield Some(res)
+    } yield Some(opFuture)
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
+  ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       _ <- ev.ask
       googleProject <- F.fromOption(
@@ -378,7 +378,7 @@ class GceInterpreter[F[_]](
         metadataToAdd = metadata,
         metadataToRemove = Set("startup-script-url")
       )
-      _ <- opFutureOpt match {
+      res <- opFutureOpt match {
         case None =>
           F.raiseError(new Exception(s"${params.runtimeAndRuntimeConfig.runtime.projectNameString} not found in GCP"))
         case Some(value) =>
@@ -387,14 +387,14 @@ class GceInterpreter[F[_]](
             _ <- F.raiseUnless(workbench.google2.isSuccess(res.getHttpErrorStatusCode))(
               new Exception(s"modifyInstanceMetadata failed ${res}")
             )
-            _ <- googleComputeService.startInstance(
+            opFuture <- googleComputeService.startInstance(
               googleProject,
               zoneParam,
               InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
             )
-          } yield ()
+          } yield opFuture
       }
-    } yield ()
+    } yield res.some
 
   override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
@@ -446,7 +446,7 @@ class GceInterpreter[F[_]](
           case Some(v) =>
             for {
               res <- F.delay(v.get())
-              _ <- F.raiseUnless(google2.isSuccess(res.getHttpErrorStatusCode))(
+              _ <- F.raiseUnless(isSuccess(res.getHttpErrorStatusCode))(
                 new Exception(s"addInstanceMetadata failed")
               )
               opFutureOpt <- googleComputeService

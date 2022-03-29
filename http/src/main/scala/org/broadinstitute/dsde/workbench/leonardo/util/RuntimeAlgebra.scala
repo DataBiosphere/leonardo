@@ -27,8 +27,12 @@ trait RuntimeAlgebra[F[_]] {
     implicit ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit]
-  def stopRuntime(params: StopRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
-  def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def stopRuntime(params: StopRuntimeParams)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[OperationFuture[Operation, Operation]]]
+  def startRuntime(params: StartRuntimeParams)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[OperationFuture[Operation, Operation]]]
   def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
   def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
   def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]

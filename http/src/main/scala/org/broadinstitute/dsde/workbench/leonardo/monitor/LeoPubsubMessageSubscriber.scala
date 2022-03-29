@@ -301,16 +301,14 @@ class LeoPubsubMessageSubscriber[F[_]](
       op <- runtimeConfig.cloudService.interpreter.stopRuntime(
         StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, true)
       )
-      googleProject <- F.fromOption(
-        LeoLenses.cloudContextToGoogleProject.get(runtime.cloudContext),
-        new AzureUnimplementedException("Azure runtime is not supported yet")
-      )
       poll = op match {
         case Some(o) =>
-          runtimeConfig.cloudService.pollCheck(googleProject,
-                                               RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-                                               o,
-                                               RuntimeStatus.Stopping)
+          val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+          for {
+            _ <- F.blocking(o.get())
+            _ <- runtimeConfig.cloudService
+              .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+          } yield ()
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
       }
@@ -444,10 +442,12 @@ class LeoPubsubMessageSubscriber[F[_]](
           task = for {
             _ <- operation match {
               case Some(op) =>
-                runtimeConfig.cloudService.pollCheck(googleProject,
-                                                     RuntimeAndRuntimeConfig(runtime, runtimeConfig),
-                                                     op,
-                                                     RuntimeStatus.Stopping)
+                val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+                for {
+                  _ <- F.blocking(op.get())
+                  _ <- runtimeConfig.cloudService
+                    .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+                } yield ()
               case None =>
                 runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
             }
