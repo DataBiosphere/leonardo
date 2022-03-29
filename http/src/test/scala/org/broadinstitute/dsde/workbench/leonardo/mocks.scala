@@ -147,9 +147,11 @@ object MockRuntimeAlgebra extends RuntimeAlgebra[IO] {
 
   override def stopRuntime(params: StopRuntimeParams)(
     implicit ev: Ask[IO, AppContext]
-  ): IO[Option[Operation]] = IO.pure(None)
+  ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(None)
 
-  override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] = IO.unit
+  override def startRuntime(params: StartRuntimeParams)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(None)
 
   override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[IO, AppContext]): IO[Unit] =
     IO.unit

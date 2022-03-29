@@ -622,7 +622,7 @@ class BaseFakeDataproInterp extends RuntimeAlgebra[IO] {
 
   override def stopRuntime(
     params: StopRuntimeParams
-  )(implicit ev: Ask[IO, AppContext]): IO[Option[Option[OperationFuture[Operation, Operation]]]] =
+  )(implicit ev: Ask[IO, AppContext]): IO[Option[OperationFuture[Operation, Operation]]] =
     IO.pure(None)
 
   override def startRuntime(params: StartRuntimeParams)(
