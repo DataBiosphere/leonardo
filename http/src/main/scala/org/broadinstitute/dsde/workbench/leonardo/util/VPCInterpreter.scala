@@ -174,8 +174,17 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
       } else F.unit
     } yield ()
 
+    val res = getAndCreate.recoverWith {
+      case e: com.google.api.gax.rpc.ApiException =>
+        if (e.getStatusCode == com.google.api.gax.rpc.StatusCode.Code.ABORTED && e.getMessage.contains(
+              "already exists"
+            ))
+          F.unit
+        else F.raiseError(e)
+    }
+
     // Retry the whole get-check-create operation in case of 409
-    tracedRetryF(retryPolicy)(getAndCreate, msg).compile.lastOrError
+    tracedRetryF(retryPolicy)(res, msg).compile.lastOrError
   }
 
   private[util] def buildNetwork(project: GoogleProject): Network =
