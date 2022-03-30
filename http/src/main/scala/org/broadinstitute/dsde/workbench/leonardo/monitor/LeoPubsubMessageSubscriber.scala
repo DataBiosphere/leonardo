@@ -628,9 +628,8 @@ class LeoPubsubMessageSubscriber[F[_]](
         case None => F.unit
         case Some(v) =>
           for {
-
             operation <- F.blocking(v.get())
-            _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+            _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
               new Exception(s"fail to create disk ${project}/${dataDiskName} due to ${operation}")
             )
           } yield ()
@@ -673,7 +672,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         case Some(v) =>
           val task = for {
             operation <- F.blocking(v.get())
-            _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+            _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
               new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name} due to ${operation}")
             )
             _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider.notifyResourceDeleted(
@@ -735,7 +734,7 @@ class LeoPubsubMessageSubscriber[F[_]](
 
       task = for {
         operation <- F.blocking(opFuture.get())
-        _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+        _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
           new RuntimeException(s"fail to resize disk ${googleProject}/${disk.name} due to ${operation}")
         )
         now <- nowInstant
@@ -1254,7 +1253,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           F.blocking(operation.get()).map(_.some)
           for {
             operation <- F.blocking(operation.get())
-            _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+            _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
               new Exception(s"fail to delete disk ${project.value}/${diskName.value} due to ${operation}")
             )
           } yield operation.some
@@ -1271,7 +1270,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             operation <- operationFutureOpt.traverse(optFuture =>
               for {
                 operation <- F.blocking(optFuture.get())
-                _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+                _ <- F.raiseUnless(isSuccess(operation.getHttpErrorStatusCode))(
                   new Exception(s"fail to delete disk ${project.value}/${diskName.value} due to ${operation}")
                 )
               } yield operation
