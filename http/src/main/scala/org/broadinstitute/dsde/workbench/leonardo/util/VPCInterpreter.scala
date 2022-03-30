@@ -176,8 +176,8 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
 
     val res = getAndCreate.recoverWith {
       case e: java.util.concurrent.ExecutionException =>
-        if (e.getCause != null && e.getCause.getMessage.contains(
-              "already exists"
+        if (e.getMessage.contains(
+              "Conflict"
             ))
           F.unit
         else F.raiseError(e)
