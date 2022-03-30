@@ -7,6 +7,7 @@ import cats.effect.implicits._
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.DoneCheckable
@@ -42,6 +43,24 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
+/**
+ * @param config
+ * @param subscriber
+ * @param asyncTasks
+ * @param googleDiskService
+ * @param authProvider
+ * @param gkeAlg
+ * @param azureAlg
+ * @param operationFutureCache This is used to cancel long running java Futures for Google operations. Currently, we only cancel existing stopping runtime operation if a `deleteRuntime`
+ *                             message is received
+ * @param executionContext
+ * @param F
+ * @param logger
+ * @param dbRef
+ * @param runtimeInstances
+ * @param monitor
+ * @tparam F
+ */
 class LeoPubsubMessageSubscriber[F[_]](
   config: LeoPubsubMessageSubscriberConfig,
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
@@ -49,7 +68,8 @@ class LeoPubsubMessageSubscriber[F[_]](
   googleDiskService: GoogleDiskService[F],
   authProvider: LeoAuthProvider[F],
   gkeAlg: GKEAlgebra[F],
-  azureAlg: AzureAlgebra[F]
+  azureAlg: AzureAlgebra[F],
+  operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]]
 )(implicit executionContext: ExecutionContext,
   F: Async[F],
   logger: StructuredLogger[F],
@@ -214,6 +234,8 @@ class LeoPubsubMessageSubscriber[F[_]](
   ): F[Unit] =
     for {
       ctx <- ev.ask
+      existingOperationFuture <- operationFutureCache.get(msg.runtimeId)
+      _ <- existingOperationFuture.traverse(opFuture => F.delay(opFuture.cancel(true)))
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- runtimeOpt.fold(
         F.raiseError[Runtime](PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
@@ -306,6 +328,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
           for {
             operation <- F.blocking(o.get())
+            _ <- operationFutureCache.put(runtime.id)(o, None)
             _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
               runtimeConfig.cloudService
                 .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))

@@ -9,6 +9,7 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
@@ -58,6 +59,7 @@ import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
+import scalacache.caffeine.CaffeineCache
 
 import java.time.Instant
 import java.util.UUID
@@ -1719,6 +1721,15 @@ class LeoPubsubMessageSubscriberSpec
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
 
+    val underlyingOperationFutureCache =
+      Caffeine
+        .newBuilder()
+        .maximumSize(50L)
+        .recordStats()
+        .build[Long, scalacache.Entry[OperationFuture[Operation, Operation]]]()
+    val operationFutureCache =
+      CaffeineCache[IO, Long, OperationFuture[Operation, Operation]](underlyingOperationFutureCache)
+
     new LeoPubsubMessageSubscriber[IO](
       LeoPubsubMessageSubscriberConfig(1,
                                        30 seconds,
@@ -1729,7 +1740,8 @@ class LeoPubsubMessageSubscriberSpec
       diskInterp,
       MockAuthProvider,
       gkeAlgebra,
-      azureInterp
+      azureInterp,
+      operationFutureCache
     )
   }
 

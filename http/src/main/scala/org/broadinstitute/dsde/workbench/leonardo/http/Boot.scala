@@ -10,6 +10,8 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.google.api.gax.longrunning.OperationFuture
+import com.google.cloud.compute.v1.Operation
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
@@ -22,7 +24,6 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   credentialResource,
-  ComputePollOperation,
   Event,
   GKEService,
   GoogleComputeService,
@@ -273,7 +274,7 @@ object Boot extends IOApp {
       )
       runtimeDnsCaffineCache <- Resource.make(
         F.delay(CaffeineCache[F, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache))
-      )(s => F.delay(s.close))
+      )(_.close)
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffineCache)
       underlyingKubernetesDnsCache = buildCache[KubernetesDnsCacheKey, scalacache.Entry[HostStatus]](
         kubernetesDnsCacheConfig.cacheMaxSize,
@@ -282,7 +283,7 @@ object Boot extends IOApp {
 
       kubernetesDnsCaffineCache <- Resource.make(
         F.delay(CaffeineCache[F, KubernetesDnsCacheKey, HostStatus](underlyingKubernetesDnsCache))
-      )(s => F.delay(s.close))
+      )(_.close)
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, hostToIpMapping, kubernetesDnsCaffineCache)
 
       // Set up SSL context and http clients
@@ -308,7 +309,7 @@ object Boot extends IOApp {
       )
       petTokenCache <- Resource.make(
         F.delay(CaffeineCache[F, UserEmailAndProject, Option[String]](underlyingPetTokenCache))
-      )(s => F.delay(s.close))
+      )(_.close)
 
       samDao = HttpSamDAO[F](httpClientWithRetryAndLogging, httpSamDaoConfig, petTokenCache)
       jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging)
@@ -324,9 +325,7 @@ object Boot extends IOApp {
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
                                                                                 samAuthConfig.authCacheExpiryTime)
-      authCache <- Resource.make(F.delay(CaffeineCache[F, AuthCacheKey, Boolean](underlyingAuthCache)))(s =>
-        F.delay(s.close)
-      )
+      authCache <- Resource.make(F.delay(CaffeineCache[F, AuthCacheKey, Boolean](underlyingAuthCache)))(s => s.close)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, authCache)
 
       // Set up GCP credentials
@@ -366,7 +365,6 @@ object Boot extends IOApp {
         RetryPredicates.whenStatusCode(400)
       )
 
-      computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, semaphore)
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
@@ -386,7 +384,7 @@ object Boot extends IOApp {
       )
       nodepoolLockCache <- Resource.make(
         F.delay(CaffeineCache[F, KubernetesClusterId, Semaphore[F]](underlyingNodepoolLockCache))
-      )(s => F.delay(s.close))
+      )(_.close)
       nodepoolLock = KeyLock[F, KubernetesClusterId](nodepoolLockCache)
 
       // Set up PubSub queues
@@ -409,7 +407,7 @@ object Boot extends IOApp {
         2 hours
       )
       kubeCache <- Resource.make(F.delay(CaffeineCache[F, KubernetesClusterId, ApiClient](underlyingKubeClientCache)))(
-        s => F.delay(s.close)
+        _.close
       )
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
@@ -424,7 +422,7 @@ object Boot extends IOApp {
       )
       googleTokenCache <- Resource.make(
         F.delay(CaffeineCache[F, String, (UserInfo, Instant)](underlyingGoogleTokenCache))
-      )(s => F.delay(s.close))
+      )(_.close)
 
       underlyingSamResourceCache = buildCache[SamResourceCacheKey, scalacache.Entry[Option[String]]](
         proxyConfig.internalIdCacheMaxSize,
@@ -432,7 +430,16 @@ object Boot extends IOApp {
       )
       samResourceCache <- Resource.make(
         F.delay(CaffeineCache[F, SamResourceCacheKey, Option[String]](underlyingSamResourceCache))
-      )(s => F.delay(s.close))
+      )(s => s.close)
+
+      underlyingOperationFutureCache = buildCache[Long, scalacache.Entry[OperationFuture[Operation, Operation]]](
+        500,
+        5 minutes
+      )
+      operationFutureCache <- Resource.make(
+        F.delay(CaffeineCache[F, Long, OperationFuture[Operation, Operation]](underlyingOperationFutureCache))
+      )(_.close)
+
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
@@ -548,7 +555,8 @@ object Boot extends IOApp {
         googleDiskService,
         authProvider,
         gkeAlg,
-        azureAlg
+        azureAlg,
+        operationFutureCache
       )
 
       AppDependencies(
