@@ -305,9 +305,11 @@ class LeoPubsubMessageSubscriber[F[_]](
         case Some(o) =>
           val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
           for {
-            _ <- F.blocking(o.get())
-            _ <- runtimeConfig.cloudService
-              .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+            operation <- F.blocking(o.get())
+            _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
+              runtimeConfig.cloudService
+                .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+            )
           } yield ()
         case None =>
           runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
@@ -444,9 +446,11 @@ class LeoPubsubMessageSubscriber[F[_]](
               case Some(op) =>
                 val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
                 for {
-                  _ <- F.blocking(op.get())
-                  _ <- runtimeConfig.cloudService
-                    .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+                  operation <- F.blocking(op.get())
+                  _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
+                    runtimeConfig.cloudService
+                      .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+                  )
                 } yield ()
               case None =>
                 runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
@@ -600,7 +604,13 @@ class LeoPubsubMessageSubscriber[F[_]](
       _ <- operationFutureOpt match {
         case None => F.unit
         case Some(v) =>
-          F.delay(v.get())
+          for {
+
+            operation <- F.blocking(v.get())
+            _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+              new Exception(s"fail to create disk ${project}/${dataDiskName} due to ${operation}")
+            )
+          } yield ()
       }
     } yield ()
 
@@ -639,7 +649,10 @@ class LeoPubsubMessageSubscriber[F[_]](
         case None => F.unit
         case Some(v) =>
           val task = for {
-            _ <- F.delay(v.get())
+            operation <- F.blocking(v.get())
+            _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+              new RuntimeException(s"fail to delete disk ${googleProject}/${disk.name} due to ${operation}")
+            )
             _ <- persistentDiskQuery.delete(diskId, ctx.now).transaction[F].void >> authProvider.notifyResourceDeleted(
               disk.samResource,
               disk.auditInfo.creator,
@@ -693,12 +706,15 @@ class LeoPubsubMessageSubscriber[F[_]](
       )(F.pure)
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(disk.cloudContext),
-        new AzureUnimplementedException("Azure disk is not supported yet")
+        AzureUnimplementedException("Azure disk is not supported yet")
       )
       opFuture <- googleDiskService.resizeDisk(googleProject, disk.zone, disk.name, msg.newSize.gb)
 
       task = for {
-        _ <- F.delay(opFuture.get())
+        operation <- F.blocking(opFuture.get())
+        _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+          new RuntimeException(s"fail to resize disk ${googleProject}/${disk.name} due to ${operation}")
+        )
         now <- nowInstant
         _ <- persistentDiskQuery.updateSize(msg.diskId, msg.newSize, now).transaction[F]
       } yield ()
@@ -1211,16 +1227,33 @@ class LeoPubsubMessageSubscriber[F[_]](
           getGalaxyPostgresDiskName(diskName, config.galaxyDiskConfig.postgresDiskNameSuffix)
         )
       res <- postgresDiskOpt match {
-        case Some(operation) => F.delay(operation.get()).map(_.some)
-        case None =>
-          googleDiskService
-            .deleteDisk(
-              project,
-              zone,
-              GKEAlgebra.getOldStyleGalaxyPostgresDiskName(namespaceName,
-                                                           config.galaxyDiskConfig.postgresDiskNameSuffix)
+        case Some(operation) =>
+          F.blocking(operation.get()).map(_.some)
+          for {
+            operation <- F.blocking(operation.get())
+            _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+              new Exception(s"fail to delete disk ${project.value}/${diskName.value} due to ${operation}")
             )
-            .flatMap(_.traverse(x => F.delay(x.get())))
+          } yield operation.some
+        case None =>
+          val diskName =
+            GKEAlgebra.getOldStyleGalaxyPostgresDiskName(namespaceName, config.galaxyDiskConfig.postgresDiskNameSuffix)
+          for {
+            operationFutureOpt <- googleDiskService
+              .deleteDisk(
+                project,
+                zone,
+                diskName
+              )
+            operation <- operationFutureOpt.traverse(optFuture =>
+              for {
+                operation <- F.blocking(optFuture.get())
+                _ <- F.raiseUnless(!isSuccess(operation.getHttpErrorStatusCode))(
+                  new Exception(s"fail to delete disk ${project.value}/${diskName.value} due to ${operation}")
+                )
+              } yield operation
+            )
+          } yield operation
       }
     } yield res
 }
