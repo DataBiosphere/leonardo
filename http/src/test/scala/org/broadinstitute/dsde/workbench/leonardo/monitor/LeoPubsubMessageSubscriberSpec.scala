@@ -161,8 +161,8 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.asyncRuntimeFields shouldBe defined
         updatedRuntime.get.asyncRuntimeFields.get.stagingBucket.value should startWith("leostaging")
         updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
-        updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
-        updatedRuntime.get.asyncRuntimeFields.get.proxyHostName.value shouldBe "258165385"
+        updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "op"
+        updatedRuntime.get.asyncRuntimeFields.map(_.proxyHostName).isDefined shouldBe true
         updatedRuntime.get.runtimeImages.map(_.imageType) should contain(BootSource)
       }
 
