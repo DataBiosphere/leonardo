@@ -237,7 +237,6 @@ object Boot extends IOApp {
           val gceRuntimeMonitor = new GceRuntimeMonitor[IO](
             gceMonitorConfig,
             googleDependencies.googleComputeService,
-            googleDependencies.computePollOperation,
             appDependencies.authProvider,
             googleDependencies.googleStorageService,
             appDependencies.publisherQueue,
