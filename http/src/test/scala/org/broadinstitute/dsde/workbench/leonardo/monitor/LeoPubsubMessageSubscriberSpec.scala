@@ -390,13 +390,6 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "handle UpdateRuntimeMessage, resize dataproc cluster and setting DB status properly" in isolatedDbTest {
     val monitor = new MockRuntimeMonitor {
-      override def pollCheck(a: CloudService)(
-        googleProject: GoogleProject,
-        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-        operation: com.google.cloud.compute.v1.Operation,
-        action: RuntimeStatus
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.never
-
       override def process(
         a: CloudService
       )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
@@ -431,15 +424,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle UpdateRuntimeMessage and stop the cluster when there's a machine type change" in isolatedDbTest {
-    val monitor = new MockRuntimeMonitor {
-      override def pollCheck(a: CloudService)(
-        googleProject: GoogleProject,
-        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-        operation: com.google.cloud.compute.v1.Operation,
-        action: RuntimeStatus
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.never
-    }
-    val leoSubscriber = makeLeoSubscriber(monitor)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
