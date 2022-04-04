@@ -5,7 +5,6 @@ import java.time.Instant
 import cats.Parallel
 import cats.effect.{Async, IO}
 import cats.mtl.Ask
-import com.google.cloud.compute.v1._
 import fs2.Stream
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
@@ -15,7 +14,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.scalatest.flatspec.AnyFlatSpec
@@ -171,14 +169,9 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       Config.imageConfig
     )
 
-    override def pollCheck(googleProject: GoogleProject,
-                           runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                           operation: Operation,
-                           action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
-
     override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
       implicit ev: Ask[IO, AppContext]
-    ): IO[(Unit, Option[MonitorState])] = IO.pure(((), Some(MonitorState.Check(runtimeAndRuntimeConfig, None))))
+    ): IO[(Unit, Option[MonitorState])] = ???
   }
 
   def baseRuntimeMonitor(isWelderReady: Boolean,

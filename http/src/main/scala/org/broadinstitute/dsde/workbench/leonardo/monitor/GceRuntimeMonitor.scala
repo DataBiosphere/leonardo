@@ -1,42 +1,33 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package monitor
 
-import java.sql.SQLDataException
 import cats.Parallel
 import cats.effect.std.Queue
 import cats.effect.{Async, Temporal}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.cloud.compute.v1.Instance
-import fs2.Stream
-import org.typelevel.log4cats.StructuredLogger
-import org.broadinstitute.dsde.workbench.google2.{
-  ComputePollOperation,
-  GoogleComputeService,
-  GoogleStorageService,
-  InstanceName
-}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService, InstanceName}
 import org.broadinstitute.dsde.workbench.leonardo.GceInstanceStatus._
 import org.broadinstitute.dsde.workbench.leonardo.dao.ToolDAO
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.getInstanceIP
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dbioToIO}
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoAuthProvider
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.DeleteRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.GceMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
+import org.typelevel.log4cats.StructuredLogger
+
+import java.sql.SQLDataException
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 class GceRuntimeMonitor[F[_]: Parallel](
   config: GceMonitorConfig,
   googleComputeService: GoogleComputeService[F],
-  computePollOperation: ComputePollOperation[F],
   authProvider: LeoAuthProvider[F],
   googleStorageService: GoogleStorageService[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
@@ -52,43 +43,6 @@ class GceRuntimeMonitor[F[_]: Parallel](
 
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
-
-  val pollCheckSupportedStatuses = Set(RuntimeStatus.Deleting, RuntimeStatus.Stopping)
-  // Function used for transitions that we can get an Operation
-  override def pollCheck(googleProject: GoogleProject,
-                         runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                         operation: com.google.cloud.compute.v1.Operation,
-                         action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
-    for {
-      // building up a stream that will terminate when gce runtime is ready
-      traceId <- ev.ask
-      startMonitoring <- nowInstant
-      monitorContext = MonitorContext(startMonitoring, runtimeAndRuntimeConfig.runtime.id, traceId, action)
-      _ <- Temporal[F].sleep(config.initialDelay)
-      haltWhenTrue = (Stream
-        .eval(clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction.map { newStatus =>
-          if (action == RuntimeStatus.Deleting) // Deleting is not interruptible
-            false
-          else {
-            newStatus != Some(action) && newStatus == Some(
-              RuntimeStatus.Deleting
-            ) // Interrupt Stopping if new Deleting request comes in
-          }
-        }) ++ Stream.sleep_(5 seconds)).repeat
-      _ <- if (pollCheckSupportedStatuses.contains(action))
-        F.unit
-      else F.raiseError(new Exception(s"Monitoring ${action} with pollOperation is not supported"))
-      _ <- computePollOperation
-        .pollOperation(googleProject,
-                       operation,
-                       config.pollStatus.interval,
-                       config.pollStatus.maxAttempts,
-                       Some(haltWhenTrue))(
-          handlePollCheckCompletion(monitorContext, runtimeAndRuntimeConfig),
-          handlePollCheckTimeout(monitorContext, runtimeAndRuntimeConfig),
-          handlePollCheckWhenInterrupted(monitorContext, runtimeAndRuntimeConfig)
-        )
-    } yield ()
 
   def handlePollCheckCompletion(monitorContext: MonitorContext,
                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
@@ -221,7 +175,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       for {
         context <- ev.ask
         gceStatus <- F.fromOption(GceInstanceStatus
-                                    .withNameInsensitiveOption(i.getStatus.name()),
+                                    .withNameInsensitiveOption(i.getStatus),
                                   new SQLDataException(s"Unknown GCE instance status ${i.getStatus}"))
         r <- gceStatus match {
           case GceInstanceStatus.Provisioning | GceInstanceStatus.Staging =>
@@ -292,7 +246,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
       for {
         gceStatus <- F.fromEither(
           GceInstanceStatus
-            .withNameInsensitiveOption(i.getStatus.name())
+            .withNameInsensitiveOption(i.getStatus)
             .toRight(new Exception(s"Unknown GCE instance status ${i.getStatus}"))
         )
         startableStatuses = Set(
@@ -367,7 +321,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
     monitorContext: MonitorContext,
     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
   )(implicit ev: Ask[F, AppContext]): F[CheckResult] = {
-    val gceStatus = instance.flatMap(i => GceInstanceStatus.withNameInsensitiveOption(i.getStatus.name))
+    val gceStatus = instance.flatMap(i => GceInstanceStatus.withNameInsensitiveOption(i.getStatus))
     gceStatus match {
       case None =>
         logger

@@ -79,10 +79,8 @@ trait TestLeoRoutes {
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider)
-  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                                         FakeGoogleResourceService,
-                                         FakeGoogleComputeService,
-                                         new MockComputePollOperation)
+  val vpcInterp =
+    new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
   val dataprocInterp =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
@@ -96,7 +94,6 @@ trait TestLeoRoutes {
                                 MockWelderDAO)
   val gceInterp =
     new GceInterpreter[IO](Config.gceInterpreterConfig,
-                           new MockComputePollOperation(),
                            bucketHelper,
                            vpcInterp,
                            FakeGoogleComputeService,
@@ -182,7 +179,6 @@ trait TestLeoRoutes {
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,
     FakeGoogleComputeService,
-    new MockComputePollOperation,
     QueueFactory.makePublisherQueue()
   )
 

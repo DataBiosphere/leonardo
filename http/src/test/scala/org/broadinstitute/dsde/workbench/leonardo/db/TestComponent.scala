@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   RuntimeConfig,
   RuntimeName
 }
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.ServiceAccountKeyId
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.time.{Seconds, Span}
@@ -32,8 +31,6 @@ import slick.jdbc.JdbcProfile
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 
 trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtils with BeforeAndAfterAll {
 
@@ -120,8 +117,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   def fullClusterQueryByUniqueKey(cloudContext: CloudContext,
                                   clusterName: RuntimeName,
                                   destroyedDateOpt: Option[Instant]) = {
-    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
     import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery

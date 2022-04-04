@@ -6,7 +6,7 @@ import cats.Parallel
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.google2.{ComputePollOperation, GoogleComputeService, GoogleStorageService}
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, GoogleStorageService}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
@@ -60,7 +60,6 @@ object RuntimeService {
                             dockerDAO: DockerDAO[F],
                             googleStorageService: GoogleStorageService[F],
                             googleComputeService: GoogleComputeService[F],
-                            computePollOperation: ComputePollOperation[F],
                             publisherQueue: Queue[F, LeoPubsubMessage])(
     implicit F: Async[F],
     log: StructuredLogger[F],
@@ -76,7 +75,6 @@ object RuntimeService {
       dockerDAO,
       googleStorageService,
       googleComputeService,
-      computePollOperation,
       publisherQueue
     )
 }

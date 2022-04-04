@@ -9,7 +9,8 @@ import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import com.google.cloud.compute.v1.Operation.Status
+import com.github.benmanes.caffeine.cache.Caffeine
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Disk, Operation}
 import com.google.cloud.pubsub.v1.AckReplyConsumer
 import com.google.protobuf.Timestamp
@@ -20,14 +21,12 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesModels.PodStatus
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceAccountName
 import org.broadinstitute.dsde.workbench.google2.mock.{MockKubernetesService => _, _}
 import org.broadinstitute.dsde.workbench.google2.{
-  ComputePollOperation,
   DiskName,
   Event,
   GKEModels,
   GoogleDiskService,
   KubernetesModels,
   MachineTypeName,
-  OperationName,
   RegionName,
   ZoneName
 }
@@ -60,6 +59,7 @@ import org.scalatest.concurrent._
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.mockito.MockitoSugar
+import scalacache.caffeine.CaffeineCache
 
 import java.time.Instant
 import java.util.UUID
@@ -113,10 +113,7 @@ class LeoPubsubMessageSubscriberSpec
     new BucketHelper[IO](bucketHelperConfig, FakeGoogleStorageService, serviceAccountProvider)
 
   val vpcInterp =
-    new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                           resourceService,
-                           FakeGoogleComputeService,
-                           new MockComputePollOperation)
+    new VPCInterpreter[IO](Config.vpcInterpreterConfig, resourceService, FakeGoogleComputeService)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,
@@ -129,7 +126,6 @@ class LeoPubsubMessageSubscriberSpec
                                                    resourceService,
                                                    mockWelderDAO)
   val gceInterp = new GceInterpreter[IO](Config.gceInterpreterConfig,
-                                         new MockComputePollOperation(),
                                          bucketHelper,
                                          vpcInterp,
                                          FakeGoogleComputeService,
@@ -167,8 +163,8 @@ class LeoPubsubMessageSubscriberSpec
         updatedRuntime.get.asyncRuntimeFields shouldBe defined
         updatedRuntime.get.asyncRuntimeFields.get.stagingBucket.value should startWith("leostaging")
         updatedRuntime.get.asyncRuntimeFields.get.hostIp shouldBe None
-        updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "opName"
-        updatedRuntime.get.asyncRuntimeFields.get.proxyHostName.value shouldBe "258165385"
+        updatedRuntime.get.asyncRuntimeFields.get.operationName.value shouldBe "op"
+        updatedRuntime.get.asyncRuntimeFields.map(_.proxyHostName).isDefined shouldBe true
         updatedRuntime.get.runtimeImages.map(_.imageType) should contain(BootSource)
       }
 
@@ -218,12 +214,9 @@ class LeoPubsubMessageSubscriberSpec
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime = makeCluster(1).copy(status = RuntimeStatus.Deleting).saveWithRuntimeConfig(gceRuntimeConfig)
     val monitor = new MockRuntimeMonitor {
-      override def pollCheck(a: CloudService)(
-        googleProject: GoogleProject,
-        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-        operation: com.google.cloud.compute.v1.Operation,
-        action: RuntimeStatus
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] =
+      override def handlePollCheckCompletion(
+        a: CloudService
+      )(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): IO[Unit] =
         clusterQuery.completeDeletion(runtime.id, Instant.now()).transaction
     }
     val leoSubscriber = makeLeoSubscriber(runtimeMonitor = monitor, asyncTaskQueue = queue)
@@ -231,7 +224,6 @@ class LeoPubsubMessageSubscriberSpec
       for {
         tr <- traceId.ask[TraceId]
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-
         _ <- leoSubscriber.messageResponder(DeleteRuntimeMessage(runtime.id, None, Some(tr)))
         _ <- withInfiniteStream(
           asyncTaskProcessor.process,
@@ -277,15 +269,13 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "persist delete disk error when if fail to delete disk" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    val pollOperation = new MockComputePollOperation {
-      override def getZoneOperation(project: GoogleProject, zoneName: ZoneName, operationName: OperationName)(
-        implicit ev: Ask[IO, TraceId]
-      ): IO[Operation] = IO.pure(
-        Operation.newBuilder().setId(123).setName("opName").setTargetId(345).setStatus(Status.PENDING).build()
-      )
-    }
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, computePollOperation = pollOperation)
+    val diskService = new MockGoogleDiskService {
+      override def deleteDisk(project: GoogleProject, zone: ZoneName, diskName: DiskName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[OperationFuture[Operation, Operation]]] = IO.raiseError(new Exception(s"Fail to delete ${diskName}"))
+    }
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, diskInterp = diskService)
     val res =
       for {
         disk <- makePersistentDisk(None, Some(FormattedBy.GCE)).save()
@@ -303,7 +293,7 @@ class LeoPubsubMessageSubscriberSpec
           clusterErrorQuery.get(runtime.id).transaction.map { error =>
             val dummyNow = Instant.now()
             error.head.copy(timestamp = dummyNow) shouldBe RuntimeError(
-              s"Fail to delete ${disk.name} in a timely manner",
+              s"Fail to delete ${disk.name}",
               None,
               dummyNow
             )
@@ -364,11 +354,11 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle StartRuntimeMessage and start cluster" in isolatedDbTest {
-    val leoSubscriber = makeLeoSubscriber()
+    val gceAlg = MockRuntimeAlgebra
+    val leoSubscriber = makeLeoSubscriber(gceRuntimeAlgebra = gceAlg)
 
     val res =
       for {
-        now <- IO(Instant.now)
         runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Starting).saveWithRuntimeConfig(gceRuntimeConfig))
         tr <- traceId.ask[TraceId]
 
@@ -400,13 +390,6 @@ class LeoPubsubMessageSubscriberSpec
 
   it should "handle UpdateRuntimeMessage, resize dataproc cluster and setting DB status properly" in isolatedDbTest {
     val monitor = new MockRuntimeMonitor {
-      override def pollCheck(a: CloudService)(
-        googleProject: GoogleProject,
-        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-        operation: com.google.cloud.compute.v1.Operation,
-        action: RuntimeStatus
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.never
-
       override def process(
         a: CloudService
       )(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
@@ -441,15 +424,7 @@ class LeoPubsubMessageSubscriberSpec
   }
 
   it should "handle UpdateRuntimeMessage and stop the cluster when there's a machine type change" in isolatedDbTest {
-    val monitor = new MockRuntimeMonitor {
-      override def pollCheck(a: CloudService)(
-        googleProject: GoogleProject,
-        runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-        operation: com.google.cloud.compute.v1.Operation,
-        action: RuntimeStatus
-      )(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.never
-    }
-    val leoSubscriber = makeLeoSubscriber(monitor)
+    val leoSubscriber = makeLeoSubscriber()
 
     val res = for {
       runtime <- IO(makeCluster(1).copy(status = RuntimeStatus.Running).saveWithRuntimeConfig(gceRuntimeConfig))
@@ -477,7 +452,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle UpdateRuntimeMessage and go through a stop-start transition for machine type" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gceRuntimeAlgebra = MockRuntimeAlgebra)
 
     val res =
       for {
@@ -491,17 +466,11 @@ class LeoPubsubMessageSubscriberSpec
           asyncTaskProcessor.process,
           for {
             updatedRuntime <- clusterQuery.getClusterById(runtime.id).transaction
-            updatedRuntimeConfig <- updatedRuntime.traverse(r =>
-              RuntimeConfigQueries.getRuntimeConfig(r.runtimeConfigId).transaction
-            )
             patchInProgress <- patchQuery.isInprogress(runtime.id).transaction
           } yield {
             // runtime should be Starting after having gone through a stop -> update -> start
             updatedRuntime shouldBe defined
             updatedRuntime.get.status shouldBe RuntimeStatus.Starting
-            // machine type should be updated
-            updatedRuntimeConfig shouldBe defined
-            updatedRuntimeConfig.get.machineType shouldBe MachineTypeName("n1-highmem-64")
             patchInProgress shouldBe false
           }
         )
@@ -512,7 +481,7 @@ class LeoPubsubMessageSubscriberSpec
   it should "handle UpdateRuntimeMessage and restart runtime for persistent disk size update" in isolatedDbTest {
     val queue = Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
-    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue)
+    val leoSubscriber = makeLeoSubscriber(asyncTaskQueue = queue, gceRuntimeAlgebra = MockRuntimeAlgebra)
     val res =
       for {
         disk <- makePersistentDisk(None).copy(size = DiskSize(100)).save()
@@ -1725,7 +1694,6 @@ class LeoPubsubMessageSubscriberSpec
     runtimeMonitor: RuntimeMonitor[IO, CloudService] = MockRuntimeMonitor,
     asyncTaskQueue: Queue[IO, Task[IO]] =
       Queue.bounded[IO, Task[IO]](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global),
-    computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     gkeAlgebra: GKEAlgebra[IO] = new org.broadinstitute.dsde.workbench.leonardo.MockGKEService,
     diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
@@ -1738,6 +1706,15 @@ class LeoPubsubMessageSubscriberSpec
 
     implicit val monitor: RuntimeMonitor[IO, CloudService] = runtimeMonitor
 
+    val underlyingOperationFutureCache =
+      Caffeine
+        .newBuilder()
+        .maximumSize(50L)
+        .recordStats()
+        .build[Long, scalacache.Entry[OperationFuture[Operation, Operation]]]()
+    val operationFutureCache =
+      CaffeineCache[IO, Long, OperationFuture[Operation, Operation]](underlyingOperationFutureCache)
+
     new LeoPubsubMessageSubscriber[IO](
       LeoPubsubMessageSubscriberConfig(1,
                                        30 seconds,
@@ -1746,10 +1723,10 @@ class LeoPubsubMessageSubscriberSpec
       googleSubscriber,
       asyncTaskQueue,
       diskInterp,
-      computePollOperation,
       MockAuthProvider,
       gkeAlgebra,
-      azureInterp
+      azureInterp,
+      operationFutureCache
     )
   }
 

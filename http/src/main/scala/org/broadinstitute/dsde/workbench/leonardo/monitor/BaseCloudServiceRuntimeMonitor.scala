@@ -66,11 +66,6 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       }
     } yield ()
 
-  def pollCheck(googleProject: GoogleProject,
-                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                operation: com.google.cloud.compute.v1.Operation,
-                action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit]
-
   private[monitor] def handler(monitorContext: MonitorContext, monitorState: MonitorState): F[CheckResult] =
     for {
       now <- F.realTimeInstant
