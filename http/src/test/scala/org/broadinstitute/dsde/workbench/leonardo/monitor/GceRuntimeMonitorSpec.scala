@@ -7,8 +7,8 @@ import cats.mtl.Ask
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Instance.Status
 import com.google.cloud.compute.v1._
-import org.broadinstitute.dsde.workbench.google2.mock.{FakeGoogleComputeService, MockComputePollOperation}
-import org.broadinstitute.dsde.workbench.google2.{ComputePollOperation, GoogleComputeService, InstanceName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.mock.FakeGoogleComputeService
+import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, InstanceName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
@@ -590,7 +590,6 @@ class GceRuntimeMonitorSpec
 
   def gceRuntimeMonitor(
     googleComputeService: GoogleComputeService[IO] = FakeGoogleComputeService,
-    computePollOperation: ComputePollOperation[IO] = new MockComputePollOperation,
     publisherQueue: Queue[IO, LeoPubsubMessage] = QueueFactory.makePublisherQueue(),
     monitorStatusTimeouts: Option[Map[RuntimeStatus, FiniteDuration]] = None
   ): GceRuntimeMonitor[IO] = {
