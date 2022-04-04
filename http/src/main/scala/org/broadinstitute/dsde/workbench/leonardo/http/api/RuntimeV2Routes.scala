@@ -33,8 +33,34 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
           pathPrefix("v2" / "runtimes") {
+            pathEndOrSingleSlash {
+              parameterMap { params =>
+                get {
+                  complete(
+                    listRuntimesHandler(
+                      userInfo,
+                      None,
+                      params
+                    )
+                  )
+                }
+              }
+            } ~
             pathPrefix(workspaceIdSegment) { workspaceId =>
               pathPrefix("azure") {
+                pathEndOrSingleSlash {
+                  parameterMap { params =>
+                    get {
+                      complete(
+                        listRuntimesHandler(
+                          userInfo,
+                          Some(cloudContext),
+                          params
+                        )
+                      )
+                    }
+                  }
+                } ~
                 pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
                   pathEndOrSingleSlash {
                     post {

@@ -3,16 +3,8 @@ package service
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AzureImageUri,
-  CidrIP,
-  CreateAzureRuntimeRequest,
-  RuntimeName,
-  UpdateAzureRuntimeRequest,
-  WorkspaceId,
-  WsmJobId
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
+import org.broadinstitute.dsde.workbench.leonardo.{CreateAzureRuntimeRequest, AzureImageUri, WsmJobId, WorkspaceId, UpdateAzureRuntimeRequest, RuntimeName, AppContext, CidrIP}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 trait AzureService[F[_]] {
