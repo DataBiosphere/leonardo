@@ -11,10 +11,10 @@ import cats.syntax.all._
 import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
-import com.google.cloud.compute.v1.Operation
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
@@ -52,7 +52,6 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.HelmInterpreter
-import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
 import org.http4s.Request
 import org.http4s.blaze.client
 import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
