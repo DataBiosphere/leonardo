@@ -120,7 +120,7 @@ trait TestLeoRoutes {
   )
 
   val azureService =
-    new AzureServiceInterp[IO](serviceConfig,
+    new RuntimeV2ServiceInterp[IO](serviceConfig,
                                whitelistAuthProvider,
                                new MockWsmDAO,
                                new MockSamDAO,

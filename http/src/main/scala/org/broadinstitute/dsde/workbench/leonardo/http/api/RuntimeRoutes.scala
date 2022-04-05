@@ -10,11 +10,11 @@ import cats.effect.IO
 import cats.mtl.Ask
 import cats.syntax.all._
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
-import io.circe.{Decoder, DecodingFailure, Encoder}
+import io.circe.{Decoder, DecodingFailure}
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+import RuntimeRoutesCodec._
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{DeleteRuntimeRequest, RuntimeService}
@@ -23,7 +23,6 @@ import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-import java.net.URL
 import scala.concurrent.duration._
 
 class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
@@ -509,41 +508,4 @@ object RuntimeRoutes {
     }
   }
 
-  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct10(
-    "id",
-    "runtimeName",
-    "googleProject",
-    "cloudContext",
-    "auditInfo",
-    "runtimeConfig",
-    "proxyUrl",
-    "status",
-    "labels",
-    "patchInProgress"
-  )(x =>
-    (
-      x.id,
-      x.clusterName,
-      x.cloudContext.asString,
-      x.cloudContext,
-      x.auditInfo,
-      x.runtimeConfig,
-      x.proxyUrl,
-      x.status,
-      x.labels,
-      x.patchInProgress
-    )
-  )
-
 }
-
-final case class ListRuntimeResponse2(id: Long,
-                                      samResource: RuntimeSamResourceId,
-                                      clusterName: RuntimeName,
-                                      cloudContext: CloudContext,
-                                      auditInfo: AuditInfo,
-                                      runtimeConfig: RuntimeConfig,
-                                      proxyUrl: URL,
-                                      status: RuntimeStatus,
-                                      labels: LabelMap,
-                                      patchInProgress: Boolean)

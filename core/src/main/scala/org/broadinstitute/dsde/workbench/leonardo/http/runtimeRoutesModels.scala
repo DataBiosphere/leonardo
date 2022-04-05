@@ -1,12 +1,15 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{RegionName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
-
 import java.net.URL
 import java.time.Instant
+import JsonCodec._
+
+import io.circe.Encoder
+
 import scala.concurrent.duration.FiniteDuration
 
 sealed trait RuntimeConfigRequest extends Product with Serializable {
@@ -138,5 +141,47 @@ object GetRuntimeResponse {
     runtime.patchInProgress,
     runtime.customEnvironmentVariables,
     diskConfig
+  )
+}
+
+final case class ListRuntimeResponse2(id: Long,
+                                      workspaceId: Option[WorkspaceId],
+                                      samResource: RuntimeSamResourceId,
+                                      clusterName: RuntimeName,
+                                      cloudContext: CloudContext,
+                                      auditInfo: AuditInfo,
+                                      runtimeConfig: RuntimeConfig,
+                                      proxyUrl: URL,
+                                      status: RuntimeStatus,
+                                      labels: LabelMap,
+                                      patchInProgress: Boolean)
+
+object RuntimeRoutesCodec {
+  implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct11(
+    "id",
+    "workspaceId",
+    "runtimeName",
+    "googleProject",
+    "cloudContext",
+    "auditInfo",
+    "runtimeConfig",
+    "proxyUrl",
+    "status",
+    "labels",
+    "patchInProgress"
+  )(x =>
+    (
+      x.id,
+      x.workspaceId,
+      x.clusterName,
+      x.cloudContext.asString,
+      x.cloudContext,
+      x.auditInfo,
+      x.runtimeConfig,
+      x.proxyUrl,
+      x.status,
+      x.labels,
+      x.patchInProgress
+    )
   )
 }

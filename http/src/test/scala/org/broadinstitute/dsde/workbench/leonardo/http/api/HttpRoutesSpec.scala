@@ -50,7 +50,7 @@ class HttpRoutesSpec
       MockRuntimeServiceInterp,
       MockDiskServiceInterp,
       MockAppService,
-      new MockAzureServiceInterp,
+      new MockRuntimeV2Interp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

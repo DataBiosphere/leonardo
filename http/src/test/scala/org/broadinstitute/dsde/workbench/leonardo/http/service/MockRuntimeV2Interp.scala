@@ -9,7 +9,7 @@ import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import CommonTestData._
 
-class MockAzureServiceInterp extends AzureService[IO] {
+class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,

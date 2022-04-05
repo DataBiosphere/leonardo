@@ -11,8 +11,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
 import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.getRuntimeQueryByUniqueKey
-import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
-import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeNotFoundException
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
@@ -167,7 +166,32 @@ object RuntimeServiceDbQueries {
         .filter(_.cloudContextDb === p.asCloudContextDb)
         .filter(_.cloudProvider === p.cloudProvider)
     )
-    val runtimeQueryJoinedWithLabel = runtimeLabelQuery(clusterQueryFilteredByProject)
+
+    joinAndFilterByLabelForList(labelMap, clusterQueryFilteredByProject)
+  }
+
+  def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, workspaceId: Option[WorkspaceId], cloudProvider: Option[CloudProvider])(
+    implicit ec: ExecutionContext
+  ): DBIO[List[ListRuntimeResponse2]] = {
+    val runtimeQueryFilteredByDeletion =
+      if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
+    val runtimeQueryFilteredByProvider = cloudProvider.fold(runtimeQueryFilteredByDeletion)(provider =>
+      runtimeQueryFilteredByDeletion
+        .filter(_.cloudProvider === provider)
+    )
+    val runtimeQueryFilteredByWorkspace =
+      workspaceId.fold(runtimeQueryFilteredByProvider)(_ =>
+        runtimeQueryFilteredByProvider
+          .filter(c => c.workspaceId.isDefined && c.workspaceId === workspaceId)
+    )
+
+    joinAndFilterByLabelForList(labelMap, runtimeQueryFilteredByWorkspace)
+  }
+
+  private def joinAndFilterByLabelForList(labelMap: LabelMap, baseQuery: Query[ClusterTable, ClusterRecord, Seq])(
+    implicit ec: ExecutionContext
+  ): DBIO[List[ListRuntimeResponse2]] = {
+    val runtimeQueryJoinedWithLabel = runtimeLabelQuery(baseQuery)
 
     val runtimeQueryFilteredByLabel = if (labelMap.isEmpty) {
       runtimeQueryJoinedWithLabel
@@ -211,16 +235,17 @@ object RuntimeServiceDbQueries {
           }
           ListRuntimeResponse2(
             runtimeRec.id,
+            runtimeRec.workspaceId,
             RuntimeSamResourceId(runtimeRec.internalId),
             runtimeRec.runtimeName,
             runtimeRec.cloudContext,
             runtimeRec.auditInfo,
             runtimeConfig,
             Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                                runtimeRec.cloudContext,
-                                runtimeRec.runtimeName,
-                                Set.empty,
-                                lmp),
+              runtimeRec.cloudContext,
+              runtimeRec.runtimeName,
+              Set.empty,
+              lmp),
             runtimeRec.status,
             lmp,
             patchInProgress
@@ -228,4 +253,5 @@ object RuntimeServiceDbQueries {
       }.toList
     }
   }
+
 }

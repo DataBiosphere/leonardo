@@ -50,7 +50,7 @@ trait WsmDao[F[_]] {
   ): F[DeleteWsmResourceResult]
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[WorkspaceDescription]
+  ): F[Option[WorkspaceDescription]]
 }
 
 final case class WorkspaceDescription(id: WorkspaceId, displayName: String, azureContext: Option[AzureCloudContext], gcpContext: Option[GoogleProject])
