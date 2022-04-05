@@ -7,7 +7,6 @@ import cats.Parallel
 import cats.effect.Async
 import cats.effect.std.Queue
 import cats.syntax.all._
-import cats.syntax.OptionSyntax
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
@@ -26,7 +25,6 @@ import java.time.Instant
 
 import JsonCodec._
 import cats.data.NonEmptyList
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 import scala.concurrent.ExecutionContext
 
