@@ -243,15 +243,6 @@ if [ "${GPU_ENABLED}" == "true" ] ; then
   $GSUTIL_CMD cp ${GPU_DOCKER_COMPOSE} ${DOCKER_COMPOSE_FILES_DIRECTORY}
 fi
 
-# Resize persistent disk if needed.
-# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
-# a dedicated flag that distinguishes gce and dataproc. But this will do for now
-# If it's GCE, we resize the PD. Dataproc doesn't have PD
-if [ -f "/var/certs/jupyter-server.crt" ]; then
-  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-  resize2fs /dev/${DISK_DEVICE_ID}
-fi
-
 log 'Copying secrets from GCS...'
 
 # Add the certificates from the bucket to the VM. They are used by the docker-compose file
@@ -538,6 +529,15 @@ IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME" >> /usr/local/lib/R/etc/Renviron.site'
 
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
+fi
+
+# Resize persistent disk if needed.
+# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
+# a dedicated flag that distinguishes gce and dataproc. But this will do for now
+# If it's GCE, we resize the PD. Dataproc doesn't have PD
+if [ -f "/var/certs/jupyter-server.crt" ]; then
+  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+  resize2fs /dev/${DISK_DEVICE_ID}
 fi
 
 # Remove any unneeded cached images to save disk space.
