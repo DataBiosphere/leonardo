@@ -48,22 +48,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                 }
               }
             } ~
-            pathPrefix(workspaceIdSegment) { workspaceId =>
-              pathEndOrSingleSlash {
-                parameterMap { params =>
-                  get {
-                    complete(
-                      listRuntimesHandler(
-                        userInfo,
-                        Some(workspaceId),
-                        None,
-                        params
-                      )
-                    )
-                  }
-                }
-              } ~
-              pathPrefix("azure") {
+              pathPrefix(workspaceIdSegment) { workspaceId =>
                 pathEndOrSingleSlash {
                   parameterMap { params =>
                     get {
@@ -71,49 +56,64 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                         listRuntimesHandler(
                           userInfo,
                           Some(workspaceId),
-                          Some(CloudProvider.Azure),
+                          None,
                           params
                         )
                       )
                     }
                   }
                 } ~
-                pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
-                  pathEndOrSingleSlash {
-                    post {
-                      entity(as[CreateAzureRuntimeRequest]) { req =>
-                        complete(
-                          createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
-                        )
-                      }
-                    } ~ get {
-                      complete(
-                        getAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
-                      )
-                    } ~ patch {
-                      entity(as[UpdateAzureRuntimeRequest]) { req =>
-                        complete(
-                          updateAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
-                        )
-                      }
-                    } ~ delete {
-                      complete(
-                        deleteAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
-                      )
-                    }
-                  } ~
-                    path("stop") {
-                      post {
-                        failWith(new NotImplementedError)
+                  pathPrefix("azure") {
+                    pathEndOrSingleSlash {
+                      parameterMap { params =>
+                        get {
+                          complete(
+                            listRuntimesHandler(
+                              userInfo,
+                              Some(workspaceId),
+                              Some(CloudProvider.Azure),
+                              params
+                            )
+                          )
+                        }
                       }
                     } ~
-                    path("start") {
-                      post {
-                        failWith(new NotImplementedError)
+                      pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
+                        pathEndOrSingleSlash {
+                          post {
+                            entity(as[CreateAzureRuntimeRequest]) { req =>
+                              complete(
+                                createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
+                              )
+                            }
+                          } ~ get {
+                            complete(
+                              getAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
+                            )
+                          } ~ patch {
+                            entity(as[UpdateAzureRuntimeRequest]) { req =>
+                              complete(
+                                updateAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
+                              )
+                            }
+                          } ~ delete {
+                            complete(
+                              deleteAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
+                            )
+                          }
+                        } ~
+                          path("stop") {
+                            post {
+                              failWith(new NotImplementedError)
+                            }
+                          } ~
+                          path("start") {
+                            post {
+                              failWith(new NotImplementedError)
+                            }
+                          }
                       }
-                    }
-                }
-              } //~
+                  } //~
 //              pathPrefix("gcp") {
 //                pathPrefix(Segment) { runtimeNameString =>
 //                  RouteValidation.validateNameDirective(runtimeNameString, RuntimeName.apply) { runtimeName =>
@@ -128,7 +128,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
 //                  }
 //                }
 //              }
-            }
+              }
           }
         }
       }
@@ -199,8 +199,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                                        workspaceId: Option[WorkspaceId],
                                        cloudProvider: Option[CloudProvider],
                                        params: Map[String, String])(
-                                        implicit ev: Ask[IO, AppContext]
-                                      ): IO[ToResponseMarshallable] =
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
       apiCall = runtimeV2Service.listRuntimes(userInfo, workspaceId, cloudProvider, params)

@@ -11,11 +11,11 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Zon
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   deleteDefaultLabelsDecodingFailure,
+  getRuntimeResponseEncoder,
   negativeNumberDecodingFailure,
   oneWorkerSpecifiedDecodingFailure,
   updateDefaultLabelDecodingFailure,
-  upsertEmptyLabelDecodingFailure,
-  getRuntimeResponseEncoder
+  upsertEmptyLabelDecodingFailure
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import RuntimeRoutesCodec._
@@ -345,38 +345,38 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
     val res = input.asJson.spaces2
     res shouldBe
       s"""{
-        |  "id" : -1,
-        |  "workspaceId": ${workspaceId.toString}
-        |  "runtimeName" : "clustername1",
-        |  "googleProject" : "dsp-leo-test",
-        |  "cloudContext" : {
-        |    "cloudProvider" : "GCP",
-        |    "cloudResource" : "dsp-leo-test"
-        |  },
-        |  "auditInfo" : {
-        |    "creator" : "user1@example.com",
-        |    "createdDate" : "2020-11-20T17:23:24.650Z",
-        |    "destroyedDate" : null,
-        |    "dateAccessed" : "2020-11-20T17:23:24.650Z"
-        |  },
-        |  "runtimeConfig" : {
-        |    "machineType" : "n1-standard-4",
-        |    "diskSize" : 500,
-        |    "cloudService" : "GCE",
-        |    "bootDiskSize" : 50,
-        |    "zone" : "us-west2-b",
-        |    "gpuConfig" : {
-        |      "gpuType" : "nvidia-tesla-t4",
-        |      "numOfGpus" : 2
-        |    }
-        |  },
-        |  "proxyUrl" : "https://leo.org/proxy",
-        |  "status" : "Running",
-        |  "labels" : {
-        |    "foo" : "bar"
-        |  },
-        |  "patchInProgress" : true
-        |}""".stripMargin
+         |  "id" : -1,
+         |  "workspaceId": ${workspaceId.toString}
+         |  "runtimeName" : "clustername1",
+         |  "googleProject" : "dsp-leo-test",
+         |  "cloudContext" : {
+         |    "cloudProvider" : "GCP",
+         |    "cloudResource" : "dsp-leo-test"
+         |  },
+         |  "auditInfo" : {
+         |    "creator" : "user1@example.com",
+         |    "createdDate" : "2020-11-20T17:23:24.650Z",
+         |    "destroyedDate" : null,
+         |    "dateAccessed" : "2020-11-20T17:23:24.650Z"
+         |  },
+         |  "runtimeConfig" : {
+         |    "machineType" : "n1-standard-4",
+         |    "diskSize" : 500,
+         |    "cloudService" : "GCE",
+         |    "bootDiskSize" : 50,
+         |    "zone" : "us-west2-b",
+         |    "gpuConfig" : {
+         |      "gpuType" : "nvidia-tesla-t4",
+         |      "numOfGpus" : 2
+         |    }
+         |  },
+         |  "proxyUrl" : "https://leo.org/proxy",
+         |  "status" : "Running",
+         |  "labels" : {
+         |    "foo" : "bar"
+         |  },
+         |  "patchInProgress" : true
+         |}""".stripMargin
   }
 
   it should "encode GetRuntimeResponse" in {

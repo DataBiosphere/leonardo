@@ -113,15 +113,18 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def getWorkspace(workspaceId: WorkspaceId,
-                            authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[Option[WorkspaceDescription]] =
+  override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[Option[WorkspaceDescription]] =
     IO.pure(
-      Some(WorkspaceDescription(
-        workspaceId,
-        "workspaceName",
-        Some(CommonTestData.azureCloudContext),
-        None
-      ))
+      Some(
+        WorkspaceDescription(
+          workspaceId,
+          "workspaceName",
+          Some(CommonTestData.azureCloudContext),
+          None
+        )
+      )
     )
 
   override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(

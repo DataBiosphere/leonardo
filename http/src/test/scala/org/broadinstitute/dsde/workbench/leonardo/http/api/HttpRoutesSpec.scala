@@ -440,7 +440,6 @@ class HttpRoutesSpec
     }
   }
 
-
   it should "list runtimes v2 with a workspace and cloud context" in {
     Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure") ~> routes.route ~> check {
       status shouldEqual StatusCodes.OK
@@ -454,8 +453,10 @@ class HttpRoutesSpec
     def saLabels = Map("clusterServiceAccount" -> "user1@example.com")
     def runtimesWithLabels(i: Int) =
       defaultCreateAzureRuntimeReq
-        .copy(labels = Map(s"label$i" -> s"value$i"),
-             azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName(s"azureDisk-$i")))
+        .copy(
+          labels = Map(s"label$i" -> s"value$i"),
+          azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName(s"azureDisk-$i"))
+        )
 
     for (i <- 1 to 10) {
       Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-$i", runtimesWithLabels(i).asJson) ~> httpRoutes.route ~> check {
@@ -473,12 +474,12 @@ class HttpRoutesSpec
       cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
       cluster.clusterName shouldEqual RuntimeName(s"azureruntime-6")
       cluster.labels shouldEqual Map(
-      "clusterName" -> s"azureruntime-6",
-      "runtimeName" -> s"azureruntime-6",
-      "creator" -> "user1@example.com",
-      "cloudContext" -> cluster.cloudContext.asStringWithProvider,
-      "tool" -> "Azure",
-      "label6" -> "value6"
+        "clusterName" -> s"azureruntime-6",
+        "runtimeName" -> s"azureruntime-6",
+        "creator" -> "user1@example.com",
+        "cloudContext" -> cluster.cloudContext.asStringWithProvider,
+        "tool" -> "Azure",
+        "label6" -> "value6"
       ) ++ saLabels
 
       validateRawCookie(header("Set-Cookie"))
@@ -494,12 +495,12 @@ class HttpRoutesSpec
       cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
       cluster.clusterName shouldEqual RuntimeName(s"azureruntime-4")
       cluster.labels shouldEqual Map(
-      "clusterName" -> s"azureruntime-4",
-      "runtimeName" -> s"azureruntime-4",
-      "creator" -> "user1@example.com",
-      "cloudContext" -> cluster.cloudContext.asStringWithProvider,
-      "tool" -> "Azure",
-      "label4" -> "value4"
+        "clusterName" -> s"azureruntime-4",
+        "runtimeName" -> s"azureruntime-4",
+        "creator" -> "user1@example.com",
+        "cloudContext" -> cluster.cloudContext.asStringWithProvider,
+        "tool" -> "Azure",
+        "label4" -> "value4"
       ) ++ saLabels
 
       //validateCookie { header[`Set-Cookie`] }

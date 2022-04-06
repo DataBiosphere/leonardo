@@ -140,7 +140,13 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       dbFutureValue {
         for {
           saved <- clusterQuery.save(
-            SaveCluster(cluster, Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))), serviceAccountKeyId, CommonTestData.defaultDataprocRuntimeConfig, Instant.now)
+            SaveCluster(
+              cluster,
+              Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
+              serviceAccountKeyId,
+              CommonTestData.defaultDataprocRuntimeConfig,
+              Instant.now
+            )
           )
           _ <- instanceQuery
             .saveAllForCluster(saved.id, dataprocInstances)
@@ -156,7 +162,11 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       dbFutureValue {
         for {
           saved <- clusterQuery.save(
-            SaveCluster(cluster, Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))), serviceAccountKeyId, runtimeConfig, Instant.now)
+            SaveCluster(cluster,
+                        Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
+                        serviceAccountKeyId,
+                        runtimeConfig,
+                        Instant.now)
           )
           _ <- instanceQuery
             .saveAllForCluster(saved.id, dataprocInstances)

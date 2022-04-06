@@ -3,7 +3,17 @@ package service
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
-import org.broadinstitute.dsde.workbench.leonardo.{CreateAzureRuntimeRequest, AzureImageUri, WsmJobId, WorkspaceId, UpdateAzureRuntimeRequest, CloudProvider, RuntimeName, AppContext, CidrIP}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  AppContext,
+  AzureImageUri,
+  CidrIP,
+  CloudProvider,
+  CreateAzureRuntimeRequest,
+  RuntimeName,
+  UpdateAzureRuntimeRequest,
+  WorkspaceId,
+  WsmJobId
+}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 //TODO: all functions but non-workspace-specific list are currently azure-specific
@@ -31,7 +41,10 @@ trait RuntimeV2Service[F[_]] {
     implicit as: Ask[F, AppContext]
   ): F[Unit]
 
-  def listRuntimes(userInfo: UserInfo, workspaceId: Option[WorkspaceId], cloudProvider: Option[CloudProvider], params: Map[String, String])(
+  def listRuntimes(userInfo: UserInfo,
+                   workspaceId: Option[WorkspaceId],
+                   cloudProvider: Option[CloudProvider],
+                   params: Map[String, String])(
     implicit as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
 }

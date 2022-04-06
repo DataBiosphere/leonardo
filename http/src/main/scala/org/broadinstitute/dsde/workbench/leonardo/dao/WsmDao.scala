@@ -7,8 +7,16 @@ import ca.mrvisser.sealerate
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import _root_.io.circe._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{wsmControlledResourceIdEncoder, azureMachineTypeEncoder, runtimeNameEncoder, wsmJobIdEncoder, wsmJobIdDecoder, azureRegionEncoder, googleProjectDecoder}
-import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, TraceId}
+import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
+  azureMachineTypeEncoder,
+  azureRegionEncoder,
+  googleProjectDecoder,
+  runtimeNameEncoder,
+  wsmControlledResourceIdEncoder,
+  wsmJobIdDecoder,
+  wsmJobIdEncoder
+}
+import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.http4s.headers.Authorization
 import java.time.ZonedDateTime
 
@@ -53,7 +61,10 @@ trait WsmDao[F[_]] {
   ): F[Option[WorkspaceDescription]]
 }
 
-final case class WorkspaceDescription(id: WorkspaceId, displayName: String, azureContext: Option[AzureCloudContext], gcpContext: Option[GoogleProject])
+final case class WorkspaceDescription(id: WorkspaceId,
+                                      displayName: String,
+                                      azureContext: Option[AzureCloudContext],
+                                      gcpContext: Option[GoogleProject])
 
 //Azure Vm Models
 final case class CreateVmRequest(workspaceId: WorkspaceId,

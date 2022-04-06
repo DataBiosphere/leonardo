@@ -11,15 +11,23 @@ import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{WsmResourceSamResourceId, PersistentDiskSamResourceId, WorkspaceResourceSamResourceId, RuntimeSamResourceId}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{
+  PersistentDiskSamResourceId,
+  RuntimeSamResourceId,
+  WorkspaceResourceSamResourceId,
+  WsmResourceSamResourceId
+}
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
+  CreateAzureRuntimeMessage,
+  DeleteAzureRuntimeMessage
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.CreateAzureRuntimeParams
-import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.headers.Authorization
 import java.time.Instant
 import java.util.UUID
@@ -56,8 +64,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-        case (_, Some(gcpContext)) => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
-        case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (None, None)            => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
       }
 
       samResource = WorkspaceResourceSamResourceId(workspaceId.value.toString)
@@ -94,7 +102,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             )
 
             runtime = convertToRuntime(workspaceId,
-                                        runtimeName,
+                                       runtimeName,
                                        cloudContext,
                                        userInfo,
                                        req,
@@ -140,8 +148,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-        case (_, Some(gcpContext)) => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
-        case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (None, None)            => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
       }
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
@@ -178,8 +186,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
-        case (_, Some(gcpContext)) => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
-        case (None, None) => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (None, None)            => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
       }
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
@@ -214,7 +222,12 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
     } yield ()
 
-  override def listRuntimes(userInfo: UserInfo, workspaceId: Option[WorkspaceId], cloudProvider: Option[CloudProvider], params: Map[String, String])(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
+  override def listRuntimes(
+    userInfo: UserInfo,
+    workspaceId: Option[WorkspaceId],
+    cloudProvider: Option[CloudProvider],
+    params: Map[String, String]
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
     for {
       paramMap <- F.fromEither(processListParameters(params))
 
@@ -225,16 +238,23 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
       // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
       // If not, we don't have the right sam id anyways to look up the vm at this stage
-      runtimeSamIds = runtimesUserIsNotCreator.map { r =>
-        for {
-          uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId))
-        } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
-      }.flatMap(either => either match {
-        case Right(id) => List(id)
-        case Left(_) => List.empty
-      })
+      runtimeSamIds = runtimesUserIsNotCreator
+        .map { r =>
+          for {
+            uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId))
+          } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
+        }
+        .flatMap(either =>
+          either match {
+            case Right(id) => List(id)
+            case Left(_)   => List.empty
+          }
+        )
 
-      _ <- if (runtimeSamIds.length < runtimesUserIsNotCreator.length) logger.info(s"Omitted ${runtimesUserIsNotCreator.length - runtimeSamIds.length} from sam lookup in listRuntimes because the runtime's sam ID was not a valid UUID. This likely means it has not been updated in back leo by wsm")
+      _ <- if (runtimeSamIds.length < runtimesUserIsNotCreator.length)
+        logger.info(
+          s"Omitted ${runtimesUserIsNotCreator.length - runtimeSamIds.length} from sam lookup in listRuntimes because the runtime's sam ID was not a valid UUID. This likely means it has not been updated in back leo by wsm"
+        )
       else F.unit
 
       vmResourceSamIds = NonEmptyList.fromList(runtimeSamIds)
@@ -243,7 +263,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       }
 
       userVisibleRuntimes = runtimesUserIsCreator ++ runtimesUserIsNotCreator.filter(r =>
-        samVisibleRuntimeIds.map(id => RuntimeSamResourceId(id.resourceId))
+        samVisibleRuntimeIds
+          .map(id => RuntimeSamResourceId(id.resourceId))
           .contains(r.samResource)
       )
 
@@ -446,7 +467,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, ctx.now).transaction.void
 
   private def convertToRuntime(workspaceId: WorkspaceId,
-                                runtimeName: RuntimeName,
+                               runtimeName: RuntimeName,
                                cloudContext: CloudContext,
                                userInfo: UserInfo,
                                request: CreateAzureRuntimeRequest,
@@ -500,21 +521,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
 }
 
-final case class WorkspaceNotFoundException(workspaceId: WorkspaceId,
-                                                                 traceId: TraceId)
-  extends LeoException(
-    s"WorkspaceId not found in workspace manager for workkspace ${workspaceId}",
-    StatusCodes.NotFound,
-    traceId = Some(traceId)
-  )
+final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
+    extends LeoException(
+      s"WorkspaceId not found in workspace manager for workkspace ${workspaceId}",
+      StatusCodes.NotFound,
+      traceId = Some(traceId)
+    )
 
-final case class CloudContextNotFoundException(workspaceId: WorkspaceId,
-                                               traceId: TraceId)
-  extends LeoException(
-    s"Cloud context not found in workspace manager for workspace ${workspaceId}",
-    StatusCodes.NotFound,
-    traceId = Some(traceId)
-  )
+final case class CloudContextNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
+    extends LeoException(
+      s"Cloud context not found in workspace manager for workspace ${workspaceId}",
+      StatusCodes.NotFound,
+      traceId = Some(traceId)
+    )
 
 final case class AzureRuntimeControlledResourceNotFoundException(cloudContext: CloudContext,
                                                                  runtimeName: RuntimeName,

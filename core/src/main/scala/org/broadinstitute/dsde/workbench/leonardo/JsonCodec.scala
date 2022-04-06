@@ -552,11 +552,10 @@ object JsonCodec {
     Decoder.decodeString.map(x => ProjectSamResourceId(GoogleProject(x)))
   implicit val wsmResourceSamResourceIdDecoder: Decoder[WsmResourceSamResourceId] =
     Decoder.decodeString.emap(x =>
-      Either.catchNonFatal(
-        WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(x))))
-      .leftMap(_.getMessage)
+      Either
+        .catchNonFatal(WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(x))))
+        .leftMap(_.getMessage)
     )
-
 
   implicit val errorSourceDecoder: Decoder[ErrorSource] =
     Decoder.decodeString.emap(s => ErrorSource.stringToObject.get(s).toRight(s"Invalid error source ${s}"))
@@ -657,8 +656,9 @@ object JsonCodec {
 
   implicit val wsmControlledResourceIdDecoder: Decoder[WsmControlledResourceId] =
     Decoder.decodeString.emap(x =>
-      Either.catchNonFatal(WsmControlledResourceId(UUID.fromString(x)))
-      .leftMap(_.getMessage)
+      Either
+        .catchNonFatal(WsmControlledResourceId(UUID.fromString(x)))
+        .leftMap(_.getMessage)
     )
 
   implicit val azureMachineTypeEncoder: Encoder[VirtualMachineSizeTypes] = Encoder.encodeString.contramap(_.toString)

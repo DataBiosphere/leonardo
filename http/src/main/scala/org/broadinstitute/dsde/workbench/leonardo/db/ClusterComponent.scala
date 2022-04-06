@@ -10,8 +10,19 @@ import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimeToMonitor, RuntimeToAutoPause, ExtraInfoForCreateRuntime}
-import org.broadinstitute.dsde.workbench.model.google.{ServiceAccountKeyId, parseGcsPath, GcsBucketName, GcsPathSupport, GoogleProject, GcsPath}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  ExtraInfoForCreateRuntime,
+  RuntimeToAutoPause,
+  RuntimeToMonitor
+}
+import org.broadinstitute.dsde.workbench.model.google.{
+  parseGcsPath,
+  GcsBucketName,
+  GcsPath,
+  GcsPathSupport,
+  GoogleProject,
+  ServiceAccountKeyId
+}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import java.sql.SQLDataException
 import java.time.Instant
@@ -604,8 +615,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
-  private def marshalCluster(runtime: Runtime,
-                             initBucket: Option[String]): ClusterRecord =
+  private def marshalCluster(runtime: Runtime, initBucket: Option[String]): ClusterRecord =
     ClusterRecord(
       id = 0, // DB AutoInc
       runtime.samResource.resourceId,
@@ -780,4 +790,8 @@ final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                                   asyncRuntimeFields: Option[AsyncRuntimeFields],
                                                   dateAccessed: Instant)
 
-final case class SaveCluster(cluster: Runtime, initBucket: Option[GcsPath] = None, serviceAccountKeyId: Option[ServiceAccountKeyId] = None, runtimeConfig: RuntimeConfig, now: Instant)
+final case class SaveCluster(cluster: Runtime,
+                             initBucket: Option[GcsPath] = None,
+                             serviceAccountKeyId: Option[ServiceAccountKeyId] = None,
+                             runtimeConfig: RuntimeConfig,
+                             now: Instant)

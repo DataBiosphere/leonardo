@@ -121,11 +121,11 @@ trait TestLeoRoutes {
 
   val azureService =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
-                               whitelistAuthProvider,
-                               new MockWsmDAO,
-                               new MockSamDAO,
-                               QueueFactory.asyncTaskQueue,
-                               QueueFactory.makePublisherQueue())
+                                   whitelistAuthProvider,
+                                   new MockWsmDAO,
+                                   new MockSamDAO,
+                                   QueueFactory.asyncTaskQueue,
+                                   QueueFactory.makePublisherQueue())
 
   val underlyingRuntimeDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()

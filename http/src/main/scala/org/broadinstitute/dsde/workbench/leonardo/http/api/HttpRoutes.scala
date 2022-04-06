@@ -26,16 +26,16 @@ import org.typelevel.log4cats.StructuredLogger
 import scala.concurrent.{ExecutionContext, Future}
 
 class HttpRoutes(
-                  swaggerConfig: SwaggerConfig,
-                  statusService: StatusService,
-                  proxyService: ProxyService,
-                  runtimeService: RuntimeService[IO],
-                  diskService: DiskService[IO],
-                  kubernetesService: AppService[IO],
-                  azureService: RuntimeV2Service[IO],
-                  userInfoDirectives: UserInfoDirectives,
-                  contentSecurityPolicy: String,
-                  refererConfig: RefererConfig
+  swaggerConfig: SwaggerConfig,
+  statusService: StatusService,
+  proxyService: ProxyService,
+  runtimeService: RuntimeService[IO],
+  diskService: DiskService[IO],
+  kubernetesService: AppService[IO],
+  azureService: RuntimeV2Service[IO],
+  userInfoDirectives: UserInfoDirectives,
+  contentSecurityPolicy: String,
+  refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
   private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)

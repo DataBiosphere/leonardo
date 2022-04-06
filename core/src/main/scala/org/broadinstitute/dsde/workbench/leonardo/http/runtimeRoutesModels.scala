@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package http
 
-import org.broadinstitute.dsde.workbench.google2.{RegionName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import java.net.URL

@@ -170,7 +170,10 @@ object RuntimeServiceDbQueries {
     joinAndFilterByLabelForList(labelMap, clusterQueryFilteredByProject)
   }
 
-  def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, workspaceId: Option[WorkspaceId], cloudProvider: Option[CloudProvider])(
+  def listRuntimes(labelMap: LabelMap,
+                   includeDeleted: Boolean,
+                   workspaceId: Option[WorkspaceId],
+                   cloudProvider: Option[CloudProvider])(
     implicit ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByDeletion =
@@ -186,7 +189,6 @@ object RuntimeServiceDbQueries {
       runtimeQueryFilteredByWorkspace
         .filter(_.cloudProvider === provider)
     )
-
 
     joinAndFilterByLabelForList(labelMap, runtimeQueryFilteredByProvider)
   }
@@ -245,10 +247,10 @@ object RuntimeServiceDbQueries {
             runtimeRec.auditInfo,
             runtimeConfig,
             Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-              runtimeRec.cloudContext,
-              runtimeRec.runtimeName,
-              Set.empty,
-              lmp),
+                                runtimeRec.cloudContext,
+                                runtimeRec.runtimeName,
+                                Set.empty,
+                                lmp),
             runtimeRec.status,
             lmp,
             patchInProgress

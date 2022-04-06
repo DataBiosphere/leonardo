@@ -9,7 +9,13 @@ import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.db.{LabelResourceType, clusterQuery, TestComponent, labelQuery, RuntimeServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  clusterQuery,
+  labelQuery,
+  LabelResourceType,
+  RuntimeServiceDbQueries,
+  TestComponent
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 import org.scalatest.concurrent.ScalaFutures
 
@@ -219,16 +225,15 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-
   it should "list runtimesV2 including deleted" in isolatedDbTest {
     val res = for {
       start <- IO.realTimeInstant
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
-        Some(d1.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None)
+                                                      Some(d1.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = ZoneName("us-west2-b"),
+                                                      None)
       c1 <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Deleted)
@@ -236,20 +241,17 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
-        Some(d2.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        CommonTestData.gpuConfig)
+                                                      Some(d2.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = ZoneName("us-west2-b"),
+                                                      CommonTestData.gpuConfig)
       c2 <- IO(
         makeCluster(2)
           .copy(status = RuntimeStatus.Deleted)
           .saveWithRuntimeConfig(c2RuntimeConfig)
       )
       d3 <- makePersistentDisk(Some(DiskName("d3"))).save()
-      c3RuntimeConfig =  RuntimeConfig.AzureConfig(defaultMachineType,
-        d3.id,
-        azureRegion
-      )
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, d3.id, azureRegion)
       c3 <- IO(
         makeCluster(3).saveWithRuntimeConfig(
           c3RuntimeConfig
@@ -281,10 +283,10 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
 
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
-        Some(d1.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None)
+                                                      Some(d1.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = ZoneName("us-west2-b"),
+                                                      None)
       c1 <- IO(
         makeCluster(1)
           .copy(workspaceId = Some(workspaceId1))
@@ -293,22 +295,18 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
 
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
-        Some(d2.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        CommonTestData.gpuConfig)
+                                                      Some(d2.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = ZoneName("us-west2-b"),
+                                                      CommonTestData.gpuConfig)
       c2 <- IO(
         makeCluster(2)
-          .copy(workspaceId = Some(workspaceId1),
-               status = RuntimeStatus.Deleted)
+          .copy(workspaceId = Some(workspaceId1), status = RuntimeStatus.Deleted)
           .saveWithRuntimeConfig(c2RuntimeConfig)
       )
 
       d3 <- makePersistentDisk(None).save()
-      c3RuntimeConfig =  RuntimeConfig.AzureConfig(defaultMachineType,
-        d3.id,
-        azureRegion
-      )
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, d3.id, azureRegion)
       c3 <- IO(
         makeCluster(3)
           .copy(workspaceId = Some(workspaceId2))
@@ -342,10 +340,10 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
 
       d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
       c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
-        Some(d1.id),
-        bootDiskSize = DiskSize(50),
-        zone = ZoneName("us-west2-b"),
-        None)
+                                                      Some(d1.id),
+                                                      bootDiskSize = DiskSize(50),
+                                                      zone = ZoneName("us-west2-b"),
+                                                      None)
       c1 <- IO(
         makeCluster(1)
           .copy(workspaceId = Some(workspaceId1))
@@ -353,49 +351,43 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       )
 
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
-      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType,
-        d2.id,
-        azureRegion
-      )
+      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, d2.id, azureRegion)
       c2 <- IO(
         makeCluster(2)
-          .copy(workspaceId = Some(workspaceId1),
-            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .copy(workspaceId = Some(workspaceId1), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
           .saveWithRuntimeConfig(
             c2RuntimeConfig
           )
       )
 
       d3 <- makePersistentDisk(None).save()
-      c3RuntimeConfig =  RuntimeConfig.AzureConfig(defaultMachineType,
-        d3.id,
-        azureRegion
-      )
+      c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, d3.id, azureRegion)
       c3 <- IO(
         makeCluster(3)
-          .copy(workspaceId = Some(workspaceId2),
-            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .copy(workspaceId = Some(workspaceId2), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
           .saveWithRuntimeConfig(
             c3RuntimeConfig
           )
       )
 
       d4 <- makePersistentDisk(Some(DiskName("d4"))).save()
-      c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType,
-        d4.id,
-        azureRegion
-      )
+      c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, d4.id, azureRegion)
       c4 <- IO(
         makeCluster(4)
-          .copy(workspaceId = Some(workspaceId1),
-            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .copy(workspaceId = Some(workspaceId1), cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
           .saveWithRuntimeConfig(
             c4RuntimeConfig
           )
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Azure)).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(workspaceId2), Some(CloudProvider.Azure)).transaction
-      list3 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Gcp)).transaction
+      list1 <- RuntimeServiceDbQueries
+        .listRuntimes(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Azure))
+        .transaction
+      list2 <- RuntimeServiceDbQueries
+        .listRuntimes(Map.empty, false, Some(workspaceId2), Some(CloudProvider.Azure))
+        .transaction
+      list3 <- RuntimeServiceDbQueries
+        .listRuntimes(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Gcp))
+        .transaction
       list4 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None, Some(CloudProvider.Azure)).transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
@@ -415,8 +407,6 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
-
-
 
   it should "get a runtime" in isolatedDbTest {
     val res = for {
