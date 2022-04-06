@@ -11,10 +11,10 @@ import cats.syntax.all._
 import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.api.gax.longrunning.OperationFuture
-import com.google.cloud.compute.v1.Operation
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
@@ -52,8 +52,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.HelmInterpreter
+import org.http4s.Request
 import org.http4s.blaze.client
-import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
+import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
@@ -291,6 +292,7 @@ object Boot extends IOApp {
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
       httpClient <- client
         .BlazeClientBuilder[F]
+        .withMaxWaitQueueLimit(512)
         .withSslContext(sslContext)
         // Note a custom resolver is needed for making requests through the Leo proxy
         // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
@@ -301,6 +303,14 @@ object Boot extends IOApp {
         httpClient
       )
       httpClientWithRetryAndLogging = Retry(retryPolicy)(httpClientWithLogging)
+
+      classifierFunc = (r: Request[F]) => Some(r.method.toString.toLowerCase)
+      metricsOps <- org.http4s.metrics.prometheus.Prometheus
+        .metricsOps(io.prometheus.client.CollectorRegistry.defaultRegistry, "http4s_client")
+      meteredClient = Metrics[F](
+        metricsOps,
+        classifierFunc
+      )(httpClientWithLogging)
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
       underlyingPetTokenCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[String]]](
@@ -312,10 +322,10 @@ object Boot extends IOApp {
       )(_.close)
 
       samDao = HttpSamDAO[F](httpClientWithRetryAndLogging, httpSamDaoConfig, petTokenCache)
-      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging)
-      welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientWithLogging)
-      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientWithLogging)
-      appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientWithLogging)
+      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, meteredClient)
+      welderDao = new HttpWelderDAO[F](runtimeDnsCache, meteredClient)
+      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, meteredClient)
+      appDAO = new HttpAppDAO(kubernetesDnsCache, meteredClient)
       dockerDao = HttpDockerDAO[F](httpClientWithRetryAndLogging)
       appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithRetryAndLogging)
       wsmDao = new HttpWsmDao[F](httpClientWithRetryAndLogging, ConfigReader.appConfig.azure.wsm)
