@@ -292,6 +292,7 @@ object Boot extends IOApp {
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
       httpClient <- client
         .BlazeClientBuilder[F]
+        .withMaxWaitQueueLimit(512)
         .withSslContext(sslContext)
         // Note a custom resolver is needed for making requests through the Leo proxy
         // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
