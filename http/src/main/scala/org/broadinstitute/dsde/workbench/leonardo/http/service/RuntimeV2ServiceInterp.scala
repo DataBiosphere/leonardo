@@ -62,6 +62,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
+      //TODO: when we fully support google here, do something intelligent instead of defaulting to azure
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
         case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
@@ -146,6 +147,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
+      //TODO: when we fully support google here, do something intelligent instead of defaulting to azure
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
         case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
@@ -184,6 +186,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
       workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
+      //TODO: when we fully support google here, do something intelligent instead of defaulting to azure
       cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
         case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
         case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
