@@ -234,7 +234,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Left(_) => List.empty
       })
 
-      _ <- if (runtimeSamIds.length < runtimesUserIsNotCreator.length) logger.info(s"Omitted ${runtimesUserIsNotCreator.length - runtimeSamIds.length} from sam lookup in listRuntimes because backleo has not updated the runtime with wsm UUID")
+      _ <- if (runtimeSamIds.length < runtimesUserIsNotCreator.length) logger.info(s"Omitted ${runtimesUserIsNotCreator.length - runtimeSamIds.length} from sam lookup in listRuntimes because the runtime's sam ID was not a valid UUID. This likely means it has not been updated in back leo by wsm")
       else F.unit
 
       vmResourceSamIds = NonEmptyList.fromList(runtimeSamIds)
@@ -242,7 +242,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         authProvider.filterUserVisible(ids, userInfo)
       }
 
-      userVisibleRuntimes = runtimesUserIsCreator ++ runtimesUserIsNotCreator.filter(r => samVisibleRuntimeIds.contains(r.samResource))
+      userVisibleRuntimes = runtimesUserIsCreator ++ runtimesUserIsNotCreator.filter(r =>
+        samVisibleRuntimeIds.map(id => RuntimeSamResourceId(id.resourceId))
+          .contains(r.samResource)
+      )
 
     } yield userVisibleRuntimes.toVector
 

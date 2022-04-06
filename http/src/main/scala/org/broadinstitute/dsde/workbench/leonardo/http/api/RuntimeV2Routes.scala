@@ -49,6 +49,20 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
               }
             } ~
             pathPrefix(workspaceIdSegment) { workspaceId =>
+              pathEndOrSingleSlash {
+                parameterMap { params =>
+                  get {
+                    complete(
+                      listRuntimesHandler(
+                        userInfo,
+                        Some(workspaceId),
+                        None,
+                        params
+                      )
+                    )
+                  }
+                }
+              } ~
               pathPrefix("azure") {
                 pathEndOrSingleSlash {
                   parameterMap { params =>
