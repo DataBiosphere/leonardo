@@ -12,14 +12,11 @@ import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -684,31 +681,4 @@ class HttpRoutesSpec
       contentSecurityPolicy,
       refererConfig
     )
-}
-
-object HttpRoutesSpec {
-  implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse2] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[Long]
-      clusterName <- x.downField("runtimeName").as[RuntimeName]
-      cloudContext <- x.downField("cloudContext").as[CloudContext]
-      auditInfo <- x.downField("auditInfo").as[AuditInfo]
-      machineConfig <- x.downField("runtimeConfig").as[RuntimeConfig]
-      clusterUrl <- x.downField("proxyUrl").as[URL]
-      status <- x.downField("status").as[RuntimeStatus]
-      labels <- x.downField("labels").as[LabelMap]
-      patchInProgress <- x.downField("patchInProgress").as[Boolean]
-    } yield ListRuntimeResponse2(
-      id,
-      RuntimeSamResourceId("fakeId"),
-      clusterName,
-      cloudContext,
-      auditInfo,
-      machineConfig,
-      clusterUrl,
-      status,
-      labels,
-      patchInProgress
-    )
-  }
 }

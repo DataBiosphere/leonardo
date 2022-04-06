@@ -37,4 +37,25 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
   override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
     implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.pure()
+
+  override def listRuntimes(userInfo: UserInfo, workspaceId: Option[WorkspaceId], cloudProvider: Option[CloudProvider], params: Map[String, String])(implicit as: Ask[IO, AppContext]): IO[Vector[ListRuntimeResponse2]] =
+    IO.pure(
+      Vector(
+        ListRuntimeResponse2(
+          CommonTestData.testCluster.id,
+          Some(CommonTestData.workspaceId),
+          CommonTestData.testCluster.samResource,
+          CommonTestData.testCluster.runtimeName,
+          CommonTestData.testCluster.cloudContext,
+          CommonTestData.testCluster.auditInfo,
+          RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
+            DiskId(-1),
+            azureRegion),
+          CommonTestData.testCluster.proxyUrl,
+          CommonTestData.testCluster.status,
+          CommonTestData.testCluster.labels,
+          CommonTestData.testCluster.patchInProgress
+        )
+      )
+    )
 }

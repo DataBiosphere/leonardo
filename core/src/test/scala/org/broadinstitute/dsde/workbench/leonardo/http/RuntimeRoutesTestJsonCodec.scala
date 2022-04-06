@@ -1,23 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo.http
 
 import io.circe.syntax._
-import io.circe.{Decoder, Encoder}
+import io.circe.{Encoder, Decoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AsyncRuntimeFields,
-  AuditInfo,
-  CloudContext,
-  CreateAzureDiskRequest,
-  CreateAzureRuntimeRequest,
-  LabelMap,
-  RuntimeConfig,
-  RuntimeError,
-  RuntimeImage,
-  RuntimeName,
-  RuntimeStatus,
-  UserJupyterExtensionConfig,
-  UserScriptPath
-}
+import org.broadinstitute.dsde.workbench.leonardo.{CreateAzureRuntimeRequest, CloudContext, AsyncRuntimeFields, RuntimeImage, UserJupyterExtensionConfig, UserScriptPath, WorkspaceId, RuntimeStatus, LabelMap, RuntimeConfig, AuditInfo, RuntimeError, RuntimeName, CreateAzureDiskRequest}
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import java.net.URL
@@ -205,6 +191,33 @@ object RuntimeRoutesTestJsonCodec {
       false,
       Map.empty,
       None
+    )
+  }
+
+  implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse2] = Decoder.instance { x =>
+    for {
+      id <- x.downField("id").as[Long]
+      workspaceId <- x.downField("workspaceId").as[Option[WorkspaceId]]
+      clusterName <- x.downField("runtimeName").as[RuntimeName]
+      cloudContext <- x.downField("cloudContext").as[CloudContext]
+      auditInfo <- x.downField("auditInfo").as[AuditInfo]
+      machineConfig <- x.downField("runtimeConfig").as[RuntimeConfig]
+      clusterUrl <- x.downField("proxyUrl").as[URL]
+      status <- x.downField("status").as[RuntimeStatus]
+      labels <- x.downField("labels").as[LabelMap]
+      patchInProgress <- x.downField("patchInProgress").as[Boolean]
+    } yield ListRuntimeResponse2(
+      id,
+      workspaceId,
+      RuntimeSamResourceId("fakeId"),
+      clusterName,
+      cloudContext,
+      auditInfo,
+      machineConfig,
+      clusterUrl,
+      status,
+      labels,
+      patchInProgress
     )
   }
 }

@@ -19,6 +19,7 @@ import scala.collection.immutable
  */
 /** The runtime itself */
 final case class Runtime(id: Long,
+                         workspaceId: Option[WorkspaceId],
                          samResource: RuntimeSamResourceId,
                          runtimeName: RuntimeName,
                          cloudContext: CloudContext,

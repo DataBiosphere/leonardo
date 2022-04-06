@@ -10,27 +10,22 @@ import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.MockWsmDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription}
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.model.{
-  ForbiddenError,
-  RuntimeAlreadyExistsException,
-  RuntimeCannotBeDeletedException,
-  RuntimeNotFoundException
-}
+import org.broadinstitute.dsde.workbench.leonardo.model.{RuntimeNotFoundException, RuntimeAlreadyExistsException, RuntimeCannotBeDeletedException, ForbiddenError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
-  CreateAzureRuntimeMessage,
-  DeleteAzureRuntimeMessage
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAzureRuntimeMessage, DeleteAzureRuntimeMessage}
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
-import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{WorkbenchUserId, WorkbenchEmail, UserInfo}
 import org.scalatest.flatspec.AnyFlatSpec
-
 import java.util.UUID
+
+import cats.mtl.Ask
+import org.http4s.headers.Authorization
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
   val serviceConfig = RuntimeServiceConfig(
     Config.proxyConfig.proxyUrlBase,
     imageConfig,
@@ -84,7 +79,7 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
         )
         .attempt
       workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
-      cloudContext = CloudContext.Azure(workspaceDesc.azureContext)
+      cloudContext = CloudContext.Azure(workspaceDesc.get.azureContext.get)
       clusterRecOpt <- clusterQuery
         .getActiveClusterRecordByName(cloudContext, runtimeName)(scala.concurrent.ExecutionContext.global)
         .transaction
@@ -176,51 +171,70 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
     exc shouldBe a[RuntimeAlreadyExistsException]
   }
 
-  it should "get a runtime" in isolatedDbTest {
+  it should "handle error if getWorkspace from WSM fails" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val publisherQueue = QueueFactory.makePublisherQueue()
-    val azureService = makeInterp(publisherQueue)
+    val azureService = new RuntimeV2ServiceInterp[IO](serviceConfig,
+      whitelistAuthProvider,
+      new MockWsmDAO {
+        override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[Option[WorkspaceDescription]] = IO.pure(None)
+      },
+      mockSamDAO,
+      QueueFactory.asyncTaskQueue,
+      QueueFactory.makePublisherQueue())
 
-    val res = for {
-      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
-      context <- appContext.ask[AppContext]
-      jobUUID <- IO.delay(UUID.randomUUID().toString).map(WsmJobId)
 
-      _ <- azureService
-        .createRuntime(
+    val exc = azureService
+        .getRuntime(
           userInfo,
           runtimeName,
-          workspaceId,
-          defaultCreateAzureRuntimeReq,
-          jobUUID
+          workspaceId
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
-      clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
-          scala.concurrent.ExecutionContext.global
-        )
-        .transaction
-      cluster = clusterOpt.get
-      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
-      getRuntime <- azureService.getRuntime(userInfo, runtimeName, workspaceId)
-    } yield {
-      getRuntime.clusterName shouldBe runtimeName
-      getRuntime.auditInfo.creator shouldBe userInfo.userEmail
-      getRuntime.clusterImages shouldBe Set(
-        RuntimeImage(
-          RuntimeImageType.Azure,
-          defaultCreateAzureRuntimeReq.imageUri.get.value,
-          None,
-          context.now
-        )
-      )
-    }
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
 
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    exc shouldBe a[WorkspaceNotFoundException]
   }
+
+  it should "handle error if getWorkspace from WSM returns a workspace with no cloud context" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val azureService = new RuntimeV2ServiceInterp[IO](serviceConfig,
+      whitelistAuthProvider,
+      new MockWsmDAO {
+        override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[Option[WorkspaceDescription]] = IO.pure(  Some(WorkspaceDescription(
+          workspaceId,
+          "workspaceName",
+          None,
+          None)))
+      },
+      mockSamDAO,
+      QueueFactory.asyncTaskQueue,
+      QueueFactory.makePublisherQueue())
+
+
+    val exc = azureService
+      .getRuntime(
+        userInfo,
+        runtimeName,
+        workspaceId
+      )
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+      .swap
+      .toOption
+      .get
+
+    exc shouldBe a[CloudContextNotFoundException]
+  }
+
 
   it should "fail to get a runtime when no controlled resource is saved for runtime" in isolatedDbTest {
     val badUserInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
@@ -240,9 +254,9 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           defaultCreateAzureRuntimeReq,
           WsmJobId("job1")
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -275,9 +289,9 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           defaultCreateAzureRuntimeReq,
           WsmJobId("job")
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -311,9 +325,9 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           WsmJobId("job")
         )
       _ <- publisherQueue.tryTake //clean out create msg
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       preDeleteClusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -363,9 +377,9 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           defaultCreateAzureRuntimeReq,
           WsmJobId("job1")
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       preDeleteClusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction
@@ -400,9 +414,9 @@ class AzureServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with Tes
           defaultCreateAzureRuntimeReq,
           jobUUID
         )
-      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.azureContext)
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       clusterOpt <- clusterQuery
-        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext), runtimeName)(
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
           scala.concurrent.ExecutionContext.global
         )
         .transaction

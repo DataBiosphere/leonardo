@@ -14,9 +14,11 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   negativeNumberDecodingFailure,
   oneWorkerSpecifiedDecodingFailure,
   updateDefaultLabelDecodingFailure,
-  upsertEmptyLabelDecodingFailure
+  upsertEmptyLabelDecodingFailure,
+  getRuntimeResponseEncoder
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
+import RuntimeRoutesCodec._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -25,7 +27,6 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration._
-import JsonCodec._
 
 class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   it should "decode RuntimeConfigRequest.DataprocConfig" in {
@@ -326,8 +327,10 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
 
   it should "encode ListRuntimeResponse2" in {
     val date = Instant.parse("2020-11-20T17:23:24.650Z")
+    val workspaceId: UUID = UUID.randomUUID()
     val input = ListRuntimeResponse2(
       -1,
+      Some(WorkspaceId(workspaceId)),
       runtimeSamResource,
       name1,
       cloudContext,
@@ -341,8 +344,9 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
 
     val res = input.asJson.spaces2
     res shouldBe
-      """{
+      s"""{
         |  "id" : -1,
+        |  "workspaceId": ${workspaceId.toString}
         |  "runtimeName" : "clustername1",
         |  "googleProject" : "dsp-leo-test",
         |  "cloudContext" : {

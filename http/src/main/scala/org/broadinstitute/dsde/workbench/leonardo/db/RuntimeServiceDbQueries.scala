@@ -175,17 +175,20 @@ object RuntimeServiceDbQueries {
   ): DBIO[List[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByDeletion =
       if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
-    val runtimeQueryFilteredByProvider = cloudProvider.fold(runtimeQueryFilteredByDeletion)(provider =>
-      runtimeQueryFilteredByDeletion
+
+    val runtimeQueryFilteredByWorkspace =
+      workspaceId.fold(runtimeQueryFilteredByDeletion)(_ =>
+        runtimeQueryFilteredByDeletion
+          .filter(c => c.workspaceId.isDefined && c.workspaceId === workspaceId)
+      )
+
+    val runtimeQueryFilteredByProvider = cloudProvider.fold(runtimeQueryFilteredByWorkspace)(provider =>
+      runtimeQueryFilteredByWorkspace
         .filter(_.cloudProvider === provider)
     )
-    val runtimeQueryFilteredByWorkspace =
-      workspaceId.fold(runtimeQueryFilteredByProvider)(_ =>
-        runtimeQueryFilteredByProvider
-          .filter(c => c.workspaceId.isDefined && c.workspaceId === workspaceId)
-    )
 
-    joinAndFilterByLabelForList(labelMap, runtimeQueryFilteredByWorkspace)
+
+    joinAndFilterByLabelForList(labelMap, runtimeQueryFilteredByProvider)
   }
 
   private def joinAndFilterByLabelForList(labelMap: LabelMap, baseQuery: Query[ClusterTable, ClusterRecord, Seq])(

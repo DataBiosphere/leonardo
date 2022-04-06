@@ -195,11 +195,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               }
             _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done Sam notifyClusterCreated")))
             runtimeConfigToSave = LeoLenses.runtimeConfigPrism.reverseGet(runtimeConfig)
-            saveRuntime = SaveCluster(
-              cluster = runtime,
-              runtimeConfig = runtimeConfigToSave,
-              now = context.now
-            )
+            saveRuntime = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfigToSave, now = context.now)
             runtime <- clusterQuery.save(saveRuntime).transaction
             _ <- publisherQueue.offer(
               CreateRuntimeMessage.fromRuntime(runtime, runtimeConfig, Some(context.traceId))
@@ -854,6 +850,7 @@ object RuntimeServiceInterp {
 
     Runtime(
       0,
+      None,
       samResource = clusterInternalId,
       runtimeName = runtimeName,
       cloudContext = cloudContext,

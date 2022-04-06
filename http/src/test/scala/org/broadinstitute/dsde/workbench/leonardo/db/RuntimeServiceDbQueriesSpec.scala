@@ -3,19 +3,13 @@ package http
 package db
 
 import java.time.Instant
+import java.util.UUID
 
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.db.{
-  clusterQuery,
-  labelQuery,
-  LabelResourceType,
-  RuntimeServiceDbQueries,
-  TestComponent
-}
-import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
+import org.broadinstitute.dsde.workbench.leonardo.db.{LabelResourceType, clusterQuery, TestComponent, labelQuery, RuntimeServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
 import org.scalatest.concurrent.ScalaFutures
 
@@ -225,6 +219,205 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+
+  it should "list runtimesV2 including deleted" in isolatedDbTest {
+    val res = for {
+      start <- IO.realTimeInstant
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+        Some(d1.id),
+        bootDiskSize = DiskSize(50),
+        zone = ZoneName("us-west2-b"),
+        None)
+      c1 <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Deleted)
+          .saveWithRuntimeConfig(c1RuntimeConfig)
+      )
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+        Some(d2.id),
+        bootDiskSize = DiskSize(50),
+        zone = ZoneName("us-west2-b"),
+        CommonTestData.gpuConfig)
+      c2 <- IO(
+        makeCluster(2)
+          .copy(status = RuntimeStatus.Deleted)
+          .saveWithRuntimeConfig(c2RuntimeConfig)
+      )
+      d3 <- makePersistentDisk(Some(DiskName("d3"))).save()
+      c3RuntimeConfig =  RuntimeConfig.AzureConfig(defaultMachineType,
+        d3.id,
+        azureRegion
+      )
+      c3 <- IO(
+        makeCluster(3).saveWithRuntimeConfig(
+          c3RuntimeConfig
+        )
+      )
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None, None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None, None).transaction
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
+    } yield {
+      val c1Expected = toListRuntimeResponse(c1, Map.empty, c1RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty, c2RuntimeConfig)
+      val c3Expected = toListRuntimeResponse(c3, Map.empty, c3RuntimeConfig)
+      list1.toSet shouldEqual Set(c1Expected, c2Expected, c3Expected)
+      list2 shouldEqual List(c3Expected)
+      elapsed should be < maxElapsed
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "list runtimesV2 by workspace" in isolatedDbTest {
+    val res = for {
+      start <- IO.realTimeInstant
+
+      workspaceId1 = WorkspaceId(UUID.randomUUID())
+      workspaceId2 = WorkspaceId(UUID.randomUUID())
+
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+        Some(d1.id),
+        bootDiskSize = DiskSize(50),
+        zone = ZoneName("us-west2-b"),
+        None)
+      c1 <- IO(
+        makeCluster(1)
+          .copy(workspaceId = Some(workspaceId1))
+          .saveWithRuntimeConfig(c1RuntimeConfig)
+      )
+
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
+      c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+        Some(d2.id),
+        bootDiskSize = DiskSize(50),
+        zone = ZoneName("us-west2-b"),
+        CommonTestData.gpuConfig)
+      c2 <- IO(
+        makeCluster(2)
+          .copy(workspaceId = Some(workspaceId1),
+               status = RuntimeStatus.Deleted)
+          .saveWithRuntimeConfig(c2RuntimeConfig)
+      )
+
+      d3 <- makePersistentDisk(None).save()
+      c3RuntimeConfig =  RuntimeConfig.AzureConfig(defaultMachineType,
+        d3.id,
+        azureRegion
+      )
+      c3 <- IO(
+        makeCluster(3)
+          .copy(workspaceId = Some(workspaceId2))
+          .saveWithRuntimeConfig(
+            c3RuntimeConfig
+          )
+      )
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, Some(workspaceId1), None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(workspaceId2), None).transaction
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
+    } yield {
+      val c1Expected = toListRuntimeResponse(c1, Map.empty, c1RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty, c2RuntimeConfig)
+      val c3Expected = toListRuntimeResponse(c3, Map.empty, c3RuntimeConfig)
+      list1.toSet shouldEqual Set(c1Expected, c2Expected)
+      list2 shouldEqual List(c3Expected)
+      elapsed should be < maxElapsed
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "list runtimesV2 by cloudProvider and workspace" in isolatedDbTest {
+    val res = for {
+      start <- IO.realTimeInstant
+
+      workspaceId1 = WorkspaceId(UUID.randomUUID())
+      workspaceId2 = WorkspaceId(UUID.randomUUID())
+
+      d1 <- makePersistentDisk(Some(DiskName("d1"))).save()
+      c1RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
+        Some(d1.id),
+        bootDiskSize = DiskSize(50),
+        zone = ZoneName("us-west2-b"),
+        None)
+      c1 <- IO(
+        makeCluster(1)
+          .copy(workspaceId = Some(workspaceId1))
+          .saveWithRuntimeConfig(c1RuntimeConfig)
+      )
+
+      d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
+      c2RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType,
+        d2.id,
+        azureRegion
+      )
+      c2 <- IO(
+        makeCluster(2)
+          .copy(workspaceId = Some(workspaceId1),
+            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .saveWithRuntimeConfig(
+            c2RuntimeConfig
+          )
+      )
+
+      d3 <- makePersistentDisk(None).save()
+      c3RuntimeConfig =  RuntimeConfig.AzureConfig(defaultMachineType,
+        d3.id,
+        azureRegion
+      )
+      c3 <- IO(
+        makeCluster(3)
+          .copy(workspaceId = Some(workspaceId2),
+            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .saveWithRuntimeConfig(
+            c3RuntimeConfig
+          )
+      )
+
+      d4 <- makePersistentDisk(Some(DiskName("d4"))).save()
+      c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType,
+        d4.id,
+        azureRegion
+      )
+      c4 <- IO(
+        makeCluster(4)
+          .copy(workspaceId = Some(workspaceId1),
+            cloudContext = CloudContext.Azure(CommonTestData.azureCloudContext))
+          .saveWithRuntimeConfig(
+            c4RuntimeConfig
+          )
+      )
+      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Azure)).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(workspaceId2), Some(CloudProvider.Azure)).transaction
+      list3 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Gcp)).transaction
+      list4 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None, Some(CloudProvider.Azure)).transaction
+      end <- IO.realTimeInstant
+      elapsed = (end.toEpochMilli - start.toEpochMilli).millis
+      _ <- loggerIO.info(s"listClusters took $elapsed")
+    } yield {
+      val c1Expected = toListRuntimeResponse(c1, Map.empty, c1RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty, c2RuntimeConfig)
+      val c3Expected = toListRuntimeResponse(c3, Map.empty, c3RuntimeConfig)
+      val c4Expected = toListRuntimeResponse(c4, Map.empty, c4RuntimeConfig)
+      list1.toSet shouldEqual Set(c2Expected, c4Expected)
+      list2 shouldEqual List(c3Expected)
+      list3 shouldEqual List(c1Expected)
+      list4.toSet shouldEqual Set(c2Expected, c3Expected, c4Expected)
+
+      elapsed should be < maxElapsed
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+
+
   it should "get a runtime" in isolatedDbTest {
     val res = for {
       disk <- makePersistentDisk(None).save()
@@ -251,6 +444,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   ): ListRuntimeResponse2 =
     ListRuntimeResponse2(
       runtime.id,
+      runtime.workspaceId,
       runtime.samResource,
       runtime.runtimeName,
       runtime.cloudContext,

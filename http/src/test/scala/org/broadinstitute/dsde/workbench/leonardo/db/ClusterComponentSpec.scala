@@ -100,11 +100,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     dbFutureValue(clusterQuery.countActiveByProject(cloudContext)) shouldEqual 3
 
     // (project, name) unique key test
-    val saveCluster = SaveCluster(cluster4,
-                                  Some(gcsPath("gs://bucket3")),
-                                  Some(serviceAccountKey.id),
-                                  defaultDataprocRuntimeConfig,
-                                  Instant.now())
+    val saveCluster = SaveCluster(cluster4, Some(gcsPath("gs://bucket3")), Some(serviceAccountKey.id), defaultDataprocRuntimeConfig, Instant.now())
     dbFailure(clusterQuery.save(saveCluster)) shouldBe a[
       SQLException
     ]

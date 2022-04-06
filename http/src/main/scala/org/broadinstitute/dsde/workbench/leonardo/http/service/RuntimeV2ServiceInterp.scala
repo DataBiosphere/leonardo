@@ -23,8 +23,10 @@ import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, TraceId, UserInf
 import org.http4s.headers.Authorization
 import java.time.Instant
 import java.util.UUID
+
 import cats.data.NonEmptyList
 import JsonCodec._
+import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
@@ -36,6 +38,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   dbReference: DbReference[F],
+  logger: StructuredLogger[F],
   ec: ExecutionContext
 ) extends RuntimeV2Service[F] {
   override def createRuntime(userInfo: UserInfo,
@@ -90,7 +93,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
             )
 
-            runtime = convertToRuntime(runtimeName,
+            runtime = convertToRuntime(workspaceId,
+                                        runtimeName,
                                        cloudContext,
                                        userInfo,
                                        req,
@@ -104,12 +108,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               disk.id,
               req.region
             )
-            runtimeToSave = SaveCluster(
-              cluster = runtime,
-              runtimeConfig = runtimeConfig,
-              now = ctx.now,
-              workspaceId = Some(workspaceId)
-            )
+            runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
 
             task = Task(
@@ -234,6 +233,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case Right(id) => List(id)
         case Left(_) => List.empty
       })
+
+      _ <- if (runtimeSamIds.length < runtimesUserIsNotCreator.length) logger.info(s"Omitted ${runtimesUserIsNotCreator.length - runtimeSamIds.length} from sam lookup in listRuntimes because backleo has not updated the runtime with wsm UUID")
+      else F.unit
 
       vmResourceSamIds = NonEmptyList.fromList(runtimeSamIds)
       samVisibleRuntimeIds <- vmResourceSamIds.fold[F[List[WsmResourceSamResourceId]]](F.pure(List.empty)) { ids =>
@@ -440,7 +442,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .transaction >>
         clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, ctx.now).transaction.void
 
-  private def convertToRuntime(runtimeName: RuntimeName,
+  private def convertToRuntime(workspaceId: WorkspaceId,
+                                runtimeName: RuntimeName,
                                cloudContext: CloudContext,
                                userInfo: UserInfo,
                                request: CreateAzureRuntimeRequest,
@@ -464,6 +467,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
     Runtime(
       0,
+      Some(workspaceId),
       samResource = samResourceId,
       runtimeName = runtimeName,
       cloudContext = cloudContext,

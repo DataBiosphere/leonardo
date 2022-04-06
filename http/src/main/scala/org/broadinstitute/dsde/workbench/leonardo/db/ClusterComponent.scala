@@ -308,8 +308,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       ) // update runtimeConfigId
 
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
-                                                                                   saveCluster.initBucket.map(_.toUri),
-                                                                                   saveCluster.workspaceId)
+                                                                                   saveCluster.initBucket.map(_.toUri))
 
       _ <- labelQuery.saveAllForResource(clusterId, LabelResourceType.Runtime, cluster.labels)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -606,8 +605,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
   private def marshalCluster(runtime: Runtime,
-                             initBucket: Option[String],
-                             workspaceId: Option[WorkspaceId] = None): ClusterRecord =
+                             initBucket: Option[String]): ClusterRecord =
     ClusterRecord(
       id = 0, // DB AutoInc
       runtime.samResource.resourceId,
@@ -630,7 +628,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.customEnvironmentVariables,
       runtime.runtimeConfigId,
       None,
-      workspaceId
+      runtime.workspaceId
     )
 
   private def unmarshalMinimalCluster(
@@ -747,6 +745,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
     Runtime(
       clusterRecord.id,
+      clusterRecord.workspaceId,
       RuntimeSamResourceId(clusterRecord.internalId),
       name,
       serviceAccount = clusterRecord.serviceAccountInfo,
@@ -781,9 +780,4 @@ final case class UpdateAsyncClusterCreationFields(initBucket: Option[GcsPath],
                                                   asyncRuntimeFields: Option[AsyncRuntimeFields],
                                                   dateAccessed: Instant)
 
-final case class SaveCluster(cluster: Runtime,
-                             initBucket: Option[GcsPath] = None,
-                             serviceAccountKeyId: Option[ServiceAccountKeyId] = None,
-                             runtimeConfig: RuntimeConfig,
-                             now: Instant,
-                             workspaceId: Option[WorkspaceId] = None)
+final case class SaveCluster(cluster: Runtime, initBucket: Option[GcsPath] = None, serviceAccountKeyId: Option[ServiceAccountKeyId] = None, runtimeConfig: RuntimeConfig, now: Instant)
