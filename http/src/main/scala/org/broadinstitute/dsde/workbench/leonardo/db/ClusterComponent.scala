@@ -4,29 +4,18 @@ package db
 import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.OperationName
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries.runtimeConfigs
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{
-  ExtraInfoForCreateRuntime,
-  RuntimeToAutoPause,
-  RuntimeToMonitor
-}
-import org.broadinstitute.dsde.workbench.model.google.{
-  parseGcsPath,
-  GcsBucketName,
-  GcsPath,
-  GcsPathSupport,
-  GoogleProject,
-  ServiceAccountKeyId
-}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimeToMonitor, RuntimeToAutoPause, ExtraInfoForCreateRuntime}
+import org.broadinstitute.dsde.workbench.model.google.{ServiceAccountKeyId, parseGcsPath, GcsBucketName, GcsPathSupport, GoogleProject, GcsPath}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-
 import java.sql.SQLDataException
 import java.time.Instant
+
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
@@ -609,6 +598,9 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Stopping, None, dateAccessed)
+
+  def updateSamResourceId(id: Long, wsmId: WsmResourceSamResourceId): DBIO[Int] =
+    findByIdQuery(id).map(_.internalId).update(wsmId.resourceId)
 
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.

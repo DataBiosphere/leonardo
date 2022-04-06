@@ -22,9 +22,9 @@ import org.broadinstitute.dsde.workbench.leonardo.util.CreateAzureRuntimeParams
 import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, TraceId, UserInfo}
 import org.http4s.headers.Authorization
 import java.time.Instant
-
-import JsonCodec._
+import java.util.UUID
 import cats.data.NonEmptyList
+import JsonCodec._
 
 import scala.concurrent.ExecutionContext
 
@@ -223,9 +223,20 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       (runtimesUserIsCreator, runtimesUserIsNotCreator) = runtimes.partition(_.auditInfo.creator == userInfo.userEmail)
 
-      //TODO: does .filterUserVisible work here?
-      vmResourceSamIds = NonEmptyList.fromList(runtimesUserIsNotCreator.map(r => r.samResource))
-      samVisibleRuntimeIds <- vmResourceSamIds.fold[F[List[RuntimeSamResourceId]]](F.pure(List.empty)) { ids =>
+      // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
+      // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
+      // If not, we don't have the right sam id anyways to look up the vm at this stage
+      runtimeSamIds = runtimesUserIsNotCreator.map { r =>
+        for {
+          uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId))
+        } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
+      }.flatMap(either => either match {
+        case Right(id) => List(id)
+        case Left(_) => List.empty
+      })
+
+      vmResourceSamIds = NonEmptyList.fromList(runtimeSamIds)
+      samVisibleRuntimeIds <- vmResourceSamIds.fold[F[List[WsmResourceSamResourceId]]](F.pure(List.empty)) { ids =>
         authProvider.filterUserVisible(ids, userInfo)
       }
 
