@@ -8,4 +8,4 @@ addSbtPlugin(
   "com.github.cb372" % "sbt-explicit-dependencies" % "0.2.16"
 ) // Use `unusedCompileDependencies` to see unused dependencies
 
-addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.9.34")
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.10.0")
