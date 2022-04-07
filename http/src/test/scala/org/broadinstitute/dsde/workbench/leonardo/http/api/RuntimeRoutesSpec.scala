@@ -346,7 +346,7 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
     res shouldBe
       s"""{
          |  "id" : -1,
-         |  "workspaceId": ${workspaceId.toString}
+         |  "workspaceId" : "${workspaceId.toString}",
          |  "runtimeName" : "clustername1",
          |  "googleProject" : "dsp-leo-test",
          |  "cloudContext" : {
