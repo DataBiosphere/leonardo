@@ -5,6 +5,7 @@ import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
+import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, AppLifecycleSpec}
@@ -68,7 +69,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
       _ <- IO {
         Orchestration.billingV2.createBillingProject(
           billingProjectName,
-          billingAccount = "00708C-45D19D-27AAFA"
+          billingAccount = ServiceTestConfig.Projects.billingAccountId
         )(hermioneAuthToken)
       }
 
