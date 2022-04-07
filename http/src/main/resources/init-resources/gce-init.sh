@@ -144,7 +144,6 @@ GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:202006
 
 if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
   export IS_RSTUDIO_RUNTIME="true"
-  export XDG_CONFIG_HOME=${RSTUDIO_USER_HOME}/.config/rstudio
 else
   export IS_RSTUDIO_RUNTIME="false"
 fi
