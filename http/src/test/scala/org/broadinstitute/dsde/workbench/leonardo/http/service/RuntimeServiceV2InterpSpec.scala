@@ -580,7 +580,14 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val clusterName2 = RuntimeName(s"cluster-${UUID.randomUUID.toString}")
     val wsmJobId2 = WsmJobId("job2")
     defaultAzureService
-      .createRuntime(userInfo, clusterName2, workspaceId, req.copy(labels = Map("a" -> "b", "foo" -> "bar"), azureDiskConfig = req.azureDiskConfig.copy(name = AzureDiskName("disk2"))), wsmJobId2)
+      .createRuntime(
+        userInfo,
+        clusterName2,
+        workspaceId,
+        req.copy(labels = Map("a" -> "b", "foo" -> "bar"),
+                 azureDiskConfig = req.azureDiskConfig.copy(name = AzureDiskName("disk2"))),
+        wsmJobId2
+      )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     val runtime2 = defaultAzureService
       .getRuntime(userInfo, clusterName2, workspaceId)
