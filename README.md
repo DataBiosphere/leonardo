@@ -45,11 +45,11 @@ ERROR 2003 (HY000): Can't connect to MySQL server on 'mysql' (113)
 Warning: Using a password on the command line interface can be insecure.
 ERROR 2003 (HY000): Can't connect to MySQL server on 'mysql' (113)
 ```
-Run `docker system prune -a`
+Run `docker system prune -a`. If the error persists, try restart your laptop.
 
 Build Leonardo and run all unit tests.
 ```
-export JAVA_OPTS="-Dheadless=false -Duser.timezone=UTC"
+export JAVA_OPTS="-Dheadless=false -Duser.timezone=UTC -Xmx4g -Xss2M -Xms4G"
 sbt clean compile "project http" test
 ```
 You can also run a particular test suite, e.g.

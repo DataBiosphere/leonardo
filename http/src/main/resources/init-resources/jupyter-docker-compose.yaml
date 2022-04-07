@@ -1,4 +1,5 @@
 # Note: we need to stay on docker-compose version 2 because version 3 doesn't support
+# Note: we need to stay on docker-compose version 2 because version 3 doesn't support
 # configuring memory options in container mode. See discussion in:
 # https://docs.docker.com/compose/compose-file/#resources
 # https://github.com/docker/compose/issues/4513
@@ -50,7 +51,7 @@ services:
       # We should remove the two lines once we no longer support older images.
       # When we update base image in terra-docker next time, we should verify the paths are still valid
       PYTHONPATH: "/etc/jupyter/custom:/usr/lib/spark/python:${NOTEBOOKS_DIR}/packages"
-      PATH: "/opt/conda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${NOTEBOOKS_DIR}/.local/bin:${NOTEBOOKS_DIR}/packages/bin"
+      PATH: "/opt/conda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${HOME}/.local/bin:${NOTEBOOKS_DIR}/packages/bin"
     env_file:
       - /var/google_application_credentials.env
       - /var/custom_env_vars.env

@@ -1,11 +1,9 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
-import java.util.UUID
-
 import cats.effect.IO
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockSamDAO._
@@ -16,6 +14,7 @@ import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 
+import java.util.UUID
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable
 
@@ -26,16 +25,23 @@ class MockSamDAO extends SamDAO[IO] {
   val runtimes: mutable.Map[(RuntimeSamResourceId, Authorization), Set[RuntimeAction]] = new TrieMap()
   val persistentDisks: mutable.Map[(PersistentDiskSamResourceId, Authorization), Set[PersistentDiskAction]] =
     new TrieMap()
+  val workspaces: mutable.Map[(WorkspaceResourceSamResourceId, Authorization), Set[WorkspaceAction]] =
+    new TrieMap()
+  val wsmResources: mutable.Map[(WsmResourceSamResourceId, Authorization), Set[WsmResourceAction]] =
+    new TrieMap()
   val apps: mutable.Map[(AppSamResourceId, Authorization), Set[AppAction]] = new TrieMap()
 
   var projectOwners: Map[Authorization, Set[(ProjectSamResourceId, SamPolicyName)]] = Map.empty
   var runtimeCreators: Map[Authorization, Set[(RuntimeSamResourceId, SamPolicyName)]] = Map.empty
   var diskCreators: Map[Authorization, Set[(PersistentDiskSamResourceId, SamPolicyName)]] = Map.empty
   var appCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
+  var wmsResourceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
+  var workspaceCreators: Map[Authorization, Set[(AppSamResourceId, SamPolicyName)]] = Map.empty
 
   //we don't care much about traceId in unit tests, hence providing a constant UUID here
   implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
 
+  override def registerLeo(implicit ev: Ask[IO, TraceId]): IO[Unit] = IO.unit
   override def hasResourcePermissionUnchecked(resourceType: SamResourceType,
                                               resource: String,
                                               action: String,
@@ -67,6 +73,18 @@ class MockSamDAO extends SamDAO[IO] {
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
+      case SamResourceType.Workspace =>
+        val res = workspaces
+          .get((WorkspaceResourceSamResourceId(resource), authHeader))
+          .map(_.map(_.asString).contains(action))
+          .getOrElse(false)
+        IO.pure(res)
+      case SamResourceType.WsmResource =>
+        val res = wsmResources
+          .get((WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(resource))), authHeader))
+          .map(_.map(_.asString).contains(action))
+          .getOrElse(false)
+        IO.pure(res)
     }
 
   override def getResourcePolicies[R](authHeader: Authorization)(
@@ -87,6 +105,14 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(diskCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
       case SamResourceType.App =>
         IO.pure(appCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]])
+      case SamResourceType.Workspace =>
+        IO.pure(
+          workspaceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
+        )
+      case SamResourceType.WsmResource =>
+        IO.pure(
+          wmsResourceCreators.get(authHeader).map(_.toList).getOrElse(List.empty).asInstanceOf[List[(R, SamPolicyName)]]
+        )
     }
 
   override def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
@@ -245,6 +271,20 @@ class MockSamDAO extends SamDAO[IO] {
           .getOrElse(List.empty)
           .asInstanceOf[List[sr.ActionCategory]]
         IO.pure(res)
+      case SamResourceType.Workspace =>
+        val res = workspaces
+          .get((resource.asInstanceOf[WorkspaceResourceSamResourceId], authHeader))
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .asInstanceOf[List[sr.ActionCategory]]
+        IO.pure(res)
+      case SamResourceType.WsmResource =>
+        val res = wsmResources
+          .get((resource.asInstanceOf[WsmResourceSamResourceId], authHeader))
+          .map(_.toList)
+          .getOrElse(List.empty)
+          .asInstanceOf[List[sr.ActionCategory]]
+        IO.pure(res)
     }
 
   def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
@@ -253,6 +293,9 @@ class MockSamDAO extends SamDAO[IO] {
 
   def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[UserSubjectId]] =
     IO.pure(Some(UserSubjectId("test")))
+
+  override def getLeoAuthToken: IO[Authorization] =
+    IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
 }
 
 object MockSamDAO {

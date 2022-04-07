@@ -58,9 +58,9 @@ case class RuntimeNotFoundException(cloudContext: CloudContext,
 case class RuntimeNotFoundByIdException(id: Long, msg: String)
     extends LeoException(s"Runtime with id ${id} not found. Details: ${msg}", StatusCodes.NotFound, traceId = None)
 
-case class RuntimeAlreadyExistsException(googleProject: GoogleProject, runtimeName: RuntimeName, status: RuntimeStatus)
+case class RuntimeAlreadyExistsException(cloudContext: CloudContext, runtimeName: RuntimeName, status: RuntimeStatus)
     extends LeoException(
-      s"Runtime ${googleProject.value}/${runtimeName.asString} already exists in ${status.toString} status",
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} already exists in ${status.toString} status",
       StatusCodes.Conflict,
       traceId = None
     )
@@ -74,11 +74,11 @@ case class RuntimeCannotBeStoppedException(googleProject: GoogleProject,
       traceId = None
     )
 
-case class RuntimeCannotBeDeletedException(googleProject: GoogleProject,
+case class RuntimeCannotBeDeletedException(cloudContext: CloudContext,
                                            runtimeName: RuntimeName,
                                            status: RuntimeStatus = RuntimeStatus.Creating)
     extends LeoException(
-      s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be deleted in ${status} status",
+      s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status} status",
       StatusCodes.Conflict,
       traceId = None
     )

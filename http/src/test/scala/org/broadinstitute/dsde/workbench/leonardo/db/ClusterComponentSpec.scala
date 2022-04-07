@@ -5,33 +5,40 @@ import java.sql.SQLException
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
-
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.{clusterEq, clusterSeqEq, stripFieldsForListCluster}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimePatchDetails, RuntimeToMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
+import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
+import slick.dbio.DBIO
 
 class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPathUtils with ScalaFutures {
+  def getActiveClusterByName(cloudContext: CloudContext, name: RuntimeName): DBIO[Option[Runtime]] = {
+    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+    fullClusterQueryByUniqueKey(cloudContext, name, Some(dummyDate)).result map { recs =>
+      clusterQuery.unmarshalFullCluster(recs).headOption
+    }
+  }
+
   "ClusterComponent" should "list, save, get, and delete" in isolatedDbTest {
     dbFutureValue(clusterQuery.listWithLabels) shouldEqual Seq()
 
     lazy val err1 = RuntimeError("some failure", Some(10), Instant.now().truncatedTo(ChronoUnit.SECONDS))
     lazy val cluster1UUID = ProxyHostName(UUID.randomUUID().toString)
     val cluster1 = makeCluster(1).copy(
-      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(proxyHostName = cluster1UUID)),
-      dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
+      asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(proxyHostName = cluster1UUID))
     )
+    val cluster1Instances = List(masterInstance, workerInstance1, workerInstance2)
 
     val cluster1WithErr = makeCluster(1).copy(
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(proxyHostName = cluster1UUID)),
-      errors = List(err1),
-      dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2)
+      errors = List(err1)
     )
 
     val cluster2 = makeCluster(2).copy(status = RuntimeStatus.Creating)
@@ -40,7 +47,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
 
     val cluster4 = makeCluster(4).copy(runtimeName = cluster1.runtimeName, cloudContext = cluster1.cloudContext)
 
-    val savedCluster1 = cluster1.save(None)
+    val savedCluster1 = cluster1.save(dataprocInstances = cluster1Instances)
     savedCluster1.copy(runtimeConfigId = RuntimeConfigId(-1)) shouldEqual cluster1
 
     val savedCluster2 = cluster2.save()
@@ -65,19 +72,19 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
 
     // instances are returned by list* methods
     val expectedClusters123 =
-      Seq(savedCluster1, savedCluster2, savedCluster3).map(_.copy(dataprocInstances = Set.empty))
+      Seq(savedCluster1, savedCluster2, savedCluster3)
     dbFutureValue(clusterQuery.listWithLabels) should contain theSameElementsAs expectedClusters123.map(
       stripFieldsForListCluster
     )
 
     // instances are returned by get* methods
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster1.cloudContext, cluster1.runtimeName)) shouldEqual Some(
+    dbFutureValue(getActiveClusterByName(cluster1.cloudContext, cluster1.runtimeName)) shouldEqual Some(
       savedCluster1
     )
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster2.cloudContext, cluster2.runtimeName)) shouldEqual Some(
+    dbFutureValue(getActiveClusterByName(cluster2.cloudContext, cluster2.runtimeName)) shouldEqual Some(
       savedCluster2
     )
-    dbFutureValue(clusterQuery.getActiveClusterByName(cluster3.cloudContext, cluster3.runtimeName)) shouldEqual Some(
+    dbFutureValue(getActiveClusterByName(cluster3.cloudContext, cluster3.runtimeName)) shouldEqual Some(
       savedCluster3
     )
 
@@ -111,7 +118,6 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     cluster1status.status shouldEqual RuntimeStatus.Deleting
     cluster1status.auditInfo.destroyedDate shouldBe None
     cluster1status.asyncRuntimeFields.flatMap(_.hostIp) shouldBe None
-    cluster1status.dataprocInstances shouldBe cluster1.dataprocInstances
 
     dbFutureValue(clusterQuery.markPendingDeletion(savedCluster2.id, Instant.now)) shouldEqual 1
     dbFutureValue(clusterQuery.listActiveWithLabels)
@@ -157,29 +163,6 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     runningCluster.auditInfo.dateAccessed should be > stoppedCluster.auditInfo.dateAccessed
   }
 
-  it should "merge instances" in isolatedDbTest {
-    val savedCluster1 = makeCluster(1).copy(dataprocInstances = Set(masterInstance)).save()
-
-    val updatedCluster1 = savedCluster1.copy(
-      id = savedCluster1.id,
-      dataprocInstances = Set(
-        masterInstance.copy(status = GceInstanceStatus.Provisioning),
-        workerInstance1.copy(status = GceInstanceStatus.Provisioning),
-        workerInstance2.copy(status = GceInstanceStatus.Provisioning)
-      )
-    )
-
-    dbFutureValue(clusterQuery.mergeInstances(updatedCluster1)) shouldEqual updatedCluster1
-    dbFutureValue(clusterQuery.getClusterById(savedCluster1.id)).get shouldEqual updatedCluster1
-
-    val updatedCluster1Again = savedCluster1.copy(dataprocInstances =
-      Set(masterInstance.copy(status = GceInstanceStatus.Terminated),
-          workerInstance1.copy(status = GceInstanceStatus.Terminated))
-    )
-
-    dbFutureValue(clusterQuery.mergeInstances(updatedCluster1Again)) shouldEqual updatedCluster1Again
-  }
-
   it should "get list of clusters to auto freeze" in isolatedDbTest {
     val runningCluster1 = makeCluster(1)
       .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
@@ -199,19 +182,18 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
             autopauseThreshold = 0)
       .save()
 
-    val autoFreezeList = dbFutureValue(clusterQuery.getClustersReadyToAutoFreeze)
-    autoFreezeList should contain(runningCluster1)
+    val autoFreezeList = dbFutureValue(clusterQuery.getClustersReadyToAutoFreeze).map(_.id)
+    autoFreezeList should contain(runningCluster1.id)
     //cluster2 is already stopped
-    autoFreezeList should not contain stoppedCluster
-    autoFreezeList should not contain runningCluster2
-    autoFreezeList should not contain autopauseDisabledCluster
+    autoFreezeList should not contain stoppedCluster.id
+    autoFreezeList should not contain runningCluster2.id
+    autoFreezeList should not contain autopauseDisabledCluster.id
   }
 
   it should "get for dns cache" in isolatedDbTest {
     val savedCluster1 = makeCluster(1)
-      .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"),
-            dataprocInstances = Set(masterInstance, workerInstance1, workerInstance2))
-      .save(Some(serviceAccountKey.id))
+      .copy(labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar"))
+      .save(Some(serviceAccountKey.id), List(masterInstance, workerInstance1, workerInstance2))
 
     // Result should not include labels or instances
     dbFutureValue {
@@ -287,11 +269,11 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val expectedRuntimeToMonitor = List(
-      RuntimeToMonitor(savedCluster1.id, CloudService.Dataproc, RuntimeStatus.Starting, false),
-      RuntimeToMonitor(savedCluster3.id, CloudService.GCE, RuntimeStatus.Updating, false),
-      RuntimeToMonitor(savedCluster4.id, CloudService.GCE, RuntimeStatus.Creating, true)
+      savedCluster1.id,
+      savedCluster3.id,
+      savedCluster4.id
     )
-    dbFutureValue(clusterQuery.listMonitored) should contain theSameElementsAs expectedRuntimeToMonitor
+    dbFutureValue(clusterQuery.listMonitored).map(_.id) should contain theSameElementsAs expectedRuntimeToMonitor
   }
 
   it should "persist custom environment variables" in isolatedDbTest {

@@ -9,7 +9,7 @@ import fs2.Stream
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, ImageConfig, RuntimeBucketConfig, VPCConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.userScriptStartupOutputUriMetadataKey
 import org.broadinstitute.dsde.workbench.model.TraceId
-import org.broadinstitute.dsde.workbench.model.google.{GcsPath, GoogleProject}
+import org.broadinstitute.dsde.workbench.model.google.GcsPath
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import java.time.Instant
@@ -24,11 +24,8 @@ import scala.jdk.CollectionConverters._
 trait RuntimeMonitor[F[_], A] {
   def process(a: A)(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit]
 
-  // Function used for transitions that we can get an Operation
-  def pollCheck(a: A)(googleProject: GoogleProject,
-                      runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                      operation: com.google.cloud.compute.v1.Operation,
-                      action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit]
+  def handlePollCheckCompletion(a: A)(monitorContext: MonitorContext,
+                                      runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit]
 }
 
 object RuntimeMonitor {

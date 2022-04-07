@@ -20,6 +20,11 @@ object SamResourceId {
 
   final case class AppSamResourceId(resourceId: String) extends SamResourceId
 
+  final case class WorkspaceResourceSamResourceId(resourceId: String) extends SamResourceId
+
+  final case class WsmResourceSamResourceId(controlledResourceId: WsmControlledResourceId) extends SamResourceId {
+    override def resourceId: String = controlledResourceId.value.toString
+  }
 }
 
 sealed trait SamResourceType extends Product with Serializable {
@@ -38,6 +43,13 @@ object SamResourceType {
   final case object App extends SamResourceType {
     val asString = "kubernetes-app"
   }
+  final case object Workspace extends SamResourceType {
+    val asString = "workspace"
+  }
+  final case object WsmResource extends SamResourceType {
+    val asString = "controlled-application-private-workspace-resource"
+  }
+
   val stringToSamResourceType: Map[String, SamResourceType] =
     sealerate.collect[SamResourceType].map(p => (p.asString, p)).toMap
 }
@@ -76,7 +88,6 @@ object ProjectAction {
   final case object DeletePersistentDisk extends ProjectAction {
     val asString = "delete_persistent_disk"
   }
-
   val allActions = sealerate.collect[ProjectAction]
   val stringToAction: Map[String, ProjectAction] =
     sealerate.collect[ProjectAction].map(a => (a.asString, a)).toMap
@@ -173,6 +184,37 @@ object AppAction {
   val allActions = sealerate.values[AppAction]
   val stringToAction: Map[String, AppAction] =
     sealerate.collect[AppAction].map(a => (a.asString, a)).toMap
+}
+
+sealed trait WorkspaceAction extends Product with Serializable {
+  def asString: String
+}
+object WorkspaceAction {
+  final case object CreateControlledApplicationResource extends WorkspaceAction {
+    val asString = "create_controlled_application_private"
+  }
+  final case object CreateControlledUserResource extends WorkspaceAction {
+    val asString = "create_controlled_user_private"
+  }
+
+  val allActions = sealerate.values[WorkspaceAction]
+  val stringToAction: Map[String, WorkspaceAction] =
+    sealerate.collect[WorkspaceAction].map(a => (a.asString, a)).toMap
+}
+
+sealed trait WsmResourceAction extends Product with Serializable {
+  def asString: String
+}
+object WsmResourceAction {
+  final case object Write extends WsmResourceAction {
+    val asString = "write"
+  }
+  final case object Read extends WsmResourceAction {
+    val asString = "read"
+  }
+  val allActions = sealerate.values[WsmResourceAction]
+  val stringToAction: Map[String, WsmResourceAction] =
+    sealerate.collect[WsmResourceAction].map(a => (a.asString, a)).toMap
 }
 
 sealed trait SamRole extends Product with Serializable {

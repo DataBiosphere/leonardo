@@ -7,9 +7,9 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import cats.effect.IO
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
+import io.circe.Decoder
 import io.circe.parser.decode
 import io.circe.syntax._
-import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
@@ -22,8 +22,8 @@ import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCode
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
-import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.model.{ErrorReport, ErrorReportSource}
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -50,6 +50,7 @@ class HttpRoutesSpec
       MockRuntimeServiceInterp,
       MockDiskServiceInterp,
       MockAppService,
+      new MockAzureServiceInterp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -61,7 +62,7 @@ class HttpRoutesSpec
     } yield ErrorReport(message)(ErrorReportSource("leonardo"))
   }
 
-  "RuntimeRoutes" should "create runtime" in {
+  "RuntimeRoutes" should "create runtime id1" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime1")
       .withEntity(ContentTypes.`application/json`, defaultCreateRuntimeRequest.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.Accepted
@@ -170,6 +171,7 @@ class HttpRoutesSpec
         "runtimeName" -> s"${clusterName}-6",
         "creator" -> "user1@example.com",
         "googleProject" -> googleProject,
+        "cloudContext" -> cluster.cloudContext.asStringWithProvider,
         "tool" -> "Jupyter",
         "label6" -> "value6"
       ) ++ serviceAccountLabels
@@ -192,6 +194,7 @@ class HttpRoutesSpec
         "runtimeName" -> s"${clusterName}-4",
         "creator" -> "user1@example.com",
         "googleProject" -> googleProject,
+        "cloudContext" -> cluster.cloudContext.asStringWithProvider,
         "tool" -> "Jupyter",
         "label4" -> "value4"
       ) ++ serviceAccountLabels
@@ -311,7 +314,7 @@ class HttpRoutesSpec
     }
   }
 
-  it should "return 404 when startting a non-existent runtime" in {
+  it should "return 404 when starting a non-existent runtime" in {
     Post("/api/google/v1/runtimes/googleProject1/runtime-non-existent/start") ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
     }
@@ -367,6 +370,63 @@ class HttpRoutesSpec
       status shouldBe StatusCodes.BadRequest
       val resp = responseEntity.toStrict(5 seconds).futureValue.data.utf8String
       resp shouldBe "The request content was malformed:\nDecodingFailure at : Google Dataproc does not support clusters with 1 non-preemptible worker. Must be 0, 2 or more."
+    }
+  }
+
+  "RuntimeRoutesV2" should "create azure runtime" in {
+    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1")
+      .withEntity(ContentTypes.`application/json`, defaultCreateAzureRuntimeReq.asJson.spaces2) ~> routes.route ~> check {
+      println("@@")
+      println(defaultCreateAzureRuntimeReq.asJson.spaces2)
+      status shouldEqual StatusCodes.Accepted
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "reject azure runtime with invalid workspaceId" in {
+    Post(s"/api/v2/runtimes/invalidWorkspaceId/azure/azureruntime1")
+      .withEntity(ContentTypes.`application/json`, defaultCreateAzureRuntimeReq.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.BadRequest
+      println("@@@@@")
+      responseEntity.toStrict(5 seconds).futureValue.data.utf8String should include(
+        "Invalid workspace id invalidWorkspaceId, workspace id must be a valid UUID"
+      )
+    }
+  }
+
+  it should "reject azure runtime with invalid runtimeName" in {
+    Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/invalidRuntime")
+      .withEntity(ContentTypes.`application/json`, defaultCreateAzureRuntimeReq.asJson.spaces2) ~> routes.route ~> check {
+      status shouldEqual StatusCodes.BadRequest
+      responseEntity.toStrict(5 seconds).futureValue.data.utf8String should include(
+        "Invalid runtime name invalidRuntime"
+      )
+    }
+  }
+
+  it should "get an azure runtime" in {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[GetRuntimeResponse].clusterName shouldBe RuntimeName("azureruntime1")
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "404 on get azure runtime when it does not exist" in {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/fakeruntime") ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
+    }
+  }
+
+  it should "delete an azure runtime" in {
+    Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.Accepted
+    }
+  }
+
+  it should "404 on delete azure runtime when it does not exist" in {
+    Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.NotFound
     }
   }
 
@@ -605,6 +665,7 @@ class HttpRoutesSpec
       runtimeService,
       MockDiskServiceInterp,
       MockAppService,
+      azureService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -618,6 +679,7 @@ class HttpRoutesSpec
       runtimeService,
       MockDiskServiceInterp,
       kubernetesService,
+      azureService,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -625,16 +687,6 @@ class HttpRoutesSpec
 }
 
 object HttpRoutesSpec {
-  implicit val updateDiskRequestEncoder: Encoder[UpdateDiskRequest] = Encoder.forProduct2(
-    "labels",
-    "size"
-  )(x =>
-    (
-      x.labels,
-      x.size
-    )
-  )
-
   implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse2] = Decoder.instance { x =>
     for {
       id <- x.downField("id").as[Long]

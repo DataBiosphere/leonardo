@@ -4,15 +4,17 @@ package http
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.Uri.Host
-import cats.Parallel
 import cats.effect._
 import cats.effect.std.{Dispatcher, Queue, Semaphore}
 import cats.mtl.Ask
 import cats.syntax.all._
+import cats.{Monad, Parallel}
 import com.github.benmanes.caffeine.cache.Caffeine
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.api.services.compute.ComputeScopes
 import com.google.api.services.container.ContainerScopes
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.compute.v1.Operation
 import fs2.Stream
 import io.circe.syntax._
 import io.kubernetes.client.openapi.ApiClient
@@ -22,7 +24,6 @@ import org.broadinstitute.dsde.workbench.google2.GKEModels.KubernetesClusterId
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
   credentialResource,
-  ComputePollOperation,
   Event,
   GKEService,
   GoogleComputeService,
@@ -40,13 +41,7 @@ import org.broadinstitute.dsde.workbench.leonardo.config.LeoExecutionModeConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
-import org.broadinstitute.dsde.workbench.leonardo.dns.{
-  KubernetesDnsCache,
-  KubernetesDnsCacheKey,
-  ProxyResolver,
-  RuntimeDnsCache,
-  RuntimeDnsCacheKey
-}
+import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.{BuildTimeVersion, HttpRoutes, StandardUserInfoDirectives}
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProvider
@@ -56,17 +51,18 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
-import org.broadinstitute.dsp.{HelmAlgebra, HelmInterpreter}
+import org.broadinstitute.dsp.HelmInterpreter
+import org.http4s.Request
 import org.http4s.blaze.client
-import org.http4s.client.middleware.{Retry, RetryPolicy, Logger => Http4sLogger}
+import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
+
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
-
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
@@ -92,45 +88,6 @@ object Boot extends IOApp {
       implicit val dbRef = appDependencies.dbReference
       implicit val openTelemetry = googleDependencies.openTelemetryMetrics
 
-      val bucketHelperConfig = BucketHelperConfig(
-        imageConfig,
-        welderConfig,
-        proxyConfig,
-        securityFilesConfig
-      )
-      val bucketHelper = new BucketHelper(bucketHelperConfig,
-                                          googleDependencies.googleStorageService,
-                                          appDependencies.serviceAccountProvider)
-      val vpcInterp =
-        new VPCInterpreter(vpcInterpreterConfig,
-                           googleDependencies.googleResourceService,
-                           googleDependencies.googleComputeService,
-                           googleDependencies.computePollOperation)
-
-      val dataprocInterp = new DataprocInterpreter(
-        dataprocInterpreterConfig,
-        bucketHelper,
-        vpcInterp,
-        googleDependencies.googleDataproc,
-        googleDependencies.googleComputeService,
-        googleDependencies.googleDiskService,
-        googleDependencies.googleDirectoryDAO,
-        googleDependencies.googleIamDAO,
-        googleDependencies.googleResourceService,
-        appDependencies.welderDAO
-      )
-
-      val gceInterp = new GceInterpreter(
-        gceInterpreterConfig,
-        googleDependencies.computePollOperation,
-        bucketHelper,
-        vpcInterp,
-        googleDependencies.googleComputeService,
-        googleDependencies.googleDiskService,
-        appDependencies.welderDAO
-      )
-      implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
-
       val dateAccessedUpdater =
         new DateAccessedUpdater(dateAccessUpdaterConfig, appDependencies.dateAccessedUpdaterQueue)
       val proxyService = new ProxyService(
@@ -153,7 +110,13 @@ object Boot extends IOApp {
         imageConfig,
         autoFreezeConfig,
         dataprocConfig,
-        gceConfig
+        gceConfig,
+        AzureServiceConfig(
+          //For now azure disks share same defaults as normal disks
+          ConfigReader.appConfig.persistentDisk,
+          ConfigReader.appConfig.azure.service
+        ),
+        ConfigReader.appConfig.azure.runtimeDefaults
       )
       val runtimeService = RuntimeService(
         runtimeServiceConfig,
@@ -163,7 +126,6 @@ object Boot extends IOApp {
         appDependencies.dockerDAO,
         googleDependencies.googleStorageService,
         googleDependencies.googleComputeService,
-        googleDependencies.computePollOperation,
         appDependencies.publisherQueue
       )
       val diskService = new DiskServiceInterp[IO](
@@ -180,6 +142,15 @@ object Boot extends IOApp {
                                 appDependencies.publisherQueue,
                                 appDependencies.googleDependencies.googleComputeService)
 
+      val azureService = new AzureServiceInterp[IO](
+        runtimeServiceConfig,
+        appDependencies.authProvider,
+        appDependencies.wsmDAO,
+        appDependencies.samDAO,
+        appDependencies.asyncTasksQueue,
+        appDependencies.publisherQueue
+      )
+
       val httpRoutes = new HttpRoutes(
         swaggerConfig,
         statusService,
@@ -187,6 +158,7 @@ object Boot extends IOApp {
         runtimeService,
         diskService,
         leoKubernetesService,
+        azureService,
         StandardUserInfoDirectives,
         contentSecurityPolicy,
         refererConfig
@@ -196,9 +168,12 @@ object Boot extends IOApp {
         implicit0(ctx: Ask[IO, AppContext]) = Ask.const[IO, AppContext](
           AppContext(TraceId(s"Boot_${start}"), start)
         )
+//       TODO: this will be needed once we support more environments.
+//        Disable for now since this causes fiab start to fail
+//        _ <- appDependencies.samDAO.registerLeo
 
         _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
-          dataprocInterp.setupDataprocImageGoogleGroup
+          appDependencies.dataprocInterp.setupDataprocImageGoogleGroup
         } else IO.unit
         _ <- IO.fromFuture {
           IO {
@@ -216,74 +191,11 @@ object Boot extends IOApp {
       } yield ()
 
       val allStreams = {
+        val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
+
         val backLeoOnlyProcesses = {
-          implicit val clusterToolToToolDao =
-            ToolDAO.clusterToolToToolDao(appDependencies.jupyterDAO,
-                                         appDependencies.welderDAO,
-                                         appDependencies.rStudioDAO)
-
-          val gceRuntimeMonitor = new GceRuntimeMonitor[IO](
-            gceMonitorConfig,
-            googleDependencies.googleComputeService,
-            googleDependencies.computePollOperation,
-            appDependencies.authProvider,
-            googleDependencies.googleStorageService,
-            appDependencies.publisherQueue,
-            gceInterp
-          )
-
-          val dataprocRuntimeMonitor =
-            new DataprocRuntimeMonitor[IO](
-              dataprocMonitorConfig,
-              googleDependencies.googleComputeService,
-              appDependencies.authProvider,
-              googleDependencies.googleStorageService,
-              dataprocInterp,
-              googleDependencies.googleDataproc
-            )
-
-          implicit val cloudServiceRuntimeMonitor: RuntimeMonitor[IO, CloudService] =
-            new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
-
           val monitorAtBoot =
             new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.googleComputeService)
-
-          val googleDiskService = googleDependencies.googleDiskService
-
-          // only needed for backleo
-          val asyncTasks = AsyncTaskProcessor(asyncTaskProcessorConfig, appDependencies.asyncTasksQueue)
-
-          val gkeAlg = new GKEInterpreter[IO](
-            gkeInterpConfig,
-            vpcInterp,
-            googleDependencies.gkeService,
-            googleDependencies.kubeService,
-            appDependencies.helmClient,
-            appDependencies.appDAO,
-            googleDependencies.credentials,
-            googleDependencies.googleIamDAO,
-            googleDependencies.googleDiskService,
-            appDependencies.appDescriptorDAO,
-            appDependencies.nodepoolLock
-          )
-
-          val azureAlg = new AzureInterpreter[IO](ConfigReader.appConfig.azure.runtimeDefaults,
-                                                  ConfigReader.appConfig.azure.monitor,
-                                                  appDependencies.asyncTasksQueue,
-                                                  appDependencies.wsmDAO,
-                                                  appDependencies.computeManagerDao)
-
-          val pubsubSubscriber =
-            new LeoPubsubMessageSubscriber[IO](
-              leoPubsubMessageSubscriberConfig,
-              appDependencies.subscriber,
-              appDependencies.asyncTasksQueue,
-              googleDiskService,
-              googleDependencies.computePollOperation,
-              appDependencies.authProvider,
-              gkeAlg,
-              azureAlg
-            )
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -292,7 +204,7 @@ object Boot extends IOApp {
           )
 
           val nonLeoMessageSubscriber =
-            new NonLeoMessageSubscriber[IO](gkeAlg,
+            new NonLeoMessageSubscriber[IO](appDependencies.gkeAlg,
                                             googleDependencies.googleComputeService,
                                             appDependencies.samDAO,
                                             appDependencies.nonLeoMessageGoogleSubscriber,
@@ -303,21 +215,21 @@ object Boot extends IOApp {
             nonLeoMessageSubscriber.process,
             Stream.eval(appDependencies.nonLeoMessageGoogleSubscriber.start),
             asyncTasks.process,
-            pubsubSubscriber.process,
+            appDependencies.pubsubSubscriber.process,
             Stream.eval(appDependencies.subscriber.start),
             monitorAtBoot.process, // checks database to see if there's on-going runtime status transition
             autopauseMonitor.process // check database to autopause runtimes periodically
           )
         }
 
-        val frontLeoOnlyProcesses = List(
+        val uniquefrontLeoOnlyProcesses = List(
           dateAccessedUpdater.process // We only need to update dateAccessed in front leo
-        ) // ++ appDependencies.recordCacheMetrics TODO: uncomment this
+        ) ++ appDependencies.recordCacheMetrics
 
         val extraProcesses = leoExecutionModeConfig match {
           case LeoExecutionModeConfig.BackLeoOnly  => backLeoOnlyProcesses
-          case LeoExecutionModeConfig.FrontLeoOnly => frontLeoOnlyProcesses
-          case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ frontLeoOnlyProcesses
+          case LeoExecutionModeConfig.FrontLeoOnly => asyncTasks.process :: uniquefrontLeoOnlyProcesses
+          case LeoExecutionModeConfig.Combined     => backLeoOnlyProcesses ++ uniquefrontLeoOnlyProcesses
         }
 
         List(
@@ -335,9 +247,12 @@ object Boot extends IOApp {
     }
   }
 
-  private def createDependencies[F[_]: StructuredLogger: Parallel](
+  private def createDependencies[F[_]: Parallel](
     pathToCredentialJson: String
-  )(implicit ec: ExecutionContext, as: ActorSystem, F: Async[F]): Resource[F, AppDependencies[F]] =
+  )(implicit logger: StructuredLogger[F],
+    ec: ExecutionContext,
+    as: ActorSystem,
+    F: Async[F]): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
@@ -360,7 +275,7 @@ object Boot extends IOApp {
       )
       runtimeDnsCaffineCache <- Resource.make(
         F.delay(CaffeineCache[F, RuntimeDnsCacheKey, HostStatus](underlyingRuntimeDnsCache))
-      )(s => F.delay(s.close))
+      )(_.close)
       runtimeDnsCache = new RuntimeDnsCache(proxyConfig, dbRef, hostToIpMapping, runtimeDnsCaffineCache)
       underlyingKubernetesDnsCache = buildCache[KubernetesDnsCacheKey, scalacache.Entry[HostStatus]](
         kubernetesDnsCacheConfig.cacheMaxSize,
@@ -369,7 +284,7 @@ object Boot extends IOApp {
 
       kubernetesDnsCaffineCache <- Resource.make(
         F.delay(CaffeineCache[F, KubernetesDnsCacheKey, HostStatus](underlyingKubernetesDnsCache))
-      )(s => F.delay(s.close))
+      )(_.close)
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, hostToIpMapping, kubernetesDnsCaffineCache)
 
       // Set up SSL context and http clients
@@ -377,14 +292,25 @@ object Boot extends IOApp {
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
       httpClient <- client
         .BlazeClientBuilder[F]
+        .withMaxWaitQueueLimit(512)
         .withSslContext(sslContext)
         // Note a custom resolver is needed for making requests through the Leo proxy
         // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
         // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(proxyResolver.resolveHttp4s)
         .resource
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false)(httpClient)
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
+        httpClient
+      )
       httpClientWithRetryAndLogging = Retry(retryPolicy)(httpClientWithLogging)
+
+      classifierFunc = (r: Request[F]) => Some(r.method.toString.toLowerCase)
+      metricsOps <- org.http4s.metrics.prometheus.Prometheus
+        .metricsOps(io.prometheus.client.CollectorRegistry.defaultRegistry, "http4s_client")
+      meteredClient = Metrics[F](
+        metricsOps,
+        classifierFunc
+      )(httpClientWithLogging)
       // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
       // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
       underlyingPetTokenCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[String]]](
@@ -393,13 +319,13 @@ object Boot extends IOApp {
       )
       petTokenCache <- Resource.make(
         F.delay(CaffeineCache[F, UserEmailAndProject, Option[String]](underlyingPetTokenCache))
-      )(s => F.delay(s.close))
+      )(_.close)
 
-      samDao = HttpSamDAO[F](Retry(retryPolicy)(httpClient), httpSamDaoConfig, petTokenCache)
-      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, httpClientWithLogging)
-      welderDao = new HttpWelderDAO[F](runtimeDnsCache, httpClientWithLogging)
-      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, httpClientWithLogging)
-      appDAO = new HttpAppDAO(kubernetesDnsCache, httpClientWithLogging)
+      samDao = HttpSamDAO[F](httpClientWithRetryAndLogging, httpSamDaoConfig, petTokenCache)
+      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, meteredClient)
+      welderDao = new HttpWelderDAO[F](runtimeDnsCache, meteredClient)
+      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, meteredClient)
+      appDAO = new HttpAppDAO(kubernetesDnsCache, meteredClient)
       dockerDao = HttpDockerDAO[F](httpClientWithRetryAndLogging)
       appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithRetryAndLogging)
       wsmDao = new HttpWsmDao[F](httpClientWithRetryAndLogging, ConfigReader.appConfig.azure.wsm)
@@ -409,9 +335,7 @@ object Boot extends IOApp {
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
                                                                                 samAuthConfig.authCacheExpiryTime)
-      authCache <- Resource.make(F.delay(CaffeineCache[F, AuthCacheKey, Boolean](underlyingAuthCache)))(s =>
-        F.delay(s.close)
-      )
+      authCache <- Resource.make(F.delay(CaffeineCache[F, AuthCacheKey, Boolean](underlyingAuthCache)))(s => s.close)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, authCache)
 
       // Set up GCP credentials
@@ -451,11 +375,9 @@ object Boot extends IOApp {
         RetryPredicates.whenStatusCode(400)
       )
 
-      computePollOperation <- ComputePollOperation.resourceFromCredential(scopedCredential, semaphore)
       dataprocService <- GoogleDataprocService
         .resource(
           googleComputeService,
-          computePollOperation,
           pathToCredentialJson,
           semaphore,
           dataprocConfig.supportedRegions,
@@ -472,7 +394,7 @@ object Boot extends IOApp {
       )
       nodepoolLockCache <- Resource.make(
         F.delay(CaffeineCache[F, KubernetesClusterId, Semaphore[F]](underlyingNodepoolLockCache))
-      )(s => F.delay(s.close))
+      )(_.close)
       nodepoolLock = KeyLock[F, KubernetesClusterId](nodepoolLockCache)
 
       // Set up PubSub queues
@@ -495,7 +417,7 @@ object Boot extends IOApp {
         2 hours
       )
       kubeCache <- Resource.make(F.delay(CaffeineCache[F, KubernetesClusterId, ApiClient](underlyingKubeClientCache)))(
-        s => F.delay(s.close)
+        _.close
       )
       kubeService <- org.broadinstitute.dsde.workbench.google2.KubernetesService
         .resource(Paths.get(pathToCredentialJson), gkeService, kubeCache)
@@ -510,7 +432,7 @@ object Boot extends IOApp {
       )
       googleTokenCache <- Resource.make(
         F.delay(CaffeineCache[F, String, (UserInfo, Instant)](underlyingGoogleTokenCache))
-      )(s => F.delay(s.close))
+      )(_.close)
 
       underlyingSamResourceCache = buildCache[SamResourceCacheKey, scalacache.Entry[Option[String]]](
         proxyConfig.internalIdCacheMaxSize,
@@ -518,7 +440,16 @@ object Boot extends IOApp {
       )
       samResourceCache <- Resource.make(
         F.delay(CaffeineCache[F, SamResourceCacheKey, Option[String]](underlyingSamResourceCache))
-      )(s => F.delay(s.close))
+      )(s => s.close)
+
+      underlyingOperationFutureCache = buildCache[Long, scalacache.Entry[OperationFuture[Operation, Operation]]](
+        500,
+        5 minutes
+      )
+      operationFutureCache <- Resource.make(
+        F.delay(CaffeineCache[F, Long, OperationFuture[Operation, Operation]](underlyingOperationFutureCache))
+      )(_.close)
+
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
@@ -534,11 +465,10 @@ object Boot extends IOApp {
         CacheMetrics("kubernetesApiClient")
           .processWithUnderlyingCache(underlyingKubeClientCache)
       )
-      googleDependencies = GoogleDependencies(
+    } yield {
+      val googleDependencies = GoogleDependencies(
         googleStorage,
         googleComputeService,
-        computePollOperation,
-        googleDiskService,
         googleResourceService,
         googleDirectoryDAO,
         cryptoMiningUserPublisher,
@@ -546,41 +476,129 @@ object Boot extends IOApp {
         dataprocService,
         kubernetesDnsCache,
         gkeService,
-        kubeService,
         openTelemetry,
         kubernetesScopedCredential,
         googleOauth2DAO
       )
-    } yield AppDependencies(
-      sslContext,
-      dbRef,
-      runtimeDnsCache,
-      googleDependencies,
-      samDao,
-      welderDao,
-      dockerDao,
-      jupyterDao,
-      rstudioDAO,
-      wsmDao,
-      computeManagerDao,
-      serviceAccountProvider,
-      authProvider,
-      semaphore,
-      leoPublisher,
-      publisherQueue,
-      dataAccessedUpdater,
-      subscriber,
-      nonLeoMessageSubscriber,
-      asyncTasksQueue,
-      helmClient,
-      appDAO,
-      nodepoolLock,
-      appDescriptorDAO,
-      proxyResolver,
-      recordMetricsProcesses,
-      googleTokenCache,
-      samResourceCache
-    )
+
+      val bucketHelperConfig = BucketHelperConfig(
+        imageConfig,
+        welderConfig,
+        proxyConfig,
+        securityFilesConfig
+      )
+
+      val bucketHelper = new BucketHelper[F](bucketHelperConfig, googleStorage, serviceAccountProvider)
+      val vpcInterp = new VPCInterpreter(vpcInterpreterConfig, googleResourceService, googleComputeService)
+
+      val dataprocInterp = new DataprocInterpreter(
+        dataprocInterpreterConfig,
+        bucketHelper,
+        vpcInterp,
+        dataprocService,
+        googleComputeService,
+        googleDiskService,
+        googleDirectoryDAO,
+        googleIamDAO,
+        googleResourceService,
+        welderDao
+      )
+
+      val gceInterp = new GceInterpreter(
+        gceInterpreterConfig,
+        bucketHelper,
+        vpcInterp,
+        googleDependencies.googleComputeService,
+        googleDiskService,
+        welderDao
+      )
+
+      implicit val runtimeInstances = new RuntimeInstances(dataprocInterp, gceInterp)
+
+      val gkeAlg = new GKEInterpreter[F](
+        gkeInterpConfig,
+        vpcInterp,
+        googleDependencies.gkeService,
+        kubeService,
+        helmClient,
+        appDAO,
+        googleDependencies.credentials,
+        googleDependencies.googleIamDAO,
+        googleDiskService,
+        appDescriptorDAO,
+        nodepoolLock,
+        googleDependencies.googleResourceService
+      )
+
+      val azureAlg = new AzureInterpreter[F](ConfigReader.appConfig.azure.monitor,
+                                             asyncTasksQueue,
+                                             wsmDao,
+                                             samDao,
+                                             computeManagerDao)
+
+      implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
+      val gceRuntimeMonitor = new GceRuntimeMonitor[F](
+        gceMonitorConfig,
+        googleDependencies.googleComputeService,
+        authProvider,
+        googleDependencies.googleStorageService,
+        publisherQueue,
+        gceInterp
+      )
+
+      val dataprocRuntimeMonitor = new DataprocRuntimeMonitor[F](
+        dataprocMonitorConfig,
+        googleDependencies.googleComputeService,
+        authProvider,
+        googleDependencies.googleStorageService,
+        dataprocInterp,
+        googleDependencies.googleDataproc
+      )
+
+      implicit val cloudServiceRuntimeMonitor =
+        new CloudServiceRuntimeMonitor(gceRuntimeMonitor, dataprocRuntimeMonitor)
+
+      val pubsubSubscriber = new LeoPubsubMessageSubscriber[F](
+        leoPubsubMessageSubscriberConfig,
+        subscriber,
+        asyncTasksQueue,
+        googleDiskService,
+        authProvider,
+        gkeAlg,
+        azureAlg,
+        operationFutureCache
+      )
+
+      AppDependencies(
+        sslContext,
+        dbRef,
+        runtimeDnsCache,
+        googleDependencies,
+        samDao,
+        dockerDao,
+        jupyterDao,
+        wsmDao,
+        serviceAccountProvider,
+        authProvider,
+        leoPublisher,
+        publisherQueue,
+        dataAccessedUpdater,
+        subscriber,
+        nonLeoMessageSubscriber,
+        asyncTasksQueue,
+        nodepoolLock,
+        proxyResolver,
+        recordMetricsProcesses,
+        googleTokenCache,
+        samResourceCache,
+        pubsubSubscriber,
+        gkeAlg,
+        dataprocInterp
+      )
+    }
+
+  private def logAction[F[_]: Monad: StructuredLogger](s: String): F[Unit] =
+    StructuredLogger[F].info(s)
 
   private def buildCache[K, V](maxSize: Int,
                                expiresIn: FiniteDuration): com.github.benmanes.caffeine.cache.Cache[K, V] =
@@ -597,8 +615,6 @@ object Boot extends IOApp {
 final case class GoogleDependencies[F[_]](
   googleStorageService: GoogleStorageService[F],
   googleComputeService: GoogleComputeService[F],
-  computePollOperation: ComputePollOperation[F],
-  googleDiskService: GoogleDiskService[F],
   googleResourceService: GoogleResourceService[F],
   googleDirectoryDAO: HttpGoogleDirectoryDAO,
   cryptoMiningUserPublisher: GooglePublisher[F],
@@ -606,7 +622,6 @@ final case class GoogleDependencies[F[_]](
   googleDataproc: GoogleDataprocService[F],
   kubernetesDnsCache: KubernetesDnsCache[F],
   gkeService: GKEService[F],
-  kubeService: org.broadinstitute.dsde.workbench.google2.KubernetesService[F],
   openTelemetryMetrics: OpenTelemetryMetrics[F],
   credentials: GoogleCredentials,
   googleOauth2DAO: GoogleOAuth2Service[F]
@@ -618,27 +633,23 @@ final case class AppDependencies[F[_]](
   runtimeDnsCache: RuntimeDnsCache[F],
   googleDependencies: GoogleDependencies[F],
   samDAO: HttpSamDAO[F],
-  welderDAO: HttpWelderDAO[F],
   dockerDAO: HttpDockerDAO[F],
   jupyterDAO: HttpJupyterDAO[F],
-  rStudioDAO: RStudioDAO[F],
   wsmDAO: HttpWsmDao[F],
-  computeManagerDao: ComputeManagerDao[F],
   serviceAccountProvider: ServiceAccountProvider[F],
   authProvider: SamAuthProvider[F],
-  semaphore: Semaphore[F],
   leoPublisher: LeoPublisher[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
   dateAccessedUpdaterQueue: Queue[F, UpdateDateAccessMessage],
   subscriber: GoogleSubscriber[F, LeoPubsubMessage],
   nonLeoMessageGoogleSubscriber: GoogleSubscriber[F, NonLeoMessage],
   asyncTasksQueue: Queue[F, Task[F]],
-  helmClient: HelmAlgebra[F],
-  appDAO: AppDAO[F],
   nodepoolLock: KeyLock[F, KubernetesClusterId],
-  appDescriptorDAO: AppDescriptorDAO[F],
   proxyResolver: ProxyResolver[F],
   recordCacheMetrics: List[Stream[F, Unit]],
   googleTokenCache: scalacache.Cache[F, String, (UserInfo, Instant)],
-  samResourceCache: scalacache.Cache[F, SamResourceCacheKey, Option[String]]
+  samResourceCache: scalacache.Cache[F, SamResourceCacheKey, Option[String]],
+  pubsubSubscriber: LeoPubsubMessageSubscriber[F],
+  gkeAlg: GKEAlgebra[F],
+  dataprocInterp: DataprocInterpreter[F]
 )

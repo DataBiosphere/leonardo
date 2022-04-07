@@ -21,3 +21,16 @@ if [ -d '/mnt/disks/work/.jupyter' ] && [ "SHOULD_DELETE_JUPYTER_DIR" = "true" ]
     rm -rf /mnt/disks/work/.jupyter
     rm -rf /mnt/disks/work/.local || true
 fi
+
+# https://broadworkbench.atlassian.net/browse/IA-3186
+# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
+# a dedicated flag that distinguishes gce and dataproc. But this will do for now
+# Attempt to fix https://broadworkbench.atlassian.net/browse/IA-3258
+if [ -f "/var/certs/jupyter-server.crt" ]
+then
+  DOCKER_COMPOSE='docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2'
+else
+  DOCKER_COMPOSE='docker-compose'
+fi
+
+$DOCKER_COMPOSE down

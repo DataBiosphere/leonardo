@@ -34,7 +34,7 @@ object extensionQuery extends TableQuery(new ExtensionTable(_)) {
       case None      => DBIO.successful(0)
     }
 
-  def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[UserJupyterExtensionConfig] =
+  def getAllForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[Option[UserJupyterExtensionConfig]] =
     extensionQuery.filter {
       _.clusterId === clusterId
     }.result map { recs =>
@@ -48,7 +48,11 @@ object extensionQuery extends TableQuery(new ExtensionTable(_)) {
       }).toMap
       val labExtensions =
         (recs.filter(_.extensionType == ExtensionType.LabExtension.toString) map { rec => rec.name -> rec.value }).toMap
-      UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtensions, labExtensions)
+
+      if (nbExtensions.isEmpty && serverExtensions.isEmpty && combinedExtensions.isEmpty && labExtensions.isEmpty)
+        None
+      else
+        Some(UserJupyterExtensionConfig(nbExtensions, serverExtensions, combinedExtensions, labExtensions))
     }
 
   def marshallExtensions(clusterId: Long,

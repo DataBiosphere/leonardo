@@ -98,7 +98,8 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
                              serviceAccount: Option[WorkbenchEmail],
                              notebookUserScript: Option[String],
                              notebookStartUserScript: Option[String],
-                             tool: String) {
+                             tool: String,
+                             cloudContext: CloudContext) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
@@ -116,6 +117,7 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
       "clusterName" -> runtimeName.asString,
       "runtimeName" -> runtimeName.asString,
       "googleProject" -> googleProject.value,
+      "cloudContext" -> cloudContext.asStringWithProvider,
       "creator" -> creator.value,
       "tool" -> tool
     ) ++ userScr ++ startScr ++ clusterSa
@@ -125,7 +127,8 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
   //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
-  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted, Stopping, Stopped, Starting = Value
+  val Unknown, Creating, Running, Updating, Error, Deleting, Deleted, Stopping, Stopped, Starting, PreCreating,
+    PreDeleting = Value
   val activeStatuses = Set(Unknown, Creating, Running, Updating)
   val monitoredStatuses = Set(Unknown, Creating, Updating, Deleting)
   val deletableStatuses: Set[ClusterStatus] = Set(Unknown, Running, Updating, Error, Stopping, Stopped, Starting)

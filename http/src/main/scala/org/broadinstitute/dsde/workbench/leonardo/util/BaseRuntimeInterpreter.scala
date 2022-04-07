@@ -4,6 +4,7 @@ package util
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import org.broadinstitute.dsde.workbench.google2.MachineTypeName
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.Welder
@@ -33,11 +34,11 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
   protected def stopGoogleRuntime(params: StopGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
-  ): F[Option[Operation]]
+  ): F[Option[OperationFuture[Operation, Operation]]]
 
   protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
-  ): F[Unit]
+  ): F[Option[OperationFuture[Operation, Operation]]]
 
   protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
@@ -45,7 +46,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
   final override def stopRuntime(
     params: StopRuntimeParams
-  )(implicit ev: Ask[F, AppContext]): F[Option[Operation]] =
+  )(implicit ev: Ask[F, AppContext]): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       ctx <- ev.ask
       // Flush the welder cache to disk
@@ -68,14 +69,16 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       )
     } yield r
 
-  final override def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
+  final override def startRuntime(
+    params: StartRuntimeParams
+  )(implicit ev: Ask[F, AppContext]): F[Option[OperationFuture[Operation, Operation]]] = {
     val welderAction = getWelderAction(params.runtimeAndRuntimeConfig.runtime)
     for {
       ctx <- ev.ask
       // Check if welder should be deployed or updated
       updatedRuntime <- welderAction
         .traverse {
-          case UpdateWelder => updateWelder(params.runtimeAndRuntimeConfig.runtime, ctx.now)
+          case UpdateWelder => updateWelder(params.runtimeAndRuntimeConfig.runtime, params.initBucket, ctx.now)
           case DisableDelocalization =>
             labelQuery
               .save(params.runtimeAndRuntimeConfig.runtime.id, LabelResourceType.Runtime, "welderInstallFailed", "true")
@@ -91,8 +94,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
                                                  params.initBucket,
                                                  welderAction)
       // Start the cluster in Google
-      _ <- startGoogleRuntime(startGoogleRuntimeReq)
-    } yield ()
+      res <- startGoogleRuntime(startGoogleRuntimeReq)
+    } yield res
   }
 
   private def getWelderAction(runtime: Runtime): Option[WelderAction] =
@@ -123,12 +126,15 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       isClusterBeforeCutoffDate = runtime.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(runtime: Runtime, now: Instant)(implicit ev: Ask[F, AppContext]): F[Runtime] =
+  private def updateWelder(runtime: Runtime, initBukcet: GcsBucketName, now: Instant)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Runtime] =
     for {
       ctx <- ev.ask
       _ <- logger.info(ctx.loggingCtx)(s"Will deploy welder to runtime ${runtime.projectNameString}")
       _ <- metrics.incrementCounter("welder/upgrade")
 
+      _ <- bucketHelper.uploadFileToInitBucket(initBukcet, config.clusterResourcesConfig.welderDockerCompose)
       newWelderImageUrl <- Async[F].fromEither(
         runtime.runtimeImages
           .find(_.imageType == Welder)
@@ -158,9 +164,18 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       _ <- logger.info(ctx.loggingCtx)(
         s"New machine config present. Changing machine type to ${params.machineType} for cluster ${params.runtimeAndRuntimeConfig.runtime.projectNameString}..."
       )
+      masterInstance <- params.runtimeAndRuntimeConfig.runtimeConfig.cloudService match {
+        case CloudService.Dataproc =>
+          instanceQuery
+            .getMasterForCluster(params.runtimeAndRuntimeConfig.runtime.id)
+            .transaction
+            .map(_.some)
+        case _ => F.pure(none[DataprocInstance])
+      }
+
       // Update the machine type in Google
       _ <- setMachineTypeInGoogle(
-        SetGoogleMachineType(params.runtimeAndRuntimeConfig, params.machineType)
+        SetGoogleMachineType(params.runtimeAndRuntimeConfig, params.machineType, masterInstance)
       )
       // Update the DB
       _ <- dbRef.inTransaction {
@@ -249,4 +264,6 @@ final case class StartGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeCo
 
 final case class StopGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, isDataprocFullStop: Boolean)
 
-final case class SetGoogleMachineType(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, machineType: MachineTypeName)
+final case class SetGoogleMachineType(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
+                                      machineType: MachineTypeName,
+                                      masterInstance: Option[DataprocInstance])

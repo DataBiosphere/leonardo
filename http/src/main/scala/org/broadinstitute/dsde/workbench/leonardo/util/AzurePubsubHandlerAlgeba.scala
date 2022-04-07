@@ -1,15 +1,7 @@
-package org.broadinstitute.dsde.workbench.leonardo.util
+package org.broadinstitute.dsde.workbench.leonardo
+package util
 
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  PersistentDisk,
-  Runtime,
-  RuntimeConfig,
-  RuntimeImage,
-  WorkspaceId
-}
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.dao.WsmJobId
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
@@ -27,8 +19,8 @@ trait AzureAlgebra[F[_]] {
 
 final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           runtime: Runtime,
-                                          runtimeConfig: RuntimeConfig.AzureVmConfig,
-                                          pd: PersistentDisk,
+                                          runtimeConfig: RuntimeConfig.AzureConfig,
+                                          disk: PersistentDisk,
                                           vmImage: RuntimeImage)
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 

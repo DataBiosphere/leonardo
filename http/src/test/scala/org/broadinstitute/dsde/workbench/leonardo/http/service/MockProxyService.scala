@@ -10,13 +10,14 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, MockJupyterDAO, MockSamDAO, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db.DbReference
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, RuntimeDnsCache}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 import scalacache.Cache
 
@@ -37,7 +38,8 @@ class MockProxyService(
 )(implicit system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
-  logger: StructuredLogger[IO])
+  logger: StructuredLogger[IO],
+  metrics: OpenTelemetryMetrics[IO])
     extends ProxyService(TestUtils.sslContext(system),
                          proxyConfig,
                          jupyterDAO,

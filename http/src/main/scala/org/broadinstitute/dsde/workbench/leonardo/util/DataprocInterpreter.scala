@@ -7,24 +7,16 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.api.gax.rpc.ApiException
 import com.google.api.services.admin.directory.model.Group
-import com.google.cloud.compute.v1.Tags
-import com.google.cloud.dataproc.v1.{
-  Component,
-  DiskConfig,
-  EndpointConfig,
-  GceClusterConfig,
-  InstanceGroupConfig,
-  NodeInitializationAction,
-  SoftwareConfig
-}
+import com.google.cloud.compute.v1.{Operation, Tags}
+import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
-import org.broadinstitute.dsde.workbench.google2.DataprocRole.Master
 import org.broadinstitute.dsde.workbench.google2.{
   streamUntilDoneOrTimeout,
   CreateClusterConfig,
@@ -44,8 +36,8 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.DataprocCustomImage
 import org.broadinstitute.dsde.workbench.leonardo.dao.WelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.dataprocInCreateRuntimeMsgToDataprocRuntime
-import org.broadinstitute.dsde.workbench.leonardo.model.{InvalidDataprocMachineConfigException, _}
+import org.broadinstitute.dsde.workbench.leonardo.http.{ctxConversion, dataprocInCreateRuntimeMsgToDataprocRuntime}
+import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.leonardo.util.RuntimeInterpreterConfig.DataprocInterpreterConfig
 import org.broadinstitute.dsde.workbench.model.google._
@@ -55,7 +47,6 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 
 final case class ClusterIamSetupException(googleProject: GoogleProject)
     extends LeoException(s"Error occurred setting up IAM roles in project ${googleProject.value}", traceId = None)
@@ -355,19 +346,19 @@ class DataprocInterpreter[F[_]: Parallel](
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
-  )(implicit ev: Ask[F, AppContext]): F[Option[com.google.cloud.compute.v1.Operation]] =
+  )(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[OperationFuture[Operation, Operation]]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
       for {
-        ctx <- ev.ask
         region <- F.fromOption(
           LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
           new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
         )
         metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
-        _ <- params.runtimeAndRuntimeConfig.runtime.dataprocInstances.find(_.dataprocRole == Master).traverse {
-          instance =>
-            googleComputeService
-              .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
+        _ <- params.masterInstance.traverse { instance =>
+          googleComputeService
+            .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
         }
         googleProject <- F.fromOption(
           LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
@@ -393,7 +384,7 @@ class DataprocInterpreter[F[_]: Parallel](
 
   override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
-  ): F[Option[com.google.cloud.compute.v1.Operation]] =
+  ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       region <- F.fromOption(
         LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
@@ -415,7 +406,7 @@ class DataprocInterpreter[F[_]: Parallel](
 
   override protected def startGoogleRuntime(params: StartGoogleRuntime)(
     implicit ev: Ask[F, AppContext]
-  ): F[Unit] =
+  ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       dataprocConfig <- F.fromOption(
         LeoLenses.dataprocPrism.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
@@ -444,7 +435,7 @@ class DataprocInterpreter[F[_]: Parallel](
         dataprocConfig.numberOfPreemptibleWorkers,
         Some(metadata)
       )
-    } yield ()
+    } yield None
 
   override def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
     (for {
@@ -495,8 +486,7 @@ class DataprocInterpreter[F[_]: Parallel](
   override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
-    params.runtimeAndRuntimeConfig.runtime.dataprocInstances
-      .find(_.dataprocRole == Master)
+    params.masterInstance
       .traverse_(instance =>
         // Note: we don't support changing the machine type for worker instances. While this is possible
         // in GCP, Spark settings are auto-tuned to machine size. Dataproc recommends adding or removing nodes,
