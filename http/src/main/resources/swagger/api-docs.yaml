@@ -2112,7 +2112,7 @@ components:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             region: "eastus"
             machineSize: "Standard_D1_v2"
-            azureDiskConfig: { labels: {}, name: "disk1", size: 50 }
+            disk: { labels: {}, name: "disk1", size: 50 }
 
   securitySchemes:
     googleoauth:
@@ -2592,7 +2592,7 @@ components:
       required:
         - region
         - machineSize
-        - azureDiskConfig
+        - disk
       properties:
         labels:
           type: object
@@ -2609,7 +2609,7 @@ components:
         customEnvironmentVariabales:
           type: object
           description: an optional set of key value pairs for environment variables to be injected into the VM
-        azureDiskConfig:
+        disk:
           $ref: "#/components/schemas/AzureDiskConfig"
 
     AzureDiskConfig:
