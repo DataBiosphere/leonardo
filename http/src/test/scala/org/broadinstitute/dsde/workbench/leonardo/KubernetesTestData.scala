@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
-import org.broadinstitute.dsde.workbench.google2.KubernetesModels.Protocol
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.{NamespaceName, ServiceName}
 import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, RegionName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -42,7 +41,6 @@ object KubernetesTestData {
   val ingressChart = Chart(ingressChartName, ingressChartVersion)
 
   val serviceKind = KubernetesServiceKindName("ClusterIP")
-  val protocol = Protocol("TCP")
 
   val kubernetesRuntimeConfig = KubernetesRuntimeConfig(
     NumNodes(2),
