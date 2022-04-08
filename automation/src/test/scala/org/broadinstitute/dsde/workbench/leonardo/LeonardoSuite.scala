@@ -65,7 +65,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
   protected def createBillingProjectAndWorkspace: IO[GoogleProjectAndWorkspaceName] =
     for {
       hermioneAuthToken <- Hermione.authToken()
-      billingProjectName = randomIdWithPrefix("leonardo-test-billing-project-")
+      billingProjectName = randomIdWithPrefix("leonardo-test-").substring(0, 30)
       _ <- IO {
         Orchestration.billingV2.createBillingProject(
           billingProjectName,
@@ -82,7 +82,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
         )(hermioneAuthToken)
       }
 
-      workspaceName = randomIdWithPrefix("leonardo-test-workspace-")
+      workspaceName = randomIdWithPrefix("leo-leonardo-test-workspace-")
       ronAuthToken <- Ron.authToken()
       workspaceDetails <- IO {
         Orchestration.workspaces.create(billingProjectName, workspaceName)(ronAuthToken)
