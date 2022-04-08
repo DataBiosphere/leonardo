@@ -432,7 +432,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-  "/api/v2/runtimes/":
+  "/api/v2/runtimes":
     get:
       summary: List all runtimes that the caller has access to
       description: List all runtimes, optionally filtering on a set of labels
