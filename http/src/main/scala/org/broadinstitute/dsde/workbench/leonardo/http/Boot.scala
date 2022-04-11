@@ -604,10 +604,12 @@ object Boot extends IOApp {
       .recordStats()
       .build[K, V]()
 
-  private def buildHttpClient[F[_]: Async](sslContext: SSLContext,
-                                           dnsResolver: RequestKey => Either[Throwable, InetSocketAddress],
-                                           metricsPrefix: Option[String],
-                                           withRetry: Boolean): Resource[F, org.http4s.client.Client[F]] = {
+  private def buildHttpClient[F[_]: Async: StructuredLogger](
+    sslContext: SSLContext,
+    dnsResolver: RequestKey => Either[Throwable, InetSocketAddress],
+    metricsPrefix: Option[String],
+    withRetry: Boolean
+  ): Resource[F, org.http4s.client.Client[F]] = {
     val retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
 
     for {
@@ -624,7 +626,7 @@ object Boot extends IOApp {
       )
       client = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
       finalClient <- metricsPrefix match {
-        case None => client
+        case None => Resource.pure[F, org.http4s.client.Client[F]](client)
         case Some(prefix) =>
           val classifierFunc = (r: Request[F]) => Some(r.method.toString.toLowerCase)
           for {
