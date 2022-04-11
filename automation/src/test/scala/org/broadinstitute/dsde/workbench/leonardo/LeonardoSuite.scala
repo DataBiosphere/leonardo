@@ -1,10 +1,12 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
+import cats.effect.std.UUIDGen
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
+import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
 import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
 import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
@@ -64,8 +66,10 @@ trait BillingProjectUtils extends LeonardoTestUtils {
    */
   protected def createBillingProjectAndWorkspace: IO[GoogleProjectAndWorkspaceName] =
     for {
-      hermioneAuthToken <- Hermione.authToken()
-      billingProjectName = randomIdWithPrefix("leonardo-test-").substring(0, 30)
+      hermioneAuthToken <- Hermione.authToken(billingScopes)
+      randomSuffix <- UUIDGen.randomString[IO].map(_.replace("-", ""))
+      billingProjectName = ("leonardo-test-" + randomSuffix).take(30)
+
       _ <- IO {
         Orchestration.billingV2.createBillingProject(
           billingProjectName,
