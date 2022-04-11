@@ -21,7 +21,7 @@ object Settings {
   //coreDefaultSettings + defaultConfigs = the now deprecated defaultSettings
   val commonBuildSettings = Defaults.coreDefaultSettings ++ Defaults.defaultConfigs ++ Seq(
     javaOptions += "-Xmx2G",
-    javacOptions ++= Seq("--release", "11"),
+    javacOptions ++= Seq("--release", "17"),
     Compile / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt console`
     Test / console / scalacOptions --= Seq("-Ywarn-unused:imports", "-Xfatal-warnings"), //disable unused fatal warning in `sbt test:console`
     Test / scalacOptions --= List("-Ywarn-dead-code", "-deprecation", "-Xfatal-warnings"),
@@ -31,7 +31,7 @@ object Settings {
   )
 
   val commonCompilerSettings = Seq(
-    "-target:jvm-11",
+    "-target:jvm-17",
     "-deprecation",                      // Emit warning and location for usages of deprecated APIs.
     "-encoding", "utf-8",                // Specify character encoding used by source files.
     "-explaintypes",                     // Explain type errors in more detail.
