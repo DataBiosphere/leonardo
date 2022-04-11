@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class RuntimeCreationDiskSpec
-    extends GPAllocFixtureSpec
+    extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {

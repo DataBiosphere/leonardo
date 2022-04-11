@@ -31,7 +31,7 @@ import java.util.UUID
 
 @DoNotDiscover
 class RuntimeGceSpec
-    extends GPAllocFixtureSpec
+    extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {

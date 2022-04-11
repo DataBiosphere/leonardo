@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class RuntimePatchSpec
-    extends GPAllocFixtureSpec
+    extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {

@@ -760,6 +760,7 @@ sealed trait TestUser extends Product with Serializable {
   lazy val creds: WorkbenchCredentials = LeonardoConfig.Users.NotebooksWhitelisted.getUserCredential(name)
   lazy val email: String = creds.email
   def authToken(): IO[AuthToken] = IO(creds.makeAuthToken())
+  def authToken(scopes: Seq[String]): IO[AuthToken] = IO(creds.makeAuthToken(scopes))
   def authorization(): IO[Authorization] =
     authToken().map(token => Authorization(Credentials.Token(AuthScheme.Bearer, token.value)))
 }

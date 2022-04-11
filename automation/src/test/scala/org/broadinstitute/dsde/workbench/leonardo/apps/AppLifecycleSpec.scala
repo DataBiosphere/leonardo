@@ -16,9 +16,9 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class AppLifecycleSpec
-    extends GPAllocFixtureSpec
+    extends BillingProjectFixtureSpec
     with LeonardoTestUtils
-    with GPAllocUtils
+    with BillingProjectUtils
     with ParallelTestExecution
     with TableDrivenPropertyChecks {
 
