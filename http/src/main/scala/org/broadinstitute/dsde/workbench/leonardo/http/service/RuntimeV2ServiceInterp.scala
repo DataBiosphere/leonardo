@@ -241,34 +241,34 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
       // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
       // If not, we don't have the right sam id anyways to look up the vm at this stage
-      runtimeSamIds = runtimesUserIsNotCreator
-        .map { r =>
+      wsmControlledResourceSamIds = runtimesUserIsNotCreator
+        .flatMap { r =>
           for {
-            uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId))
+            uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId)) match {
+              case Right(id) => List(id)
+              case Left(_)   => List.empty
+            }
           } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
         }
-        .flatMap(either =>
-          either match {
-            case Right(id) => List(id)
-            case Left(_)   => List.empty
-          }
-        )
 
-      _ <- if (runtimeSamIds.length < runtimesUserIsNotCreator.length)
-        logger.info(
-          s"Omitted ${runtimesUserIsNotCreator.length - runtimeSamIds.length} from sam lookup in listRuntimes because the runtime's sam ID was not a valid UUID. This likely means it has not been updated in back leo by wsm"
-        )
-      else F.unit
+      samVisibleWsmControlledResourceSamIds <- NonEmptyList
+        .fromList(wsmControlledResourceSamIds)
+        .fold[F[List[WsmResourceSamResourceId]]](F.pure(List.empty)) { ids =>
+          authProvider.filterUserVisible(ids, userInfo)
+        }
 
-      vmResourceSamIds = NonEmptyList.fromList(runtimeSamIds)
-      samVisibleRuntimeIds <- vmResourceSamIds.fold[F[List[WsmResourceSamResourceId]]](F.pure(List.empty)) { ids =>
-        authProvider.filterUserVisible(ids, userInfo)
-      }
+      samVisibleRuntimeSamResourceIds <- NonEmptyList
+        .fromList(runtimesUserIsNotCreator.map(_.samResource))
+        .fold[F[List[RuntimeSamResourceId]]](F.pure(List.empty)) { ids =>
+          authProvider.filterUserVisible(ids, userInfo)
+        }
 
       userVisibleRuntimes = runtimesUserIsCreator ++ runtimesUserIsNotCreator.filter(r =>
-        samVisibleRuntimeIds
+        samVisibleWsmControlledResourceSamIds
           .map(id => RuntimeSamResourceId(id.resourceId))
-          .contains(r.samResource)
+          .contains(r.samResource) ||
+          samVisibleRuntimeSamResourceIds
+            .contains(r.samResource)
       )
 
     } yield userVisibleRuntimes.toVector

@@ -12,6 +12,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureRegionEncoder,
   googleProjectDecoder,
   runtimeNameEncoder,
+  workspaceIdDecoder,
   wsmControlledResourceIdEncoder,
   wsmJobIdDecoder,
   wsmJobIdEncoder
@@ -290,11 +291,11 @@ object WsmDecoders {
 
   implicit val getWorkspaceResponseDecoder: Decoder[WorkspaceDescription] = Decoder.instance { c =>
     for {
-      id <- c.downField("id").as[UUID]
+      id <- c.downField("id").as[WorkspaceId]
       displayName <- c.downField("displayName").as[String]
       azureContext <- c.downField("azureContext").as[Option[AzureCloudContext]]
       gcpContext <- c.downField("gcpContext").as[Option[WsmGcpContext]]
-    } yield WorkspaceDescription(WorkspaceId(id), displayName, azureContext, gcpContext.map(_.projectId))
+    } yield WorkspaceDescription(id, displayName, azureContext, gcpContext.map(_.projectId))
   }
 
   implicit val wsmJobStatusDecoder: Decoder[WsmJobStatus] =
