@@ -240,7 +240,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
       // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
-      // If not, we don't have the right sam id anyways to look up the vm at this stage
       wsmControlledResourceSamIds = runtimesUserIsNotCreator
         .flatMap { r =>
           for {
@@ -257,6 +256,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           authProvider.filterUserVisible(ids, userInfo)
         }
 
+      // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
       samVisibleRuntimeSamResourceIds <- NonEmptyList
         .fromList(runtimesUserIsNotCreator.map(_.samResource))
         .fold[F[List[RuntimeSamResourceId]]](F.pure(List.empty)) { ids =>
