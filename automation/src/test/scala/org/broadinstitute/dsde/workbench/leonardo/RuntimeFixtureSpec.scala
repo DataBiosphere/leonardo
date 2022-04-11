@@ -119,7 +119,7 @@ abstract class RuntimeFixtureSpec
     logger.info("beforeAll")
 
     sys.props.get(googleProjectKey) match {
-      case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
+      case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) =>
         clusterCreationFailureMsg = msg
       case Some(googleProjectId) =>
         createRonRuntime(GoogleProject(googleProjectId))

@@ -47,15 +47,15 @@ in `application.conf` to the new chrome driver that you just downloaded
 
 Note: If the test you're trying to run is annotated with `@DoNotDiscover`, do the following for running the individual test
 - Comment out `@DoNotDiscover` of the test you are running
-- Have `Spec` extend `GPAllocBeforeAndAfterAll` directly or indirectly:
-	- If the `Spec` extends `ClusterFixtureSpec`/`RuntimeFixtureSpec`, add `with GPAllocBeforeAndAfterAll` to `ClusterFixtureSpec`/`RuntimeFixtureSpec`. 
-	- If not, add `with GPAllocBeforeAndAfterAll` to the `Spec` directly.
+- Have `Spec` extend `NewBillingProjectAndWorkspaceBeforeAndAfterAll` directly or indirectly:
+	- If the `Spec` extends `ClusterFixtureSpec`/`RuntimeFixtureSpec`, add `with NewBillingProjectAndWorkspaceBeforeAndAfterAll` to `ClusterFixtureSpec`/`RuntimeFixtureSpec`. 
+	- If not, add `with NewBillingProjectAndWorkspaceBeforeAndAfterAll` to the `Spec` directly.
 
 ### Developing locally
 
 If you are developing a test that uses ClusterFixture to re-use the same cluster between tests, you can speed up development significantly by reusing the same cluster between runs:
-- running the tests once with the lines `deleteRonCluster() 
-    unclaimBillingProject()` commented out in the function `afterAll()` within the file `ClusterFixtureSpec.scala`
+- running the tests once with the lines `deleteRonCluster()
+  deleteWorkspaceAndBillingProject()` commented out in the function `afterAll()` within the file `ClusterFixtureSpec.scala`
 - adding these lines to the Spec you are working in, where the project and cluster name are the project and cluster generated in the previous test 
 
 ```

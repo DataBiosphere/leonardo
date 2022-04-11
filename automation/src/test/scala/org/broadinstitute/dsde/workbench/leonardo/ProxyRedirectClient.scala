@@ -23,7 +23,8 @@ object ProxyRedirectClient {
   //   `Server[IO]` is the actual server instance
   //   `IO[Unit]` is used to shut down the server. See documentation for http4s `ServerBuilder.allocated`.
   //
-  // There might be more than one server running if there's more than one test using `GPAllocBeforeAndAfterAll`
+  // There might be more than one server running if there's more than one test using
+  // `NewBillingProjectAndWorkspaceBeforeAndAfterAll`
   private val serverRef: Ref[IO, Map[Int, (Server, IO[Unit])]] =
     Ref.of[IO, Map[Int, (Server, IO[Unit])]](Map.empty).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 

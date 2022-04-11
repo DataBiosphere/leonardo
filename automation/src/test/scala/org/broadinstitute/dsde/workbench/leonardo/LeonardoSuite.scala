@@ -33,8 +33,8 @@ trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with
     }
 
     sys.props.get(googleProjectKey) match {
-      case None                                            => throw new RuntimeException("leonardo.googleProject system property is not set")
-      case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
+      case None                                                         => throw new RuntimeException("leonardo.googleProject system property is not set")
+      case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
         if (isRetryable(test))
           withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
@@ -48,7 +48,7 @@ object BillingProjectFixtureSpec {
   val workspaceNamespaceKey = "leonardo.workspaceNamespace"
   val workspaceNameKey = "leonardo.workspaceName"
   val shouldUnclaimProjectsKey = "leonardo.shouldUnclaimProjects"
-  val gpallocErrorPrefix = "Failed To Claim Project: "
+  val createBillingProjectErrorPrefix = "Failed to create new billing project and workspace: "
   val initalRuntimeName = RuntimeName("initial-runtime")
   val proxyRedirectServerPortKey = "proxyRedirectServerPort"
 }
@@ -106,7 +106,7 @@ trait BillingProjectUtils extends LeonardoTestUtils {
   /**
    * Clean up billing project and resources
    */
-  protected def deleteWorkspaceAndProject(workspaceName: WorkspaceName): IO[Unit] =
+  protected def deleteWorkspaceAndBillingProject(workspaceName: WorkspaceName): IO[Unit] =
     for {
       hermioneAuthToken <- Hermione.authToken()
       ronAuthToken <- Ron.authToken()
@@ -116,8 +116,8 @@ trait BillingProjectUtils extends LeonardoTestUtils {
       }.attempt
 
       _ <- releaseProject match {
-        case Left(e) => loggerIO.warn(e)(s"Failed to release billing project: ${workspaceName.namespace}")
-        case _       => loggerIO.info(s"Billing project released: ${workspaceName.namespace}")
+        case Left(e) => loggerIO.warn(e)(s"Failed to delete billing project: ${workspaceName.namespace}")
+        case _       => loggerIO.info(s"Billing project deleted: ${workspaceName.namespace}")
       }
     } yield ()
 
@@ -128,14 +128,14 @@ trait BillingProjectUtils extends LeonardoTestUtils {
       _ <- loggerIO.info(s"Single test project ${googleProjectAndWorkspaceName.workspaceName.namespace} claimed")
       t <- testCode(googleProjectAndWorkspaceName.googleProject)
       _ <- loggerIO.info(s"Releasing single-test project: ${googleProjectAndWorkspaceName.workspaceName.namespace}")
-      _ <- deleteWorkspaceAndProject(googleProjectAndWorkspaceName.workspaceName)
+      _ <- deleteWorkspaceAndBillingProject(googleProjectAndWorkspaceName.workspaceName)
     } yield t
 
     test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }
 
-trait GPAllocBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
+trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
   implicit val ronTestersonAuthorization = Ron.authorization()
@@ -143,10 +143,10 @@ trait GPAllocBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAl
   override def beforeAll(): Unit = {
     val res = for {
       _ <- IO(super.beforeAll())
-      _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll.beforeAll()")
+      _ <- loggerIO.info("Running NewBillingProjectAndWorkspaceBeforeAndAfterAll.beforeAll()")
       claimAttempt <- createBillingProjectAndWorkspace.attempt
       _ <- claimAttempt match {
-        case Left(e) => IO(sys.props.put(googleProjectKey, gpallocErrorPrefix + e.getMessage))
+        case Left(e) => IO(sys.props.put(googleProjectKey, createBillingProjectErrorPrefix + e.getMessage))
         case Right(googleProjectAndWorkspaceName) =>
           IO(
             sys.props.addAll(
@@ -171,14 +171,16 @@ trait GPAllocBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAl
   override def afterAll(): Unit = {
     val res = for {
       shouldUnclaimProp <- IO(sys.props.get(shouldUnclaimProjectsKey))
-      _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll.afterAll() ${shouldUnclaimProjectsKey}: $shouldUnclaimProp")
+      _ <- loggerIO.info(
+        s"Running NewBillingProjectAndWorkspaceBeforeAndAfterAll.afterAll() ${shouldUnclaimProjectsKey}: $shouldUnclaimProp"
+      )
       projectProp <- IO(sys.props.get(googleProjectKey))
       workspaceNamespaceProp <- IO(sys.props.get(workspaceNamespaceKey))
       workspaceNameProp <- IO(sys.props.get(workspaceNameKey))
-      project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
+      project = projectProp.filterNot(_.startsWith(createBillingProjectErrorPrefix)).map(GoogleProject)
       _ <- if (!shouldUnclaimProp.contains("false")) {
         (project, workspaceNamespaceProp, workspaceNameProp).traverseN {
-          case (p, n, w) => deleteInitialRuntime(p) >> deleteWorkspaceAndProject(WorkspaceName(n, w))
+          case (p, n, w) => deleteInitialRuntime(p) >> deleteWorkspaceAndBillingProject(WorkspaceName(n, w))
         }
       } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
       _ <- IO(sys.props.subtractAll(List(googleProjectKey, workspaceNamespaceKey, workspaceNameKey)))
@@ -257,7 +259,7 @@ final class LeonardoSuite
       new RuntimeGceSpec
     )
     with TestSuite
-    with GPAllocBeforeAndAfterAll
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
 
 final class LeonardoTerraDockerSuite
@@ -271,5 +273,5 @@ final class LeonardoTerraDockerSuite
       new RStudioSpec
     )
     with TestSuite
-    with GPAllocBeforeAndAfterAll
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
