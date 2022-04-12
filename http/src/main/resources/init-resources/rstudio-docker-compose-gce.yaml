@@ -21,6 +21,7 @@ services:
       CLUSTER_NAME: "${RUNTIME_NAME}"
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
+      RSTUDIO_USER_HOME: "${RSTUDIO_USER_HOME}"
     volumes:
       - ${WORK_DIRECTORY}:/home/rstudio
     env_file:
