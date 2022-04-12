@@ -3,7 +3,6 @@ package dao
 
 import _root_.fs2._
 import _root_.io.circe._
-import _root_.io.circe.syntax._
 import _root_.org.typelevel.log4cats.Logger
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
@@ -25,6 +24,7 @@ import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
+import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
@@ -63,7 +63,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           Request[F](
             method = Method.POST,
             uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self")),
-            body = Stream.emits("app.terra.bio/#terms-of-service".getBytes(UTF_8)),
+            entity = Entity.strict(Chunk.array("app.terra.bio/#terms-of-service".getBytes(UTF_8))),
             headers = Headers(leoToken)
           )
         )
@@ -205,7 +205,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             uri = config.samUri
               .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
             headers = Headers(authHeader, `Content-Type`(MediaType.application.json)),
-            body = Stream.emits(CreateSamResourceRequest(resource, policies, parent).asJson.noSpaces.getBytes)
+            entity = CreateSamResourceRequest[R](resource, policies, parent)
           )
         )
         .use { resp =>

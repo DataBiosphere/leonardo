@@ -23,9 +23,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
 ) extends WsmDao[F]
     with Http4sClientDsl[F] {
 
-  implicit def http4sBody[A](body: A)(implicit encoder: EntityEncoder[F, A]): EntityBody[F] =
-    encoder.toEntity(body).body
-
   val defaultMediaType = `Content-Type`(MediaType.application.json)
 
   override def createIp(request: CreateIpRequest,
@@ -40,7 +37,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
                 s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip"
               )
           ),
-        body = request,
+        entity = request,
         headers = Headers(authorization, defaultMediaType)
       )
     )(onError)
@@ -57,7 +54,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
                 s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks"
               )
           ),
-        body = request,
+        entity = request,
         headers = Headers(authorization, defaultMediaType)
       )
     )(onError)
@@ -74,7 +71,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
                 s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/network"
               )
           ),
-        body = request,
+        entity = request,
         headers = Headers(authorization, defaultMediaType)
       )
     )(onError)
@@ -91,7 +88,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
                 s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm"
               )
           ),
-        body = request,
+        entity = request,
         headers = Headers(authorization, defaultMediaType)
       )
     )(onError)
@@ -157,7 +154,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
                 s"/api/workspaces/v1/${req.workspaceId.value.toString}/resources/controlled/azure/${resource}/${req.resourceId.value.toString}"
               )
           ),
-        body = req.deleteRequest,
+        entity = req.deleteRequest,
         headers = Headers(authorization, defaultMediaType)
       )
     )(onError)
