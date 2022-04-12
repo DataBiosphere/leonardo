@@ -70,7 +70,7 @@ docker login terradevacrpublic.azurecr.io -u $DOCKER_USER_NAME -p $DOCKER_USER_P
 
 #Run docker container with Relay Listener
 
-docker run -d --restart always --name RelayListener \
+docker run -d --restart always --network host --name RelayListener \
 --env LISTENER_RELAYCONNECTIONSTRING=$RELAY_CONNECTIONSTRING \
 --env LISTENER_RELAYCONNECTIONNAME=$RELAY_CONNECTION_NAME \
 --env LISTENER_TARGETPROPERTIES_TARGETHOST="http://${RELAY_TARGET_HOST}:8080" \
