@@ -47,7 +47,7 @@ jobs:
         JAVA_OPTS: -Xmx4G -Xms4G -Xss2M
         JVM_OPTS:  -Xmx4G -Xms4G -Xss2M
       run: |
-         export SBT_OPTS="-Duser.timezone=UTC -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3307"
+         export JAVA_OPTS="-Duser.timezone=UTC -Denv.type=test -Dmysql.host=localhost -Dmysql.port=3307"
          sbt "project core" coverage test coverageReport
          sbt "project http" coverage test coverageReport
 
