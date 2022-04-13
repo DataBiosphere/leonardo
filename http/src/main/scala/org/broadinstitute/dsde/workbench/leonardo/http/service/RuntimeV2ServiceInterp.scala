@@ -34,7 +34,6 @@ import java.util.UUID
 
 import cats.data.NonEmptyList
 import JsonCodec._
-import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.ExecutionContext
 
@@ -46,7 +45,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   dbReference: DbReference[F],
-  logger: StructuredLogger[F],
   ec: ExecutionContext
 ) extends RuntimeV2Service[F] {
   override def createRuntime(userInfo: UserInfo,
@@ -159,7 +157,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // If user is creator of the runtime, they should definitely be able to see the runtime.
       hasPermission <- if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
       else
-        checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo).map(_._1)
+        checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo, WsmResourceAction.Read).map(_._1)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
@@ -208,7 +206,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           )
       }
 
-      (hasPermission, wmsResourceId) <- checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo)
+      (hasPermission, wmsResourceId) <- checkSamPermission(cloudContext,
+                                                           runtime.id,
+                                                           runtimeName,
+                                                           userInfo,
+                                                           WsmResourceAction.Write)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
@@ -442,7 +444,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   private def checkSamPermission(cloudContext: CloudContext,
                                  runtimeId: Long,
                                  runtimeName: RuntimeName,
-                                 userInfo: UserInfo)(
+                                 userInfo: UserInfo,
+                                 wsmResourceAction: WsmResourceAction)(
     implicit ctx: Ask[F, AppContext]
   ): F[(Boolean, WsmControlledResourceId)] =
     for {
@@ -457,7 +460,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       res <- authProvider.hasPermission(
         WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),
-        WsmResourceAction.Read,
+        wsmResourceAction,
         userInfo
       )
     } yield (res, azureRuntimeControlledResource.resourceId)
