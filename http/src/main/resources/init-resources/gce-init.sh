@@ -96,6 +96,7 @@ export WELDER_SERVER_NAME=$(welderServerName)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
+export RSTUDIO_USER_HOME=/home/rstudio
 export PROXY_SERVER_NAME=$(proxyServerName)
 export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
 export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
@@ -114,7 +115,6 @@ JUPYTER_HOME=/etc/jupyter
 JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
-RSTUDIO_USER_HOME=/home/rstudio
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
@@ -315,6 +315,7 @@ DOCKER_COMPOSE_FILES_DIRECTORY=${DOCKER_COMPOSE_FILES_DIRECTORY}
 RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
 RSTUDIO_DOCKER_IMAGE=${RSTUDIO_DOCKER_IMAGE}
 IS_RSTUDIO_RUNTIME=${IS_RSTUDIO_RUNTIME}
+RSTUDIO_USER_HOME=${RSTUDIO_USER_HOME}
 END
 
 # Create a network that allows containers to talk to each other via exposed ports
@@ -504,7 +505,8 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 CLUSTER_NAME=$CLUSTER_NAME
 RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL
-IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME" >> /usr/local/lib/R/etc/Renviron.site'
+IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME
+RSTUDIO_USER_HOME=$RSTUDIO_USER_HOME" >> /usr/local/lib/R/etc/Renviron.site'
 
   # Add custom_env_vars.env to Renviron.site
   CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
@@ -525,6 +527,18 @@ IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME" >> /usr/local/lib/R/etc/Renviron.site'
   if [ ! -z "$START_USER_SCRIPT_URI" ] ; then
     apply_start_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
   fi
+
+  # default autosave to 10 seconds
+  docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'mkdir -p $RSTUDIO_USER_HOME/.config/rstudio \
+    && echo "{
+\"initial_working_directory\": \"~\",
+\"auto_save_on_blur\": true,
+\"auto_save_on_idle\": \"commit\",
+\"posix_terminal_shell\": \"bash\",
+\"auto_save_idle_ms\": 10000
+}" > $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs-temp.json \
+    && mv $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs-temp.json $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs.json \
+    && chmod a+rwx $RSTUDIO_USER_HOME/.config/rstudio'
 
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
