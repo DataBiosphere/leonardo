@@ -2,8 +2,8 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import java.time.Instant
-
 import cats.mtl.Ask
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.Operation
 import monocle.Prism
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
@@ -23,10 +23,16 @@ trait RuntimeAlgebra[F[_]] {
   def createRuntime(params: CreateRuntimeParams)(
     implicit ev: Ask[F, AppContext]
   ): F[Option[CreateGoogleRuntimeResponse]]
-  def deleteRuntime(params: DeleteRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
+  def deleteRuntime(params: DeleteRuntimeParams)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[OperationFuture[Operation, Operation]]]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit]
-  def stopRuntime(params: StopRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Option[Operation]]
-  def startRuntime(params: StartRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
+  def stopRuntime(params: StopRuntimeParams)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[OperationFuture[Operation, Operation]]]
+  def startRuntime(params: StartRuntimeParams)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[OperationFuture[Operation, Operation]]]
   def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
   def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
   def resizeCluster(params: ResizeClusterParams)(implicit ev: Ask[F, AppContext]): F[Unit]

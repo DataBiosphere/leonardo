@@ -3,23 +3,23 @@ import sbt._
 object Dependencies {
   val scalaV = "2.13"
 
-  val akkaV = "2.6.18"
+  val akkaV = "2.6.19"
   val akkaHttpV = "10.2.7"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
   val scalaLoggingV = "3.9.4"
   val scalaTestV = "3.2.11"
   val slickV = "3.3.3"
-  val http4sVersion = "1.0.0-M30"
+  val http4sVersion = "1.0.0-M32"
   val guavaV = "31.0.1-jre"
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "31be16e8-SNAP"
-  val serviceTestV = s"0.21-$workbenchLibsHash"
+  private val workbenchLibsHash = "f6dcc68"
+  val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
-  val workbenchGoogle2V = s"0.23-$workbenchLibsHash"
+  val workbenchGoogle2V = s"0.24-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.3-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.4"
@@ -55,10 +55,10 @@ object Dependencies {
   val excludeBigQuery = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-bigquery")
   val excludeCloudBilling = ExclusionRule(organization = "com.google.cloud", name = "google-cloud-billing")
 
-  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.10"
+  val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.11"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
   val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "4.1.3"
-  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.1"
+  val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
   val akkaSlf4j: ModuleID =         "com.typesafe.akka" %% "akka-slf4j"           % akkaV
@@ -111,23 +111,26 @@ object Dependencies {
     excludeBouncyCastlePkix)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
+  val wsmClient: ModuleID = "bio.terra" % "workspace-manager-client" % "0.254.192-SNAPSHOT"
+
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
   val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
   val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.28"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.7.1"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.9.1"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.20" % Test // brought in for FakeStorageInterpreter
 
   val circeYaml =         "io.circe"          %% "circe-yaml"           % "0.14.1"
   val http4sBlazeServer = "org.http4s"        %% "http4s-blaze-server"  % http4sVersion
+  val http4sPrometheus = "org.http4s" %% "http4s-prometheus-metrics" % http4sVersion
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
-  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.11.0"
-  val azureIdentity =  "com.azure" % "azure-identity" % "1.4.4"
+  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.13.0"
+  val azureIdentity =  "com.azure" % "azure-identity" % "1.4.6"
 
   val coreDependencies = List(
     scalaTest,
@@ -167,6 +170,7 @@ object Dependencies {
     akkaTestKit,
     akkaHttpTestKit,
     akkaStream,
+    http4sPrometheus,
     "de.heikoseeberger" %% "akka-http-circe" % "1.39.2" excludeAll(excludeAkkaHttp, excludeAkkaStream),
     googleRpc,
 
@@ -205,6 +209,7 @@ object Dependencies {
     scalaTest,
     scalaTestSelenium,
     scalaTestMockito,
-    http4sBlazeServer % Test
+    http4sBlazeServer % Test,
+    wsmClient
   )
 }

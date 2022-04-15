@@ -103,7 +103,7 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   ): DBIO[Option[Long]] =
     getClusterByUniqueKey(cloudContext, clusterName, destroyedDateOpt).map(_.map(_.id))
 
-  private[leonardo] def getClusterByUniqueKey(
+  def getClusterByUniqueKey(
     cloudContext: CloudContext,
     clusterName: RuntimeName,
     destroyedDateOpt: Option[Instant]
@@ -117,8 +117,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
   def fullClusterQueryByUniqueKey(cloudContext: CloudContext,
                                   clusterName: RuntimeName,
                                   destroyedDateOpt: Option[Instant]) = {
-    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
     import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
+    import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
     val destroyedDate = destroyedDateOpt.getOrElse(dummyDate)
     val baseQuery = clusterQuery

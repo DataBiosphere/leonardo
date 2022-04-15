@@ -5,11 +5,12 @@ import cats.Parallel
 import cats.effect.Async
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
+  isSuccess,
   tracedRetryF,
-  ComputePollOperation,
   FirewallRuleName,
   GoogleComputeService,
   GoogleResourceService,
@@ -46,8 +47,7 @@ final case class FirewallNotReadyException(project: GoogleProject, firewall: Fir
 final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
   config: VPCInterpreterConfig,
   googleResourceService: GoogleResourceService[F],
-  googleComputeService: GoogleComputeService[F],
-  computePollOperation: ComputePollOperation[F]
+  googleComputeService: GoogleComputeService[F]
 )(implicit F: Async[F])
     extends VPCAlgebra[F] {
 
@@ -83,7 +83,6 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
             )
             // create the network
             _ <- createIfAbsent(
-              params.project,
               googleComputeService.getNetwork(params.project, config.vpcConfig.networkName),
               googleComputeService.createNetwork(params.project, buildNetwork(params.project)),
               NetworkNotReadyException(params.project, config.vpcConfig.networkName),
@@ -96,7 +95,6 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
             } else {
               // create the subnet
               createIfAbsent(
-                params.project,
                 googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName),
                 googleComputeService.createSubnetwork(params.project,
                                                       params.region,
@@ -130,12 +128,12 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
           )
           firewallName = buildFirewallName(fw.namePrefix, params.region)
           _ <- createIfAbsent(
-            params.project,
             googleComputeService.getFirewallRule(params.project, firewallName),
-            googleComputeService.addFirewallRule(
-              params.project,
-              buildFirewall(params.project, params.networkName, firewallName, fw, firewallRegionalIprange)
-            ),
+            googleComputeService
+              .addFirewallRule(
+                params.project,
+                buildFirewall(params.project, params.networkName, firewallName, fw, firewallRegionalIprange)
+              ),
             FirewallNotReadyException(params.project, firewallName, ctx),
             s"get or create firewall rule (${params.project} / ${firewallName.value})"
           )
@@ -156,9 +154,8 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
     val firewallRulesCreatedByRbs = List(rbsAllowHttpsFirewallRuleName, rbsAllowInternalFirewallruleName).flatten
     config.vpcConfig.firewallsToAdd.filterNot(rule => rule.rbsName.exists(n => firewallRulesCreatedByRbs.contains(n)))
   }
-  private def createIfAbsent[A](project: GoogleProject,
-                                get: F[Option[A]],
-                                create: F[Operation],
+  private def createIfAbsent[A](get: F[Option[A]],
+                                create: F[OperationFuture[Operation, Operation]],
                                 fail: Throwable,
                                 msg: String)(
     implicit ev: Ask[F, TraceId]
@@ -167,19 +164,33 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
       existing <- get
       _ <- if (existing.isEmpty) {
         for {
-          initialOp <- create
-          _ <- computePollOperation
-            .pollOperation(project, initialOp, config.vpcConfig.pollPeriod, config.vpcConfig.maxAttempts, None)(
-              F.unit,
-              F.raiseError[Unit](fail),
-              F.unit
-            )
+          opFuture <- create
+          res <- F.blocking(opFuture.get())
+          _ <- if (isSuccess(res.getHttpErrorStatusCode) || res.getHttpErrorStatusCode == 409 && res.getHttpErrorMessage
+                     .contains("already exists"))
+            F.unit
+          else F.raiseError(fail)
         } yield ()
       } else F.unit
     } yield ()
 
+    val res = getAndCreate.recoverWith {
+      case e: java.util.concurrent.ExecutionException =>
+        if (e.getMessage.contains(
+              "Conflict"
+            ))
+          F.unit
+        else F.raiseError(e)
+      case e: com.google.api.gax.rpc.ApiException =>
+        if (e.getStatusCode.getCode == com.google.api.gax.rpc.StatusCode.Code.ABORTED && e.getMessage.contains(
+              "already exists"
+            ))
+          F.unit
+        else F.raiseError(e)
+    }
+
     // Retry the whole get-check-create operation in case of 409
-    tracedRetryF(retryPolicy)(getAndCreate, msg).compile.lastOrError
+    tracedRetryF(retryPolicy)(res, msg).compile.lastOrError
   }
 
   private[util] def buildNetwork(project: GoogleProject): Network =

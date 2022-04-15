@@ -32,6 +32,7 @@ class HttpRoutes(
   runtimeService: RuntimeService[IO],
   diskService: DiskService[IO],
   kubernetesService: AppService[IO],
+  azureService: AzureService[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String,
   refererConfig: RefererConfig
@@ -43,6 +44,7 @@ class HttpRoutes(
   private val runtimeRoutes = new RuntimeRoutes(refererConfig, runtimeService, userInfoDirectives)
   private val diskRoutes = new DiskRoutes(diskService, userInfoDirectives)
   private val kubernetesRoutes = new AppRoutes(kubernetesService, userInfoDirectives)
+  private val runtimeV2Routes = new RuntimeV2Routes(refererConfig, azureService, userInfoDirectives)
 
   // basis for logRequestResult lifted from http://stackoverflow.com/questions/32475471/how-does-one-log-akka-http-client-requests
   private val logRequestResult: Directive0 = {
@@ -106,7 +108,7 @@ class HttpRoutes(
       Route.seal(
         swaggerRoutes.routes ~ proxyRoutes.route ~ statusRoutes.route ~
           pathPrefix("api") {
-            runtimeRoutes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes
+            runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes
           }
       )
     }

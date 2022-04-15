@@ -12,9 +12,12 @@ import fs2._
 import fs2.io.file.Files
 import org.broadinstitute.dsde.workbench.leonardo.db.DBIOOps
 import org.broadinstitute.dsde.workbench.leonardo.http.api.BuildTimeVersion
-import org.broadinstitute.dsde.workbench.leonardo.monitor.{RuntimeConfigInCreateRuntimeMessage, RuntimeMonitor}
+import org.broadinstitute.dsde.workbench.leonardo.monitor.{
+  MonitorContext,
+  RuntimeConfigInCreateRuntimeMessage,
+  RuntimeMonitor
+}
 import org.broadinstitute.dsde.workbench.leonardo.util.CloudServiceOps
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{ErrorReportSource, TraceId}
 import shapeless._
 import slick.dbio.DBIO
@@ -107,12 +110,9 @@ final case class CloudServiceMonitorOps[F[_], A](a: A)(
   def process(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
     monitor.process(a)(runtimeId, action)
 
-  // Function used for transitions that we can get an Operation
-  def pollCheck(googleProject: GoogleProject,
-                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                operation: com.google.cloud.compute.v1.Operation,
-                action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
-    monitor.pollCheck(a)(googleProject, runtimeAndRuntimeConfig, operation, action)
+  def handlePollCheckCompletion(monitorContext: MonitorContext,
+                                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
+    monitor.handlePollCheckCompletion(a)(monitorContext, runtimeAndRuntimeConfig)
 }
 
 final case class AppContext(traceId: TraceId, now: Instant, requestUri: String = "", span: Option[Span] = None) {

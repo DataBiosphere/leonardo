@@ -31,3 +31,6 @@ services:
     mem_reservation: ${WELDER_MEM_LIMIT}
     # disable swap by setting it to the same value as mem_limit
     memswap_limit: ${WELDER_MEM_LIMIT}
+networks:
+  app_network:
+    external: true

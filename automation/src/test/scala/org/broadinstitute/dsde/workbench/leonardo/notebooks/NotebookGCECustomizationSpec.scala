@@ -4,7 +4,11 @@ import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.ResourceFile
 import org.broadinstitute.dsde.workbench.auth.AuthToken
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
-import org.broadinstitute.dsde.workbench.leonardo.{GPAllocFixtureSpec, LeonardoApiClient, UserJupyterExtensionConfig}
+import org.broadinstitute.dsde.workbench.leonardo.{
+  BillingProjectFixtureSpec,
+  LeonardoApiClient,
+  UserJupyterExtensionConfig
+}
 import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 
 import scala.concurrent.duration._
@@ -15,7 +19,10 @@ import scala.concurrent.duration._
  * TODO consider removing this spec and moving test cases to RuntimeGceSpec.
  */
 @DoNotDiscover
-final class NotebookGCECustomizationSpec extends GPAllocFixtureSpec with ParallelTestExecution with NotebookTestUtils {
+final class NotebookGCECustomizationSpec
+    extends BillingProjectFixtureSpec
+    with ParallelTestExecution
+    with NotebookTestUtils {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
   implicit def ronToken: AuthToken = ronAuthToken.unsafeRunSync()
 

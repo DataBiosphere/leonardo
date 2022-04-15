@@ -3,8 +3,8 @@ package org.broadinstitute.dsde.workbench.leonardo.runtimes
 import cats.effect.unsafe.implicits.global
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{getAuthTokenAndAuthorization, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.{
+  BillingProjectFixtureSpec,
   ClusterStatus,
-  GPAllocFixtureSpec,
   Leonardo,
   LeonardoApiClient,
   LeonardoTestUtils
@@ -15,7 +15,7 @@ import org.scalatest.{DoNotDiscover, ParallelTestExecution}
 import scala.concurrent.duration._
 
 @DoNotDiscover
-class RuntimeAutopauseSpec extends GPAllocFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
+class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestExecution with LeonardoTestUtils {
   implicit val (ronAuthToken, ronAuthorization) = getAuthTokenAndAuthorization(Ron)
   implicit val rat = ronAuthToken.unsafeRunSync()
   implicit val ra = ronAuthorization.unsafeRunSync()

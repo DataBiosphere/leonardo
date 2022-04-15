@@ -36,7 +36,7 @@ import scala.jdk.CollectionConverters._
 
 @DoNotDiscover
 class RuntimeDataprocSpec
-    extends GPAllocFixtureSpec
+    extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
@@ -252,7 +252,7 @@ class RuntimeDataprocSpec
                             DataprocClusterStatus.Stopped)
 
         // start the cluster
-        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName))
+        _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName, true))
 
         // preemptibles should be added in Dataproc
         _ <- verifyDataproc(project, runtime.clusterName, dep.dataproc, 2, 5, RegionName("us-central1"))

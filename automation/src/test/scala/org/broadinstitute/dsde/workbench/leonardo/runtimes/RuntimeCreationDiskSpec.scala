@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 
 @DoNotDiscover
 class RuntimeCreationDiskSpec
-    extends GPAllocFixtureSpec
+    extends BillingProjectFixtureSpec
     with ParallelTestExecution
     with LeonardoTestUtils
     with NotebookTestUtils {
@@ -217,6 +217,10 @@ class RuntimeCreationDiskSpec
             val res = notebookPage.executeCell("! df -H").get
             res should include("/dev/sdb")
             res should include("/home/jupyter")
+
+            val persistedData =
+              """! cat /home/jupyter/test.txt""".stripMargin
+            notebookPage.executeCell(persistedData).get should include("this should save")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeName, false)

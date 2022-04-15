@@ -1,12 +1,14 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.IO
+import cats.effect.std.UUIDGen
 import cats.syntax.all._
 import com.typesafe.scalalogging.LazyLogging
 import io.circe.parser._
 import org.broadinstitute.dsde.rawls.model.WorkspaceName
-import org.broadinstitute.dsde.workbench.fixture.BillingFixtures
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec.{shouldUnclaimProjectsKey, _}
+import org.broadinstitute.dsde.workbench.auth.AuthTokenScopes.billingScopes
+import org.broadinstitute.dsde.workbench.config.ServiceTestConfig
+import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.leonardo.TestUser.{Hermione, Ron}
 import org.broadinstitute.dsde.workbench.leonardo.apps.{AppCreationSpec, AppLifecycleSpec}
 import org.broadinstitute.dsde.workbench.leonardo.lab.LabSpec
@@ -14,13 +16,12 @@ import org.broadinstitute.dsde.workbench.leonardo.notebooks._
 import org.broadinstitute.dsde.workbench.leonardo.rstudio.RStudioSpec
 import org.broadinstitute.dsde.workbench.leonardo.runtimes._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.service.{BillingProject, Orchestration, Rawls}
+import org.broadinstitute.dsde.workbench.service.BillingProject.BillingProjectRole
+import org.broadinstitute.dsde.workbench.service.{Orchestration, Rawls}
 import org.scalatest._
 import org.scalatest.freespec.FixtureAnyFreeSpecLike
 
-import java.util.UUID
-
-trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
+trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLogging {
   override type FixtureParam = GoogleProject
   override def withFixture(test: OneArgTest): Outcome = {
     def runTestAndCheckOutcome(project: GoogleProject) = {
@@ -32,8 +33,8 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLo
     }
 
     sys.props.get(googleProjectKey) match {
-      case None                                            => throw new RuntimeException("leonardo.googleProject system property is not set")
-      case Some(msg) if msg.startsWith(gpallocErrorPrefix) => throw new RuntimeException(msg)
+      case None                                                         => throw new RuntimeException("leonardo.googleProject system property is not set")
+      case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
         if (isRetryable(test))
           withRetry(runTestAndCheckOutcome(GoogleProject(googleProjectId)))
@@ -42,12 +43,12 @@ trait GPAllocFixtureSpec extends FixtureAnyFreeSpecLike with Retries with LazyLo
     }
   }
 }
-object GPAllocFixtureSpec {
+object BillingProjectFixtureSpec {
   val googleProjectKey = "leonardo.googleProject"
   val workspaceNamespaceKey = "leonardo.workspaceNamespace"
   val workspaceNameKey = "leonardo.workspaceName"
   val shouldUnclaimProjectsKey = "leonardo.shouldUnclaimProjects"
-  val gpallocErrorPrefix = "Failed To Claim Project: "
+  val createBillingProjectErrorPrefix = "Failed to create new billing project and workspace: "
   val initalRuntimeName = RuntimeName("initial-runtime")
   val proxyRedirectServerPortKey = "proxyRedirectServerPort"
 }
@@ -57,75 +58,84 @@ case class GoogleProjectAndWorkspaceName(
   workspaceName: WorkspaceName
 )
 
-trait GPAllocUtils extends BillingFixtures with LeonardoTestUtils {
+trait BillingProjectUtils extends LeonardoTestUtils {
   this: TestSuite =>
 
   /**
-   * Claim new billing project by Hermione
+   * Create a new billing project by Hermione
    */
-  protected def claimGPAllocProjectAndCreateWorkspace(): IO[GoogleProjectAndWorkspaceName] =
+  protected def createBillingProjectAndWorkspace: IO[GoogleProjectAndWorkspaceName] =
     for {
-      claimedBillingProject <- IO(claimGPAllocProject(Hermione.creds))
-      hermioneAuthToken <- Hermione.authToken()
+      hermioneAuthToken <- Hermione.authToken(billingScopes)
+      randomSuffix <- UUIDGen.randomString[IO].map(_.replace("-", ""))
+      billingProjectName = ("leonardo-test-" + randomSuffix).take(30)
+
+      _ <- IO {
+        Orchestration.billingV2.createBillingProject(
+          billingProjectName,
+          billingAccount = ServiceTestConfig.Projects.billingAccountId
+        )(hermioneAuthToken)
+      }
+
+      _ <- loggerIO.info(s"Billing project claimed: ${billingProjectName}")
+      _ <- IO {
+        Orchestration.billingV2.addUserToBillingProject(
+          billingProjectName,
+          Ron.email,
+          BillingProjectRole.User
+        )(hermioneAuthToken)
+      }
+
+      workspaceName = randomIdWithPrefix("leo-leonardo-test-workspace-")
       ronAuthToken <- Ron.authToken()
-      _ <- IO(
-        Orchestration.billing.addUserToBillingProject(claimedBillingProject.projectName,
-                                                      Ron.email,
-                                                      BillingProject.BillingProjectRole.User)(hermioneAuthToken)
-      )
-      _ <- loggerIO.info(s"Billing project claimed: ${claimedBillingProject.projectName}")
-      workspaceName <- IO(UUID.randomUUID().toString)
-      _ <- IO(
-        Orchestration.workspaces.create(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
-      )
-      workspaceDetails <- IO(
-        Rawls.workspaces.getWorkspaceDetails(claimedBillingProject.projectName, workspaceName)(ronAuthToken)
-      )
+      workspaceDetails <- IO {
+        Orchestration.workspaces.create(billingProjectName, workspaceName)(ronAuthToken)
+        Rawls.workspaces.getWorkspaceDetails(billingProjectName, workspaceName)(ronAuthToken)
+      }
+
       json <- IO.fromEither(parse(workspaceDetails))
       googleProjectOpt = json.hcursor.downField("workspace").get[String]("googleProject").toOption
       googleProjectId <- IO.fromOption(googleProjectOpt)(
         new Exception(s"Could not get googleProject from workspace $workspaceName")
       )
-    } yield GoogleProjectAndWorkspaceName(GoogleProject(googleProjectId),
-                                          WorkspaceName(claimedBillingProject.projectName, workspaceName))
+    } yield GoogleProjectAndWorkspaceName(
+      GoogleProject(googleProjectId),
+      WorkspaceName(billingProjectName, workspaceName)
+    )
 
   /**
-   * Unclaiming billing project claim by Hermione
+   * Clean up billing project and resources
    */
-  protected def unclaimProject(workspaceName: WorkspaceName): IO[Unit] =
+  protected def deleteWorkspaceAndBillingProject(workspaceName: WorkspaceName): IO[Unit] =
     for {
       hermioneAuthToken <- Hermione.authToken()
       ronAuthToken <- Ron.authToken()
-      _ <- IO(
+      releaseProject <- IO {
         Orchestration.workspaces.delete(workspaceName.namespace, workspaceName.name)(ronAuthToken)
-      ).attempt
-      _ <- IO(
-        Orchestration.billing.removeUserFromBillingProject(workspaceName.namespace,
-                                                           Ron.email,
-                                                           BillingProject.BillingProjectRole.User)(hermioneAuthToken)
-      )
-      releaseProject <- IO(releaseGPAllocProject(workspaceName.namespace, Hermione.creds)).attempt
+        Orchestration.billingV2.deleteBillingProject(workspaceName.namespace)(hermioneAuthToken)
+      }.attempt
+
       _ <- releaseProject match {
-        case Left(e) => loggerIO.warn(e)(s"Failed to release billing project: ${workspaceName.namespace}")
-        case _       => loggerIO.info(s"Billing project released: ${workspaceName.namespace}")
+        case Left(e) => loggerIO.warn(e)(s"Failed to delete billing project: ${workspaceName.namespace}")
+        case _       => loggerIO.info(s"Billing project deleted: ${workspaceName.namespace}")
       }
     } yield ()
 
   def withNewProject[T](testCode: GoogleProject => IO[T]): T = {
     val test = for {
       _ <- loggerIO.info("Allocating a new single-test project")
-      googleProjectAndWorkspaceName <- claimGPAllocProjectAndCreateWorkspace()
+      googleProjectAndWorkspaceName <- createBillingProjectAndWorkspace
       _ <- loggerIO.info(s"Single test project ${googleProjectAndWorkspaceName.workspaceName.namespace} claimed")
       t <- testCode(googleProjectAndWorkspaceName.googleProject)
       _ <- loggerIO.info(s"Releasing single-test project: ${googleProjectAndWorkspaceName.workspaceName.namespace}")
-      _ <- unclaimProject(googleProjectAndWorkspaceName.workspaceName)
+      _ <- deleteWorkspaceAndBillingProject(googleProjectAndWorkspaceName.workspaceName)
     } yield t
 
     test.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }
 
-trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
+trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils with BeforeAndAfterAll {
   this: TestSuite =>
 
   implicit val ronTestersonAuthorization = Ron.authorization()
@@ -133,10 +143,10 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     val res = for {
       _ <- IO(super.beforeAll())
-      _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll.beforeAll()")
-      claimAttempt <- claimGPAllocProjectAndCreateWorkspace().attempt
+      _ <- loggerIO.info("Running NewBillingProjectAndWorkspaceBeforeAndAfterAll.beforeAll()")
+      claimAttempt <- createBillingProjectAndWorkspace.attempt
       _ <- claimAttempt match {
-        case Left(e) => IO(sys.props.put(googleProjectKey, gpallocErrorPrefix + e.getMessage))
+        case Left(e) => IO(sys.props.put(googleProjectKey, createBillingProjectErrorPrefix + e.getMessage))
         case Right(googleProjectAndWorkspaceName) =>
           IO(
             sys.props.addAll(
@@ -161,14 +171,16 @@ trait GPAllocBeforeAndAfterAll extends GPAllocUtils with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     val res = for {
       shouldUnclaimProp <- IO(sys.props.get(shouldUnclaimProjectsKey))
-      _ <- loggerIO.info(s"Running GPAllocBeforeAndAfterAll.afterAll() ${shouldUnclaimProjectsKey}: $shouldUnclaimProp")
+      _ <- loggerIO.info(
+        s"Running NewBillingProjectAndWorkspaceBeforeAndAfterAll.afterAll() ${shouldUnclaimProjectsKey}: $shouldUnclaimProp"
+      )
       projectProp <- IO(sys.props.get(googleProjectKey))
       workspaceNamespaceProp <- IO(sys.props.get(workspaceNamespaceKey))
       workspaceNameProp <- IO(sys.props.get(workspaceNameKey))
-      project = projectProp.filterNot(_.startsWith(gpallocErrorPrefix)).map(GoogleProject)
+      project = projectProp.filterNot(_.startsWith(createBillingProjectErrorPrefix)).map(GoogleProject)
       _ <- if (!shouldUnclaimProp.contains("false")) {
         (project, workspaceNamespaceProp, workspaceNameProp).traverseN {
-          case (p, n, w) => deleteInitialRuntime(p) >> unclaimProject(WorkspaceName(n, w))
+          case (p, n, w) => deleteInitialRuntime(p) >> deleteWorkspaceAndBillingProject(WorkspaceName(n, w))
         }
       } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
       _ <- IO(sys.props.subtractAll(List(googleProjectKey, workspaceNamespaceKey, workspaceNameKey)))
@@ -247,7 +259,7 @@ final class LeonardoSuite
       new RuntimeGceSpec
     )
     with TestSuite
-    with GPAllocBeforeAndAfterAll
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution
 
 final class LeonardoTerraDockerSuite
@@ -261,5 +273,5 @@ final class LeonardoTerraDockerSuite
       new RStudioSpec
     )
     with TestSuite
-    with GPAllocBeforeAndAfterAll
+    with NewBillingProjectAndWorkspaceBeforeAndAfterAll
     with ParallelTestExecution

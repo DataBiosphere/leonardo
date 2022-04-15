@@ -2,55 +2,51 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package service
 
-import java.time.Instant
-import java.util.UUID
 import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.data.NonEmptyList
 import cats.effect.Async
 import cats.effect.std.Queue
-import cats.syntax.all._
 import cats.mtl.Ask
+import cats.syntax.all._
 import com.google.auth.oauth2.{AccessToken, GoogleCredentials}
 import com.google.cloud.BaseServiceException
-import org.typelevel.log4cats.StructuredLogger
+import com.rms.miu.slickcats.DBIOInstances._
 import org.broadinstitute.dsde.workbench.google2.util.RetryPredicates
 import org.broadinstitute.dsde.workbench.google2.{
-  ComputePollOperation,
   DiskName,
   GcsBlobName,
   GoogleComputeService,
   GoogleStorageService,
   InstanceName,
   MachineTypeName,
-  OperationName,
-  PollError,
   ZoneName
 }
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, Welder}
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.dao.DockerDAO
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeServiceInterp._
-import org.broadinstitute.dsde.workbench.leonardo.model._
-import com.rms.miu.slickcats.DBIOInstances._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
+import org.broadinstitute.dsde.workbench.leonardo.model._
+import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   DiskUpdate,
   LeoPubsubMessage,
   RuntimeConfigInCreateRuntimeMessage,
   RuntimePatchDetails
 }
-import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{google, TraceId, UserInfo, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
+import org.typelevel.log4cats.StructuredLogger
 import slick.dbio.DBIOAction
 
-import scala.concurrent.duration._
+import java.time.Instant
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
@@ -60,7 +56,6 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                            dockerDAO: DockerDAO[F],
                                            googleStorageService: GoogleStorageService[F],
                                            googleComputeService: GoogleComputeService[F],
-                                           computePollOperation: ComputePollOperation[F],
                                            publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   log: StructuredLogger[F],
@@ -79,7 +74,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       context <- as.ask
       googleProject <- F.fromOption(
         LeoLenses.cloudContextToGoogleProject.get(cloudContext),
-        new AzureUnimplementedException("Azure runtime is not supported yet")
+        AzureUnimplementedException("Azure runtime is not supported yet")
       )
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateRuntime,
@@ -97,7 +92,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       runtimeOpt <- RuntimeServiceDbQueries.getStatusByName(cloudContext, runtimeName).transaction
       _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done DB query for active cluster")))
       _ <- runtimeOpt match {
-        case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(googleProject, runtimeName, status))
+        case Some(status) => F.raiseError[Unit](RuntimeAlreadyExistsException(cloudContext, runtimeName, status))
         case None =>
           for {
             samResource <- F.delay(RuntimeSamResourceId(UUID.randomUUID().toString))
@@ -309,7 +304,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // throw 409 if the cluster is not deletable
       _ <- if (runtime.status.isDeletable) F.unit
       else
-        F.raiseError[Unit](RuntimeCannotBeDeletedException(req.googleProject, runtime.runtimeName, runtime.status))
+        F.raiseError[Unit](RuntimeCannotBeDeletedException(cloudContext, runtime.runtimeName, runtime.status))
       // delete the runtime
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       persistentDiskToDelete <- runtimeConfig match {
@@ -324,38 +319,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                           disk.zone,
                                                           InstanceName(runtime.runtimeName.asString),
                                                           config.gceConfig.userDiskDeviceName)
-              _ <- detachOp.traverse(op =>
-                (
-                  computePollOperation
-                    .pollZoneOperation(
-                      req.googleProject,
-                      disk.zone,
-                      OperationName(op.getName),
-                      1 seconds,
-                      60,
-                      None
-                    )(
-                      F.unit,
-                      F.raiseError(
-                        LeoInternalServerError(
-                          s"Fail to detach ${disk.name} from ${runtime.runtimeName} in a timely manner",
-                          Some(ctx.traceId)
-                        )
-                      ),
-                      F.unit
-                    )
-                  )
-                  .recoverWith {
-                    case e: PollError =>
-                      if (e.operation.getHttpErrorStatusCode == 400) {
-                        log.info(
-                          s"Detach Disk ${disk.name} failed with 400 Error. Continuing deleting Runtime ${runtime.runtimeName}"
-                        )
-                      } else F.raiseError(e)
-
-                  }
-              )
-
+              _ <- detachOp.traverse(op => F.blocking(op.get()))
               _ <- RuntimeConfigQueries.updatePersistentDiskId(runtime.runtimeConfigId, None, ctx.now).transaction
               res <- if (req.deleteDisk)
                 persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleting, ctx.now).transaction.as(Some(diskId))
@@ -837,21 +801,22 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 }
 
 object RuntimeServiceInterp {
-  private def convertToRuntime(userInfo: UserInfo,
-                               serviceAccountInfo: WorkbenchEmail,
-                               cloudContext: CloudContext,
-                               runtimeName: RuntimeName,
-                               clusterInternalId: RuntimeSamResourceId,
-                               clusterImages: Set[RuntimeImage],
-                               config: RuntimeServiceConfig,
-                               req: CreateRuntime2Request,
-                               now: Instant): Runtime = {
+  private[service] def convertToRuntime(userInfo: UserInfo,
+                                        serviceAccountInfo: WorkbenchEmail,
+                                        cloudContext: CloudContext,
+                                        runtimeName: RuntimeName,
+                                        clusterInternalId: RuntimeSamResourceId,
+                                        clusterImages: Set[RuntimeImage],
+                                        config: RuntimeServiceConfig,
+                                        req: CreateRuntime2Request,
+                                        now: Instant): Runtime = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
-      GoogleProject(cloudContext.asString), //TODO: potentially support azure
+      Some(GoogleProject(cloudContext.asString)),
+      cloudContext,
       userInfo.userEmail,
-      serviceAccountInfo,
+      Some(serviceAccountInfo),
       req.userScriptUri,
       req.startUserScriptUri,
       clusterImages.map(_.imageType).filterNot(_ == Welder).headOption
@@ -873,8 +838,7 @@ object RuntimeServiceInterp {
           case CloudService.Dataproc =>
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
           case CloudService.AzureVm =>
-            //TODO in https://broadworkbench.atlassian.net/browse/IA-3112
-            throw AzureUnimplementedException("cluster scopes not implemented for azure")
+            config.azureConfig.runtimeConfig.defaultScopes
 
         }
       case None =>
@@ -1029,7 +993,9 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       imageConfig: ImageConfig,
                                       autoFreezeConfig: AutoFreezeConfig,
                                       dataprocConfig: DataprocConfig,
-                                      gceConfig: GceConfig)
+                                      gceConfig: GceConfig,
+                                      azureConfig: AzureServiceConfig,
+                                      azureRuntimeDefaults: AzureRuntimeDefaults)
 
 final case class WrongCloudServiceException(runtimeCloudService: CloudService,
                                             updateCloudService: CloudService,

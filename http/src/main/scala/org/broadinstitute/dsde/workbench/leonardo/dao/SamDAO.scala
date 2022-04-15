@@ -10,6 +10,8 @@ import org.broadinstitute.dsde.workbench.util.health.StatusCheckResponse
 import org.http4s.headers.Authorization
 
 trait SamDAO[F[_]] {
+  def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit]
+
   def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse]
 
   def hasResourcePermission[R, A](resource: R, action: A, authHeader: Authorization)(
@@ -71,6 +73,8 @@ trait SamDAO[F[_]] {
   ): F[Option[UserSubjectId]]
 
   def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]]
+
+  def getLeoAuthToken: F[Authorization]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal

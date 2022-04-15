@@ -2,10 +2,9 @@ package org.broadinstitute.dsde.workbench.leonardo
 
 import java.net.URL
 import java.time.Instant
-
 import cats.syntax.all._
 import io.circe.syntax._
-import io.circe.{Decoder, DecodingFailure, Encoder}
+import io.circe.{Decoder, DecodingFailure, Encoder, Json}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.google2.GKEModels.{KubernetesClusterName, NodepoolName}
 import org.broadinstitute.dsde.workbench.google2.KubernetesModels.KubernetesApiServerIp
@@ -23,7 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   SubnetworkName,
   ZoneName
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.PersistentDiskRequest
+import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, PersistentDiskRequest}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.{
   parseGcsPath,
@@ -33,11 +32,12 @@ import org.broadinstitute.dsde.workbench.model.google.{
   GoogleProject
 }
 import org.http4s.Uri
+
 import java.nio.file.{Path, Paths}
 import java.util.UUID
 import java.util.stream.Collectors
-
 import com.azure.core.management.Region
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdDecoder
 
@@ -134,11 +134,27 @@ object JsonCodec {
   )(x => (x.machineType, x.diskSize, x.cloudService, x.bootDiskSize, x.zone, x.gpuConfig))
 
   implicit val azureRegionEncoder: Encoder[Region] = Encoder.encodeString.contramap(_.toString)
-  implicit val azureRuntimeConfigEncoder: Encoder[RuntimeConfig.AzureVmConfig] = Encoder.forProduct3(
+  implicit val azureRuntimeConfigEncoder: Encoder[RuntimeConfig.AzureConfig] = Encoder.forProduct4(
+    "cloudService",
     "machineType",
     "persistentDiskId",
     "region"
-  )(x => (x.machineType, x.persistentDiskId, x.region))
+  )(x => (x.cloudService, x.machineType, x.persistentDiskId, x.region))
+
+  implicit val azureMachineTypeDecoder: Decoder[VirtualMachineSizeTypes] = Decoder.decodeString.emap { s =>
+    val machineSizeOpt: Option[VirtualMachineSizeTypes] =
+      if (VirtualMachineSizeTypes.values.stream
+            .map((x: VirtualMachineSizeTypes) => x.toString)
+            .collect(Collectors.toList[String])
+            .contains(s))
+        Some(VirtualMachineSizeTypes.fromString(s))
+      else none[VirtualMachineSizeTypes]
+    machineSizeOpt.toRight(s"Invalid azure virtualMachineSizeType ${s}")
+  }
+
+  implicit val azureImageUriDecoder: Decoder[AzureImageUri] = Decoder.decodeString.map(AzureImageUri)
+  implicit val azureDiskNameDecoder: Decoder[AzureDiskName] = Decoder.decodeString.map(AzureDiskName)
+
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
     "nbExtensions",
     "serverExtensions",
@@ -175,12 +191,13 @@ object JsonCodec {
       case x: RuntimeConfig.DataprocConfig  => x.asJson
       case x: RuntimeConfig.GceConfig       => x.asJson
       case x: RuntimeConfig.GceWithPdConfig => x.asJson
-      case x: RuntimeConfig.AzureVmConfig   => x.asJson
+      case x: RuntimeConfig.AzureConfig     => x.asJson
     }
   )
-  implicit val defaultRuntimeLabelsEncoder: Encoder[DefaultRuntimeLabels] = Encoder.forProduct7(
+  implicit val defaultRuntimeLabelsEncoder: Encoder[DefaultRuntimeLabels] = Encoder.forProduct8(
     "clusterName",
     "googleProject",
+    "cloudContext",
     "creator",
     "clusterServiceAccount",
     "notebookUserScript",
@@ -243,6 +260,8 @@ object JsonCodec {
   implicit val networkNameEncoder: Encoder[NetworkName] = Encoder.encodeString.contramap(_.value)
   implicit val subNetworkNameEncoder: Encoder[SubnetworkName] = Encoder.encodeString.contramap(_.value)
   implicit val ipRangeEncoder: Encoder[IpRange] = Encoder.encodeString.contramap(_.value)
+  implicit val wsmJobIdEncoder: Encoder[WsmJobId] = Encoder.encodeString.contramap(_.value.toString)
+
   implicit val networkFieldsEncoder: Encoder[NetworkFields] =
     Encoder.forProduct3("networkName", "subNetworkName", "subNetworkIpRange")(x => NetworkFields.unapply(x).get)
   implicit val kubeAsyncFieldEncoder: Encoder[KubernetesClusterAsyncFields] =
@@ -359,7 +378,7 @@ object JsonCodec {
         case CloudService.GCE =>
           x.as[RuntimeConfig.GceConfig] orElse x.as[RuntimeConfig.GceWithPdConfig]
         case CloudService.AzureVm =>
-          x.as[RuntimeConfig.AzureVmConfig]
+          x.as[RuntimeConfig.AzureConfig]
       }
     } yield r
   }
@@ -456,11 +475,11 @@ object JsonCodec {
     "gpuConfig"
   )((mt, ds, bds, z, gpu) => RuntimeConfig.GceConfig(mt, ds, bds, z, gpu))
 
-  implicit val azureVmConfigDecoder: Decoder[RuntimeConfig.AzureVmConfig] = Decoder.forProduct3(
+  implicit val azureVmConfigDecoder: Decoder[RuntimeConfig.AzureConfig] = Decoder.forProduct3(
     "machineType",
     "persistentDiskId",
     "region"
-  )(RuntimeConfig.AzureVmConfig.apply)
+  )(RuntimeConfig.AzureConfig.apply)
 
   implicit val persistentDiskRequestDecoder: Decoder[PersistentDiskRequest] = Decoder.instance { x =>
     for {
@@ -469,6 +488,53 @@ object JsonCodec {
       t <- x.downField("diskType").as[Option[DiskType]]
       l <- x.downField("labels").as[Option[LabelMap]]
     } yield PersistentDiskRequest(n, s, t, l.getOrElse(Map.empty))
+  }
+
+  implicit val runtimeStatusEncoder: Encoder[RuntimeStatus] = Encoder.encodeString.contramap { x =>
+    x match {
+      case RuntimeStatus.PreCreating => RuntimeStatus.Creating.toString
+      case RuntimeStatus.PreStarting => RuntimeStatus.Starting.toString
+      case RuntimeStatus.PreStopping => RuntimeStatus.Stopping.toString
+      case RuntimeStatus.PreDeleting => RuntimeStatus.Deleting.toString
+      case _                         => x.toString
+    }
+  }
+
+  implicit val diskConfigEncoder: Encoder[DiskConfig] = Encoder.forProduct4(
+    "name",
+    "size",
+    "diskType",
+    "blockSize"
+  )(x => (x.name, x.size, x.diskType, x.blockSize))
+
+  // can't use Encoder.forProductX because there are 23 fields
+  implicit val getRuntimeResponseEncoder: Encoder[GetRuntimeResponse] = Encoder.instance { x =>
+    Json.obj(
+      ("id", x.id.asJson),
+      ("runtimeName", x.clusterName.asJson),
+      ("googleProject", x.cloudContext.asString.asJson),
+      ("cloudContext", x.cloudContext.asJson),
+      ("serviceAccount", x.serviceAccountInfo.asJson),
+      ("asyncRuntimeFields", x.asyncRuntimeFields.asJson),
+      ("auditInfo", x.auditInfo.asJson),
+      ("runtimeConfig", x.runtimeConfig.asJson),
+      ("proxyUrl", x.clusterUrl.asJson),
+      ("status", x.status.asJson),
+      ("labels", x.labels.asJson),
+      ("userScriptUri", x.userScriptUri.asJson),
+      ("startUserScriptUri", x.startUserScriptUri.asJson),
+      ("jupyterUserScriptUri", x.userScriptUri.asJson),
+      ("jupyterStartUserScriptUri", x.startUserScriptUri.asJson),
+      ("errors", x.errors.asJson),
+      ("userJupyterExtensionConfig", x.userJupyterExtensionConfig.asJson),
+      ("autopauseThreshold", x.autopauseThreshold.asJson),
+      ("defaultClientId", x.defaultClientId.asJson),
+      ("runtimeImages", x.clusterImages.asJson),
+      ("scopes", x.scopes.asJson),
+      ("customEnvironmentVariables", x.customClusterEnvironmentVariables.asJson),
+      ("diskConfig", x.diskConfig.asJson),
+      ("patchInProgress", x.patchInProgress.asJson)
+    )
   }
 
   implicit val persistentDiskRequestEncoder: Encoder[PersistentDiskRequest] = Encoder.forProduct4(
@@ -570,6 +636,9 @@ object JsonCodec {
 
   implicit val uuidDecoder: Decoder[UUID] = Decoder.decodeString.map(s => UUID.fromString(s))
 
+  implicit val wsmJobIdDecoder: Decoder[WsmJobId] =
+    Decoder.decodeString.map(s => WsmJobId(s))
+
   implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
     Decoder.decodeString.map(x => WorkspaceId(UUID.fromString(x)))
 
@@ -581,5 +650,9 @@ object JsonCodec {
 
   implicit val wsmControlledResourceIdDecoder: Decoder[WsmControlledResourceId] =
     Decoder.decodeString.map(x => WsmControlledResourceId(UUID.fromString(x)))
+
+  implicit val azureMachineTypeEncoder: Encoder[VirtualMachineSizeTypes] = Encoder.encodeString.contramap(_.toString)
+  implicit val azureImageUriEncoder: Encoder[AzureImageUri] = Encoder.encodeString.contramap(_.value)
+  implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
 
 }

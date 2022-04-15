@@ -1,6 +1,8 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.effect.{IO, Resource}
+import com.azure.core.management.Region
+import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.DoneCheckable
 import org.broadinstitute.dsde.workbench.DoneCheckableSyntax._
 import org.broadinstitute.dsde.workbench.google2.{
@@ -116,6 +118,20 @@ object LeonardoApiClient {
     List.empty
   )
 
+  val defaultCreateAzureRuntimeRequest = CreateAzureRuntimeRequest(
+    Map.empty,
+    Region.US_WEST_CENTRAL,
+    VirtualMachineSizeTypes.STANDARD_D1_V2,
+    None,
+    Map.empty,
+    CreateAzureDiskRequest(
+      Map.empty,
+      AzureDiskName(UUID.randomUUID().toString.substring(0, 8)),
+      None,
+      None
+    )
+  )
+
   def createRuntime(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
@@ -132,7 +148,7 @@ object LeonardoApiClient {
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
             ),
-            body = createRuntime2Request
+            entity = createRuntime2Request
           )
         )
         .use { resp =>
@@ -205,7 +221,7 @@ object LeonardoApiClient {
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
             ),
-            body = req
+            entity = req
           )
         )
         .use { resp =>
@@ -347,7 +363,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
-            body = createDiskRequest
+            entity = createDiskRequest
           )
         )
         .use { resp =>
@@ -374,7 +390,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
-            body = req
+            entity = req
           )
         )
         .use { resp =>
@@ -503,7 +519,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")),
-            body = createAppRequest
+            entity = createAppRequest
           )
         )
         .use { resp =>
@@ -646,6 +662,90 @@ object LeonardoApiClient {
         }
     } yield r
 
+  def createAzureRuntime(
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName,
+    createAzureRuntimeRequest: CreateAzureRuntimeRequest = defaultCreateAzureRuntimeRequest
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
+      r <- client
+        .run(
+          Request[IO](
+            method = Method.POST,
+            headers = Headers(authHeader, defaultMediaType, traceIdHeader),
+            uri = rootUri.withPath(
+              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+            ),
+            entity = createAzureRuntimeRequest
+          )
+        )
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to create runtime ${workspaceId.value.toString}/${runtimeName.asString}")(resp)
+              .flatMap(IO.raiseError)
+          } else
+            IO.unit
+        }
+    } yield ()
+
+  def getAzureRuntime(
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[GetRuntimeResponseCopy] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
+      r <- client.expectOr[GetRuntimeResponseCopy](
+        Request[IO](
+          method = Method.GET,
+          headers = Headers(authHeader, traceIdHeader),
+          uri = rootUri.withPath(
+            Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+          )
+        )
+      )(onError(s"Failed to get runtime ${workspaceId.value.toString}/${runtimeName.asString}"))
+    } yield r
+
+  def deleteRuntimeV2(
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
+    for {
+      traceIdHeader <- genTraceIdHeader()
+      authHeader <- authorization
+      r <- client
+        .run(
+          Request[IO](
+            method = Method.DELETE,
+            headers = Headers(authHeader, traceIdHeader),
+            uri = rootUri.withPath(
+              Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
+            )
+          )
+        )
+        .use { resp =>
+          if (!resp.status.isSuccess) {
+            onError(s"Failed to delete runtime ${workspaceId.value.toString}/${runtimeName.asString}")(resp)
+              .flatMap(IO.raiseError)
+          } else
+            IO.unit
+        }
+    } yield r
+
+  def deleteRuntimeV2WithWait(
+    workspaceId: WorkspaceId,
+    runtimeName: RuntimeName
+  )(implicit client: Client[IO], authorization: IO[Authorization]): IO[Unit] =
+    for {
+      _ <- deleteRuntimeV2(workspaceId, runtimeName)
+      ioa = getAzureRuntime(workspaceId, runtimeName).attempt
+      res <- IO.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
+      _ <- if (res.isDone) IO.unit
+      else IO.raiseError(new TimeoutException(s"delete runtime ${workspaceId}/${runtimeName.asString}"))
+    } yield ()
+
   def testSparkWebUi(
     googleProject: GoogleProject,
     runtimeName: RuntimeName,
@@ -678,6 +778,7 @@ object LeonardoApiClient {
     val digitString = "3939911508519804487"
     IO(uuid + "/" + digitString).map(uuid => Header.Raw(traceIdHeaderString, uuid))
   }
+
 }
 
 final case class RestError(message: String, statusCode: Status, body: Option[String]) extends NoStackTrace {

@@ -96,6 +96,7 @@ export WELDER_SERVER_NAME=$(welderServerName)
 export WELDER_DOCKER_IMAGE=$(welderDockerImage)
 export RSTUDIO_SERVER_NAME=$(rstudioServerName)
 export RSTUDIO_DOCKER_IMAGE=$(rstudioDockerImage)
+export RSTUDIO_USER_HOME=/home/rstudio
 export PROXY_SERVER_NAME=$(proxyServerName)
 export PROXY_DOCKER_IMAGE=$(proxyDockerImage)
 export CRYPTO_DETECTOR_SERVER_NAME=$(cryptoDetectorServerName)
@@ -104,14 +105,7 @@ export MEM_LIMIT=$(memLimit)
 export WELDER_MEM_LIMIT=$(welderMemLimit)
 export PROXY_SERVER_HOST_NAME=$(proxyServerHostName)
 export WELDER_ENABLED=$(welderEnabled)
-export IS_RSTUDIO_RUNTIME="false" # TODO: update to commented out code once we release Rmd file syncing
 export NOTEBOOKS_DIR=$(notebooksDir)
-
-#if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
-#  export IS_RSTUDIO_RUNTIME="true"
-#else
-#  export IS_RSTUDIO_RUNTIME="false"
-#fi
 
 START_USER_SCRIPT_URI=$(startUserScriptUri)
 # Include a timestamp suffix to differentiate different startup logs across restarts.
@@ -121,7 +115,6 @@ JUPYTER_HOME=/etc/jupyter
 JUPYTER_SCRIPTS=$JUPYTER_HOME/scripts
 JUPYTER_USER_HOME=$(jupyterHomeDirectory)
 RSTUDIO_SCRIPTS=/etc/rstudio/scripts
-RSTUDIO_USER_HOME=/home/rstudio
 SERVER_CRT=$(proxyServerCrt)
 SERVER_KEY=$(proxyServerKey)
 ROOT_CA=$(rootCaPem)
@@ -149,11 +142,17 @@ WORK_DIRECTORY='/mnt/disks/work'
 GSUTIL_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gsutil'
 GCLOUD_CMD='docker run --rm -v /var:/var gcr.io/google-containers/toolbox:20200603-00 gcloud'
 
+if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
+  export IS_RSTUDIO_RUNTIME="true"
+else
+  export IS_RSTUDIO_RUNTIME="false"
+fi
+
 if grep -qF "gcr.io" <<< "${JUPYTER_DOCKER_IMAGE}${RSTUDIO_DOCKER_IMAGE}${PROXY_DOCKER_IMAGE}${WELDER_DOCKER_IMAGE}" ; then
   log 'Authorizing GCR...'
   DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var -w=/var cryptopants/docker-compose-gcr"
 else
-  DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.1"
+  DOCKER_COMPOSE="docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v /var:/var docker/compose:1.29.2"
 fi
 
 function apply_user_script() {
@@ -316,6 +315,7 @@ DOCKER_COMPOSE_FILES_DIRECTORY=${DOCKER_COMPOSE_FILES_DIRECTORY}
 RSTUDIO_SERVER_NAME=${RSTUDIO_SERVER_NAME}
 RSTUDIO_DOCKER_IMAGE=${RSTUDIO_DOCKER_IMAGE}
 IS_RSTUDIO_RUNTIME=${IS_RSTUDIO_RUNTIME}
+RSTUDIO_USER_HOME=${RSTUDIO_USER_HOME}
 END
 
 # Create a network that allows containers to talk to each other via exposed ports
@@ -505,7 +505,8 @@ if [ ! -z "$RSTUDIO_DOCKER_IMAGE" ] ; then
 CLUSTER_NAME=$CLUSTER_NAME
 RUNTIME_NAME=$RUNTIME_NAME
 OWNER_EMAIL=$OWNER_EMAIL
-IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME" >> /usr/local/lib/R/etc/Renviron.site'
+IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME
+RSTUDIO_USER_HOME=$RSTUDIO_USER_HOME" >> /usr/local/lib/R/etc/Renviron.site'
 
   # Add custom_env_vars.env to Renviron.site
   CUSTOM_ENV_VARS_FILE=/var/custom_env_vars.env
@@ -527,8 +528,29 @@ IS_RSTUDIO_RUNTIME=$IS_RSTUDIO_RUNTIME" >> /usr/local/lib/R/etc/Renviron.site'
     apply_start_user_script $RSTUDIO_SERVER_NAME $RSTUDIO_SCRIPTS
   fi
 
+  # default autosave to 10 seconds
+  docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'mkdir -p $RSTUDIO_USER_HOME/.config/rstudio \
+    && echo "{
+\"initial_working_directory\": \"~\",
+\"auto_save_on_blur\": true,
+\"auto_save_on_idle\": \"commit\",
+\"posix_terminal_shell\": \"bash\",
+\"auto_save_idle_ms\": 10000
+}" > $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs-temp.json \
+    && mv $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs-temp.json $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs.json \
+    && chmod a+rwx $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs.json'
+
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
+fi
+
+# Resize persistent disk if needed.
+# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
+# a dedicated flag that distinguishes gce and dataproc. But this will do for now
+# If it's GCE, we resize the PD. Dataproc doesn't have PD
+if [ -f "/var/certs/jupyter-server.crt" ]; then
+  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
+  resize2fs /dev/${DISK_DEVICE_ID}
 fi
 
 # Remove any unneeded cached images to save disk space.
@@ -541,12 +563,3 @@ log 'All done!'
 ELAPSED_TIME=$(($END_TIME - $START_TIME))
 log "gce-init.sh took $(display_time $ELAPSED_TIME)"
 log "Step timings: ${STEP_TIMINGS[@]}"
-
-# Resize persistent disk if needed.
-# This condition assumes Dataproc's cert directory is different from GCE's cert directory, a better condition would be
-# a dedicated flag that distinguishes gce and dataproc. But this will do for now
-# If it's GCE, we resize the PD. Dataproc doesn't have PD
-if [ -f "/var/certs/jupyter-server.crt" ]; then
-  echo "Resizing persistent disk attached to runtime $GOOGLE_PROJECT / $CLUSTER_NAME if disk size changed..."
-  resize2fs /dev/${DISK_DEVICE_ID}
-fi

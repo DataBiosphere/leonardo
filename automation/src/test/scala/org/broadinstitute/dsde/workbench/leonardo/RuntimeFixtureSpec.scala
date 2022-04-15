@@ -1,7 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 
 import cats.syntax.all._
-import org.broadinstitute.dsde.workbench.leonardo.GPAllocFixtureSpec._
+import org.broadinstitute.dsde.workbench.leonardo.BillingProjectFixtureSpec._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.scalatest.{BeforeAndAfterAll, Outcome, Retries}
 import RuntimeFixtureSpec._
@@ -119,7 +119,7 @@ abstract class RuntimeFixtureSpec
     logger.info("beforeAll")
 
     sys.props.get(googleProjectKey) match {
-      case Some(msg) if msg.startsWith(gpallocErrorPrefix) =>
+      case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) =>
         clusterCreationFailureMsg = msg
       case Some(googleProjectId) =>
         createRonRuntime(GoogleProject(googleProjectId))
@@ -176,7 +176,8 @@ object RuntimeFixtureSpec {
           componentGatewayEnabled = true,
           workerPrivateAccess = false
         )
-
+      case CloudService.AzureVm =>
+        throw new NotImplementedError()
     }
 
     CreateRuntime2Request(

@@ -5,7 +5,6 @@ import java.time.Instant
 import cats.Parallel
 import cats.effect.{Async, IO}
 import cats.mtl.Ask
-import com.google.cloud.compute.v1._
 import fs2.Stream
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
@@ -15,7 +14,6 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference, TestComponent}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.scalatest.flatspec.AnyFlatSpec
@@ -67,7 +65,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
@@ -92,7 +90,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(runtime, CommonTestData.defaultDataprocRuntimeConfig)
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
-      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None)
+      res <- runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
       end <- IO.realTimeInstant
       elapsed = end.toEpochMilli - start.toEpochMilli
       status <- clusterQuery.getClusterStatus(runtime.id).transaction
@@ -118,7 +116,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       monitorContext = MonitorContext(start, runtime.id, tid, RuntimeStatus.Creating)
 
       runCheckTools = Stream.eval(
-        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None)
+        runtimeMonitor.handleCheckTools(monitorContext, runtimeAndRuntimeConfig, IP("1.2.3.4"), None, true)
       )
       deleteRuntime = Stream.sleep[IO](2 seconds) ++ Stream.eval(
         clusterQuery.completeDeletion(runtime.id, start).transaction
@@ -164,21 +162,16 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     override def monitorConfig: MonitorConfig = MonitorConfig.GceMonitorConfig(
       2 seconds,
-      PollMonitorConfig(5, 1 second),
+      PollMonitorConfig(2 seconds, 5, 1 second),
       timeouts,
       InterruptablePollMonitorConfig(60, 1 second, 10 seconds),
       RuntimeBucketConfig(3 seconds),
       Config.imageConfig
     )
 
-    override def pollCheck(googleProject: GoogleProject,
-                           runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                           operation: Operation,
-                           action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): IO[Unit] = ???
-
     override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
       implicit ev: Ask[IO, AppContext]
-    ): IO[(Unit, Option[MonitorState])] = IO.pure(((), Some(MonitorState.Check(runtimeAndRuntimeConfig, None))))
+    ): IO[(Unit, Option[MonitorState])] = ???
   }
 
   def baseRuntimeMonitor(isWelderReady: Boolean,

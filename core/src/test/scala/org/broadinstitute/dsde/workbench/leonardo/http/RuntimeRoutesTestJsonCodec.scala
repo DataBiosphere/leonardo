@@ -7,6 +7,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AsyncRuntimeFields,
   AuditInfo,
   CloudContext,
+  CreateAzureDiskRequest,
+  CreateAzureRuntimeRequest,
   LabelMap,
   RuntimeConfig,
   RuntimeError,
@@ -18,9 +20,9 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-
 import java.net.URL
 import java.time.Instant
+
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 
 object RuntimeRoutesTestJsonCodec {
@@ -74,6 +76,13 @@ object RuntimeRoutesTestJsonCodec {
       case x: RuntimeConfigRequest.GceWithPdConfig => x.asJson
     }
   }
+
+  implicit val azureDiskConfigEncoder: Encoder[CreateAzureDiskRequest] =
+    Encoder.forProduct4("labels", "name", "size", "diskType")(x => CreateAzureDiskRequest.unapply(x).get)
+  implicit val createAzureRuntimeRequestEncoder: Encoder[CreateAzureRuntimeRequest] =
+    Encoder.forProduct6("labels", "region", "machineSize", "imageUri", "customEnvironmentVariables", "disk")(x =>
+      CreateAzureRuntimeRequest.unapply(x).get
+    )
 
   implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct12(
     "labels",

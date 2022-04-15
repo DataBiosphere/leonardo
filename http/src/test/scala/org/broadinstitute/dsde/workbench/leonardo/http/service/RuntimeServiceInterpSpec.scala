@@ -9,8 +9,7 @@ import cats.effect.std.Queue
 import org.broadinstitute.dsde.workbench.google2.mock.{
   FakeGoogleComputeService,
   FakeGooglePublisher,
-  FakeGoogleStorageInterpreter,
-  MockComputePollOperation
+  FakeGoogleStorageInterpreter
 }
 import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -46,18 +45,21 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
   val publisherQueue = QueueFactory.makePublisherQueue()
   def makeRuntimeService(publisherQueue: Queue[IO, LeoPubsubMessage]) =
     new RuntimeServiceInterp(
-      RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
-                           imageConfig,
-                           autoFreezeConfig,
-                           dataprocConfig,
-                           Config.gceConfig),
+      RuntimeServiceConfig(
+        Config.proxyConfig.proxyUrlBase,
+        imageConfig,
+        autoFreezeConfig,
+        dataprocConfig,
+        Config.gceConfig,
+        azureServiceConfig,
+        ConfigReader.appConfig.azure.runtimeDefaults
+      ),
       ConfigReader.appConfig.persistentDisk,
       whitelistAuthProvider,
       serviceAccountProvider,
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
       FakeGoogleComputeService,
-      new MockComputePollOperation,
       publisherQueue
     )
   val runtimeService = makeRuntimeService(publisherQueue)

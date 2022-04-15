@@ -116,7 +116,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
               workerPrivateAccess
             )
           case CloudService.AzureVm =>
-            RuntimeConfig.AzureVmConfig(
+            RuntimeConfig.AzureConfig(
               machineType,
               persistentDiskId.getOrElse(
                 throw new SQLDataException("persistentDiskId field should not be null for Azure.")
@@ -192,7 +192,7 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              false),
             x.dateAccessed
           )
-        case r: RuntimeConfig.AzureVmConfig =>
+        case r: RuntimeConfig.AzureConfig =>
           Some(
             x.id,
             (CloudService.AzureVm: CloudService,

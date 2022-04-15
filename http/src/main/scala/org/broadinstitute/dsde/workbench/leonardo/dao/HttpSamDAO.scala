@@ -3,11 +3,10 @@ package dao
 
 import _root_.fs2._
 import _root_.io.circe._
-import _root_.io.circe.syntax._
 import _root_.org.typelevel.log4cats.Logger
 import akka.http.scaladsl.model.StatusCode._
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import cats.effect.{Async, Resource}
+import cats.effect.{Async, Ref}
 import cats.mtl.Ask
 import cats.syntax.all._
 import com.google.api.services.plus.PlusScopes
@@ -25,6 +24,7 @@ import org.broadinstitute.dsde.workbench.util.health.Subsystems.Subsystem
 import org.broadinstitute.dsde.workbench.util.health.{StatusCheckResponse, SubsystemStatus, Subsystems}
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
+import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
@@ -46,6 +46,29 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
 ) extends SamDAO[F]
     with Http4sClientDsl[F] {
   private val saScopes = Seq(PlusScopes.USERINFO_EMAIL, PlusScopes.USERINFO_PROFILE, StorageScopes.DEVSTORAGE_READ_ONLY)
+  private val leoSaTokenRef = Ref.ofEffect(getLeoAuthTokenInteral)
+
+  def registerLeo(implicit ev: Ask[F, TraceId]): F[Unit] =
+    for {
+      leoToken <- getLeoAuthToken
+      isRegistered <- httpClient.expectOr[RegisterInfoResponse](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info")),
+          headers = Headers(leoToken)
+        )
+      )(onError)
+      _ <- httpClient
+        .successful(
+          Request[F](
+            method = Method.POST,
+            uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self")),
+            entity = Entity.strict(Chunk.array("app.terra.bio/#terms-of-service".getBytes(UTF_8))),
+            headers = Headers(leoToken)
+          )
+        )
+        .whenA(!isRegistered.enabled)
+    } yield ()
 
   def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse] =
     metrics.incrementCounter("sam/status") >>
@@ -182,7 +205,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
             uri = config.samUri
               .withPath(Uri.Path.unsafeFromString(s"/api/resources/v2/${sr.resourceType.asString}")),
             headers = Headers(authHeader, `Content-Type`(MediaType.application.json)),
-            body = Stream.emits(CreateSamResourceRequest(resource, policies, parent).asJson.noSpaces.getBytes)
+            entity = CreateSamResourceRequest[R](resource, policies, parent)
           )
         )
         .use { resp =>
@@ -248,8 +271,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
 
   def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]] =
-    getAccessTokenUsingLeoJson.use { leoToken =>
-      val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
+    getLeoAuthToken.flatMap { leoToken =>
       metrics.incrementCounter("sam/getUserProxy") >>
         httpClient.expectOptionOr[WorkbenchEmail](
           Request[F](
@@ -259,7 +281,7 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
                 Uri.Path
                   .unsafeFromString(s"/api/google/v1/user/proxyGroup/${URLEncoder.encode(userEmail.value, UTF_8.name)}")
               ),
-            headers = Headers(authHeader)
+            headers = Headers(leoToken)
           )
         )(onError)
     }
@@ -275,41 +297,53 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       getPetAccessToken(userEmail, googleProject)
     }
 
-  private def getAccessTokenUsingLeoJson: Resource[F, String] =
+  def getLeoAuthToken: F[Authorization] =
     for {
-      credential <- credentialResource(
-        config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
-      )
-      scopedCredential = credential.createScoped(saScopes.asJava)
-      _ <- Resource.eval(F.delay(scopedCredential.refresh))
-    } yield scopedCredential.getAccessToken.getTokenValue
+      ref <- leoSaTokenRef
+      accessToken <- ref.get
+      now <- F.realTimeInstant
+      validAccessToken <- if (accessToken.getExpirationTime.getTime > now.toEpochMilli)
+        getLeoAuthTokenInteral
+      else F.pure(accessToken)
+    } yield {
+      val token = validAccessToken.getTokenValue
+
+      Authorization(Credentials.Token(AuthScheme.Bearer, token))
+    }
+
+  private def getLeoAuthTokenInteral: F[com.google.auth.oauth2.AccessToken] =
+    credentialResource(
+      config.serviceAccountProviderConfig.leoServiceAccountJsonFile.toAbsolutePath.toString
+    ).use { credential =>
+      val scopedCredential = credential.createScoped(saScopes.asJava)
+
+      F.delay(scopedCredential.refresh).map(_ => scopedCredential.getAccessToken)
+    }
 
   private def getPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
     implicit ev: Ask[F, TraceId]
   ): F[Option[String]] =
-    getAccessTokenUsingLeoJson.use { leoToken =>
-      val leoAuth = Authorization(Credentials.Token(AuthScheme.Bearer, leoToken))
-      for {
-        _ <- metrics.incrementCounter("sam/getPetServiceAccount")
-        // fetch user's pet SA key with leo's authorization token
-        userPetKey <- httpClient.expectOptionOr[Json](
-          Request[F](
-            method = Method.GET,
-            uri = config.samUri.withPath(
-              Uri.Path.unsafeFromString(
-                s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"
-              )
-            ),
-            headers = Headers(leoAuth)
-          )
-        )(onError)
-        token <- userPetKey.traverse { key =>
-          val keyStream = new ByteArrayInputStream(key.toString().getBytes)
-          F.delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
-            .map(_.refreshAccessToken.getTokenValue)
-        }
-      } yield token
-    }
+    for {
+      leoAuth <- getLeoAuthToken
+      _ <- metrics.incrementCounter("sam/getPetServiceAccount")
+      // fetch user's pet SA key with leo's authorization token
+      userPetKey <- httpClient.expectOptionOr[Json](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(
+            Uri.Path.unsafeFromString(
+              s"/api/google/v1/petServiceAccount/${googleProject.value}/${URLEncoder.encode(userEmail.value, UTF_8.name)}"
+            )
+          ),
+          headers = Headers(leoAuth)
+        )
+      )(onError)
+      token <- userPetKey.traverse { key =>
+        val keyStream = new ByteArrayInputStream(key.toString().getBytes)
+        F.delay(ServiceAccountCredentials.fromStream(keyStream).createScoped(saScopes.asJava))
+          .map(_.refreshAccessToken.getTokenValue)
+      }
+    } yield token
 
   private def onError(response: Response[F])(implicit ev: Ask[F, TraceId]): F[Throwable] =
     for {
@@ -364,6 +398,8 @@ object HttpSamDAO {
   implicit val runtimeActionEncoder: Encoder[RuntimeAction] = Encoder.encodeString.contramap(_.asString)
   implicit val persistentDiskActionEncoder: Encoder[PersistentDiskAction] = Encoder.encodeString.contramap(_.asString)
   implicit val appActionEncoder: Encoder[AppAction] = Encoder.encodeString.contramap(_.asString)
+  implicit val wsmAppActionEncoder: Encoder[WsmResourceAction] = Encoder.encodeString.contramap(_.asString)
+  implicit val azurRuntimeActionEncoder: Encoder[WorkspaceAction] = Encoder.encodeString.contramap(_.asString)
   implicit val policyDataEncoder: Encoder[SamPolicyData] =
     Encoder.forProduct3("memberEmails", "actions", "roles")(x => (x.memberEmails, List.empty[String], x.roles))
   implicit val samPolicyNameKeyEncoder: KeyEncoder[SamPolicyName] = new KeyEncoder[SamPolicyName] {
@@ -394,8 +430,16 @@ object HttpSamDAO {
     )
   implicit val appActionDecoder: Decoder[AppAction] =
     Decoder.decodeString.emap(x => AppAction.stringToAction.get(x).toRight(s"Unknown app action: $x"))
+  implicit val wsmApplicationActionDecoder: Decoder[WsmResourceAction] =
+    Decoder.decodeString.emap(x =>
+      WsmResourceAction.stringToAction.get(x).toRight(s"Unknown wsm application action: $x")
+    )
   implicit val samRoleDecoder: Decoder[SamRole] =
     Decoder.decodeString.map(x => SamRole.stringToRole.getOrElse(x, SamRole.Other(x)))
+  implicit val controlledResourceActionDecoder: Decoder[WorkspaceAction] =
+    Decoder.decodeString.emap(x =>
+      WorkspaceAction.stringToAction.get(x).toRight(s"Unknown controlledResource action: $x")
+    )
   implicit val samPolicyDataDecoder: Decoder[SamPolicyData] = Decoder.instance { x =>
     for {
       memberEmails <- x.downField("memberEmails").as[List[WorkbenchEmail]]
@@ -436,6 +480,8 @@ object HttpSamDAO {
   }
   implicit val getGoogleSubjectIdResponseDecoder: Decoder[GetGoogleSubjectIdResponse] =
     Decoder.forProduct1("userSubjectId")(GetGoogleSubjectIdResponse.apply)
+  implicit val registerInfoResponseDecoder: Decoder[RegisterInfoResponse] =
+    Decoder.forProduct1("enabled")(RegisterInfoResponse.apply)
 }
 
 final case class CreateSamResourceRequest[R](samResourceId: R,
@@ -460,3 +506,4 @@ final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
     extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))
     with NoStackTrace
+final case class RegisterInfoResponse(enabled: Boolean)

@@ -15,7 +15,7 @@ RUN mkdir /helm-go-lib-build && \
 
 # Use this graalvm image if we need to use jstack etc
 # FROM ghcr.io/graalvm/graalvm-ce:ol8-java11-21.0.0.2
-FROM us.gcr.io/broad-dsp-gcr-public/base/jre:11-debian
+FROM us.gcr.io/broad-dsp-gcr-public/base/jre:17-debian
 
 EXPOSE 8080
 EXPOSE 5050
@@ -29,7 +29,7 @@ ENV TERRA_APP_VERSION 0.3.0
 ENV GALAXY_VERSION 1.2.1
 ENV NGINX_VERSION 3.23.0
 # If you update this here, make sure to also update reference.conf:
-ENV CROMWELL_CHART_VERSION 0.1.9
+ENV CROMWELL_CHART_VERSION 0.1.10
 
 RUN mkdir /leonardo
 COPY ./leonardo*.jar /leonardo

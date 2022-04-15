@@ -64,10 +64,8 @@ class DataprocInterpreterSpec
       IO(Some(1L))
   }
 
-  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                                         mockGoogleResourceService,
-                                         FakeGoogleComputeService,
-                                         new MockComputePollOperation)
+  val vpcInterp =
+    new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleResourceService, FakeGoogleComputeService)
 
   val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                                    bucketHelper,

@@ -13,7 +13,14 @@ import org.broadinstitute.dsde.workbench.google2.mock._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Service
-import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, MockDockerDAO, MockJupyterDAO, MockWelderDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{
+  HostStatus,
+  MockDockerDAO,
+  MockJupyterDAO,
+  MockSamDAO,
+  MockWelderDAO,
+  MockWsmDAO
+}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.dns.{
   KubernetesDnsCache,
@@ -72,10 +79,8 @@ trait TestLeoRoutes {
     BucketHelperConfig(imageConfig, welderConfig, proxyConfig, clusterFilesConfig)
   val bucketHelper =
     new BucketHelper[IO](bucketHelperConfig, mockGoogle2StorageDAO, serviceAccountProvider)
-  val vpcInterp = new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                                         FakeGoogleResourceService,
-                                         FakeGoogleComputeService,
-                                         new MockComputePollOperation)
+  val vpcInterp =
+    new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
   val dataprocInterp =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
@@ -89,7 +94,6 @@ trait TestLeoRoutes {
                                 MockWelderDAO)
   val gceInterp =
     new GceInterpreter[IO](Config.gceInterpreterConfig,
-                           new MockComputePollOperation(),
                            bucketHelper,
                            vpcInterp,
                            FakeGoogleComputeService,
@@ -104,6 +108,24 @@ trait TestLeoRoutes {
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService
   )
+
+  val serviceConfig = RuntimeServiceConfig(
+    Config.proxyConfig.proxyUrlBase,
+    imageConfig,
+    autoFreezeConfig,
+    dataprocConfig,
+    Config.gceConfig,
+    azureServiceConfig,
+    ConfigReader.appConfig.azure.runtimeDefaults
+  )
+
+  val azureService =
+    new AzureServiceInterp[IO](serviceConfig,
+                               whitelistAuthProvider,
+                               new MockWsmDAO,
+                               new MockSamDAO,
+                               QueueFactory.asyncTaskQueue,
+                               QueueFactory.makePublisherQueue())
 
   val underlyingRuntimeDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
@@ -150,18 +172,13 @@ trait TestLeoRoutes {
   }
 
   val runtimeService = RuntimeService(
-    RuntimeServiceConfig(Config.proxyConfig.proxyUrlBase,
-                         imageConfig,
-                         autoFreezeConfig,
-                         dataprocConfig,
-                         Config.gceConfig),
+    serviceConfig,
     ConfigReader.appConfig.persistentDisk,
     whitelistAuthProvider,
     serviceAccountProvider,
     new MockDockerDAO,
     FakeGoogleStorageInterpreter,
     FakeGoogleComputeService,
-    new MockComputePollOperation,
     QueueFactory.makePublisherQueue()
   )
 
@@ -173,6 +190,7 @@ trait TestLeoRoutes {
       runtimeService,
       MockDiskServiceInterp,
       leoKubernetesService,
+      azureService,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -185,6 +203,7 @@ trait TestLeoRoutes {
                    runtimeService,
                    MockDiskServiceInterp,
                    leoKubernetesService,
+                   azureService,
                    timedUserInfoDirectives,
                    contentSecurityPolicy,
                    refererConfig)

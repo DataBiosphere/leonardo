@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.scalatest.flatspec.AnyFlatSpecLike
 
+import java.time.temporal.ChronoUnit
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
@@ -157,7 +158,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val savedNodepool = makeNodepool(1, cluster1.id).save()
     val app1 = makeApp(1, savedNodepool.id).save()
 
-    val destroyedDate = Instant.now()
+    val destroyedDate = Instant.now().truncatedTo(ChronoUnit.MICROS)
     //delete app
     dbFutureValue(appQuery.markAsDeleted(app1.id, destroyedDate)) shouldBe 1
 
@@ -353,7 +354,7 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val savedNodepool1 = makeNodepool(1, savedCluster1.id).save()
 
     val savedApp1 = makeApp(1, savedNodepool1.id).save()
-    val now = Instant.now()
+    val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
     val error1 = AppError("error1", now, ErrorAction.CreateApp, ErrorSource.App, Some(1))
     val error2 = AppError("error2", now, ErrorAction.DeleteApp, ErrorSource.Nodepool, Some(2))
     appErrorQuery.save(savedApp1.id, error1).transaction.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -381,10 +382,14 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
 
   it should "list Error'd apps if the underlying cluster is deleted" in {
     val cluster = LeoLenses.kubernetesClusterToDestroyedDate
-      .modify(_ => Some(Instant.now))(makeKubeCluster(1).copy(status = KubernetesClusterStatus.Deleted))
+      .modify(_ => Some(Instant.now.truncatedTo(ChronoUnit.MICROS)))(
+        makeKubeCluster(1).copy(status = KubernetesClusterStatus.Deleted)
+      )
       .save()
     val nodepool = LeoLenses.nodepoolToDestroyedDate
-      .modify(_ => Some(Instant.now))(makeNodepool(1, cluster.id).copy(status = NodepoolStatus.Deleted))
+      .modify(_ => Some(Instant.now.truncatedTo(ChronoUnit.MICROS)))(
+        makeNodepool(1, cluster.id).copy(status = NodepoolStatus.Deleted)
+      )
       .save()
 
     val app = makeApp(1, nodepool.id).copy(status = AppStatus.Error).save()

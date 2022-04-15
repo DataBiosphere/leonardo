@@ -25,7 +25,6 @@ import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, LeoExc
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.DataprocMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeMonitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
-import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
@@ -51,13 +50,6 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
     extends BaseCloudServiceRuntimeMonitor[F] {
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
-
-  // Function used for transitions that we can get an Operation
-  def pollCheck(googleProject: GoogleProject,
-                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                operation: com.google.cloud.compute.v1.Operation,
-                action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): F[Unit] =
-    F.pure(new NotImplementedError("pollCheck is not supported for monitoring dataproc clusters"))
 
   /**
    * Queries Google for the cluster status and takes appropriate action depending on the result.
@@ -158,7 +150,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                           F.sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                                  runtimeAndRuntimeConfig,
                                                                  ip,
-                                                                 masterInstance)
+                                                                 masterInstance,
+                                                                 true)
                         case None =>
                           checkAgain(monitorContext,
                                      runtimeAndRuntimeConfig,
@@ -303,7 +296,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                       F.sleep(8 seconds) >> handleCheckTools(monitorContext,
                                                              runtimeAndRuntimeConfig,
                                                              ip,
-                                                             main.map(_._1))
+                                                             main.map(_._1),
+                                                             false)
                     case None =>
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
@@ -414,7 +408,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             main.flatMap(_.ip) match {
               case Some(ip) =>
                 // It takes a bit for jupyter to startup, hence wait a few seconds before we check jupyter
-                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main)
+                F.sleep(3 seconds) >> handleCheckTools(monitorContext, runtimeAndRuntimeConfig, ip, main, false)
               case None =>
                 checkAgain(monitorContext,
                            runtimeAndRuntimeConfig,
@@ -520,7 +514,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                     (DataprocInstance(
                        DataprocInstanceKey(googleProject, z, i),
                        BigInt(instance.getId),
-                       GceInstanceStatus.withNameInsensitive(instance.getStatus.name()),
+                       GceInstanceStatus.withNameInsensitive(instance.getStatus()),
                        getInstanceIP(instance),
                        role,
                        parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(ctx.now)

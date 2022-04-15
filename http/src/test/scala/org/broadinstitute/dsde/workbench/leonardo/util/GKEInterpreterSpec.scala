@@ -39,10 +39,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
   val googleIamDao = new MockGoogleIamDAO
 
   val vpcInterp =
-    new VPCInterpreter[IO](Config.vpcInterpreterConfig,
-                           FakeGoogleResourceService,
-                           FakeGoogleComputeService,
-                           new MockComputePollOperation)
+    new VPCInterpreter[IO](Config.vpcInterpreterConfig, FakeGoogleResourceService, FakeGoogleComputeService)
 
   val gkeInterp =
     new GKEInterpreter[IO](
