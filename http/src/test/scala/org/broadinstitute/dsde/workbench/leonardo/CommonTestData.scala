@@ -105,10 +105,12 @@ object CommonTestData {
   val startUserScriptObjectName = GcsObjectName("startscript.sh")
   val startUserScriptUri =
     UserScriptPath.Gcs(GcsPath(startUserScriptBucketName, startUserScriptObjectName))
-  val serviceAccountKey = ServiceAccountKey(ServiceAccountKeyId("123"),
-                                            ServiceAccountPrivateKeyData("abcdefg"),
-                                            Some(Instant.now),
-                                            Some(Instant.now.plusSeconds(300)))
+  val serviceAccountKey = ServiceAccountKey(
+    ServiceAccountKeyId("123"),
+    ServiceAccountPrivateKeyData("abcdefg"),
+    Some(Instant.now.truncatedTo(ChronoUnit.MICROS)),
+    Some(Instant.now.plusSeconds(300).truncatedTo(ChronoUnit.MICROS))
+  )
   val initBucketName = GcsBucketName("init-bucket-path")
   val stagingBucketName = GcsBucketName("staging-bucket-name")
   val autopause = true
@@ -187,16 +189,28 @@ object CommonTestData {
 
   val serviceAccount = WorkbenchEmail("testServiceAccount@example.com")
 
-  val auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now())
-  val olderRuntimeAuditInfo = AuditInfo(userEmail, Instant.now().minus(1, ChronoUnit.DAYS), None, Instant.now())
+  val auditInfo = AuditInfo(userEmail,
+                            Instant.now().truncatedTo(ChronoUnit.MICROS),
+                            None,
+                            Instant.now().truncatedTo(ChronoUnit.MICROS))
+  val olderRuntimeAuditInfo = AuditInfo(userEmail,
+                                        Instant.now().minus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MICROS),
+                                        None,
+                                        Instant.now().truncatedTo(ChronoUnit.MICROS))
   val jupyterImage =
-    RuntimeImage(Jupyter, "init-resources/jupyter-base:latest", Some(Paths.get("/home/jupyter")), Instant.now)
-  val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", None, Instant.now)
-  val welderImage = RuntimeImage(Welder, "welder/welder:latest", None, Instant.now)
-  val proxyImage = RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now)
-  val customDataprocImage = RuntimeImage(BootSource, "custom_dataproc", None, Instant.now)
-  val cryptoDetectorImage = RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now)
-  val azureImage = RuntimeImage(RuntimeImageType.Azure, "test", None, Instant.now)
+    RuntimeImage(Jupyter,
+                 "init-resources/jupyter-base:latest",
+                 Some(Paths.get("/home/jupyter")),
+                 Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val welderImage = RuntimeImage(Welder, "welder/welder:latest", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val proxyImage =
+    RuntimeImage(Proxy, imageConfig.proxyImage.imageUrl, None, Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val customDataprocImage =
+    RuntimeImage(BootSource, "custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val cryptoDetectorImage =
+    RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
+  val azureImage = RuntimeImage(RuntimeImageType.Azure, "test", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
   val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
@@ -312,7 +326,10 @@ object CommonTestData {
     asyncRuntimeFields = Some(
       AsyncRuntimeFields(ProxyHostName(UUID.randomUUID().toString), OperationName("op"), stagingBucketName, None)
     ),
-    auditInfo = AuditInfo(userEmail, Instant.now(), None, Instant.now()),
+    auditInfo = AuditInfo(userEmail,
+                          Instant.now().truncatedTo(ChronoUnit.MICROS),
+                          None,
+                          Instant.now().truncatedTo(ChronoUnit.MICROS)),
     kernelFoundBusyDate = None,
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
@@ -425,7 +442,7 @@ object CommonTestData {
     status = GceInstanceStatus.Running,
     ip = Some(IP("1.2.3.4")),
     dataprocRole = DataprocRole.Master,
-    createdDate = Instant.now()
+    createdDate = Instant.now().truncatedTo(ChronoUnit.MICROS)
   )
 
   val workerInstance1 = DataprocInstance(
@@ -434,7 +451,7 @@ object CommonTestData {
     status = GceInstanceStatus.Running,
     ip = Some(IP("1.2.3.5")),
     dataprocRole = DataprocRole.Worker,
-    createdDate = Instant.now()
+    createdDate = Instant.now().truncatedTo(ChronoUnit.MICROS)
   )
 
   val workerInstance2 = DataprocInstance(
@@ -443,7 +460,7 @@ object CommonTestData {
     status = GceInstanceStatus.Running,
     ip = Some(IP("1.2.3.6")),
     dataprocRole = DataprocRole.Worker,
-    createdDate = Instant.now()
+    createdDate = Instant.now().truncatedTo(ChronoUnit.MICROS)
   )
 
   val azureRegion: com.azure.core.management.Region = com.azure.core.management.Region.US_EAST

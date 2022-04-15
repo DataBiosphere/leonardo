@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench
 
 import cats.effect.Sync
 import org.broadinstitute.dsde.workbench.google2.RegionName
+import org.http4s.{Entity, EntityEncoder}
 import org.typelevel.ci._
 
 import java.time.Instant
@@ -11,6 +12,9 @@ package object leonardo {
   //this value is the default for autopause, if none is specified. An autopauseThreshold of 0 indicates no autopause
   val autoPauseOffValue = 0
   val traceIdHeaderString = ci"X-Cloud-Trace-Context"
+
+  implicit def http4sBody[F[_], A](body: A)(implicit encoder: EntityEncoder[F, A]): Entity[F] =
+    encoder.toEntity(body)
 
   // convenience to get now as a F[Instant] using a Timer
   def nowInstant[F[_]: Sync]: F[Instant] =

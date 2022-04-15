@@ -1,7 +1,6 @@
 package org.broadinstitute.dsde.workbench.leonardo.db
 
 import java.time.Instant
-
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils._
@@ -13,6 +12,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.scalatest.flatspec.AnyFlatSpecLike
+
+import java.time.temporal.ChronoUnit
 
 class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent {
 
@@ -37,7 +38,7 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
     ) shouldEqual Some(savedCluster2)
 
     //should delete the cluster and initial nodepool, hence '2' records updated
-    val now = Instant.now()
+    val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
     dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster1.id, now)) shouldBe 2
     dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster2.id, now)) shouldBe 2
 

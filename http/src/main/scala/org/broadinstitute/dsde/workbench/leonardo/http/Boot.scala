@@ -54,11 +54,13 @@ import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
 import org.http4s.blaze.client
+import org.http4s.client.RequestKey
 import org.http4s.client.middleware.{Metrics, Retry, RetryPolicy, Logger => Http4sLogger}
 import org.typelevel.log4cats.StructuredLogger
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine._
 
+import java.net.InetSocketAddress
 import java.nio.file.Paths
 import java.time.Instant
 import java.util.concurrent.TimeUnit
@@ -288,31 +290,7 @@ object Boot extends IOApp {
       kubernetesDnsCache = new KubernetesDnsCache(proxyConfig, dbRef, hostToIpMapping, kubernetesDnsCaffineCache)
 
       // Set up SSL context and http clients
-      retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
       sslContext <- Resource.eval(SslContextReader.getSSLContext())
-      httpClient <- client
-        .BlazeClientBuilder[F]
-        .withMaxWaitQueueLimit(512)
-        .withSslContext(sslContext)
-        // Note a custom resolver is needed for making requests through the Leo proxy
-        // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
-        // hostname resolution, so it's okay to use for all clients.
-        .withCustomDnsResolver(proxyResolver.resolveHttp4s)
-        .resource
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
-        httpClient
-      )
-      httpClientWithRetryAndLogging = Retry(retryPolicy)(httpClientWithLogging)
-
-      classifierFunc = (r: Request[F]) => Some(r.method.toString.toLowerCase)
-      metricsOps <- org.http4s.metrics.prometheus.Prometheus
-        .metricsOps(io.prometheus.client.CollectorRegistry.defaultRegistry, "http4s_client")
-      meteredClient = Metrics[F](
-        metricsOps,
-        classifierFunc
-      )(httpClientWithLogging)
-      // Note the Sam client intentionally doesn't use httpClientWithLogging because the logs are
-      // too verbose. We send OpenTelemetry metrics instead for instrumenting Sam calls.
       underlyingPetTokenCache = buildCache[UserEmailAndProject, scalacache.Entry[Option[String]]](
         httpSamDaoConfig.petCacheMaxSize,
         httpSamDaoConfig.petCacheExpiryTime
@@ -321,14 +299,31 @@ object Boot extends IOApp {
         F.delay(CaffeineCache[F, UserEmailAndProject, Option[String]](underlyingPetTokenCache))
       )(_.close)
 
-      samDao = HttpSamDAO[F](httpClientWithRetryAndLogging, httpSamDaoConfig, petTokenCache)
-      jupyterDao = new HttpJupyterDAO[F](runtimeDnsCache, meteredClient)
-      welderDao = new HttpWelderDAO[F](runtimeDnsCache, meteredClient)
-      rstudioDAO = new HttpRStudioDAO(runtimeDnsCache, meteredClient)
-      appDAO = new HttpAppDAO(kubernetesDnsCache, meteredClient)
-      dockerDao = HttpDockerDAO[F](httpClientWithRetryAndLogging)
-      appDescriptorDAO = new HttpAppDescriptorDAO(httpClientWithRetryAndLogging)
-      wsmDao = new HttpWsmDao[F](httpClientWithRetryAndLogging, ConfigReader.appConfig.azure.wsm)
+      samDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_sam_client"), true).map(client =>
+        HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
+      )
+      jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
+        client => new HttpJupyterDAO[F](runtimeDnsCache, client)
+      )
+      welderDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_welder_client"), false).map(
+        client => new HttpWelderDAO[F](runtimeDnsCache, client)
+      )
+      rstudioDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_rstudio_client"), false).map(
+        client => new HttpRStudioDAO(runtimeDnsCache, client)
+      )
+      appDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_app_client"), false).map(client =>
+        new HttpAppDAO(kubernetesDnsCache, client)
+      )
+      dockerDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
+        HttpDockerDAO[F](client)
+      )
+      appDescriptorDAO <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, None, true).map(client =>
+        new HttpAppDescriptorDAO(client)
+      )
+      wsmDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_wsm_client"), true).map(client =>
+        new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
+      )
+
       computeManagerDao = new HttpComputerManagerDao[F](ConfigReader.appConfig.azure.appRegistration)
 
       // Set up identity providers
@@ -608,6 +603,43 @@ object Boot extends IOApp {
       .expireAfterWrite(expiresIn.toSeconds, TimeUnit.SECONDS)
       .recordStats()
       .build[K, V]()
+
+  private def buildHttpClient[F[_]: Async: StructuredLogger](
+    sslContext: SSLContext,
+    dnsResolver: RequestKey => Either[Throwable, InetSocketAddress],
+    metricsPrefix: Option[String],
+    withRetry: Boolean
+  ): Resource[F, org.http4s.client.Client[F]] = {
+    val retryPolicy = RetryPolicy[F](RetryPolicy.exponentialBackoff(30 seconds, 5))
+
+    for {
+      httpClient <- client
+        .BlazeClientBuilder[F]
+        .withSslContext(sslContext)
+        // Note a custom resolver is needed for making requests through the Leo proxy
+        // (for example HttpJupyterDAO). Otherwise the proxyResolver falls back to default
+        // hostname resolution, so it's okay to use for all clients.
+        .withCustomDnsResolver(dnsResolver)
+        .resource
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
+        httpClient
+      )
+      client = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
+      finalClient <- metricsPrefix match {
+        case None => Resource.pure[F, org.http4s.client.Client[F]](client)
+        case Some(prefix) =>
+          val classifierFunc = (r: Request[F]) => Some(r.method.toString.toLowerCase)
+          for {
+            metricsOps <- org.http4s.metrics.prometheus.Prometheus
+              .metricsOps(io.prometheus.client.CollectorRegistry.defaultRegistry, prefix)
+            meteredClient = Metrics[F](
+              metricsOps,
+              classifierFunc
+            )(httpClientWithLogging)
+          } yield meteredClient
+      }
+    } yield finalClient
+  }
 
   override def run(args: List[String]): IO[ExitCode] = startup().as(ExitCode.Success)
 }

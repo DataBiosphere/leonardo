@@ -148,7 +148,7 @@ object LeonardoApiClient {
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
             ),
-            body = createRuntime2Request
+            entity = createRuntime2Request
           )
         )
         .use { resp =>
@@ -221,7 +221,7 @@ object LeonardoApiClient {
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/google/v1/runtimes/${googleProject.value}/${runtimeName.asString}")
             ),
-            body = req
+            entity = req
           )
         )
         .use { resp =>
@@ -363,7 +363,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
-            body = createDiskRequest
+            entity = createDiskRequest
           )
         )
         .use { resp =>
@@ -390,7 +390,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/disks/${googleProject.value}/${diskName.value}")),
-            body = req
+            entity = req
           )
         )
         .use { resp =>
@@ -519,7 +519,7 @@ object LeonardoApiClient {
             headers = Headers(authHeader, defaultMediaType, traceIdHeader),
             uri = rootUri
               .withPath(Uri.Path.unsafeFromString(s"/api/google/v1/apps/${googleProject.value}/${appName.value}")),
-            body = createAppRequest
+            entity = createAppRequest
           )
         )
         .use { resp =>
@@ -678,7 +678,7 @@ object LeonardoApiClient {
             uri = rootUri.withPath(
               Uri.Path.unsafeFromString(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/${runtimeName.asString}")
             ),
-            body = createAzureRuntimeRequest
+            entity = createAzureRuntimeRequest
           )
         )
         .use { resp =>
