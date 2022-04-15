@@ -236,7 +236,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       paramMap <- F.fromEither(processListParameters(params))
 
-      runtimes <- RuntimeServiceDbQueries.listRuntimes(paramMap._1, paramMap._2, workspaceId, cloudProvider).transaction
+      runtimes <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(paramMap._1, paramMap._2, workspaceId, cloudProvider)
+        .transaction
 
       (runtimesUserIsCreator, runtimesUserIsNotCreator) = runtimes.partition(_.auditInfo.creator == userInfo.userEmail)
 
@@ -254,16 +256,14 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       samVisibleWsmControlledResourceSamIds <- NonEmptyList
         .fromList(wsmControlledResourceSamIds)
-        .fold[F[List[WsmResourceSamResourceId]]](F.pure(List.empty)) { ids =>
-          authProvider.filterUserVisible(ids, userInfo)
-        }
+        .traverse(ids => authProvider.filterUserVisible(ids, userInfo))
+        .map(_.getOrElse(List.empty))
 
       // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
       samVisibleRuntimeSamResourceIds <- NonEmptyList
         .fromList(runtimesUserIsNotCreator.map(_.samResource))
-        .fold[F[List[RuntimeSamResourceId]]](F.pure(List.empty)) { ids =>
-          authProvider.filterUserVisible(ids, userInfo)
-        }
+        .traverse(ids => authProvider.filterUserVisible(ids, userInfo))
+        .map(_.getOrElse(List.empty))
 
       userVisibleRuntimes = runtimesUserIsCreator ++ runtimesUserIsNotCreator.filter(r =>
         samVisibleWsmControlledResourceSamIds

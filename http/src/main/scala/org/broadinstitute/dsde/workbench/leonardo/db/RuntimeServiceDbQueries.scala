@@ -170,10 +170,10 @@ object RuntimeServiceDbQueries {
     joinAndFilterByLabelForList(labelMap, clusterQueryFilteredByProject)
   }
 
-  def listRuntimes(labelMap: LabelMap,
-                   includeDeleted: Boolean,
-                   workspaceId: Option[WorkspaceId],
-                   cloudProvider: Option[CloudProvider])(
+  def listRuntimesForWorkspace(labelMap: LabelMap,
+                               includeDeleted: Boolean,
+                               workspaceId: Option[WorkspaceId],
+                               cloudProvider: Option[CloudProvider])(
     implicit ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByDeletion =

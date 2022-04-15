@@ -257,8 +257,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           c3RuntimeConfig
         )
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None, None).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None, None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(Map.empty, true, None, None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(Map.empty, false, None, None).transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -314,8 +314,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
             c3RuntimeConfig
           )
       )
-      list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, Some(workspaceId1), None).transaction
-      list2 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, Some(workspaceId2), None).transaction
+      list1 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(Map.empty, true, Some(workspaceId1), None).transaction
+      list2 <- RuntimeServiceDbQueries.listRuntimesForWorkspace(Map.empty, false, Some(workspaceId2), None).transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
@@ -380,15 +380,17 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
           )
       )
       list1 <- RuntimeServiceDbQueries
-        .listRuntimes(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Azure))
+        .listRuntimesForWorkspace(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Azure))
         .transaction
       list2 <- RuntimeServiceDbQueries
-        .listRuntimes(Map.empty, false, Some(workspaceId2), Some(CloudProvider.Azure))
+        .listRuntimesForWorkspace(Map.empty, false, Some(workspaceId2), Some(CloudProvider.Azure))
         .transaction
       list3 <- RuntimeServiceDbQueries
-        .listRuntimes(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Gcp))
+        .listRuntimesForWorkspace(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Gcp))
         .transaction
-      list4 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, false, None, Some(CloudProvider.Azure)).transaction
+      list4 <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(Map.empty, false, None, Some(CloudProvider.Azure))
+        .transaction
       end <- IO.realTimeInstant
       elapsed = (end.toEpochMilli - start.toEpochMilli).millis
       _ <- loggerIO.info(s"listClusters took $elapsed")
