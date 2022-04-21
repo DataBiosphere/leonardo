@@ -58,7 +58,7 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 --ServerApp.base_url=$SERVER_APP_BASE_URL \
 --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL \
 --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN \
---autoreload --allow-root >/dev/null 2>&1&
+--autoreload >/dev/null 2>&1&
 
 # Store Jupyter Server parameters for reboot process
 
