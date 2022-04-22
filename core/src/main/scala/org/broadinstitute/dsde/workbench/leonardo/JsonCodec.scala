@@ -556,10 +556,18 @@ object JsonCodec {
         .catchNonFatal(WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(x))))
         .leftMap(_.getMessage)
     )
+
+  implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
+    Decoder.decodeString.emap(x =>
+      Either
+        .catchNonFatal(WorkspaceId(UUID.fromString(x)))
+        .leftMap(_.getMessage)
+    )
+
   implicit val workspaceSamResourceIdDecoder: Decoder[WorkspaceResourceSamResourceId] =
     Decoder.decodeString.emap(x =>
       Either
-        .catchNonFatal(WorkspaceResourceSamResourceId(UUID.fromString(x)))
+        .catchNonFatal(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(x))))
         .leftMap(_.getMessage)
     )
 
@@ -650,9 +658,6 @@ object JsonCodec {
 
   implicit val wsmJobIdDecoder: Decoder[WsmJobId] =
     Decoder.decodeString.map(s => WsmJobId(s))
-
-  implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
-    Decoder.decodeString.map(x => WorkspaceId(UUID.fromString(x)))
 
   implicit val workspaceIdEncoder: Encoder[WorkspaceId] =
     Encoder.encodeString.contramap(_.value.toString)
