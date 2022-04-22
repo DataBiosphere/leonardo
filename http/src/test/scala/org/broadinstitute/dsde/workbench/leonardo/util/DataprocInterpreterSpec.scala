@@ -8,7 +8,8 @@ import cats.mtl.Ask
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.googleapis.testing.json.GoogleJsonResponseExceptionFactoryTesting
 import com.google.api.client.testing.json.MockJsonFactory
-import com.google.cloud.compute.v1.Instance
+import com.google.api.gax.longrunning.OperationFuture
+import com.google.cloud.compute.v1.{Instance, Operation}
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.mock._
@@ -16,6 +17,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   DataprocClusterName,
   DataprocRole,
   DataprocRoleZonePreemptibility,
+  GoogleComputeService,
   InstanceName,
   MachineTypeName,
   RegionName,
@@ -25,7 +27,7 @@ import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
-import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent, UpdateAsyncClusterCreationFields}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.CreateRuntimeMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
@@ -34,6 +36,8 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -67,16 +71,17 @@ class DataprocInterpreterSpec
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleResourceService, FakeGoogleComputeService)
 
-  val dataprocInterp = new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
-                                                   bucketHelper,
-                                                   vpcInterp,
-                                                   MockGoogleDataprocService,
-                                                   MockGoogleComputeService,
-                                                   MockGoogleDiskService,
-                                                   mockGoogleDirectoryDAO,
-                                                   mockGoogleIamDAO,
-                                                   mockGoogleResourceService,
-                                                   MockWelderDAO)
+  def dataprocInterp(computeService: GoogleComputeService[IO] = MockGoogleComputeService) =
+    new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
+                                bucketHelper,
+                                vpcInterp,
+                                MockGoogleDataprocService,
+                                computeService,
+                                MockGoogleDiskService,
+                                mockGoogleDirectoryDAO,
+                                mockGoogleIamDAO,
+                                mockGoogleResourceService,
+                                MockWelderDAO)
 
   override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
@@ -90,7 +95,7 @@ class DataprocInterpreterSpec
 
   "DataprocInterpreter" should "create a google cluster" in isolatedDbTest {
     val clusterCreationRes =
-      dataprocInterp
+      dataprocInterp()
         .createRuntime(
           CreateRuntimeParams
             .fromCreateRuntimeMessage(
@@ -160,7 +165,7 @@ class DataprocInterpreterSpec
                                                      RegionName("us-central1"),
                                                      true,
                                                      false)
-    val resourceConstraints = dataprocInterp
+    val resourceConstraints = dataprocInterp()
       .getClusterResourceContraints(testClusterClusterProjectAndName,
                                     runtimeConfig.machineType,
                                     RegionName("us-central1"))
@@ -168,6 +173,37 @@ class DataprocInterpreterSpec
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m
     resourceConstraints.memoryLimit shouldBe MemorySize.fromMb(768)
+  }
+
+  it should "don't error if runtime is already deleted" in isolatedDbTest {
+    val computeService = new FakeGoogleComputeService {
+      override def modifyInstanceMetadata(
+        project: GoogleProject,
+        zone: ZoneName,
+        instanceName: InstanceName,
+        metadataToAdd: Map[String, String],
+        metadataToRemove: Set[String]
+      )(implicit ev: Ask[IO, TraceId]): IO[Option[OperationFuture[Operation, Operation]]] =
+        IO.raiseError(new org.broadinstitute.dsde.workbench.model.WorkbenchException("Instance not found: "))
+    }
+
+    val dataproc = dataprocInterp(computeService)
+    val res = for {
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Deleting)
+          .save()
+      )
+      _ <- IO(
+        dbFutureValue(
+          clusterQuery.updateAsyncClusterCreationFields(UpdateAsyncClusterCreationFields(None, 1, None, Instant.now))
+        )
+      )
+      updatedRuntme <- IO(dbFutureValue(clusterQuery.getClusterById(runtime.id)))
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(updatedRuntme.get, CommonTestData.defaultDataprocRuntimeConfig)
+      res <- dataproc.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None))
+    } yield (res shouldBe (None))
+    res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
   private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {

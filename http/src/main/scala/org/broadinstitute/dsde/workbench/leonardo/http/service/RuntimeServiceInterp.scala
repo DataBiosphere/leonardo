@@ -323,7 +323,7 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                 F.blocking(op.get()).void.recoverWith {
                   case e: java.util.concurrent.ExecutionException =>
                     if (e.getMessage.contains("Not Found"))
-                      log.info("Fail to detach disk because the runtime doesn't exist")
+                      log.info(ctx.loggingCtx)("Fail to detach disk because the runtime doesn't exist")
                     else F.raiseError(e)
                 }
               }

@@ -423,6 +423,7 @@ class GceInterpreter[F[_]](
   )(implicit ev: Ask[F, AppContext]): F[Option[OperationFuture[Operation, Operation]]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) {
       for {
+        ctx <- ev.ask
         zoneParam <- F.fromOption(
           LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
           new RuntimeException(
@@ -444,7 +445,7 @@ class GceInterpreter[F[_]](
           .attempt
         opt <- opFutureAttempt match {
           case Left(e) if e.getMessage.contains("Instance not found") =>
-            F.pure(None)
+            logger.info(ctx.loggingCtx)("Instance is already deleted").as(None)
           case Left(e) =>
             F.raiseError(e)
           case Right(opFuture) =>

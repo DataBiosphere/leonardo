@@ -1121,6 +1121,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       // remove some existing items in the queue just to be safe
       _ <- publisherQueue.tryTake
       _ <- publisherQueue.tryTake
+      _ <- publisherQueue.tryTake
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
       testRuntime <- IO(makeCluster(1).copy(samResource = samResource, status = RuntimeStatus.Running).save())
       req = UpdateRuntimeRequest(None, false, Some(true), Some(120.minutes), Map.empty, Set.empty)

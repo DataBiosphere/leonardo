@@ -351,6 +351,7 @@ class DataprocInterpreter[F[_]: Parallel](
   ): F[Option[OperationFuture[Operation, Operation]]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
       for {
+        ctx <- ev.ask
         region <- F.fromOption(
           LeoLenses.dataprocRegion.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
           new RuntimeException("DataprocInterpreter shouldn't get a GCE request")
@@ -363,7 +364,7 @@ class DataprocInterpreter[F[_]: Parallel](
               .attempt
             _ <- opFutureAttempt match {
               case Left(e) if e.getMessage.contains("Instance not found") =>
-                F.pure(None)
+                logger.info(ctx.loggingCtx)("Instance is already deleted").as(None)
               case Left(e) =>
                 F.raiseError(e)
               case Right(opFuture) =>
