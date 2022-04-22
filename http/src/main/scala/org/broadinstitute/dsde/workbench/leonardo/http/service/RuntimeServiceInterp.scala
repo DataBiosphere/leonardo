@@ -319,7 +319,14 @@ class RuntimeServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                                           disk.zone,
                                                           InstanceName(runtime.runtimeName.asString),
                                                           config.gceConfig.userDiskDeviceName)
-              _ <- detachOp.traverse(op => F.blocking(op.get()))
+              _ <- detachOp.traverse { op =>
+                F.blocking(op.get()).void.recoverWith {
+                  case e: java.util.concurrent.ExecutionException =>
+                    if (e.getMessage.contains("Not Found"))
+                      log.info("Fail to detach disk because the runtime doesn't exist")
+                    else F.raiseError(e)
+                }
+              }
               _ <- RuntimeConfigQueries.updatePersistentDiskId(runtime.runtimeConfigId, None, ctx.now).transaction
               res <- if (req.deleteDisk)
                 persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleting, ctx.now).transaction.as(Some(diskId))

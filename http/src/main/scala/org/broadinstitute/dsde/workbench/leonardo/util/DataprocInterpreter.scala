@@ -13,7 +13,7 @@ import com.google.api.services.admin.directory.model.Group
 import com.google.cloud.compute.v1.{Operation, Tags}
 import com.google.cloud.dataproc.v1.{RuntimeConfig => _, _}
 import com.typesafe.scalalogging.LazyLogging
-import org.broadinstitute.dsde.workbench.DoneCheckable
+import org.broadinstitute.dsde.workbench.{google2, DoneCheckable}
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.GoogleUtilities.RetryPredicates._
 import org.broadinstitute.dsde.workbench.google._
@@ -357,18 +357,41 @@ class DataprocInterpreter[F[_]: Parallel](
         )
         metadata <- getShutdownScript(params.runtimeAndRuntimeConfig, false)
         _ <- params.masterInstance.traverse { instance =>
-          googleComputeService
-            .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
+          for {
+            opFutureAttempt <- googleComputeService
+              .addInstanceMetadata(instance.key.project, instance.key.zone, instance.key.name, metadata)
+              .attempt
+            _ <- opFutureAttempt match {
+              case Left(e) if e.getMessage.contains("Instance not found") =>
+                F.pure(None)
+              case Left(e) =>
+                F.raiseError(e)
+              case Right(opFuture) =>
+                opFuture match {
+                  case None => F.pure(None)
+                  case Some(v) =>
+                    for {
+                      res <- F.delay(v.get())
+                      _ <- F.raiseUnless(google2.isSuccess(res.getHttpErrorStatusCode))(
+                        new Exception(s"addInstanceMetadata failed")
+                      )
+                      googleProject <- F.fromOption(
+                        LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+                        new RuntimeException(
+                          "this should never happen. Dataproc runtime's cloud context should be a google project"
+                        )
+                      )
+                      _ <- googleDataprocService.deleteCluster(
+                        googleProject,
+                        region,
+                        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+                      )
+                    } yield ()
+                }
+            }
+          } yield ()
+
         }
-        googleProject <- F.fromOption(
-          LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
-          new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
-        )
-        _ <- googleDataprocService.deleteCluster(
-          googleProject,
-          region,
-          DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-        )
       } yield None
     } else F.pure(None)
 

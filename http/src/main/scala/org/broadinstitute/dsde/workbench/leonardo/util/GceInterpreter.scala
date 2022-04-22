@@ -434,26 +434,34 @@ class GceInterpreter[F[_]](
           LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
           new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
         )
-        opFuture <- googleComputeService
+        opFutureAttempt <- googleComputeService
           .addInstanceMetadata(
             googleProject,
             zoneParam,
             InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
             metadata
           )
-        opt <- opFuture match {
-          case None => F.pure(None)
-          case Some(v) =>
-            for {
-              res <- F.delay(v.get())
-              _ <- F.raiseUnless(isSuccess(res.getHttpErrorStatusCode))(
-                new Exception(s"addInstanceMetadata failed")
-              )
-              opFutureOpt <- googleComputeService
-                .deleteInstance(googleProject,
-                                zoneParam,
-                                InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
-            } yield opFutureOpt
+          .attempt
+        opt <- opFutureAttempt match {
+          case Left(e) if e.getMessage.contains("Instance not found") =>
+            F.pure(None)
+          case Left(e) =>
+            F.raiseError(e)
+          case Right(opFuture) =>
+            opFuture match {
+              case None => F.pure(None)
+              case Some(v) =>
+                for {
+                  res <- F.delay(v.get())
+                  _ <- F.raiseUnless(isSuccess(res.getHttpErrorStatusCode))(
+                    new Exception(s"addInstanceMetadata failed")
+                  )
+                  opFutureOpt <- googleComputeService
+                    .deleteInstance(googleProject,
+                                    zoneParam,
+                                    InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
+                } yield opFutureOpt
+            }
         }
       } yield opt
     } else F.pure(none[OperationFuture[Operation, Operation]])
