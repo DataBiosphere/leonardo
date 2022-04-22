@@ -67,7 +67,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case (None, None)            => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
       }
 
-      samResource = WorkspaceResourceSamResourceId(workspaceId.value.toString)
+      samResource = WorkspaceResourceSamResourceId(workspaceId)
 
       hasPermission <- authProvider.hasPermission(samResource, WorkspaceAction.CreateControlledUserResource, userInfo)
 
@@ -265,12 +265,35 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .traverse(ids => authProvider.filterUserVisible(ids, userInfo))
         .map(_.getOrElse(List.empty))
 
+      workspaceFilterableRuntimes <- NonEmptyList
+        .fromList(
+          runtimesUserIsNotCreator.flatMap(runtime =>
+            runtime.workspaceId match {
+              case Some(id) => List((id, WorkspaceResourceSamResourceId(id)))
+              case None     => List.empty
+            }
+          )
+        )
+        .traverse(workspaces =>
+          authProvider.filterUserVisibleWithWorkspaceFallback(
+            workspaces,
+            userInfo
+          )
+        )
+        .map(_.getOrElse(List.empty))
+
       userVisibleRuntimes = runtimesUserIsCreator ++ runtimesUserIsNotCreator.filter(r =>
+        //check for visibility based on vms that are wsm controlled resoources
         samVisibleWsmControlledResourceSamIds
           .map(id => RuntimeSamResourceId(id.resourceId))
           .contains(r.samResource) ||
+          //check for visibility fallback for backwards compatibility with runtime v1 sam ids
           samVisibleRuntimeSamResourceIds
-            .contains(r.samResource)
+            .contains(r.samResource) ||
+          //check for visibility based on whether the user is the owner of the workspace that the runtime belongs to
+          r.workspaceId.fold(false)(workspaceId =>
+            workspaceFilterableRuntimes.contains((workspaceId, WorkspaceResourceSamResourceId(workspaceId)))
+          )
       )
 
     } yield userVisibleRuntimes.toVector

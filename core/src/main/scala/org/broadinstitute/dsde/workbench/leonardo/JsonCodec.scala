@@ -556,6 +556,12 @@ object JsonCodec {
         .catchNonFatal(WsmResourceSamResourceId(WsmControlledResourceId(UUID.fromString(x))))
         .leftMap(_.getMessage)
     )
+  implicit val workspaceSamResourceIdDecoder: Decoder[WorkspaceResourceSamResourceId] =
+    Decoder.decodeString.emap(x =>
+      Either
+        .catchNonFatal(WorkspaceResourceSamResourceId(UUID.fromString(x)))
+        .leftMap(_.getMessage)
+    )
 
   implicit val errorSourceDecoder: Decoder[ErrorSource] =
     Decoder.decodeString.emap(s => ErrorSource.stringToObject.get(s).toRight(s"Invalid error source ${s}"))
