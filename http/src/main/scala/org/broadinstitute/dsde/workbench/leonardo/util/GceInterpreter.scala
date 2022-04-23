@@ -423,6 +423,7 @@ class GceInterpreter[F[_]](
   )(implicit ev: Ask[F, AppContext]): F[Option[OperationFuture[Operation, Operation]]] =
     if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) {
       for {
+        ctx <- ev.ask
         zoneParam <- F.fromOption(
           LeoLenses.gceZone.getOption(params.runtimeAndRuntimeConfig.runtimeConfig),
           new RuntimeException(
@@ -434,26 +435,34 @@ class GceInterpreter[F[_]](
           LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
           new RuntimeException("this should never happen. GCE runtime's cloud context should be a google project")
         )
-        opFuture <- googleComputeService
+        opFutureAttempt <- googleComputeService
           .addInstanceMetadata(
             googleProject,
             zoneParam,
             InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString),
             metadata
           )
-        opt <- opFuture match {
-          case None => F.pure(None)
-          case Some(v) =>
-            for {
-              res <- F.delay(v.get())
-              _ <- F.raiseUnless(isSuccess(res.getHttpErrorStatusCode))(
-                new Exception(s"addInstanceMetadata failed")
-              )
-              opFutureOpt <- googleComputeService
-                .deleteInstance(googleProject,
-                                zoneParam,
-                                InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
-            } yield opFutureOpt
+          .attempt
+        opt <- opFutureAttempt match {
+          case Left(e) if e.getMessage.contains("Instance not found") =>
+            logger.info(ctx.loggingCtx)("Instance is already deleted").as(None)
+          case Left(e) =>
+            F.raiseError(e)
+          case Right(opFuture) =>
+            opFuture match {
+              case None => F.pure(None)
+              case Some(v) =>
+                for {
+                  res <- F.delay(v.get())
+                  _ <- F.raiseUnless(isSuccess(res.getHttpErrorStatusCode))(
+                    new Exception(s"addInstanceMetadata failed")
+                  )
+                  opFutureOpt <- googleComputeService
+                    .deleteInstance(googleProject,
+                                    zoneParam,
+                                    InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
+                } yield opFutureOpt
+            }
         }
       } yield opt
     } else F.pure(none[OperationFuture[Operation, Operation]])

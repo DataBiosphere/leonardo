@@ -6,12 +6,24 @@ import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
+import cats.mtl.Ask
+import com.google.api.gax.longrunning.OperationFuture
+import com.google.cloud.compute.v1.Operation
 import org.broadinstitute.dsde.workbench.google2.mock.{
+  FakeComputeOperationFuture,
   FakeGoogleComputeService,
   FakeGooglePublisher,
   FakeGoogleStorageInterpreter
 }
-import org.broadinstitute.dsde.workbench.google2.{DataprocRole, DiskName, InstanceName, MachineTypeName, ZoneName}
+import org.broadinstitute.dsde.workbench.google2.{
+  DataprocRole,
+  DeviceName,
+  DiskName,
+  GoogleComputeService,
+  InstanceName,
+  MachineTypeName,
+  ZoneName
+}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
@@ -30,7 +42,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{IP, UserInfo, WorkbenchEmail, WorkbenchUserId}
+import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatestplus.mockito.MockitoSugar
@@ -43,7 +55,8 @@ import scala.concurrent.duration._
 
 class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent with MockitoSugar {
   val publisherQueue = QueueFactory.makePublisherQueue()
-  def makeRuntimeService(publisherQueue: Queue[IO, LeoPubsubMessage]) =
+  def makeRuntimeService(publisherQueue: Queue[IO, LeoPubsubMessage],
+                         computeService: GoogleComputeService[IO] = FakeGoogleComputeService) =
     new RuntimeServiceInterp(
       RuntimeServiceConfig(
         Config.proxyConfig.proxyUrlBase,
@@ -59,7 +72,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       serviceAccountProvider,
       new MockDockerDAO,
       FakeGoogleStorageInterpreter,
-      FakeGoogleComputeService,
+      computeService,
       publisherQueue
     )
   val runtimeService = makeRuntimeService(publisherQueue)
@@ -978,6 +991,51 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "fail to delete a runtime if detaching disk fails" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val operationFuture = new FakeComputeOperationFuture {
+      override def get(): Operation = {
+        val exception = new java.util.concurrent.ExecutionException(
+          "com.google.api.gax.rpc.NotFoundException: Not Found",
+          new Exception("bad")
+        )
+        throw exception
+      }
+    }
+    val computeService = new FakeGoogleComputeService {
+      override def detachDisk(
+        project: GoogleProject,
+        zone: ZoneName,
+        instanceName: InstanceName,
+        deviceName: DeviceName
+      )(implicit ev: Ask[IO, TraceId]): IO[Option[OperationFuture[Operation, Operation]]] =
+        IO.pure(Some(operationFuture))
+    }
+    val runtimeService = makeRuntimeService(publisherQueue, computeService)
+    val res = for {
+      pd <- makePersistentDisk().save()
+      testRuntime <- IO(
+        makeCluster(1).saveWithRuntimeConfig(
+          RuntimeConfig
+            .GceWithPdConfig(MachineTypeName("n1-standard-4"),
+                             Some(pd.id),
+                             bootDiskSize = DiskSize(50),
+                             zone = ZoneName("us-central1-a"),
+                             None)
+        )
+      )
+      r <- runtimeService
+        .deleteRuntime(
+          DeleteRuntimeRequest(userInfo, GoogleProject(cloudContext.asString), testRuntime.runtimeName, false)
+        )
+        .attempt
+    } yield {
+      r.isRight shouldBe true
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "stop a runtime" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
 
@@ -1061,6 +1119,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
 
     val res = for {
       // remove some existing items in the queue just to be safe
+      _ <- publisherQueue.tryTake
       _ <- publisherQueue.tryTake
       _ <- publisherQueue.tryTake
       samResource <- IO(RuntimeSamResourceId(UUID.randomUUID.toString))
