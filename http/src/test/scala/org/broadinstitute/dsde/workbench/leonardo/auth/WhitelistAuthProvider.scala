@@ -5,12 +5,12 @@ import cats.effect.IO
 import cats.syntax.all._
 import cats.mtl.Ask
 import com.typesafe.config.Config
-import io.circe.{Encoder, Decoder}
+import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
 import org.broadinstitute.dsde.workbench.leonardo.{ProjectAction, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{WorkbenchEmail, TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 
 class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[IO]) extends LeoAuthProvider[IO] {
 
@@ -93,7 +93,10 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   override def serviceAccountProvider: ServiceAccountProvider[IO] = saProvider
 
-  override def filterUserVisibleWithWorkspaceFallback[R](resources: NonEmptyList[(WorkspaceId, R)], userInfo: UserInfo)(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(WorkspaceId, R)]] =
+  override def filterUserVisibleWithWorkspaceFallback[R](
+    resources: NonEmptyList[(WorkspaceId, R)],
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[List[(WorkspaceId, R)]] =
     resources.toList.traverseFilter { a =>
       checkWhitelist(userInfo).map {
         case true  => Some(a)
