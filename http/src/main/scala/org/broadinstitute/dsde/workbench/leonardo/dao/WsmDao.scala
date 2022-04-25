@@ -73,10 +73,13 @@ final case class CreateVmRequest(workspaceId: WorkspaceId,
                                  vmData: CreateVmRequestData,
                                  jobControl: WsmJobControl)
 
+final case class ProtectedSettings(key: String, value: String)
+final case class CustomScriptExtension(protectedSettings: List[ProtectedSettings])
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
                                      vmSize: VirtualMachineSizeTypes,
-                                     vmImageUri: RuntimeImage,
+                                     vmImage: RuntimeImage,
+                                     customScriptExtension: CustomScriptExtension,
                                      ipId: WsmControlledResourceId,
                                      diskId: WsmControlledResourceId,
                                      networkId: WsmControlledResourceId)
@@ -366,10 +369,16 @@ object WsmEncoders {
     )
   implicit val createNetworkRequestEncoder: Encoder[CreateNetworkRequest] =
     Encoder.forProduct2("common", "azureNetwork")(x => (x.common, x.networkData))
+  implicit val protectedSettingsEncoder: Encoder[ProtectedSettings] =
+    Encoder.forProduct2("key", "value")(x => (x.key, x.value))
+  implicit val customScriptExtensionEncoder: Encoder[CustomScriptExtension] =
+    Encoder.forProduct6("name", "publisher", "type", "version", "minorVersionAutoUpgrade", "protectedSettings")(x =>
+      ("vm-custom-script-extension", "Microsoft.Azure.Extensions", "CustomScript", "2.1", "true", x.protectedSettings)
+    )
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
-    Encoder.forProduct7("name", "region", "vmSize", "vmImageUri", "ipId", "diskId", "networkId")(x =>
-      (x.name, x.region, x.vmSize, x.vmImageUri.imageUrl, x.ipId, x.diskId, x.networkId)
+    Encoder.forProduct8("name", "region", "vmSize", "vmImage", "customScriptExtension", "ipId", "diskId", "networkId")(
+      x => (x.name, x.region, x.vmSize, x.vmImage.imageUrl, x.customScriptExtension, x.ipId, x.diskId, x.networkId)
     )
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 
