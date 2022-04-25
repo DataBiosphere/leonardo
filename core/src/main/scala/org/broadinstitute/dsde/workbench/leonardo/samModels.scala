@@ -20,7 +20,9 @@ object SamResourceId {
 
   final case class AppSamResourceId(resourceId: String) extends SamResourceId
 
-  final case class WorkspaceResourceSamResourceId(resourceId: String) extends SamResourceId
+  final case class WorkspaceResourceSamResourceId(workspaceId: WorkspaceId) extends SamResourceId {
+    override def resourceId: String = workspaceId.value.toString
+  }
 
   final case class WsmResourceSamResourceId(controlledResourceId: WsmControlledResourceId) extends SamResourceId {
     override def resourceId: String = controlledResourceId.value.toString

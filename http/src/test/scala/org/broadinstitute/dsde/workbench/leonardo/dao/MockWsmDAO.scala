@@ -113,16 +113,16 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def getWorkspace(workspaceId: WorkspaceId,
-                            authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[WorkspaceDescription] =
+  override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[Option[WorkspaceDescription]] =
     IO.pure(
-      WorkspaceDescription(
-        workspaceId,
-        "workspaceName",
-        AzureCloudContext(
-          TenantId("testTenantId"),
-          SubscriptionId("testSubscriptionId"),
-          ManagedResourceGroupName("testResourceGroup")
+      Some(
+        WorkspaceDescription(
+          workspaceId,
+          "workspaceName",
+          Some(CommonTestData.azureCloudContext),
+          None
         )
       )
     )

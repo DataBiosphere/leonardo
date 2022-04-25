@@ -4,7 +4,6 @@ package service
 
 import cats.effect.IO
 import cats.mtl.Ask
-import org.broadinstitute.dsde.workbench.leonardo.http.api.ListRuntimeResponse2
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
@@ -31,6 +30,7 @@ class BaseMockRuntimeServiceInterp extends RuntimeService[IO] {
       Vector(
         ListRuntimeResponse2(
           CommonTestData.testCluster.id,
+          None,
           CommonTestData.testCluster.samResource,
           CommonTestData.testCluster.runtimeName,
           CommonTestData.testCluster.cloudContext,

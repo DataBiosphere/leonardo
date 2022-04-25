@@ -36,7 +36,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     )
     val cluster1Instances = List(masterInstance, workerInstance1, workerInstance2)
 
-    val cluster1WithErr = makeCluster(1).copy(
+    val cluster1WithErr = cluster1.copy(
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(1).copy(proxyHostName = cluster1UUID)),
       errors = List(err1)
     )

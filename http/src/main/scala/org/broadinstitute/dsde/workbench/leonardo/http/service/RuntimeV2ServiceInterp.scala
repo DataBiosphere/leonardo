@@ -6,7 +6,7 @@ import akka.http.scaladsl.model.StatusCodes
 import cats.Parallel
 import cats.effect.Async
 import cats.effect.std.Queue
-import cats.implicits._
+import cats.syntax.all._
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, ZoneName}
@@ -29,20 +29,24 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.leonardo.util.CreateAzureRuntimeParams
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
 import org.http4s.headers.Authorization
-
 import java.time.Instant
+import java.util.UUID
+
+import cats.data.NonEmptyList
+import JsonCodec._
+
 import scala.concurrent.ExecutionContext
 
-class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
-                                         authProvider: LeoAuthProvider[F],
-                                         wsmDao: WsmDao[F],
-                                         samDAO: SamDAO[F],
-                                         asyncTasks: Queue[F, Task[F]],
-                                         publisherQueue: Queue[F, LeoPubsubMessage])(
+class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
+                                             authProvider: LeoAuthProvider[F],
+                                             wsmDao: WsmDao[F],
+                                             samDAO: SamDAO[F],
+                                             asyncTasks: Queue[F, Task[F]],
+                                             publisherQueue: Queue[F, LeoPubsubMessage])(
   implicit F: Async[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
-) extends AzureService[F] {
+) extends RuntimeV2Service[F] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
@@ -53,10 +57,17 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       leoAuth <- samDAO.getLeoAuthToken
 
-      azureContext <- wsmDao.getWorkspace(workspaceId, leoAuth).map(_.azureContext)
-      cloudContext = CloudContext.Azure(azureContext)
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
 
-      samResource = WorkspaceResourceSamResourceId(workspaceId.value.toString)
+      //TODO: when we fully support google here, do something intelligent instead of defaulting to azure
+      cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
+        case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
+        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (None, None)            => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+      }
+
+      samResource = WorkspaceResourceSamResourceId(workspaceId)
 
       hasPermission <- authProvider.hasPermission(samResource, WorkspaceAction.CreateControlledUserResource, userInfo)
 
@@ -89,7 +100,8 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               )
             )
 
-            runtime = convertToRuntime(runtimeName,
+            runtime = convertToRuntime(workspaceId,
+                                       runtimeName,
                                        cloudContext,
                                        userInfo,
                                        req,
@@ -103,16 +115,12 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               disk.id,
               req.region
             )
-            runtimeToSave = SaveCluster(
-              cluster = runtime,
-              runtimeConfig = runtimeConfig,
-              now = ctx.now,
-              workspaceId = Some(workspaceId)
-            )
+            runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
 
             task = Task(
               ctx.traceId,
+              //TODO: generalize for google
               createRuntime(CreateAzureRuntimeParams(workspaceId, savedRuntime, runtimeConfig, disk, runtimeImage),
                             WsmJobControl(createVmJobId)),
               Some(errorHandler(savedRuntime.id, ctx)),
@@ -132,21 +140,29 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[GetRuntimeResponse] =
     for {
       leoAuth <- samDAO.getLeoAuthToken
-      context <- as.ask
-      azureContext <- wsmDao.getWorkspace(workspaceId, leoAuth).map(_.azureContext)
-      cloudContext = CloudContext.Azure(azureContext)
+      ctx <- as.ask
+
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+
+      //TODO: when we fully support google here, do something intelligent instead of defaulting to azure
+      cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
+        case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
+        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (None, None)            => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+      }
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
       // If user is creator of the runtime, they should definitely be able to see the runtime.
       hasPermission <- if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
       else
-        checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo).map(_._1)
+        checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo, WsmResourceAction.Read).map(_._1)
 
-      _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
         .raiseError[Unit](
-          RuntimeNotFoundException(cloudContext, runtimeName, "permission denied", Some(context.traceId))
+          RuntimeNotFoundException(cloudContext, runtimeName, "permission denied", Some(ctx.traceId))
         )
         .whenA(!hasPermission)
 
@@ -163,10 +179,17 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   ): F[Unit] =
     for {
       leoAuth <- samDAO.getLeoAuthToken
-      context <- as.ask
+      ctx <- as.ask
 
-      azureContext <- wsmDao.getWorkspace(workspaceId, leoAuth).map(_.azureContext)
-      cloudContext = CloudContext.Azure(azureContext)
+      workspaceDescOpt <- wsmDao.getWorkspace(workspaceId, leoAuth)
+      workspaceDesc <- F.fromOption(workspaceDescOpt, WorkspaceNotFoundException(workspaceId, ctx.traceId))
+
+      //TODO: when we fully support google here, do something intelligent instead of defaulting to azure
+      cloudContext <- (workspaceDesc.azureContext, workspaceDesc.gcpContext) match {
+        case (Some(azureContext), _) => F.pure[CloudContext](CloudContext.Azure(azureContext))
+        case (_, Some(gcpContext))   => F.pure[CloudContext](CloudContext.Gcp(gcpContext))
+        case (None, None)            => F.raiseError[CloudContext](CloudContextNotFoundException(workspaceId, ctx.traceId))
+      }
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
@@ -179,26 +202,101 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         case config: RuntimeConfig.AzureConfig => F.pure(config.persistentDiskId)
         case _ =>
           F.raiseError[DiskId](
-            AzureRuntimeHasInvalidRuntimeConfig(cloudContext, runtime.clusterName, context.traceId)
+            AzureRuntimeHasInvalidRuntimeConfig(cloudContext, runtime.clusterName, ctx.traceId)
           )
       }
 
-      (hasPermission, wmsResourceId) <- checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo)
+      (hasPermission, wmsResourceId) <- checkSamPermission(cloudContext,
+                                                           runtime.id,
+                                                           runtimeName,
+                                                           userInfo,
+                                                           WsmResourceAction.Write)
 
-      _ <- context.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
+      _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
         .raiseError[Unit](RuntimeNotFoundException(cloudContext, runtimeName, "permission denied"))
         .whenA(!hasPermission)
 
-      _ <- clusterQuery.markPendingDeletion(runtime.id, context.now).transaction
+      _ <- clusterQuery.markPendingDeletion(runtime.id, ctx.now).transaction
 
       // For now, azure disk life cycle is tied to vm life cycle and incompatible with disk routes
-      _ <- persistentDiskQuery.markPendingDeletion(diskId, context.now).transaction
+      _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
 
       _ <- publisherQueue.offer(
-        DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wmsResourceId, Some(context.traceId))
+        DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wmsResourceId, Some(ctx.traceId))
       )
     } yield ()
+
+  override def listRuntimes(
+    userInfo: UserInfo,
+    workspaceId: Option[WorkspaceId],
+    cloudProvider: Option[CloudProvider],
+    params: Map[String, String]
+  )(implicit as: Ask[F, AppContext]): F[Vector[ListRuntimeResponse2]] =
+    for {
+      paramMap <- F.fromEither(processListParameters(params))
+
+      runtimes <- RuntimeServiceDbQueries
+        .listRuntimesForWorkspace(paramMap._1, paramMap._2, workspaceId, cloudProvider)
+        .transaction
+
+      (runtimesUserIsCreator, runtimesUserIsNotCreator) = runtimes.partition(_.auditInfo.creator == userInfo.userEmail)
+
+      // Here, we check if backleo has updated the runtime sam id with the wsm resource's UUID via type conversion
+      // If it has, we can then use the samResourceId of the runtime (which is the same as the wsm resource id) for permission lookup
+      wsmControlledResourceSamIds = runtimesUserIsNotCreator
+        .flatMap { r =>
+          for {
+            uuid <- Either.catchNonFatal(UUID.fromString(r.samResource.resourceId)) match {
+              case Right(id) => List(id)
+              case Left(_)   => List.empty
+            }
+          } yield WsmResourceSamResourceId(WsmControlledResourceId(uuid))
+        }
+
+      samVisibleWsmControlledResourceSamIds <- NonEmptyList
+        .fromList(wsmControlledResourceSamIds)
+        .traverse(ids => authProvider.filterUserVisible(ids, userInfo))
+        .map(_.getOrElse(List.empty))
+
+      // We must also check the RuntimeSamResourceId in sam to support already existing and newly created google runtimes
+      samVisibleRuntimeSamResourceIds <- NonEmptyList
+        .fromList(runtimesUserIsNotCreator.map(_.samResource))
+        .traverse(ids => authProvider.filterUserVisible(ids, userInfo))
+        .map(_.getOrElse(List.empty))
+
+      workspaceFilterableRuntimes <- NonEmptyList
+        .fromList(
+          runtimesUserIsNotCreator.flatMap(runtime =>
+            runtime.workspaceId match {
+              case Some(id) => List((id, WorkspaceResourceSamResourceId(id)))
+              case None     => List.empty
+            }
+          )
+        )
+        .traverse(workspaces =>
+          authProvider.filterUserVisibleWithWorkspaceFallback(
+            workspaces,
+            userInfo
+          )
+        )
+        .map(_.getOrElse(List.empty))
+
+      userVisibleRuntimes = runtimesUserIsCreator ++ runtimesUserIsNotCreator.filter(r =>
+        //check for visibility based on vms that are wsm controlled resoources
+        samVisibleWsmControlledResourceSamIds
+          .map(id => RuntimeSamResourceId(id.resourceId))
+          .contains(r.samResource) ||
+          //check for visibility fallback for backwards compatibility with runtime v1 sam ids
+          samVisibleRuntimeSamResourceIds
+            .contains(r.samResource) ||
+          //check for visibility based on whether the user is the owner of the workspace that the runtime belongs to
+          r.workspaceId.fold(false)(workspaceId =>
+            workspaceFilterableRuntimes.contains((workspaceId, WorkspaceResourceSamResourceId(workspaceId)))
+          )
+      )
+
+    } yield userVisibleRuntimes.toVector
 
   private[service] def convertToDisk(userInfo: UserInfo,
                                      cloudContext: CloudContext,
@@ -366,14 +464,16 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
     )
 
-  private def checkSamPermission(cloudContext: CloudContext.Azure,
+  private def checkSamPermission(cloudContext: CloudContext,
                                  runtimeId: Long,
                                  runtimeName: RuntimeName,
-                                 userInfo: UserInfo)(
+                                 userInfo: UserInfo,
+                                 wsmResourceAction: WsmResourceAction)(
     implicit ctx: Ask[F, AppContext]
   ): F[(Boolean, WsmControlledResourceId)] =
     for {
       context <- ctx.ask
+      //TODO: generalize for google
       controlledResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(runtimeId, WsmResourceType.AzureVm)
         .transaction
@@ -383,7 +483,7 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
       res <- authProvider.hasPermission(
         WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),
-        WsmResourceAction.Read,
+        wsmResourceAction,
         userInfo
       )
     } yield (res, azureRuntimeControlledResource.resourceId)
@@ -395,7 +495,8 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         .transaction >>
         clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, ctx.now).transaction.void
 
-  private def convertToRuntime(runtimeName: RuntimeName,
+  private def convertToRuntime(workspaceId: WorkspaceId,
+                               runtimeName: RuntimeName,
                                cloudContext: CloudContext,
                                userInfo: UserInfo,
                                request: CreateAzureRuntimeRequest,
@@ -419,6 +520,7 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
     Runtime(
       0,
+      Some(workspaceId),
       samResource = samResourceId,
       runtimeName = runtimeName,
       cloudContext = cloudContext,
@@ -447,6 +549,20 @@ class AzureServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   }
 
 }
+
+final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
+    extends LeoException(
+      s"WorkspaceId not found in workspace manager for workkspace ${workspaceId}",
+      StatusCodes.NotFound,
+      traceId = Some(traceId)
+    )
+
+final case class CloudContextNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
+    extends LeoException(
+      s"Cloud context not found in workspace manager for workspace ${workspaceId}",
+      StatusCodes.NotFound,
+      traceId = Some(traceId)
+    )
 
 final case class AzureRuntimeControlledResourceNotFoundException(cloudContext: CloudContext,
                                                                  runtimeName: RuntimeName,

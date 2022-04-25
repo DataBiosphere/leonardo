@@ -291,6 +291,7 @@ object CommonTestData {
     val clusterName = RuntimeName("clustername" + index.toString)
     Runtime(
       id = -1,
+      workspaceId = Some(WorkspaceId(UUID.randomUUID())),
       samResource = runtimeSamResource,
       runtimeName = clusterName,
       cloudContext = cloudContext,
@@ -319,6 +320,7 @@ object CommonTestData {
 
   val testCluster = Runtime(
     id = -1,
+    None,
     samResource = runtimeSamResource,
     runtimeName = name1,
     cloudContext = cloudContext,

@@ -4,7 +4,7 @@ package db
 import cats.data.Chain
 import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.google2.OperationName
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.{RuntimeSamResourceId, WsmResourceSamResourceId}
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
 import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.dummyDate
@@ -24,9 +24,9 @@ import org.broadinstitute.dsde.workbench.model.google.{
   ServiceAccountKeyId
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
-
 import java.sql.SQLDataException
 import java.time.Instant
+
 import scala.concurrent.ExecutionContext
 
 final case class ClusterRecord(id: Long,
@@ -319,8 +319,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       ) // update runtimeConfigId
 
       clusterId <- clusterQuery returning clusterQuery.map(_.id) += marshalCluster(cluster,
-                                                                                   saveCluster.initBucket.map(_.toUri),
-                                                                                   saveCluster.workspaceId)
+                                                                                   saveCluster.initBucket.map(_.toUri))
 
       _ <- labelQuery.saveAllForResource(clusterId, LabelResourceType.Runtime, cluster.labels)
       _ <- extensionQuery.saveAllForCluster(clusterId, cluster.userJupyterExtensionConfig)
@@ -610,12 +609,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   def setToStopping(id: Long, dateAccessed: Instant): DBIO[Int] =
     updateClusterStatusAndHostIp(id, RuntimeStatus.Stopping, None, dateAccessed)
 
+  def updateSamResourceId(id: Long, wsmId: WsmResourceSamResourceId): DBIO[Int] =
+    findByIdQuery(id).map(_.internalId).update(wsmId.resourceId)
+
   /* WARNING: The init bucket and SA key ID is secret to Leo, which means we don't unmarshal it.
    * This function should only be called at cluster creation time, when the init bucket doesn't exist.
    */
-  private def marshalCluster(runtime: Runtime,
-                             initBucket: Option[String],
-                             workspaceId: Option[WorkspaceId] = None): ClusterRecord =
+  private def marshalCluster(runtime: Runtime, initBucket: Option[String]): ClusterRecord =
     ClusterRecord(
       id = 0, // DB AutoInc
       runtime.samResource.resourceId,
@@ -638,7 +638,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.customEnvironmentVariables,
       runtime.runtimeConfigId,
       None,
-      workspaceId
+      runtime.workspaceId
     )
 
   private def unmarshalMinimalCluster(
@@ -755,6 +755,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
     Runtime(
       clusterRecord.id,
+      clusterRecord.workspaceId,
       RuntimeSamResourceId(clusterRecord.internalId),
       name,
       serviceAccount = clusterRecord.serviceAccountInfo,
@@ -793,5 +794,4 @@ final case class SaveCluster(cluster: Runtime,
                              initBucket: Option[GcsPath] = None,
                              serviceAccountKeyId: Option[ServiceAccountKeyId] = None,
                              runtimeConfig: RuntimeConfig,
-                             now: Instant,
-                             workspaceId: Option[WorkspaceId] = None)
+                             now: Instant)

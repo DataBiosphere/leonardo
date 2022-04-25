@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import java.util.UUID
+
 import ca.mrvisser.sealerate
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
@@ -9,15 +10,18 @@ import _root_.io.circe._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   azureMachineTypeEncoder,
   azureRegionEncoder,
+  googleProjectDecoder,
   runtimeNameEncoder,
+  workspaceIdDecoder,
   wsmControlledResourceIdEncoder,
   wsmJobIdDecoder,
   wsmJobIdEncoder
 }
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.http4s.headers.Authorization
-
 import java.time.ZonedDateTime
+
+import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait WsmDao[F[_]] {
   def createIp(request: CreateIpRequest, authorization: Authorization)(
@@ -55,10 +59,13 @@ trait WsmDao[F[_]] {
   ): F[DeleteWsmResourceResult]
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[WorkspaceDescription]
+  ): F[Option[WorkspaceDescription]]
 }
 
-final case class WorkspaceDescription(id: WorkspaceId, displayName: String, azureContext: AzureCloudContext)
+final case class WorkspaceDescription(id: WorkspaceId,
+                                      displayName: String,
+                                      azureContext: Option[AzureCloudContext],
+                                      gcpContext: Option[GoogleProject])
 
 //Azure Vm Models
 final case class CreateVmRequest(workspaceId: WorkspaceId,
@@ -148,6 +155,8 @@ final case class WsmJobControl(id: WsmJobId)
 final case class DeleteControlledAzureResourceRequest(jobControl: WsmJobControl)
 
 final case class DeleteWsmResourceResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
+
+final case class WsmGcpContext(projectId: GoogleProject)
 
 sealed abstract class WsmJobStatus
 object WsmJobStatus {
@@ -277,12 +286,16 @@ object WsmDecoders {
                               ManagedResourceGroupName(resourceGroupId))
   }
 
+  implicit val wsmGcpContextDecoder: Decoder[WsmGcpContext] =
+    Decoder.forProduct1("gcpContext")(WsmGcpContext.apply)
+
   implicit val getWorkspaceResponseDecoder: Decoder[WorkspaceDescription] = Decoder.instance { c =>
     for {
-      id <- c.downField("id").as[UUID]
+      id <- c.downField("id").as[WorkspaceId]
       displayName <- c.downField("displayName").as[String]
-      azureContext <- c.downField("azureContext").as[AzureCloudContext]
-    } yield WorkspaceDescription(WorkspaceId(id), displayName, azureContext)
+      azureContext <- c.downField("azureContext").as[Option[AzureCloudContext]]
+      gcpContext <- c.downField("gcpContext").as[Option[WsmGcpContext]]
+    } yield WorkspaceDescription(id, displayName, azureContext, gcpContext.map(_.projectId))
   }
 
   implicit val wsmJobStatusDecoder: Decoder[WsmJobStatus] =

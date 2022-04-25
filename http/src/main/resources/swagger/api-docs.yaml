@@ -69,7 +69,7 @@ paths:
 
   ## Runtime paths ##
 
-  /api/google/v1/runtimes:
+  "/api/google/v1/runtimes":
     get:
       summary: List all runtimes that the caller has access to
       description: List all runtimes, optionally filtering on a set of labels
@@ -117,7 +117,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  /api/google/v1/runtimes/{googleProject}:
+  "/api/google/v1/runtimes/{googleProject}":
     get:
       summary: List all runtimes within the given Google project that the caller has access to
       description: List all runtimes within the given Google project, optionally
@@ -172,7 +172,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  /api/google/v1/runtimes/{googleProject}/{name}:
+  "/api/google/v1/runtimes/{googleProject}/{name}":
     get:
       summary: Get details of a runtime
       description: >
@@ -344,7 +344,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  /api/google/v1/runtimes/{googleProject}/{name}/stop:
+  "/api/google/v1/runtimes/{googleProject}/{name}/stop":
     post:
       summary: Stops a Dataproc cluster or Google Compute Engine instance
       description: >
@@ -388,7 +388,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
-  /api/google/v1/runtimes/{googleProject}/{name}/start:
+  "/api/google/v1/runtimes/{googleProject}/{name}/start":
     post:
       summary: Starts a Dataproc cluster or Google Compute Engine instance
       description: Starts the a stopped runtime
@@ -432,7 +432,192 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorReport"
 
-  /api/v2/runtimes/{workspaceId}/azure/{name}:
+  "/api/v2/runtimes":
+    get:
+      summary: List all runtimes that the caller has access to
+      description: List all runtimes, optionally filtering on a set of labels
+      operationId: listRuntimesV2
+      tags:
+        - runtimes
+      parameters:
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all azure runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/v2/runtimes?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any runtimes with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: includeLabels
+          description: >
+            Optional label keys of the labels returned in response. Example:
+            Querying by key1,key2,key3
+            returns all labels key1/val1 key2/val2 and key3 and val3 for each runtime response
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of runtimes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListRuntimeResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/api/v2/runtimes/{workspaceId}":
+    get:
+      summary: List all runtimes within the given workspace that the caller has access to
+      description: List all runtimes within the given workspace, optionally
+        filtering on a set of labels
+      operationId: listRuntimesByWorkspaceV2
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all azure runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/v2/runtimes/{workspaceId}?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any runtimes with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: includeLabels
+          description: >
+            Optional label keys of the labels returned in response. Example:
+            Querying by key1,key2,key3
+            returns all labels key1/val1 key2/val2 and key3 and val3 for each runtime response
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of runtimes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListRuntimeResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/api/v2/runtimes/{workspaceId}/azure":
+    get:
+      summary: List all azure runtimes within the given workspace that the caller has access to
+      description: List all azure runtimes within the given workspace, optionally
+        filtering on a set of labels
+      operationId: listAzureRuntimesV2
+      tags:
+        - runtimes
+      parameters:
+        - in: path
+          name: workspaceId
+          description: workspaceId
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: _labels
+          description: >
+            Optional label key-value pairs to filter results by. Example:
+            Querying by key1=val1,key2=val2
+            returns all azure runtimes that contain the key1/val1 and key2/val2 labels (possibly among other labels).
+            Note: this string format is a workaround because Swagger doesn't support free-form
+            query string parameters. The recommended way to use this endpoint is to specify the
+            labels as top-level query string parameters. For instance: GET /api/v2/runtimes/{workspaceId}/azure?key1=val1&key2=val2.
+          required: false
+          schema:
+            type: string
+        - in: query
+          name: includeDeleted
+          description: Optional filter that includes any runtimes with a Deleted status.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: includeLabels
+          description: >
+            Optional label keys of the labels returned in response. Example:
+            Querying by key1,key2,key3
+            returns all labels key1/val1 key2/val2 and key3 and val3 for each runtime response
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of runtimes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ListRuntimeResponse"
+        "400":
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+        "500":
+          description: Internal Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorReport"
+  "/api/v2/runtimes/{workspaceId}/azure/{name}":
     get:
       summary: Get details of an azure runtime
       description: >
@@ -2344,6 +2529,9 @@ components:
         id:
           type: integer
           description: Internal Leonardo ID of the runtime
+        workspaceId:
+          type: string
+          description: Id of the workspace associated with this runtime
         runtimeName:
           type: string
           description: The user-supplied name for the runtime
