@@ -75,7 +75,7 @@ class MockSamDAO extends SamDAO[IO] {
         IO.pure(res)
       case SamResourceType.Workspace =>
         val res = workspaces
-          .get((WorkspaceResourceSamResourceId(resource), authHeader))
+          .get((WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(resource))), authHeader))
           .map(_.map(_.asString).contains(action))
           .getOrElse(false)
         IO.pure(res)
