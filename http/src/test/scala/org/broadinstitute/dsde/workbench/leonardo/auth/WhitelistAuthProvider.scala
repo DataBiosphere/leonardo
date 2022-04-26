@@ -103,4 +103,11 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
         case false => None
       }
     }
+
+  override def isUserWorkspaceOwner[R](
+    workspaceId: WorkspaceId,
+    workspaceResource: R,
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[Boolean] =
+    checkWhitelist(userInfo)
 }
