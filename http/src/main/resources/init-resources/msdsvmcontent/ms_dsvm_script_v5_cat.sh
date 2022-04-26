@@ -6,7 +6,7 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 
 VM_JUP_USER=$9
-#VM_JUP_USER_PASSWORD=$10
+VM_JUP_USER_PASSWORD=$10
 
 #sudo groupadd $VM_JUP_USER
 #sudo useradd -g adm, $VM_JUP_USER -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
