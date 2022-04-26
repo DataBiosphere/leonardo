@@ -5,20 +5,25 @@ set -e
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
 
-VM_USER=$9
+VM_JUP_USER=$9
+VM_JUP_USER_PASSWORD=$10
+
+sudo useradd -g adm -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
+(echo "$VM_JUP_USER_PASSWORD"; echo "$VM_JUP_USER_PASSWORD") | sudo passwd $VM_JUP_USER
+
 
 ## Update apt-get
 apt-get update
 
 apt-get install -y --no-install-recommends apt-utils
 
-sudo chgrp $VM_USER /anaconda/bin/*
+sudo chgrp $VM_JUP_USER /anaconda/bin/*
 
-sudo chown $VM_USER /anaconda/bin/*
+sudo chown $VM_JUP_USER /anaconda/bin/*
 
-sudo chgrp $VM_USER /anaconda/envs/py38_default/bin/*
+sudo chgrp $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 
-sudo chown $VM_USER /anaconda/envs/py38_default/bin/*
+sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 
 systemctl stop jupyterhub.service
 
@@ -61,12 +66,12 @@ RELAY_CONNECTIONSTRING="Endpoint=sb://${RELAY_NAME}.servicebus.windows.net/;Shar
 
 # Start Jupyter server with custom parameters
 
-sudo runuser -l $VM_USER -c '/anaconda/bin/jupyter server --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN autoreload' >/dev/null 2>&1&
+sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN autoreload' >/dev/null 2>&1&
 
 # Store Jupyter Server parameters for reboot process
 
 echo "CRON TEST!!!\n"
-echo "@reboot sudo runuser -l $VM_USER -c '/anaconda/bin/jupyter server --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN --autoreload' >/dev/null 2>&1&"
+echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN --autoreload' >/dev/null 2>&1&"
 echo "END CRON TEST!!!\n"
 
 HCVAR='\$hc'
@@ -76,7 +81,7 @@ echo $HCVAR
 echo $SERVER_APP_WEBSOCKET_URL2
 echo "END VAR TEST!!!\n"
 
-sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_USER -c '/anaconda/bin/jupyter server --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL2 --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN --autoreload' >/dev/null 2>&1&") | crontab -
+sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL2 --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN --autoreload' >/dev/null 2>&1&") | crontab -
 
 # Login to ACR repo to pull the image for Relay Listener
 
