@@ -142,6 +142,31 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
+  //TODO: there's a WSM bug that the namespaceName isn't correct
+  def getRelayNamespace(workspaceId: WorkspaceId,
+                        region: com.azure.core.management.Region,
+                        authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[RelayNamespace]] =
+    for {
+      resp <- httpClient.expectOr[GetRelayNamespace](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${workspaceId}/resources"
+                )
+            ),
+          headers = Headers(authorization)
+        )
+      )(onError)
+    } yield resp.resources.collect {
+      case r if r.resourceAttributes.relayNamespace.region == region =>
+        r.resourceAttributes.relayNamespace.namespaceName
+    }.headOption
+
   private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(
     implicit ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult] =

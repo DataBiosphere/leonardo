@@ -115,8 +115,7 @@ trait TestLeoRoutes {
     autoFreezeConfig,
     dataprocConfig,
     Config.gceConfig,
-    azureServiceConfig,
-    ConfigReader.appConfig.azure.runtimeDefaults
+    azureServiceConfig
   )
 
   val azureService =
@@ -124,7 +123,6 @@ trait TestLeoRoutes {
                                    whitelistAuthProvider,
                                    new MockWsmDAO,
                                    new MockSamDAO,
-                                   QueueFactory.asyncTaskQueue,
                                    QueueFactory.makePublisherQueue())
 
   val underlyingRuntimeDnsCache =

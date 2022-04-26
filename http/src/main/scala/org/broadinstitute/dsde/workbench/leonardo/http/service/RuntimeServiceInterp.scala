@@ -840,7 +840,7 @@ object RuntimeServiceInterp {
           case CloudService.Dataproc =>
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
           case CloudService.AzureVm =>
-            config.azureConfig.runtimeConfig.defaultScopes
+            Set.empty[String] //Doesn't apply to Azure
 
         }
       case None =>
@@ -999,8 +999,7 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       autoFreezeConfig: AutoFreezeConfig,
                                       dataprocConfig: DataprocConfig,
                                       gceConfig: GceConfig,
-                                      azureConfig: AzureServiceConfig,
-                                      azureRuntimeDefaults: AzureRuntimeDefaults)
+                                      azureConfig: AzureServiceConfig)
 
 final case class WrongCloudServiceException(runtimeCloudService: CloudService,
                                             updateCloudService: CloudService,

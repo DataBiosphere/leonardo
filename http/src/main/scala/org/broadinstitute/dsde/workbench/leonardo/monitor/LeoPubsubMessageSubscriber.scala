@@ -50,15 +50,9 @@ import scala.jdk.CollectionConverters._
  * @param googleDiskService
  * @param authProvider
  * @param gkeAlg
- * @param azureAlg
+ * @param azurePubsubHandler
  * @param operationFutureCache This is used to cancel long running java Futures for Google operations. Currently, we only cancel existing stopping runtime operation if a `deleteRuntime`
  *                             message is received
- * @param executionContext
- * @param F
- * @param logger
- * @param dbRef
- * @param runtimeInstances
- * @param monitor
  * @tparam F
  */
 class LeoPubsubMessageSubscriber[F[_]](
@@ -68,7 +62,7 @@ class LeoPubsubMessageSubscriber[F[_]](
   googleDiskService: GoogleDiskService[F],
   authProvider: LeoAuthProvider[F],
   gkeAlg: GKEAlgebra[F],
-  azureAlg: AzureAlgebra[F],
+  azurePubsubHandler: AzurePubsubHandlerAlgebra[F],
   operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]]
 )(implicit executionContext: ExecutionContext,
   F: Async[F],
@@ -108,7 +102,7 @@ class LeoPubsubMessageSubscriber[F[_]](
         case msg: StartAppMessage =>
           handleStartAppMessage(msg)
         case msg: CreateAzureRuntimeMessage =>
-          azureAlg.createAndPollRuntime(msg).adaptError {
+          azurePubsubHandler.createAndPollRuntime(msg).adaptError {
             case e =>
               PubsubHandleMessageError.AzureRuntimeError(
                 msg.runtimeId,
@@ -118,7 +112,7 @@ class LeoPubsubMessageSubscriber[F[_]](
               )
           }
         case msg: DeleteAzureRuntimeMessage =>
-          azureAlg.deleteAndPollRuntime(msg).adaptError {
+          azurePubsubHandler.deleteAndPollRuntime(msg).adaptError {
             case e =>
               PubsubHandleMessageError.AzureRuntimeError(
                 msg.runtimeId,

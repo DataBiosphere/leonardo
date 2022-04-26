@@ -122,7 +122,6 @@ object LeonardoApiClient {
     Map.empty,
     Region.US_WEST_CENTRAL,
     VirtualMachineSizeTypes.STANDARD_D1_V2,
-    None,
     Map.empty,
     CreateAzureDiskRequest(
       Map.empty,

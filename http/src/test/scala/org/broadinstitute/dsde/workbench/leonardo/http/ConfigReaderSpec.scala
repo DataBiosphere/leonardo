@@ -3,9 +3,13 @@ package http
 
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeConfig, AzureRuntimeDefaults}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AcrCredential,
+  AzureRuntimeDefaults,
+  CustomScriptExtensionConfig
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
-import org.broadinstitute.dsde.workbench.leonardo.util.{AzureMonitorConfig, TerraAppSetupChartConfig}
+import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
 import org.http4s.Uri
 import org.scalatest.flatspec.AnyFlatSpec
@@ -26,24 +30,40 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         DiskSize(250)
       ),
       AzureConfig(
-        AzureMonitorConfig(PollMonitorConfig(1 seconds, 120, 1 seconds), PollMonitorConfig(1 seconds, 120, 1 seconds)),
-        AzureRuntimeDefaults("Azure Ip",
-                             "ip",
-                             "Azure Network",
-                             "network",
-                             "subnet",
-                             CidrIP("192.168.0.0/16"),
-                             CidrIP("192.168.0.0/24"),
-                             "Azure Disk",
-                             "Azure Vm"),
+        AzurePubsubHandlerConfig(
+          PollMonitorConfig(1 seconds, 120, 1 seconds),
+          PollMonitorConfig(1 seconds, 120, 1 seconds),
+          AzureRuntimeDefaults(
+            "Azure Ip",
+            "ip",
+            "Azure Network",
+            "network",
+            "subnet",
+            CidrIP("192.168.0.0/16"),
+            CidrIP("192.168.0.0/24"),
+            "Azure Disk",
+            "Azure Vm",
+            AzureImage(
+              "microsoft-dsvm",
+              "ubuntu-1804",
+              "1804-gen2"
+            ),
+            CustomScriptExtensionConfig(
+              "vm-custom-script-extension",
+              "Microsoft.Azure.Extensions",
+              "CustomScript",
+              "2.1",
+              true,
+              List(
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/cf829d8589c0035905916f24f9f01056c280425d/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+              )
+            ),
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:53d7992",
+            AcrCredential(username = "username", password = "password")
+          )
+        ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
-        AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
-        AzureRuntimeConfig(
-          AzureImageUri(
-            "/subscriptions/3efc5bdf-be0e-44e7-b1d7-c08931e3c16c/resourceGroups/mrg-qi-1-preview-20210517084351/providers/Microsoft.Compute/galleries/msdsvm/images/customized_ms_dsvm/versions/0.1.0"
-          ),
-          Set.empty
-        )
+        AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId(""))
       ),
       OidcAuthConfig(
         Uri.unsafeFromString("https://fake"),

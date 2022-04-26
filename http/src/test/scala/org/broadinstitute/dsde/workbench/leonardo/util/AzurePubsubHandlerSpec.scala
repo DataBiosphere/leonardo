@@ -74,7 +74,6 @@ class AzurePubsubHandlerSpec
                                                        azureRegion)
         runtime = makeCluster(1)
           .copy(
-            runtimeImages = Set(azureImage),
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
@@ -87,7 +86,7 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId("job1"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), WsmJobId("job1"), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -116,7 +115,6 @@ class AzurePubsubHandlerSpec
                                                        azureRegion)
         runtime = makeCluster(2)
           .copy(
-            runtimeImages = Set(azureImage),
             status = RuntimeStatus.Running,
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
@@ -170,7 +168,6 @@ class AzurePubsubHandlerSpec
                                                        azureRegion)
         runtime = makeCluster(1)
           .copy(
-            runtimeImages = Set(azureImage),
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
@@ -185,7 +182,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId("job1"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), WsmJobId("job1"), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -214,7 +211,6 @@ class AzurePubsubHandlerSpec
                                                        azureRegion)
         runtime = makeCluster(2)
           .copy(
-            runtimeImages = Set(azureImage),
             status = RuntimeStatus.Running,
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
@@ -252,10 +248,10 @@ class AzurePubsubHandlerSpec
   }
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
-                      computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
-                      wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
-    new AzureInterpreter[IO](
-      ConfigReader.appConfig.azure.monitor,
+                      computeManagerDao: AzureManagerDao[IO] = new MockComputeManagerDao(),
+                      wsmDAO: MockWsmDAO = new MockWsmDAO): AzurePubsubHandlerInterp[IO] =
+    new AzurePubsubHandlerInterp[IO](
+      ConfigReader.appConfig.azure.pubsubHandler,
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),

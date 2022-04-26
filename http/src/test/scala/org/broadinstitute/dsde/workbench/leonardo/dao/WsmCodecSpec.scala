@@ -18,6 +18,8 @@ import io.circe.parser._
 import WsmDecoders._
 import WsmEncoders._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AcrCredential
 
 import java.time.ZonedDateTime
 
@@ -142,7 +144,20 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         RuntimeName("runtime"),
         Region.US_EAST,
         VirtualMachineSizeTypes.STANDARD_A2, //Standard_A2
-        azureImage,
+        ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
+        CustomScriptExtension(
+          name = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.name,
+          publisher = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.publisher,
+          `type` = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.`type`,
+          version = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.version,
+          minorVersionAutoUpgrade =
+            ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
+          protectedSettings = ProtectedSettings(
+            ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.fileUris,
+            ""
+          )
+        ),
+        AcrCredential("username", "password"),
         WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
@@ -170,7 +185,27 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |    "name" : "runtime",
          |    "region" : "eastus",
          |    "vmSize": "Standard_A2",
-         |    "vmImageUri": "${azureImage.imageUrl}",
+         |    "vmImage": {
+         |      "publisher": "microsoft-dsvm",
+         |      "offer": "ubuntu-1804",
+         |      "sku": "1804-gen2"
+         |    },
+         |    "customScriptExtension": {
+         |      "name": "vm-custom-script-extension",
+         |      "publisher": "Microsoft.Azure.Extensions",
+         |      "type": "CustomScript",
+         |      "version": "2.1",
+         |      "minorVersionAutoUpgrade": true,
+         |      "protectedSettings": [{
+         |          "key": "fileUris",
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/cf829d8589c0035905916f24f9f01056c280425d/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |        },
+         |        {
+         |          "key": "commandToExecute",
+         |          "value": ""
+         |        }
+         |      ]
+         |    },
          |    "ipId": "${fixedUUID.toString}",
          |    "diskId": "${fixedUUID.toString}",
          |    "networkId": "${fixedUUID.toString}"

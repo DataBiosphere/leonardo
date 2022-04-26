@@ -21,7 +21,6 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
                                                      azureRegion)
       runtime = makeCluster(1)
         .copy(
-          runtimeImages = Set(azureImage),
           cloudContext = CloudContext.Azure(azureCloudContext)
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
@@ -50,7 +49,6 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
                                                      azureRegion)
       runtime = makeCluster(1)
         .copy(
-          runtimeImages = Set(azureImage),
           cloudContext = CloudContext.Azure(azureCloudContext)
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
@@ -76,7 +74,6 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
                                                      azureRegion)
       runtime = makeCluster(1)
         .copy(
-          runtimeImages = Set(azureImage),
           cloudContext = CloudContext.Azure(azureCloudContext)
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)

@@ -2,12 +2,14 @@ package org.broadinstitute.dsde.workbench.leonardo
 package util
 
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureRuntimeDefaults
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   CreateAzureRuntimeMessage,
   DeleteAzureRuntimeMessage
 }
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 
-trait AzureAlgebra[F[_]] {
+trait AzurePubsubHandlerAlgebra[F[_]] {
 
   /** Creates an Azure VM but doesn't wait for its completion.
    * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created syncronously
@@ -19,9 +21,13 @@ trait AzureAlgebra[F[_]] {
 
 final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           runtime: Runtime,
+                                          relayeNamespace: RelayNamespace,
                                           runtimeConfig: RuntimeConfig.AzureConfig,
-                                          disk: PersistentDisk,
-                                          vmImage: RuntimeImage)
+                                          vmImage: AzureImage)
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 
 final case class PollRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime, jobId: WsmJobId)
+
+final case class AzurePubsubHandlerConfig(createVmPollConfig: PollMonitorConfig,
+                                          deleteVmPollConfig: PollMonitorConfig,
+                                          runtimeDefaults: AzureRuntimeDefaults)

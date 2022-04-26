@@ -1600,13 +1600,16 @@ class LeoPubsubMessageSubscriberSpec
                                                        azureRegion)
         runtime = makeCluster(1)
           .copy(
-            runtimeImages = Set(azureImage),
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
         jobId <- IO.delay(UUID.randomUUID())
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId(jobId.toString), None)
+        msg = CreateAzureRuntimeMessage(runtime.id,
+                                        workspaceId,
+                                        RelayNamespace("relay-ns"),
+                                        WsmJobId(jobId.toString),
+                                        None)
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
@@ -1647,7 +1650,6 @@ class LeoPubsubMessageSubscriberSpec
                                                        azureRegion)
         runtime = makeCluster(2)
           .copy(
-            runtimeImages = Set(azureImage),
             status = RuntimeStatus.Running,
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
@@ -1698,7 +1700,7 @@ class LeoPubsubMessageSubscriberSpec
     diskInterp: GoogleDiskService[IO] = MockGoogleDiskService,
     dataprocRuntimeAlgebra: RuntimeAlgebra[IO] = dataprocInterp,
     gceRuntimeAlgebra: RuntimeAlgebra[IO] = gceInterp,
-    azureInterp: AzureInterpreter[IO] = makeAzureInterp()
+    azureInterp: AzurePubsubHandlerInterp[IO] = makeAzureInterp()
   ): LeoPubsubMessageSubscriber[IO] = {
     val googleSubscriber = new FakeGoogleSubcriber[LeoPubsubMessage]
 
@@ -1732,10 +1734,10 @@ class LeoPubsubMessageSubscriberSpec
 
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = makeTaskQueue(),
-                      computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
-                      wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
-    new AzureInterpreter[IO](
-      ConfigReader.appConfig.azure.monitor,
+                      computeManagerDao: AzureManagerDao[IO] = new MockComputeManagerDao(),
+                      wsmDAO: MockWsmDAO = new MockWsmDAO): AzurePubsubHandlerInterp[IO] =
+    new AzurePubsubHandlerInterp[IO](
+      ConfigReader.appConfig.azure.pubsubHandler,
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
