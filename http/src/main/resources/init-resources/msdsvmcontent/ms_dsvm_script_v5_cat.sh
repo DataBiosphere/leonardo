@@ -8,6 +8,7 @@ export DEBIAN_FRONTEND=noninteractive
 VM_JUP_USER=$9
 #VM_JUP_USER_PASSWORD=$10
 DOCKER_USER=douser
+DOCKER_USER_PASSWORD=$10
 
 #sudo groupadd $VM_JUP_USER
 #sudo useradd -g adm, $VM_JUP_USER -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
@@ -17,7 +18,7 @@ DOCKER_USER=douser
 #sudo usermod -a -G $VM_JUP_USER,adm $VM_JUP_USER
 
 sudo useradd -c "Docker User" $DOCKER_USER
-#(echo "$VM_JUP_USER_PASSWORD"; echo "$VM_JUP_USER_PASSWORD") | sudo passwd $VM_JUP_USER
+(echo "$DOCKER_USER_PASSWORD"; echo "$DOCKER_USER_PASSWORD") | sudo passwd $DOCKER_USER
 sudo usermod -a -G $DOCKER_USER,adm $DOCKER_USER
 
 ## Update apt-get
