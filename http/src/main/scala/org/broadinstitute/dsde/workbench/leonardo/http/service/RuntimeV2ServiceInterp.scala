@@ -118,18 +118,22 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
 
-            task = Task(
+            task = for {
+              _ <-  createRuntime(CreateAzureRuntimeParams(workspaceId, savedRuntime, runtimeConfig, disk, runtimeImage),
+                WsmJobControl(createVmJobId))
+              _ <- publisherQueue.offer(
+              CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, createVmJobId, Some(ctx.traceId))
+              )
+            } yield ()
+
+            taskToQueue = Task(
               ctx.traceId,
               //TODO: generalize for google
-              createRuntime(CreateAzureRuntimeParams(workspaceId, savedRuntime, runtimeConfig, disk, runtimeImage),
-                            WsmJobControl(createVmJobId)),
+              task,
               Some(errorHandler(savedRuntime.id, ctx)),
               ctx.now
             )
-            _ <- asyncTasks.offer(task)
-            _ <- publisherQueue.offer(
-              CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, createVmJobId, Some(ctx.traceId))
-            )
+            _ <- asyncTasks.offer(taskToQueue)
           } yield ()
       }
 
@@ -552,7 +556,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
 final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(
-      s"WorkspaceId not found in workspace manager for workkspace ${workspaceId}",
+      s"WorkspaceId not found in workspace manager for workspace ${workspaceId}",
       StatusCodes.NotFound,
       traceId = Some(traceId)
     )

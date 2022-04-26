@@ -2296,7 +2296,7 @@ components:
           example:
             labels: { saturnRuntimeName: "saturn-ab9134" }
             region: "eastus"
-            machineSize: "Standard_D1_v2"
+            machineSize: "Standard_DS1_v2"
             disk: { labels: {}, name: "disk1", size: 50 }
 
   securitySchemes:
