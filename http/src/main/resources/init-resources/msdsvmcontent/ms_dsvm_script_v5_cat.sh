@@ -6,14 +6,19 @@ set -e
 export DEBIAN_FRONTEND=noninteractive
 
 VM_JUP_USER=$9
-VM_JUP_USER_PASSWORD=$10
+#VM_JUP_USER_PASSWORD=$10
+DOCKER_USER=douser
 
 #sudo groupadd $VM_JUP_USER
 #sudo useradd -g adm, $VM_JUP_USER -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
 
-sudo useradd -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
-(echo "$VM_JUP_USER_PASSWORD"; echo "$VM_JUP_USER_PASSWORD") | sudo passwd $VM_JUP_USER
-sudo usermod -a -G $VM_JUP_USER,adm $VM_JUP_USER
+#sudo useradd -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
+#(echo "$VM_JUP_USER_PASSWORD"; echo "$VM_JUP_USER_PASSWORD") | sudo passwd $VM_JUP_USER
+#sudo usermod -a -G $VM_JUP_USER,adm $VM_JUP_USER
+
+sudo useradd -c "Docker User" $DOCKER_USER
+#(echo "$VM_JUP_USER_PASSWORD"; echo "$VM_JUP_USER_PASSWORD") | sudo passwd $VM_JUP_USER
+sudo usermod -a -G $DOCKER_USER,adm $DOCKER_USER
 
 ## Update apt-get
 apt-get update
@@ -92,7 +97,7 @@ docker login terradevacrpublic.azurecr.io -u $DOCKER_USER_NAME -p $DOCKER_USER_P
 
 #Run docker container with Relay Listener
 
-docker run -d --restart always --network host --name RelayListener \
+docker run -d --restart always --network host --user $DOCKER_USER --name RelayListener \
 --env LISTENER_RELAYCONNECTIONSTRING=$RELAY_CONNECTIONSTRING \
 --env LISTENER_RELAYCONNECTIONNAME=$RELAY_CONNECTION_NAME \
 --env LISTENER_TARGETPROPERTIES_TARGETHOST="http://${RELAY_TARGET_HOST}:8888" \
