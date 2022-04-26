@@ -8,10 +8,12 @@ export DEBIAN_FRONTEND=noninteractive
 VM_JUP_USER=$9
 VM_JUP_USER_PASSWORD=$10
 
-sudo groupadd $VM_JUP_USER
-sudo useradd -g adm -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
-(echo "$VM_JUP_USER_PASSWORD"; echo "$VM_JUP_USER_PASSWORD") | sudo passwd $VM_JUP_USER
+#sudo groupadd $VM_JUP_USER
+#sudo useradd -g adm, $VM_JUP_USER -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
 
+sudo useradd -d /home/$VM_JUP_USER -c "Jupyter User" $VM_JUP_USER
+(echo "$VM_JUP_USER_PASSWORD"; echo "$VM_JUP_USER_PASSWORD") | sudo passwd $VM_JUP_USER
+usermod -a -G adm $VM_JUP_USER
 
 ## Update apt-get
 apt-get update
