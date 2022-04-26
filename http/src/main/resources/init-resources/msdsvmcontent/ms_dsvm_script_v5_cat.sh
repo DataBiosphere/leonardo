@@ -5,7 +5,7 @@ set -e
 # 'debconf: unable to initialize frontend: Dialog'
 export DEBIAN_FRONTEND=noninteractive
 
-#VM_JUP_USER=$9
+VM_JUP_USER=$9
 #VM_JUP_USER_PASSWORD=$10
 
 #sudo groupadd $VM_JUP_USER
