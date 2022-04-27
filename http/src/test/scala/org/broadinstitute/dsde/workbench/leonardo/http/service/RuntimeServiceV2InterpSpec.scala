@@ -351,7 +351,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       disk.status shouldBe DiskStatus.Deleting
 
       val expectedMessage =
-        DeleteAzureRuntimeMessage(preDeleteCluster.id, Some(disk.id), workspaceId, wsmResourceId, Some(context.traceId))
+        DeleteAzureRuntimeMessage(preDeleteCluster.id,
+                                  Some(disk.id),
+                                  workspaceId,
+                                  Some(wsmResourceId),
+                                  Some(context.traceId))
       message shouldBe expectedMessage
     }
 
