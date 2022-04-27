@@ -28,7 +28,7 @@ sudo chgrp $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 
 sudo chown $VM_JUP_USER /anaconda/envs/py38_default/bin/*
 
-systemctl stop jupyterhub.service
+sudo systemctl disable --now jupyterhub.service
 
 #Read script arguments
 
