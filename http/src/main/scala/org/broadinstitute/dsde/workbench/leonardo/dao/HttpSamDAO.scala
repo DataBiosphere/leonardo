@@ -370,7 +370,9 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       resp <- getUserSubjectIdFromToken(token)
     } yield resp
 
-  private def getUserInfoFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[GetGoogleSubjectInfoResponse]] = {
+  private def getUserInfoFromToken(
+    token: String
+  )(implicit ev: Ask[F, TraceId]): F[Option[GetGoogleSubjectInfoResponse]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
     for {

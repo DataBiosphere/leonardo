@@ -296,6 +296,9 @@ class MockSamDAO extends SamDAO[IO] {
 
   override def getLeoAuthToken: IO[Authorization] =
     IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
+
+  override def getUserEmailFromUserOrPetToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[UserEmail]] =
+    IO.pure(Some(UserEmail("test@gmail.com")))
 }
 
 object MockSamDAO {

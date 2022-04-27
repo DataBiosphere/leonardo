@@ -110,4 +110,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     userInfo: UserInfo
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[IO, TraceId]): IO[Boolean] =
     checkWhitelist(userInfo)
+
+  override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[WorkbenchEmail] = IO(petOrUserInfo.userEmail)
 }

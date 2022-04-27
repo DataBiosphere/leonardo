@@ -208,20 +208,23 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, creatorEmail, googleProject)
 
-  override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)
-                                            (implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] = {
+  override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] =
     for {
       traceId <- ev.ask
-      userEmail <- samDao.getUserEmailFromUserOrPetToken(petOrUserInfo.accessToken.token).flatMap(
-        _.fold(
-          F.raiseError[UserEmail](
-            AuthProviderException(traceId,
-              s"[SamAuthProvider.lookupOriginatingUserEmail] Subject info not found for ${petOrUserInfo.userEmail}",
-              StatusCodes.Unauthorized)
-          )
-        )(s => F.pure(s)))
+      userEmail <- samDao
+        .getUserEmailFromUserOrPetToken(petOrUserInfo.accessToken.token)
+        .flatMap(
+          _.fold(
+            F.raiseError[UserEmail](
+              AuthProviderException(
+                traceId,
+                s"[SamAuthProvider.lookupOriginatingUserEmail] Subject info not found for ${petOrUserInfo.userEmail}",
+                StatusCodes.Unauthorized
+              )
+            )
+          )(s => F.pure(s))
+        )
     } yield (WorkbenchEmail.apply(userEmail.asString))
-  }
 
 }
 
