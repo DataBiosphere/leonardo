@@ -370,19 +370,26 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       resp <- getUserSubjectIdFromToken(token)
     } yield resp
 
-  override def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] = {
+  private def getUserInfoFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[GetGoogleSubjectInfoResponse]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
     for {
-      resp <- httpClient.expectOptionOr[GetGoogleSubjectIdResponse](
+      resp <- httpClient.expectOptionOr[GetGoogleSubjectInfoResponse](
         Request[F](
           method = Method.GET,
           uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info")),
           headers = Headers(authHeader)
         )
       )(onError)
-    } yield resp.map(_.userSubjectId)
+    } yield resp
   }
+
+  override def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] =
+    getUserInfoFromToken(token).map(_.map(_.userSubjectId))
+
+  override def getUserEmailFromUserOrPetToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserEmail]] =
+    getUserInfoFromToken(token).map(_.map(_.userEmail))
+
 }
 
 object HttpSamDAO {
@@ -419,6 +426,8 @@ object HttpSamDAO {
     Decoder.decodeString.map(s => SamPolicyName.stringToSamPolicyName.getOrElse(s, SamPolicyName.Other(s)))
   implicit val userSubjectIdDecoder: Decoder[UserSubjectId] =
     Decoder.decodeString.map(UserSubjectId.apply)
+  implicit val userEmailDecoder: Decoder[UserEmail] =
+    Decoder.decodeString.map(UserEmail.apply)
   implicit val samPolicyEmailDecoder: Decoder[SamPolicyEmail] = Decoder[WorkbenchEmail].map(SamPolicyEmail)
   implicit val projectActionDecoder: Decoder[ProjectAction] =
     Decoder.decodeString.map(x => ProjectAction.stringToAction.getOrElse(x, ProjectAction.Other(x)))
@@ -478,8 +487,8 @@ object HttpSamDAO {
       systems <- c.downField("systems").as[Map[Subsystem, SubsystemStatus]]
     } yield StatusCheckResponse(ok, systems)
   }
-  implicit val getGoogleSubjectIdResponseDecoder: Decoder[GetGoogleSubjectIdResponse] =
-    Decoder.forProduct1("userSubjectId")(GetGoogleSubjectIdResponse.apply)
+  implicit val getGoogleSubjectIdResponseDecoder: Decoder[GetGoogleSubjectInfoResponse] =
+    Decoder.forProduct2("userSubjectId", "userEmail")(GetGoogleSubjectInfoResponse.apply)
   implicit val registerInfoResponseDecoder: Decoder[RegisterInfoResponse] =
     Decoder.forProduct1("enabled")(RegisterInfoResponse.apply)
 }
@@ -501,7 +510,7 @@ final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: G
 final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
 final case class SamRoleAction(roles: List[SamPolicyName])
 
-final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
+final case class GetGoogleSubjectInfoResponse(userSubjectId: UserSubjectId, userEmail: UserEmail)
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
     extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))

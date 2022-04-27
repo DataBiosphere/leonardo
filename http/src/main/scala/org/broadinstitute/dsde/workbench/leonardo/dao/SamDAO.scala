@@ -74,7 +74,10 @@ trait SamDAO[F[_]] {
 
   def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]]
 
+  def getUserEmailFromUserOrPetToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserEmail]]
+
   def getLeoAuthToken: F[Authorization]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal
+final case class UserEmail(asString: String) extends AnyVal

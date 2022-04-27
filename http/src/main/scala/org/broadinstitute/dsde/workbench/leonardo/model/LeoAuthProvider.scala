@@ -198,4 +198,8 @@ trait LeoAuthProvider[F[_]] {
     workspaceResource: R,
     userInfo: UserInfo
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[Boolean]
+
+  // Reverse lookup from pet to
+  def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)
+                                   (implicit ev: Ask[F, TraceId]): F[WorkbenchEmail]
 }
