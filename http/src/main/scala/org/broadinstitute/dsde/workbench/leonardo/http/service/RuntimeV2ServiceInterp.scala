@@ -118,22 +118,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
 
-            task = for {
-              _ <- createRuntime(CreateAzureRuntimeParams(workspaceId, savedRuntime, runtimeConfig, disk, runtimeImage),
-                                 WsmJobControl(createVmJobId))
-              _ <- publisherQueue.offer(
-                CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, createVmJobId, Some(ctx.traceId))
-              )
-            } yield ()
-
-            taskToQueue = Task(
+            task = Task(
               ctx.traceId,
               //TODO: generalize for google
-              task,
+              createRuntime(CreateAzureRuntimeParams(workspaceId, savedRuntime, runtimeConfig, disk, runtimeImage),
+                            WsmJobControl(createVmJobId)),
               Some(errorHandler(savedRuntime.id, ctx)),
               ctx.now
             )
-            _ <- asyncTasks.offer(taskToQueue)
+
+            _ <- asyncTasks.offer(task)
+            _ <- publisherQueue.offer(
+              CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, createVmJobId, Some(ctx.traceId))
+            )
           } yield ()
       }
 
