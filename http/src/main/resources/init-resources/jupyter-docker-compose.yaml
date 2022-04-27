@@ -42,6 +42,7 @@ services:
       CLUSTER_NAME: "${RUNTIME_NAME}"
       RUNTIME_NAME: "${RUNTIME_NAME}"
       OWNER_EMAIL: "${OWNER_EMAIL}"
+      PET_SA_EMAIL: "${PET_SA_EMAIL}"
       # Value must be the string "true" to enable.
       WELDER_ENABLED: "${WELDER_ENABLED}"
       NOTEBOOKS_DIR: "${NOTEBOOKS_DIR}"
