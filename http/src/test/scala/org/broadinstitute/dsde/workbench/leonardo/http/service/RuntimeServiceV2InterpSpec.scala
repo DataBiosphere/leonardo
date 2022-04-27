@@ -234,6 +234,43 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     exc shouldBe a[CloudContextNotFoundException]
   }
 
+  it should "get a runtime" in isolatedDbTest {
+    val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
+    val runtimeName = RuntimeName("clusterName1")
+    val workspaceId = WorkspaceId(UUID.randomUUID())
+
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val azureService = makeInterp(publisherQueue)
+
+    val res = for {
+      _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
+
+      _ <- azureService
+        .createRuntime(
+          userInfo,
+          runtimeName,
+          workspaceId,
+          defaultCreateAzureRuntimeReq,
+          WsmJobId("job")
+        )
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), runtimeName)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+      cluster = clusterOpt.get
+      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
+      getResponse <- azureService.getRuntime(userInfo, runtimeName, workspaceId)
+    } yield {
+      getResponse.clusterName shouldBe runtimeName
+      getResponse.auditInfo.creator shouldBe userInfo.userEmail
+
+    }
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "fail to get a runtime when no controlled resource is saved for runtime" in isolatedDbTest {
     val badUserInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("badUser"), WorkbenchEmail("badEmail"), 0)
     val userInfo = UserInfo(OAuth2BearerToken(""), WorkbenchUserId("userId"), WorkbenchEmail("user1@example.com"), 0) // this email is white listed
@@ -564,6 +601,20 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     defaultAzureService
       .createRuntime(userInfo, clusterName1, workspaceId, req, wsmJobId1)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val setupControlledResource1 = for {
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), clusterName1)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+
+      cluster = clusterOpt.get
+      _ <- controlledResourceQuery.save(cluster.id, wsmResourceId, WsmResourceType.AzureVm).transaction
+    } yield ()
+    setupControlledResource1.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
     val runtime1 = defaultAzureService
       .getRuntime(userInfo, clusterName1, workspaceId)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -593,6 +644,22 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         wsmJobId2
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val setupControlledResource2 = for {
+      azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
+      clusterOpt <- clusterQuery
+        .getActiveClusterByNameMinimal(CloudContext.Azure(azureCloudContext.get), clusterName2)(
+          scala.concurrent.ExecutionContext.global
+        )
+        .transaction
+
+      cluster = clusterOpt.get
+      _ <- controlledResourceQuery
+        .save(cluster.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureVm)
+        .transaction
+    } yield ()
+    setupControlledResource2.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
     val runtime2 = defaultAzureService
       .getRuntime(userInfo, clusterName2, workspaceId)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
