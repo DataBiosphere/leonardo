@@ -322,7 +322,7 @@ object LeoPubsubMessage {
   final case class DeleteAzureRuntimeMessage(runtimeId: Long,
                                              diskId: Option[DiskId],
                                              workspaceId: WorkspaceId,
-                                             wsmResourceId: WsmControlledResourceId,
+                                             wsmResourceId: Option[WsmControlledResourceId],
                                              traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.DeleteAzureRuntime

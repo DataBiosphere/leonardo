@@ -246,11 +246,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       // For now, azure disk life cycle is tied to vm life cycle and incompatible with disk routes
       _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
 
-      _ <- wsmResourceIdOpt.traverse { wsmResourceId =>
-        publisherQueue.offer(
-          DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wsmResourceId, Some(ctx.traceId))
-        )
-      }
+      _ <- publisherQueue.offer(
+        DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wsmResourceIdOpt, Some(ctx.traceId))
+      )
     } yield ()
 
   override def listRuntimes(
