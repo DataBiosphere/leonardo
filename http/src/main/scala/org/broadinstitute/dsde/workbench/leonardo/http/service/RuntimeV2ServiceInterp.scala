@@ -126,6 +126,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               Some(errorHandler(savedRuntime.id, ctx)),
               ctx.now
             )
+
             _ <- asyncTasks.offer(task)
             _ <- publisherQueue.offer(
               CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, createVmJobId, Some(ctx.traceId))
@@ -154,10 +155,19 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
+      controlledResourceOpt <- controlledResourceQuery
+        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureVm)
+        .transaction
+
+      azureRuntimeControlledResource <- F.fromOption(
+        controlledResourceOpt,
+        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, ctx.traceId)
+      )
+
       // If user is creator of the runtime, they should definitely be able to see the runtime.
       hasPermission <- if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
       else
-        checkSamPermission(cloudContext, runtime.id, runtimeName, userInfo, WsmResourceAction.Read).map(_._1)
+        checkSamPermission(azureRuntimeControlledResource, userInfo, WsmResourceAction.Read).map(_._1)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
@@ -206,11 +216,22 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
           )
       }
 
-      (hasPermission, wmsResourceId) <- checkSamPermission(cloudContext,
-                                                           runtime.id,
-                                                           runtimeName,
-                                                           userInfo,
-                                                           WsmResourceAction.Write)
+      controlledResourceOpt <- controlledResourceQuery
+        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureVm)
+        .transaction
+
+      // If there's no controlled resource record, that means we created the DB record in front leo but failed somewhere in back leo (possibly in polling WSM)
+      // This is non-fatal, as we still want to allow users to clean up the db record if they have permission.
+      // We must check if they have permission other ways if we did not get an ID back from WSM though
+      (hasPermission, wsmResourceIdOpt) <- controlledResourceOpt.fold(
+        authProvider
+          .isUserWorkspaceOwner(workspaceId, WorkspaceResourceSamResourceId(workspaceId), userInfo)
+          .map(isOwner => isOwner || runtime.auditInfo.creator == userInfo.userEmail)
+          .map(hasPermission => (hasPermission, none[WsmControlledResourceId]))
+      ) { controlledResource =>
+        checkSamPermission(controlledResource, userInfo, WsmResourceAction.Write)
+          .map(x => (x._1, Some(x._2)))
+      }
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for delete azure runtime permission")))
       _ <- F
@@ -223,7 +244,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- persistentDiskQuery.markPendingDeletion(diskId, ctx.now).transaction
 
       _ <- publisherQueue.offer(
-        DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wmsResourceId, Some(ctx.traceId))
+        DeleteAzureRuntimeMessage(runtime.id, Some(diskId), workspaceId, wsmResourceIdOpt, Some(ctx.traceId))
       )
     } yield ()
 
@@ -464,9 +485,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
     )
 
-  private def checkSamPermission(cloudContext: CloudContext,
-                                 runtimeId: Long,
-                                 runtimeName: RuntimeName,
+  private def checkSamPermission(azureRuntimeControlledResource: RuntimeControlledResourceRecord,
                                  userInfo: UserInfo,
                                  wsmResourceAction: WsmResourceAction)(
     implicit ctx: Ask[F, AppContext]
@@ -474,13 +493,6 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     for {
       context <- ctx.ask
       //TODO: generalize for google
-      controlledResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(runtimeId, WsmResourceType.AzureVm)
-        .transaction
-      azureRuntimeControlledResource <- F.fromOption(
-        controlledResourceOpt,
-        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, context.traceId)
-      )
       res <- authProvider.hasPermission(
         WsmResourceSamResourceId(azureRuntimeControlledResource.resourceId),
         wsmResourceAction,
@@ -552,7 +564,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
 final case class WorkspaceNotFoundException(workspaceId: WorkspaceId, traceId: TraceId)
     extends LeoException(
-      s"WorkspaceId not found in workspace manager for workkspace ${workspaceId}",
+      s"WorkspaceId not found in workspace manager for workspace ${workspaceId}",
       StatusCodes.NotFound,
       traceId = Some(traceId)
     )

@@ -171,6 +171,23 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     }
   }
 
+  def isUserWorkspaceOwner[R](
+    workspaceId: WorkspaceId,
+    workspaceResource: R,
+    userInfo: UserInfo
+  )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[Boolean] = {
+    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
+    for {
+      workspacePolicies <- samDao.getResourcePolicies[WorkspaceResourceSamResourceId](authHeader)
+      owningWorkspaces = workspacePolicies.collect {
+        case (r, SamPolicyName.Owner) => r.workspaceId
+      }
+      resourcePolicies <- samDao
+        .getResourcePolicies[R](authHeader)
+      res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
+    } yield owningWorkspaces.contains(workspaceId) || res.exists(_._1 == workspaceResource)
+  }
+
   override def notifyResourceCreated[R](
     samResource: R,
     creatorEmail: WorkbenchEmail,

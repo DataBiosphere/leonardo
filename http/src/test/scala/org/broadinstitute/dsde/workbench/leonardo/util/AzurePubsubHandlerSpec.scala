@@ -140,7 +140,7 @@ class AzurePubsubHandlerSpec
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
           .transaction
-        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, wsmResourceId, None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(wsmResourceId), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)
@@ -240,7 +240,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, wsmResourceId, None)
+        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(wsmResourceId), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.deleteAndPollRuntime(msg)
