@@ -46,7 +46,7 @@ object SamResource {
   }
   class WorkspaceResource extends SamResource[WorkspaceResourceSamResourceId] {
     val resourceType = SamResourceType.Workspace
-    val policyNames = Set(SamPolicyName.Creator) //TODO: is this policy name correct?
+    val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Owner) //TODO: is this policy name correct?
     def resourceIdAsString(r: WorkspaceResourceSamResourceId): String = r.resourceId
   }
   class WsmResource extends SamResource[WsmResourceSamResourceId] {
@@ -169,6 +169,15 @@ trait LeoAuthProvider[F[_]] {
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]]
+
+  def filterUserVisibleWithWorkspaceFallback[R](
+    resources: NonEmptyList[(WorkspaceId, R)],
+    userInfo: UserInfo
+  )(
+    implicit sr: SamResource[R],
+    decoder: Decoder[R],
+    ev: Ask[F, TraceId]
+  ): F[List[(WorkspaceId, R)]]
 
   // Creates a resource in Sam
   def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(

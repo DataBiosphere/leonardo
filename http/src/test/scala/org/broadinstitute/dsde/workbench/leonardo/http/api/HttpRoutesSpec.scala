@@ -12,14 +12,11 @@ import io.circe.parser.decode
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, RegionName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
-import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
-import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.AppRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.DiskRoutesTestJsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.http.RuntimeRoutesTestJsonCodec._
-import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutesSpec._
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -28,7 +25,6 @@ import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import java.net.URL
 import scala.concurrent.duration._
 
 class HttpRoutesSpec
@@ -50,7 +46,7 @@ class HttpRoutesSpec
       MockRuntimeServiceInterp,
       MockDiskServiceInterp,
       MockAppService,
-      new MockAzureServiceInterp,
+      new MockRuntimeV2Interp,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -376,8 +372,6 @@ class HttpRoutesSpec
   "RuntimeRoutesV2" should "create azure runtime" in {
     Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1")
       .withEntity(ContentTypes.`application/json`, defaultCreateAzureRuntimeReq.asJson.spaces2) ~> routes.route ~> check {
-      println("@@")
-      println(defaultCreateAzureRuntimeReq.asJson.spaces2)
       status shouldEqual StatusCodes.Accepted
       validateRawCookie(header("Set-Cookie"))
     }
@@ -387,7 +381,6 @@ class HttpRoutesSpec
     Post(s"/api/v2/runtimes/invalidWorkspaceId/azure/azureruntime1")
       .withEntity(ContentTypes.`application/json`, defaultCreateAzureRuntimeReq.asJson.spaces2) ~> routes.route ~> check {
       status shouldEqual StatusCodes.BadRequest
-      println("@@@@@")
       responseEntity.toStrict(5 seconds).futureValue.data.utf8String should include(
         "Invalid workspace id invalidWorkspaceId, workspace id must be a valid UUID"
       )
@@ -427,6 +420,103 @@ class HttpRoutesSpec
   it should "404 on delete azure runtime when it does not exist" in {
     Delete(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime1") ~> httpRoutes.route ~> check {
       status shouldEqual StatusCodes.NotFound
+    }
+  }
+
+  it should "list runtimes v2 with a workspace" in {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Vector[ListRuntimeResponse2]].map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list runtimes v2 without a workspace or cloudContext" in {
+    Get("/api/v2/runtimes") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      val response = responseAs[Vector[ListRuntimeResponse2]]
+      response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list runtimes v2 with a workspace and cloud context" in {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      val response = responseAs[Vector[ListRuntimeResponse2]]
+      response.map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
+      validateRawCookie(header("Set-Cookie"))
+    }
+  }
+
+  it should "list runtimes v2 with labels" in isolatedDbTest {
+    def saLabels = Map("clusterServiceAccount" -> "user1@example.com")
+    def runtimesWithLabels(i: Int) =
+      defaultCreateAzureRuntimeReq
+        .copy(
+          labels = Map(s"label$i" -> s"value$i"),
+          azureDiskConfig = defaultCreateAzureRuntimeReq.azureDiskConfig.copy(name = AzureDiskName(s"azureDisk-$i"))
+        )
+
+    for (i <- 1 to 10) {
+      Post(s"/api/v2/runtimes/${workspaceId.value.toString}/azure/azureruntime-$i", runtimesWithLabels(i).asJson) ~> httpRoutes.route ~> check {
+        status shouldEqual StatusCodes.Accepted
+      }
+    }
+
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?label6=value6") ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+
+      val responseClusters = responseAs[List[ListRuntimeResponse2]]
+      responseClusters should have size 1
+
+      val cluster = responseClusters.head
+      cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
+      cluster.clusterName shouldEqual RuntimeName(s"azureruntime-6")
+      cluster.labels shouldEqual Map(
+        "clusterName" -> s"azureruntime-6",
+        "runtimeName" -> s"azureruntime-6",
+        "creator" -> "user1@example.com",
+        "cloudContext" -> cluster.cloudContext.asStringWithProvider,
+        "tool" -> "Azure",
+        "label6" -> "value6"
+      ) ++ saLabels
+
+      validateRawCookie(header("Set-Cookie"))
+    }
+
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=label4%3Dvalue4") ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.OK
+
+      val responseClusters = responseAs[List[ListRuntimeResponse2]]
+      responseClusters should have size 1
+
+      val cluster = responseClusters.head
+      cluster.cloudContext shouldEqual CloudContext.Azure(azureCloudContext)
+      cluster.clusterName shouldEqual RuntimeName(s"azureruntime-4")
+      cluster.labels shouldEqual Map(
+        "clusterName" -> s"azureruntime-4",
+        "runtimeName" -> s"azureruntime-4",
+        "creator" -> "user1@example.com",
+        "cloudContext" -> cluster.cloudContext.asStringWithProvider,
+        "tool" -> "Azure",
+        "label4" -> "value4"
+      ) ++ saLabels
+
+      //validateCookie { header[`Set-Cookie`] }
+      validateRawCookie(header("Set-Cookie"))
+    }
+
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?_labels=bad") ~> httpRoutes.route ~> check {
+      status shouldEqual StatusCodes.BadRequest
+    }
+  }
+
+  it should "list runtimes v2 with parameters" in {
+    Get(s"/api/v2/runtimes/${workspaceId.value.toString}/azure?project=foo&creator=bar") ~> routes.route ~> check {
+      status shouldEqual StatusCodes.OK
+      responseAs[Vector[ListRuntimeResponse2]].map(_.clusterName) shouldBe Vector(RuntimeName("azureruntime1"))
+      validateRawCookie(header("Set-Cookie"))
     }
   }
 
@@ -684,31 +774,4 @@ class HttpRoutesSpec
       contentSecurityPolicy,
       refererConfig
     )
-}
-
-object HttpRoutesSpec {
-  implicit val listClusterResponseDecoder: Decoder[ListRuntimeResponse2] = Decoder.instance { x =>
-    for {
-      id <- x.downField("id").as[Long]
-      clusterName <- x.downField("runtimeName").as[RuntimeName]
-      cloudContext <- x.downField("cloudContext").as[CloudContext]
-      auditInfo <- x.downField("auditInfo").as[AuditInfo]
-      machineConfig <- x.downField("runtimeConfig").as[RuntimeConfig]
-      clusterUrl <- x.downField("proxyUrl").as[URL]
-      status <- x.downField("status").as[RuntimeStatus]
-      labels <- x.downField("labels").as[LabelMap]
-      patchInProgress <- x.downField("patchInProgress").as[Boolean]
-    } yield ListRuntimeResponse2(
-      id,
-      RuntimeSamResourceId("fakeId"),
-      clusterName,
-      cloudContext,
-      auditInfo,
-      machineConfig,
-      clusterUrl,
-      status,
-      labels,
-      patchInProgress
-    )
-  }
 }

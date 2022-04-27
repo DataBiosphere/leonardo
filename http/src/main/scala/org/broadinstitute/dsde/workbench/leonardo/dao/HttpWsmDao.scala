@@ -93,9 +93,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
-  override def getWorkspace(workspaceId: WorkspaceId,
-                            authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[WorkspaceDescription] =
-    httpClient.expectOr[WorkspaceDescription](
+  override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[WorkspaceDescription]] =
+    httpClient.expectOptionOr[WorkspaceDescription](
       Request[F](
         method = Method.GET,
         uri = config.uri

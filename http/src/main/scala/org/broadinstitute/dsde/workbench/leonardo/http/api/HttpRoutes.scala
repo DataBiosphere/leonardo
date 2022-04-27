@@ -32,7 +32,7 @@ class HttpRoutes(
   runtimeService: RuntimeService[IO],
   diskService: DiskService[IO],
   kubernetesService: AppService[IO],
-  azureService: AzureService[IO],
+  azureService: RuntimeV2Service[IO],
   userInfoDirectives: UserInfoDirectives,
   contentSecurityPolicy: String,
   refererConfig: RefererConfig

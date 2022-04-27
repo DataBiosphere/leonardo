@@ -10,6 +10,7 @@ import cats.syntax.all._
 import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine}
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
@@ -19,6 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{PollMonitorConfig, PubsubHandleMessageError}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
+
 import scala.concurrent.ExecutionContext
 
 class AzureInterpreter[F[_]: Parallel](
@@ -108,6 +110,8 @@ class AzureInterpreter[F[_]: Parallel](
                     x.metadata.resourceId,
                     WsmResourceType.AzureVm
                   )
+                ) >> dbRef.inTransaction(
+                  clusterQuery.updateSamResourceId(params.runtime.id, WsmResourceSamResourceId(x.metadata.resourceId))
                 )
               }
               // then poll the azure VM for Running status, retrieving the final azure representation

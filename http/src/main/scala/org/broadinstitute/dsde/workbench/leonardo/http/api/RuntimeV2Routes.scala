@@ -12,15 +12,16 @@ import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Decoder
 import io.opencensus.scala.akka.http.TracingDirective.traceRequestForService
 import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureService
+import org.broadinstitute.dsde.workbench.leonardo.http.service.RuntimeV2Service
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import JsonCodec._
+import RuntimeRoutesCodec._
 import com.azure.core.management.Region
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
 class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
-                      azureService: AzureService[IO],
+                      runtimeV2Service: RuntimeV2Service[IO],
                       userInfoDirectives: UserInfoDirectives)(
   implicit metrics: OpenTelemetryMetrics[IO]
 ) {
@@ -33,44 +34,86 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       userInfoDirectives.requireUserInfo { userInfo =>
         CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
           pathPrefix("v2" / "runtimes") {
-            pathPrefix(workspaceIdSegment) { workspaceId =>
-              pathPrefix("azure") {
-                pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
-                  pathEndOrSingleSlash {
-                    post {
-                      entity(as[CreateAzureRuntimeRequest]) { req =>
-                        complete(
-                          createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
-                        )
-                      }
-                    } ~ get {
+            pathEndOrSingleSlash {
+              parameterMap { params =>
+                get {
+                  complete(
+                    listRuntimesHandler(
+                      userInfo,
+                      None,
+                      None,
+                      params
+                    )
+                  )
+                }
+              }
+            } ~
+              pathPrefix(workspaceIdSegment) { workspaceId =>
+                pathEndOrSingleSlash {
+                  parameterMap { params =>
+                    get {
                       complete(
-                        getAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
-                      )
-                    } ~ patch {
-                      entity(as[UpdateAzureRuntimeRequest]) { req =>
-                        complete(
-                          updateAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
+                        listRuntimesHandler(
+                          userInfo,
+                          Some(workspaceId),
+                          None,
+                          params
                         )
-                      }
-                    } ~ delete {
-                      complete(
-                        deleteAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
                       )
                     }
-                  } ~
-                    path("stop") {
-                      post {
-                        failWith(new NotImplementedError)
+                  }
+                } ~
+                  pathPrefix("azure") {
+                    pathEndOrSingleSlash {
+                      parameterMap { params =>
+                        get {
+                          complete(
+                            listRuntimesHandler(
+                              userInfo,
+                              Some(workspaceId),
+                              Some(CloudProvider.Azure),
+                              params
+                            )
+                          )
+                        }
                       }
                     } ~
-                    path("start") {
-                      post {
-                        failWith(new NotImplementedError)
+                      pathPrefix(runtimeNameSegmentWithValidation) { runtimeName =>
+                        pathEndOrSingleSlash {
+                          post {
+                            entity(as[CreateAzureRuntimeRequest]) { req =>
+                              complete(
+                                createAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
+                              )
+                            }
+                          } ~ get {
+                            complete(
+                              getAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
+                            )
+                          } ~ patch {
+                            entity(as[UpdateAzureRuntimeRequest]) { req =>
+                              complete(
+                                updateAzureRuntimeHandler(userInfo, workspaceId, runtimeName, req)
+                              )
+                            }
+                          } ~ delete {
+                            complete(
+                              deleteAzureRuntimeHandler(userInfo, workspaceId, runtimeName)
+                            )
+                          }
+                        } ~
+                          path("stop") {
+                            post {
+                              failWith(new NotImplementedError)
+                            }
+                          } ~
+                          path("start") {
+                            post {
+                              failWith(new NotImplementedError)
+                            }
+                          }
                       }
-                    }
-                }
-              } //~
+                  } //~
 //              pathPrefix("gcp") {
 //                pathPrefix(Segment) { runtimeNameString =>
 //                  RouteValidation.validateNameDirective(runtimeNameString, RuntimeName.apply) { runtimeName =>
@@ -85,7 +128,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
 //                  }
 //                }
 //              }
-            }
+              }
           }
         }
       }
@@ -102,10 +145,10 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       ctx <- ev.ask[AppContext]
 
       jobUUID = WsmJobId(s"create-${runtimeName.asString}")
-      apiCall = azureService.createRuntime(userInfo, runtimeName, workspaceId, req, jobUUID)
-      _ <- metrics.incrementCounter("createAzureRuntime")
+      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, req, jobUUID)
+      _ <- metrics.incrementCounter("createRuntimeV2")
       _ <- ctx.span.fold(apiCall)(span =>
-        spanResource[IO](span, "createAzureRuntime")
+        spanResource[IO](span, "createRuntimeV2")
           .use(_ => apiCall)
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
@@ -115,10 +158,10 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = azureService.getRuntime(userInfo, runtimeName, workspaceId)
-      _ <- metrics.incrementCounter("getAzureRuntime")
+      apiCall = runtimeV2Service.getRuntime(userInfo, runtimeName, workspaceId)
+      _ <- metrics.incrementCounter("getRuntimeV2")
       resp <- ctx.span.fold(apiCall)(span =>
-        spanResource[IO](span, "getAzureRuntime")
+        spanResource[IO](span, "getRuntimeV2")
           .use(_ => apiCall)
       )
     } yield StatusCodes.OK -> resp: ToResponseMarshallable
@@ -131,10 +174,10 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = azureService.updateRuntime(userInfo, runtimeName, workspaceId, req)
-      _ <- metrics.incrementCounter("updateAzureRuntime")
+      apiCall = runtimeV2Service.updateRuntime(userInfo, runtimeName, workspaceId, req)
+      _ <- metrics.incrementCounter("updateRuntimeV2")
       _ <- ctx.span.fold(apiCall)(span =>
-        spanResource[IO](span, "updateAzureRuntime")
+        spanResource[IO](span, "updateRuntimeV2")
           .use(_ => apiCall)
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
@@ -144,13 +187,29 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
-      apiCall = azureService.deleteRuntime(userInfo, runtimeName, workspaceId)
-      _ <- metrics.incrementCounter("deleteAzureRuntime")
+      apiCall = runtimeV2Service.deleteRuntime(userInfo, runtimeName, workspaceId)
+      _ <- metrics.incrementCounter("deleteRuntimeV2")
       _ <- ctx.span.fold(apiCall)(span =>
-        spanResource[IO](span, "deleteRuntime")
+        spanResource[IO](span, "deleteRuntimeV2")
           .use(_ => apiCall)
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
+
+  private[api] def listRuntimesHandler(userInfo: UserInfo,
+                                       workspaceId: Option[WorkspaceId],
+                                       cloudProvider: Option[CloudProvider],
+                                       params: Map[String, String])(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[ToResponseMarshallable] =
+    for {
+      ctx <- ev.ask[AppContext]
+      apiCall = runtimeV2Service.listRuntimes(userInfo, workspaceId, cloudProvider, params)
+      _ <- metrics.incrementCounter("listRuntimeV2")
+      resp <- ctx.span.fold(apiCall)(span =>
+        spanResource[IO](span, "listRuntimeV2")
+          .use(_ => apiCall)
+      )
+    } yield StatusCodes.OK -> resp: ToResponseMarshallable
 
   implicit val createAzureDiskReqDecoder: Decoder[CreateAzureDiskRequest] =
     Decoder.forProduct4("labels", "name", "size", "diskType")(CreateAzureDiskRequest.apply)

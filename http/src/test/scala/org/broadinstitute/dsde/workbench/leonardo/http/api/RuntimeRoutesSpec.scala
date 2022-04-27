@@ -11,12 +11,14 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Zon
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   deleteDefaultLabelsDecodingFailure,
+  getRuntimeResponseEncoder,
   negativeNumberDecodingFailure,
   oneWorkerSpecifiedDecodingFailure,
   updateDefaultLabelDecodingFailure,
   upsertEmptyLabelDecodingFailure
 }
 import org.broadinstitute.dsde.workbench.leonardo.http.api.RuntimeRoutes._
+import RuntimeRoutesCodec._
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
@@ -25,7 +27,6 @@ import java.net.URL
 import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration._
-import JsonCodec._
 
 class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
   it should "decode RuntimeConfigRequest.DataprocConfig" in {
@@ -326,8 +327,10 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
 
   it should "encode ListRuntimeResponse2" in {
     val date = Instant.parse("2020-11-20T17:23:24.650Z")
+    val workspaceId: UUID = UUID.randomUUID()
     val input = ListRuntimeResponse2(
       -1,
+      Some(WorkspaceId(workspaceId)),
       runtimeSamResource,
       name1,
       cloudContext,
@@ -341,38 +344,39 @@ class RuntimeRoutesSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite
 
     val res = input.asJson.spaces2
     res shouldBe
-      """{
-        |  "id" : -1,
-        |  "runtimeName" : "clustername1",
-        |  "googleProject" : "dsp-leo-test",
-        |  "cloudContext" : {
-        |    "cloudProvider" : "GCP",
-        |    "cloudResource" : "dsp-leo-test"
-        |  },
-        |  "auditInfo" : {
-        |    "creator" : "user1@example.com",
-        |    "createdDate" : "2020-11-20T17:23:24.650Z",
-        |    "destroyedDate" : null,
-        |    "dateAccessed" : "2020-11-20T17:23:24.650Z"
-        |  },
-        |  "runtimeConfig" : {
-        |    "machineType" : "n1-standard-4",
-        |    "diskSize" : 500,
-        |    "cloudService" : "GCE",
-        |    "bootDiskSize" : 50,
-        |    "zone" : "us-west2-b",
-        |    "gpuConfig" : {
-        |      "gpuType" : "nvidia-tesla-t4",
-        |      "numOfGpus" : 2
-        |    }
-        |  },
-        |  "proxyUrl" : "https://leo.org/proxy",
-        |  "status" : "Running",
-        |  "labels" : {
-        |    "foo" : "bar"
-        |  },
-        |  "patchInProgress" : true
-        |}""".stripMargin
+      s"""{
+         |  "id" : -1,
+         |  "workspaceId" : "${workspaceId.toString}",
+         |  "runtimeName" : "clustername1",
+         |  "googleProject" : "dsp-leo-test",
+         |  "cloudContext" : {
+         |    "cloudProvider" : "GCP",
+         |    "cloudResource" : "dsp-leo-test"
+         |  },
+         |  "auditInfo" : {
+         |    "creator" : "user1@example.com",
+         |    "createdDate" : "2020-11-20T17:23:24.650Z",
+         |    "destroyedDate" : null,
+         |    "dateAccessed" : "2020-11-20T17:23:24.650Z"
+         |  },
+         |  "runtimeConfig" : {
+         |    "machineType" : "n1-standard-4",
+         |    "diskSize" : 500,
+         |    "cloudService" : "GCE",
+         |    "bootDiskSize" : 50,
+         |    "zone" : "us-west2-b",
+         |    "gpuConfig" : {
+         |      "gpuType" : "nvidia-tesla-t4",
+         |      "numOfGpus" : 2
+         |    }
+         |  },
+         |  "proxyUrl" : "https://leo.org/proxy",
+         |  "status" : "Running",
+         |  "labels" : {
+         |    "foo" : "bar"
+         |  },
+         |  "patchInProgress" : true
+         |}""".stripMargin
   }
 
   it should "encode GetRuntimeResponse" in {

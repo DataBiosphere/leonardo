@@ -7,6 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   AppContext,
   AzureImageUri,
   CidrIP,
+  CloudProvider,
   CreateAzureRuntimeRequest,
   RuntimeName,
   UpdateAzureRuntimeRequest,
@@ -15,7 +16,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
 }
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
-trait AzureService[F[_]] {
+//TODO: all functions but non-workspace-specific list are currently azure-specific
+trait RuntimeV2Service[F[_]] {
   def createRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
@@ -38,6 +40,13 @@ trait AzureService[F[_]] {
   def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
     implicit as: Ask[F, AppContext]
   ): F[Unit]
+
+  def listRuntimes(userInfo: UserInfo,
+                   workspaceId: Option[WorkspaceId],
+                   cloudProvider: Option[CloudProvider],
+                   params: Map[String, String])(
+    implicit as: Ask[F, AppContext]
+  ): F[Vector[ListRuntimeResponse2]]
 }
 
 final case class AzureServiceConfig(diskConfig: PersistentDiskConfig, runtimeConfig: AzureRuntimeConfig)
