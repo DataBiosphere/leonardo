@@ -2,12 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo.util
 
 import java.time.format.{DateTimeFormatter, FormatStyle}
 import java.time.{Instant, ZoneId}
-
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeImageType.{CryptoDetector, Jupyter, Proxy, RStudio, Welder}
 import org.broadinstitute.dsde.workbench.leonardo.WelderAction._
 import org.broadinstitute.dsde.workbench.leonardo._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimeConfigInCreateRuntimeMessage
+import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath, ServiceAccountKey}
 
 case class RuntimeTemplateValues private (googleProject: String,
@@ -41,6 +41,7 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           jupyterServiceAccountCredentials: String,
                                           jupyterHomeDirectory: String,
                                           loginHint: String,
+                                          petSaEmail: String,
                                           jupyterServerExtensions: String,
                                           jupyterNbExtensions: String,
                                           jupyterCombinedExtensions: String,
@@ -80,6 +81,7 @@ case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimePr
                                                 userScriptUri: Option[UserScriptPath],
                                                 startUserScriptUri: Option[UserScriptPath],
                                                 serviceAccountKey: Option[ServiceAccountKey],
+                                                petSaEmail: WorkbenchEmail,
                                                 userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                                                 defaultClientId: Option[String],
                                                 welderEnabled: Boolean,
@@ -121,6 +123,7 @@ object RuntimeTemplateValuesConfig {
       params.userScriptUri,
       params.startUserScriptUri,
       serviceAccountKey,
+      params.serviceAccountInfo,
       params.userJupyterExtensionConfig,
       params.defaultClientId,
       params.welderEnabled,
@@ -164,6 +167,7 @@ object RuntimeTemplateValuesConfig {
       runtime.userScriptUri,
       runtime.startUserScriptUri,
       serviceAccountKey,
+      runtime.serviceAccount,
       runtime.userJupyterExtensionConfig,
       runtime.defaultClientId,
       runtime.welderEnabled,
@@ -251,6 +255,7 @@ object RuntimeTemplateValues {
       } yield GcsPath(n, GcsObjectName(serviceAccountCredentialsFilename)).toUri).getOrElse(""),
       jupyterUserhome,
       config.auditInfo.creator.value,
+      config.petSaEmail.value,
       config.userJupyterExtensionConfig.map(x => x.serverExtensions.values.mkString(" ")).getOrElse(""),
       config.userJupyterExtensionConfig.map(x => x.nbExtensions.values.mkString(" ")).getOrElse(""),
       config.userJupyterExtensionConfig.map(x => x.combinedExtensions.values.mkString(" ")).getOrElse(""),

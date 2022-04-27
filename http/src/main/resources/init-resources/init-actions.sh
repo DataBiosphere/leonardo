@@ -160,6 +160,7 @@ if [[ "${ROLE}" == 'Master' ]]; then
     export GOOGLE_PROJECT=$(googleProject)
     export STAGING_BUCKET=$(stagingBucketName)
     export OWNER_EMAIL=$(loginHint)
+    export PET_SA_EMAIL=$(petSaEmail)
     export JUPYTER_SERVER_NAME=$(jupyterServerName)
     export RSTUDIO_SERVER_NAME=$(rstudioServerName)
     export PROXY_SERVER_NAME=$(proxyServerName)
