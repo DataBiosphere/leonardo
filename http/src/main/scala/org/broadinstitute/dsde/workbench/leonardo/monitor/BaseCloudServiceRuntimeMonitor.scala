@@ -321,6 +321,12 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
             .setBucketLifecycle(bucketPath.bucketName, List(rule), Some(ctx.traceId))
             .compile
             .drain
+            .recoverWith {
+              case e: com.google.cloud.storage.StorageException =>
+                if (e.getCode == 404)
+                  logger.info(ctx.loggingCtx)("Staging bucket not found")
+                else F.raiseError(e)
+            }
           _ <- logger.debug(
             s"Set staging bucket $bucketPath for cluster ${runtime.projectNameString} to be deleted in fake days."
           )
