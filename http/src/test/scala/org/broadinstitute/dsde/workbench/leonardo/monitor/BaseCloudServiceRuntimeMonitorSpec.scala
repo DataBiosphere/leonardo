@@ -5,9 +5,12 @@ import java.time.Instant
 import cats.Parallel
 import cats.effect.{Async, IO}
 import cats.mtl.Ask
+import com.google.cloud.storage.Storage
 import fs2.Stream
+import org.broadinstitute.dsde.workbench.RetryConfig
 import org.typelevel.log4cats.StructuredLogger
 import org.broadinstitute.dsde.workbench.google2.GoogleStorageService
+import org.broadinstitute.dsde.workbench.google2.mock.BaseFakeGoogleStorage
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.config.{Config, RuntimeBucketConfig}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{MockToolDAO, ToolDAO}
@@ -20,6 +23,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
+import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GoogleProject}
 
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
@@ -104,6 +108,51 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
+  it should "not fail deleteInitBucket if bucket doesn't exist" in isolatedDbTest {
+    val googleStorage = new BaseFakeGoogleStorage {
+      override def deleteBucket(googleProject: GoogleProject,
+                                bucketName: GcsBucketName,
+                                isRecursive: Boolean,
+                                bucketSourceOptions: List[Storage.BucketSourceOption],
+                                traceId: Option[TraceId],
+                                retryConfig: RetryConfig): Stream[IO, Boolean] =
+        Stream.raiseError[IO](
+          new com.google.cloud.storage.StorageException(404, "The specified bucket does not exist.")
+        )
+    }
+    val runtimeMonitor = baseRuntimeMonitor(false, googleStorageService = googleStorage)
+
+    val res = for {
+      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
+      _ <- runtimeMonitor.deleteInitBucket(runtime.cloudContext.asInstanceOf[CloudContext.Gcp].value,
+                                           runtime.runtimeName)
+    } yield succeed
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
+  it should "not fail setStagingBucketLifecycle if bucket doesn't exist" in isolatedDbTest {
+    val googleStorage = new BaseFakeGoogleStorage {
+      override def deleteBucket(googleProject: GoogleProject,
+                                bucketName: GcsBucketName,
+                                isRecursive: Boolean,
+                                bucketSourceOptions: List[Storage.BucketSourceOption],
+                                traceId: Option[TraceId],
+                                retryConfig: RetryConfig): Stream[IO, Boolean] =
+        Stream.raiseError[IO](
+          new com.google.cloud.storage.StorageException(404, "The specified bucket does not exist.")
+        )
+    }
+    val runtimeMonitor = baseRuntimeMonitor(false, googleStorageService = googleStorage)
+
+    val res = for {
+      runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
+      _ <- runtimeMonitor.setStagingBucketLifecycle(runtime, 10 days)
+    } yield succeed
+
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+  }
+
   it should "not move to failed status if tools are not ready and runtime is Deleted" in isolatedDbTest {
     val runtimeMonitor = baseRuntimeMonitor(false)
 
@@ -136,7 +185,9 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  class MockRuntimeMonitor(isWelderReady: Boolean, timeouts: Map[RuntimeStatus, FiniteDuration])(
+  class MockRuntimeMonitor(isWelderReady: Boolean,
+                           timeouts: Map[RuntimeStatus, FiniteDuration],
+                           googleStorageService: GoogleStorageService[IO] = FakeGoogleStorageService)(
     implicit override val F: Async[IO],
     implicit override val parallel: Parallel[IO]
   ) extends BaseCloudServiceRuntimeMonitor[IO] {
@@ -158,7 +209,7 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
     override def logger: StructuredLogger[IO] = loggerIO
 
-    override def googleStorage: GoogleStorageService[IO] = ???
+    override def googleStorage: GoogleStorageService[IO] = googleStorageService
 
     override def monitorConfig: MonitorConfig = MonitorConfig.GceMonitorConfig(
       2 seconds,
@@ -174,7 +225,10 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     ): IO[(Unit, Option[MonitorState])] = ???
   }
 
-  def baseRuntimeMonitor(isWelderReady: Boolean,
-                         timeouts: Map[RuntimeStatus, FiniteDuration] = Map.empty): BaseCloudServiceRuntimeMonitor[IO] =
-    new MockRuntimeMonitor(isWelderReady, timeouts)
+  def baseRuntimeMonitor(
+    isWelderReady: Boolean,
+    timeouts: Map[RuntimeStatus, FiniteDuration] = Map.empty,
+    googleStorageService: GoogleStorageService[IO] = FakeGoogleStorageService
+  ): BaseCloudServiceRuntimeMonitor[IO] =
+    new MockRuntimeMonitor(isWelderReady, timeouts, googleStorageService)
 }
