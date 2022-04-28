@@ -350,10 +350,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       recs.map { rec =>
         val asyncFields = (rec._1._1.googleId, rec._1._1.operationName, rec._1._1.stagingBucket).mapN {
           (googleId, operationName, stagingBucket) =>
-            AsyncRuntimeFields(googleId,
-                               OperationName(operationName),
-                               GcsBucketName(stagingBucket),
-                               rec._1._1.hostIp map IP)
+            AsyncRuntimeFields(googleId, OperationName(operationName), GcsBucketName(stagingBucket), rec._1._1.hostIp)
         }
         RuntimeToMonitor(
           rec._1._1.id,
@@ -626,7 +623,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.cloudContext,
       runtime.asyncRuntimeFields.map(_.operationName.value),
       runtime.status,
-      runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.asString)),
+      runtime.asyncRuntimeFields.flatMap(_.hostIp),
       runtime.userScriptUri,
       runtime.startUserScriptUri,
       initBucket,
@@ -744,10 +741,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     val cloudContext = clusterRecord.cloudContext
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
-        AsyncRuntimeFields(googleId,
-                           OperationName(operationName),
-                           GcsBucketName(stagingBucket),
-                           clusterRecord.hostIp map IP)
+        AsyncRuntimeFields(googleId, OperationName(operationName), GcsBucketName(stagingBucket), clusterRecord.hostIp)
     }
     val clusterImages = clusterImageRecords map clusterImageQuery.unmarshalClusterImage toSet
     val patchInProgress = patch.headOption match {

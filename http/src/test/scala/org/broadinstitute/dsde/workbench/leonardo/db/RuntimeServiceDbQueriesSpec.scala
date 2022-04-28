@@ -446,6 +446,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                           runtime.cloudContext,
                           runtime.runtimeName,
                           Set.empty,
+                          None,
                           labels),
       runtime.status,
       labels,

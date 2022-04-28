@@ -323,7 +323,7 @@ object Boot extends IOApp {
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
 
-      computeManagerDao = new HttpComputerManagerDao[F](ConfigReader.appConfig.azure.appRegistration)
+      computeManagerDao = new AzureManagerDaoInterp[F](ConfigReader.appConfig.azure.appRegistration)
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)

@@ -23,8 +23,8 @@ trait AzureManagerDao[F[_]] {
                                   cloudContext: AzureCloudContext): F[PrimaryKey]
 }
 
-class HttpAzureManagerDao[F[_]](azureConfig: AzureAppRegistrationConfig)(implicit val F: Async[F],
-                                                                         logger: StructuredLogger[F])
+class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(implicit val F: Async[F],
+                                                                           logger: StructuredLogger[F])
     extends AzureManagerDao[F] {
 
   def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): F[Option[VirtualMachine]] =

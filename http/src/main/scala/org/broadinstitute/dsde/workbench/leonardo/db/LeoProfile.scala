@@ -86,9 +86,6 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val googleProjectMappedColumnType: BaseColumnType[GoogleProject] =
       MappedColumnType
         .base[GoogleProject, String](_.value, GoogleProject.apply)
-    implicit val ipMappedColumnType: BaseColumnType[IP] =
-      MappedColumnType
-        .base[IP, String](_.asString, IP.apply)
     implicit val pathMappedColumnType: BaseColumnType[Path] =
       MappedColumnType
         .base[Path, String](_.toString, x => Paths.get(x))

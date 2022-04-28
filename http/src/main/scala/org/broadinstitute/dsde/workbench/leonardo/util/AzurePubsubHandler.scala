@@ -51,7 +51,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                   config.runtimeDefaults.image),
                          WsmJobControl(msg.jobId))
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId, runtime, msg.jobId)
+        PollRuntimeParams(msg.workspaceId, runtime, msg.jobId, msg.relayNamespace)
       )
     } yield ()
 

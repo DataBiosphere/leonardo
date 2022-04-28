@@ -68,8 +68,7 @@ object Runtime {
           urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
         )
       case _: CloudContext.Azure =>
-        //TODO: this is not the correct proxy URL
-        new URL(s"https://${hostIp}")
+        hostIp.fold(new URL("Relay endpoint not populated"))(s => new URL(s"https://${s.asString}"))
     }
   }
 }
