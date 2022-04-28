@@ -109,8 +109,8 @@ class ProxyService(
     for {
       now <- IO.realTimeInstant
       userInfo <- googleOauth2Service.getUserInfoFromToken(token)
-      userOpt <- samDAO.getUserSubjectIdFromToken(token)
-      _ <- IO.fromOption(userOpt)(AuthenticationError(Some(userInfo.userEmail)))
+      samUserInfo <- samDAO.getSamUserInfo(token)
+      _ <- IO.fromOption(samUserInfo.map(_.userSubjectId))(AuthenticationError(Some(userInfo.userEmail)))
     } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
 
   /* Ask the cache for the corresponding user info given a token */

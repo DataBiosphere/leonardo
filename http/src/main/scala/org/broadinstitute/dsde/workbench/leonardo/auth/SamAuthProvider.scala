@@ -9,7 +9,7 @@ import cats.syntax.all._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthProviderException, SamDAO, UserEmail}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthProviderException, SamDAO, SamUserInfo}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -211,11 +211,11 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] =
     for {
       traceId <- ev.ask
-      userEmail <- samDao
-        .getUserEmailFromUserOrPetToken(petOrUserInfo.accessToken.token)
+      samUserInfo <- samDao
+        .getSamUserInfo(petOrUserInfo.accessToken.token)
         .flatMap(
           _.fold(
-            F.raiseError[UserEmail](
+            F.raiseError[SamUserInfo](
               AuthProviderException(
                 traceId,
                 s"[SamAuthProvider.lookupOriginatingUserEmail] Subject info not found for ${petOrUserInfo.userEmail}",
@@ -224,8 +224,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
             )
           )(s => F.pure(s))
         )
-    } yield (WorkbenchEmail.apply(userEmail.asString))
-
+    } yield WorkbenchEmail.apply(samUserInfo.userEmail.asString)
 }
 
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,

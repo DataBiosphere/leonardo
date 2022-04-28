@@ -367,16 +367,36 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           )
         )(s => F.pure(s))
       )
-      resp <- getUserSubjectIdFromToken(token)
-    } yield resp
+      userInfo <- getSamUserInfo(token)
+    } yield userInfo.map(_.userSubjectId)
 
-  private def getUserInfoFromToken(
-    token: String
-  )(implicit ev: Ask[F, TraceId]): F[Option[GetGoogleSubjectInfoResponse]] = {
+//  private def getUserInfoFromToken(
+//    token: String
+//  )(implicit ev: Ask[F, TraceId]): F[Option[GetGoogleSubjectInfoResponse]] = {
+//    val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
+//
+//    for {
+//      resp <- httpClient.expectOptionOr[GetGoogleSubjectInfoResponse](
+//        Request[F](
+//          method = Method.GET,
+//          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info")),
+//          headers = Headers(authHeader)
+//        )
+//      )(onError)
+//    } yield resp
+//  }
+//
+//  override def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] =
+//    getUserInfoFromToken(token).map(_.map(_.userSubjectId))
+//
+//  override def getUserEmailFromUserOrPetToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserEmail]] =
+//    getUserInfoFromToken(token).map(_.map(_.userEmail))
+
+  override def getSamUserInfo(token: String)(implicit ev: Ask[F, TraceId]): F[Option[SamUserInfo]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
     for {
-      resp <- httpClient.expectOptionOr[GetGoogleSubjectInfoResponse](
+      resp <- httpClient.expectOptionOr[SamUserInfo](
         Request[F](
           method = Method.GET,
           uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info")),
@@ -385,13 +405,6 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
     } yield resp
   }
-
-  override def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] =
-    getUserInfoFromToken(token).map(_.map(_.userSubjectId))
-
-  override def getUserEmailFromUserOrPetToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserEmail]] =
-    getUserInfoFromToken(token).map(_.map(_.userEmail))
-
 }
 
 object HttpSamDAO {
@@ -489,10 +502,13 @@ object HttpSamDAO {
       systems <- c.downField("systems").as[Map[Subsystem, SubsystemStatus]]
     } yield StatusCheckResponse(ok, systems)
   }
-  implicit val getGoogleSubjectIdResponseDecoder: Decoder[GetGoogleSubjectInfoResponse] =
-    Decoder.forProduct2("userSubjectId", "userEmail")(GetGoogleSubjectInfoResponse.apply)
-  implicit val registerInfoResponseDecoder: Decoder[RegisterInfoResponse] =
+//  implicit val getGoogleSubjectIdResponseDecoder: Decoder[GetGoogleSubjectInfoResponse] =
+//    Decoder.forProduct2("userSubjectId", "userEmail")(GetGoogleSubjectInfoResponse.apply)
+  implicit val registerInfoResponseDecoder: Decoder[RegisterInfoResponse] = {
     Decoder.forProduct1("enabled")(RegisterInfoResponse.apply)
+  }
+  implicit val samUserInfoDecoder: Decoder[SamUserInfo] =
+    Decoder.forProduct3("userSubjectId", "userEmail", "enabled")(SamUserInfo.apply)
 }
 
 final case class CreateSamResourceRequest[R](samResourceId: R,
@@ -512,7 +528,8 @@ final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: G
 final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
 final case class SamRoleAction(roles: List[SamPolicyName])
 
-final case class GetGoogleSubjectInfoResponse(userSubjectId: UserSubjectId, userEmail: UserEmail)
+final case class SamUserInfo(userSubjectId: UserSubjectId, userEmail: UserEmail, enabled: Boolean)
+//final case class GetGoogleSubjectInfoResponse(userSubjectId: UserSubjectId, userEmail: UserEmail)
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
     extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))

@@ -72,9 +72,11 @@ trait SamDAO[F[_]] {
     implicit ev: Ask[F, TraceId]
   ): F[Option[UserSubjectId]]
 
-  def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]]
+//  def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]]
+//
+//  def getUserEmailFromUserOrPetToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserEmail]]
 
-  def getUserEmailFromUserOrPetToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserEmail]]
+  def getSamUserInfo(token: String)(implicit ev: Ask[F, TraceId]): F[Option[SamUserInfo]]
 
   def getLeoAuthToken: F[Authorization]
 }
