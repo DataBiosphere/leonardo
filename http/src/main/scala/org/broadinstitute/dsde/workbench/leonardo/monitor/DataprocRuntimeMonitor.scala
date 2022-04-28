@@ -457,9 +457,7 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
         for {
           ctx <- ev.ask
           duration = (ctx.now.toEpochMilli - monitorContext.start.toEpochMilli).millis
-          _ <- logger.info(monitorContext.loggingContext)(
-            s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
-          )
+
           googleProject <- F.fromOption(
             LeoLenses.cloudContextToGoogleProject.get(runtimeAndRuntimeConfig.runtime.cloudContext),
             new RuntimeException(
@@ -476,6 +474,10 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
           _ <- dbRef.inTransaction {
             clusterQuery.completeDeletion(runtimeAndRuntimeConfig.runtime.id, ctx.now)
           }
+
+          _ <- logger.info(monitorContext.loggingContext)(
+            s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
+          )
 
           _ <- authProvider
             .notifyResourceDeleted(
