@@ -540,10 +540,10 @@ RSTUDIO_USER_HOME=$RSTUDIO_USER_HOME" >> /usr/local/lib/R/etc/Renviron.site'
 \"auto_save_idle_ms\": 10000
 }" > $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs-temp.json \
     && mv $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs-temp.json $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs.json \
-    && chmod a+rwx $RSTUDIO_USER_HOME/.config/rstudio/rstudio-prefs.json'
+    && chown -R rstudio:users $RSTUDIO_USER_HOME/.config'
 
-  # /home/rstudio/.config should be owned by the rstudio user: https://broadworkbench.atlassian.net/browse/IA-3362
-  docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'chown -R rstudio:users $RSTUDIO_USER_HOME/.config'
+#  # /home/rstudio/.config should be owned by the rstudio user: https://broadworkbench.atlassian.net/browse/IA-3362
+#  docker exec ${RSTUDIO_SERVER_NAME} /bin/bash -c 'chown -R rstudio:users $RSTUDIO_USER_HOME/.config'
 
   # Start RStudio server
   retry 3 docker exec -d ${RSTUDIO_SERVER_NAME} /init
