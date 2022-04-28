@@ -858,7 +858,7 @@ object RuntimeServiceInterp {
       asyncRuntimeFields = None,
       auditInfo = AuditInfo(userInfo.userEmail, now, None, now),
       kernelFoundBusyDate = None,
-      proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, cloudContext, runtimeName, clusterImages, allLabels),
+      proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, cloudContext, runtimeName, clusterImages, None, allLabels),
       status = RuntimeStatus.PreCreating,
       labels = allLabels,
       userScriptUri = req.userScriptUri,

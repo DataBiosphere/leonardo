@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeError
-import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
+import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
@@ -73,7 +73,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => x
       }
 
-      hcName = RelayHybridConnectionName(s"hc-${params.runtime.runtimeName}")
+      hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
       primaryKey <- azureManager.createRelayHybridConnection(params.relayeNamespace, hcName, cloudContext.value)
       createIpAction = createIp(params, auth, params.runtime.runtimeName.asString)
       createDiskAction = createDisk(params, auth)
@@ -286,8 +286,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 config.createVmPollConfig.interval,
                 s"Azure runtime was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
+              hostIp = s"${params.relayNamespace}.servicebus.windows.net/${params.runtime.runtimeName.asString}"
               _ <- dbRef.inTransaction(
-                clusterQuery.updateClusterStatus(params.runtime.id, RuntimeStatus.Running, ctx.now)
+                clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now)
               )
             } yield ()
         }

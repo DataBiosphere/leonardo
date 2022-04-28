@@ -51,6 +51,7 @@ object Runtime {
                   cloudContext: CloudContext,
                   runtimeName: RuntimeName,
                   runtimeImages: Set[RuntimeImage],
+                  hostIp: Option[IP],
                   labels: Map[String, String]): URL = {
     val tool = runtimeImages
       .map(_.imageType)
@@ -68,7 +69,7 @@ object Runtime {
         )
       case _: CloudContext.Azure =>
         //TODO: this is not the correct proxy URL
-        new URL(urlBase)
+        new URL(s"https://${hostIp}")
     }
   }
 }

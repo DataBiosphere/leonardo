@@ -10,7 +10,11 @@ import com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder
 import com.azure.resourcemanager.compute.ComputeManager
 import com.azure.resourcemanager.compute.models.VirtualMachine
 import com.azure.resourcemanager.relay.RelayManager
+import com.azure.resourcemanager.relay.fluent.models.AuthorizationRuleInner
+import com.azure.resourcemanager.relay.models.AccessRights
 import org.typelevel.log4cats.StructuredLogger
+
+import scala.jdk.CollectionConverters._
 
 trait AzureManagerDao[F[_]] {
   def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): F[Option[VirtualMachine]]
@@ -41,7 +45,7 @@ class HttpAzureManagerDao[F[_]](azureConfig: AzureAppRegistrationConfig)(implici
 
   override def createRelayHybridConnection(relayNamespace: RelayNamespace,
                                            hybridConnectionName: RelayHybridConnectionName,
-                                           cloudContext: AzureCloudContext): F[String] =
+                                           cloudContext: AzureCloudContext): F[PrimaryKey] =
     for {
       manager <- buildRelayManager(cloudContext)
       _ <- F
@@ -59,15 +63,29 @@ class HttpAzureManagerDao[F[_]](azureConfig: AzureAppRegistrationConfig)(implici
             logger.info(s"${hybridConnectionName} already exists in ${cloudContext}")
           case e => F.raiseError[Unit](e)
         }
-      s <- F
+      _ <- F
         .delay(
           manager
             .hybridConnections()
-            .get(cloudContext.managedResourceGroupName.value,
-                 relayNamespace.value,
-                 hybridConnectionName.value) //TODO: fix this
+            .createOrUpdateAuthorizationRule(
+              cloudContext.managedResourceGroupName.value,
+              relayNamespace.value,
+              hybridConnectionName.value,
+              "listener",
+              new AuthorizationRuleInner().withRights(List(AccessRights.LISTEN).asJava)
+            )
         )
-    } yield PrimaryKey("FIX THIS")
+      key <- F
+        .delay(
+          manager
+            .hybridConnections()
+            .listKeys(cloudContext.managedResourceGroupName.value,
+                      relayNamespace.value,
+                      hybridConnectionName.value,
+                      "listener")
+            .primaryKey()
+        )
+    } yield PrimaryKey(key)
 
   private def buildAzureProfile(azureCloudContext: AzureCloudContext): (ClientSecretCredential, AzureProfile) = {
     val azureCreds = new ClientSecretCredentialBuilder()
@@ -79,6 +97,7 @@ class HttpAzureManagerDao[F[_]](azureConfig: AzureAppRegistrationConfig)(implici
       new AzureProfile(azureCloudContext.tenantId.value, azureCloudContext.subscriptionId.value, AzureEnvironment.AZURE)
     (azureCreds, azureProfile)
   }
+
   private def buildComputeManager(azureCloudContext: AzureCloudContext): F[ComputeManager] = {
     val (azureCreds, azureProfile) = buildAzureProfile(azureCloudContext)
     F.delay(ComputeManager.authenticate(azureCreds, azureProfile))

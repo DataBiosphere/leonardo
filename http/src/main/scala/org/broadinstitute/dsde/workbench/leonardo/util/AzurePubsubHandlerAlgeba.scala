@@ -26,7 +26,10 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           vmImage: AzureImage)
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 
-final case class PollRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime, jobId: WsmJobId)
+final case class PollRuntimeParams(workspaceId: WorkspaceId,
+                                   runtime: Runtime,
+                                   jobId: WsmJobId,
+                                   relayNamespace: RelayNamespace)
 
 final case class AzurePubsubHandlerConfig(createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
