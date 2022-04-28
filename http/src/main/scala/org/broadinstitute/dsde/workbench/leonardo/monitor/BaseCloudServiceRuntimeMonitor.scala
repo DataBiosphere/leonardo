@@ -303,7 +303,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
       }
     } yield next
 
-  protected def setStagingBucketLifecycle(runtime: Runtime, stagingBucketExpiration: FiniteDuration)(
+  protected[monitor] def setStagingBucketLifecycle(runtime: Runtime, stagingBucketExpiration: FiniteDuration)(
     implicit ev: Ask[F, AppContext]
   ): F[Unit] =
     // Get the staging bucket path for this cluster, then set the age for it to be deleted the specified number of days after the deletion of the cluster.
@@ -325,7 +325,7 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               case e: com.google.cloud.storage.StorageException =>
                 if (e.getCode == 404)
                   logger.info(ctx.loggingCtx)("Staging bucket not found")
-                else F.raiseError(e)
+                else logger.error(ctx.loggingCtx)("Fail to delete storage bucket")
             }
           _ <- logger.debug(
             s"Set staging bucket $bucketPath for cluster ${runtime.projectNameString} to be deleted in fake days."
@@ -541,8 +541,8 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
     }
   }
 
-  protected def deleteInitBucket(googleProject: GoogleProject,
-                                 runtimeName: RuntimeName)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  protected[monitor] def deleteInitBucket(googleProject: GoogleProject,
+                                          runtimeName: RuntimeName)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- ev.ask
       cloudContext = CloudContext.Gcp(googleProject)
@@ -561,6 +561,13 @@ abstract class BaseCloudServiceRuntimeMonitor[F[_]] {
               .lastOrError
               .attempt
             _ <- r match {
+              case Left(e: com.google.cloud.storage.StorageException) =>
+                if (e.getCode == 404)
+                  logger.info(ctx.loggingCtx)("Staging bucket not found")
+                else
+                  logger.error(ctx.loggingCtx, e)(
+                    s"Fail to delete init bucket $bucketPath for runtime ${googleProject.value}/${runtimeName.asString}"
+                  )
               case Left(e) =>
                 logger.error(ctx.loggingCtx, e)(
                   s"Fail to delete init bucket $bucketPath for runtime ${googleProject.value}/${runtimeName.asString}"
