@@ -368,25 +368,29 @@ class DataprocInterpreter[F[_]: Parallel](
               case Left(e) =>
                 F.raiseError(e)
               case Right(opFuture) =>
+                val deleteDatprocCluster = for {
+                  googleProject <- F.fromOption(
+                    LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+                    new RuntimeException(
+                      "this should never happen. Dataproc runtime's cloud context should be a google project"
+                    )
+                  )
+                  _ <- googleDataprocService.deleteCluster(
+                    googleProject,
+                    region,
+                    DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+                  )
+                } yield ()
+
                 opFuture match {
-                  case None => F.pure(None)
+                  case None => deleteDatprocCluster
                   case Some(v) =>
                     for {
                       res <- F.delay(v.get())
                       _ <- F.raiseUnless(google2.isSuccess(res.getHttpErrorStatusCode))(
                         new Exception(s"addInstanceMetadata failed")
                       )
-                      googleProject <- F.fromOption(
-                        LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
-                        new RuntimeException(
-                          "this should never happen. Dataproc runtime's cloud context should be a google project"
-                        )
-                      )
-                      _ <- googleDataprocService.deleteCluster(
-                        googleProject,
-                        region,
-                        DataprocClusterName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
-                      )
+                      _ <- deleteDatprocCluster
                     } yield ()
                 }
             }
