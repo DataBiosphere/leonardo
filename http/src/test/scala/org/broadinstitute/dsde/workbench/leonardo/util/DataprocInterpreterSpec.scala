@@ -10,6 +10,9 @@ import com.google.api.client.googleapis.testing.json.GoogleJsonResponseException
 import com.google.api.client.testing.json.MockJsonFactory
 import com.google.api.gax.longrunning.OperationFuture
 import com.google.cloud.compute.v1.{Instance, Operation}
+import com.google.cloud.dataproc.v1.ClusterOperationMetadata
+import com.google.protobuf.Empty
+import kotlin.NotImplementedError
 import org.broadinstitute.dsde.workbench.google.GoogleIamDAO.MemberType
 import org.broadinstitute.dsde.workbench.google.mock._
 import org.broadinstitute.dsde.workbench.google2.mock._
@@ -18,6 +21,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   DataprocRole,
   DataprocRoleZonePreemptibility,
   GoogleComputeService,
+  GoogleDataprocService,
   InstanceName,
   MachineTypeName,
   RegionName,
@@ -25,6 +29,7 @@ import org.broadinstitute.dsde.workbench.google2.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.RuntimeStatus.Creating
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
 import org.broadinstitute.dsde.workbench.leonardo.dao.MockWelderDAO
 import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, TestComponent, UpdateAsyncClusterCreationFields}
@@ -35,7 +40,6 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.ScalaFutures
 import org.scalatest.flatspec.AnyFlatSpecLike
 import org.scalatest.matchers.should.Matchers
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -71,11 +75,12 @@ class DataprocInterpreterSpec
   val vpcInterp =
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleResourceService, FakeGoogleComputeService)
 
-  def dataprocInterp(computeService: GoogleComputeService[IO] = MockGoogleComputeService) =
+  def dataprocInterp(computeService: GoogleComputeService[IO] = MockGoogleComputeService,
+                     dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService) =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
                                 vpcInterp,
-                                MockGoogleDataprocService,
+                                dataprocCluster,
                                 computeService,
                                 MockGoogleDiskService,
                                 mockGoogleDirectoryDAO,
@@ -204,6 +209,49 @@ class DataprocInterpreterSpec
       res <- dataproc.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None))
     } yield (res shouldBe (None))
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
+  }
+
+  it should "call googleDataprocService.deleteCluster even if there's no metadata to update" in isolatedDbTest {
+    val computeService = new FakeGoogleComputeService {
+      override def modifyInstanceMetadata(
+        project: GoogleProject,
+        zone: ZoneName,
+        instanceName: InstanceName,
+        metadataToAdd: Map[String, String],
+        metadataToRemove: Set[String]
+      )(implicit ev: Ask[IO, TraceId]): IO[Option[OperationFuture[Operation, Operation]]] =
+        IO.pure(None)
+    }
+    val dataprocService = new BaseFakeGoogleDataprocService {
+      override def deleteCluster(project: GoogleProject, region: RegionName, clusterName: DataprocClusterName)(
+        implicit ev: Ask[IO, TraceId]
+      ): IO[Option[OperationFuture[Empty, ClusterOperationMetadata]]] = IO.raiseError(new NotImplementedError)
+    }
+
+    val res = for {
+      runtime <- IO(
+        makeCluster(1)
+          .copy(status = RuntimeStatus.Deleting)
+          .save()
+      )
+      _ <- IO(
+        dbFutureValue(
+          clusterQuery.updateAsyncClusterCreationFields(UpdateAsyncClusterCreationFields(None, 1, None, Instant.now))
+        )
+      )
+      updatedRuntme <- IO(dbFutureValue(clusterQuery.getClusterById(runtime.id)))
+      runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(updatedRuntme.get, CommonTestData.defaultDataprocRuntimeConfig)
+      dataproc = dataprocInterp(computeService, dataprocService)
+
+      res <- dataproc
+        .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, Some(CommonTestData.masterInstance)))
+        .attempt
+    } yield {
+      // this is really hacky way of verifying deleteCluster is being called once. But I tried a few different ways to mock out `GoogleDataprocService[IO]`
+      // and for some reason it didn't work
+      res.swap.toOption.get.isInstanceOf[NotImplementedError] shouldBe (true)
+    }
+    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   private class ErroredMockGoogleIamDAO(statusCode: Int = 400) extends MockGoogleIamDAO {
