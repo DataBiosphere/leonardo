@@ -363,17 +363,15 @@ final case class App(id: AppId,
                      customEnvironmentVariables: Map[String, String],
                      descriptorPath: Option[Uri],
                      extraArgs: List[String]) {
-  def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] = {
+  def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
       val servicePath = service.config.path match {
         case Some(path) => path.replace("{proxyPath}", proxyPath)
-        case None => ""
+        case None       => ""
       }
-      (service.config.name,
-        new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
+      (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
     }.toMap
-  }
 }
 
 sealed abstract class AppStatus
