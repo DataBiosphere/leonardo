@@ -300,7 +300,8 @@ class MockSamDAO extends SamDAO[IO] {
 //  override def getUserEmailFromUserOrPetToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[UserEmail]] =
 //    IO.pure(Some(UserEmail("test@gmail.com")))
 
-  override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] = ???
+  override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
+    IO.pure(Some(SamUserInfo(UserSubjectId("test"), UserEmail("test@gmail.com"), enabled = true)))
 }
 
 object MockSamDAO {
