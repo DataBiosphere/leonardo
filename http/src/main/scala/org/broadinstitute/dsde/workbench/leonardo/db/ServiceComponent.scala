@@ -19,15 +19,17 @@ import scala.concurrent.ExecutionContext
 final case class ServiceRecord(id: ServiceId,
                                appId: AppId,
                                serviceName: ServiceName,
-                               serviceKind: KubernetesServiceKindName)
+                               serviceKind: KubernetesServiceKindName,
+                               servicePath: Option[String])
 
 class ServiceTable(tag: Tag) extends Table[ServiceRecord](tag, "SERVICE") {
   def id = column[ServiceId]("id", O.AutoInc, O.PrimaryKey)
   def appId = column[AppId]("appId")
   def serviceName = column[ServiceName]("serviceName", O.Length(254))
   def serviceKind = column[KubernetesServiceKindName]("serviceKind", O.Length(254))
+  def servicePath = column[Option[String]]("servicePath", O.Length(254))
 
-  override def * = (id, appId, serviceName, serviceKind) <> (ServiceRecord.tupled, ServiceRecord.unapply)
+  override def * = (id, appId, serviceName, serviceKind, servicePath) <> (ServiceRecord.tupled, ServiceRecord.unapply)
 }
 
 object serviceQuery extends TableQuery(new ServiceTable(_)) {
@@ -41,7 +43,8 @@ object serviceQuery extends TableQuery(new ServiceTable(_)) {
       serviceId <- serviceQuery returning serviceQuery.map(_.id) += ServiceRecord(ServiceId(-1),
                                                                                   appId,
                                                                                   service.config.name,
-                                                                                  service.config.kind)
+                                                                                  service.config.kind,
+                                                                                  service.config.path)
     } yield service.copy(id = serviceId)
 
   private[db] def unmarshalService(rec: ServiceRecord): KubernetesService =
@@ -49,7 +52,8 @@ object serviceQuery extends TableQuery(new ServiceTable(_)) {
       rec.id,
       ServiceConfig(
         rec.serviceName,
-        rec.serviceKind
+        rec.serviceKind,
+        rec.servicePath
       )
     )
 

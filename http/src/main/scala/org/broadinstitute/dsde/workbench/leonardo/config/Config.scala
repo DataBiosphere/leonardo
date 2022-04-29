@@ -645,7 +645,8 @@ object Config {
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
-      config.as[KubernetesServiceKindName]("kind")
+      config.as[KubernetesServiceKindName]("kind"),
+      config.as[Option[String]]("path")
     )
   }
 
