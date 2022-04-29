@@ -47,6 +47,7 @@ final case class CustomScriptExtensionConfig(name: String,
                                              fileUris: List[String])
 final case class AzureServiceConfig(diskConfig: PersistentDiskConfig, image: AzureImage)
 final case class AcrCredential(username: String, password: String)
+final case class VMCredential(username: String, password: String)
 
 final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,
                                       ipNamePrefix: String,
@@ -60,4 +61,5 @@ final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,
                                       image: AzureImage,
                                       customScriptExtension: CustomScriptExtensionConfig,
                                       listenerImage: String,
-                                      acrCredential: AcrCredential)
+                                      acrCredential: AcrCredential,
+                                      vmCredential: VMCredential)

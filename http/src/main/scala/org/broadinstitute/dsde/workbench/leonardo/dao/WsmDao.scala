@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   wsmJobIdDecoder,
   wsmJobIdEncoder
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AcrCredential
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AcrCredential, VMCredential}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.http4s.headers.Authorization
 
@@ -100,6 +100,7 @@ final case class CreateVmRequestData(name: RuntimeName,
                                      vmImage: AzureImage,
                                      customScriptExtension: CustomScriptExtension,
                                      acrCredential: AcrCredential,
+                                     vmUserCredential: VMCredential,
                                      ipId: WsmControlledResourceId,
                                      diskId: WsmControlledResourceId,
                                      networkId: WsmControlledResourceId)
@@ -420,10 +421,28 @@ object WsmEncoders {
     Encoder.forProduct6("name", "publisher", "type", "version", "minorVersionAutoUpgrade", "protectedSettings")(x =>
       (x.name, x.publisher, x.`type`, x.version, x.minorVersionAutoUpgrade, x.protectedSettings)
     )
+  implicit val vmCrendentialnEncoder: Encoder[VMCredential] =
+    Encoder.forProduct2("username", "password")(x => (x.username, x.password))
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
-    Encoder.forProduct8("name", "region", "vmSize", "vmImage", "customScriptExtension", "ipId", "diskId", "networkId")(
-      x => (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.ipId, x.diskId, x.networkId)
+    Encoder.forProduct9("name",
+                        "region",
+                        "vmSize",
+                        "vmImage",
+                        "customScriptExtension",
+                        "vmUser",
+                        "ipId",
+                        "diskId",
+                        "networkId")(x =>
+      (x.name,
+       x.region,
+       x.vmSize,
+       x.vmImage,
+       x.customScriptExtension,
+       x.vmUserCredential,
+       x.ipId,
+       x.diskId,
+       x.networkId)
     )
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 

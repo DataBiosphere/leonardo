@@ -6,7 +6,8 @@ import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, Pers
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
   AcrCredential,
   AzureRuntimeDefaults,
-  CustomScriptExtensionConfig
+  CustomScriptExtensionConfig,
+  VMCredential
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
@@ -59,7 +60,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               )
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:53d7992",
-            AcrCredential(username = "username", password = "password")
+            AcrCredential(username = "username", password = "password"),
+            VMCredential(username = "username", password = "password")
           )
         ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),

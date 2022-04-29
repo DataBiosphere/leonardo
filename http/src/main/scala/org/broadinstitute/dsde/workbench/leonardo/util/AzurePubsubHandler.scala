@@ -106,6 +106,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 )
               ),
               config.runtimeDefaults.acrCredential,
+              config.runtimeDefaults.vmCredential,
               ipResp.resourceId,
               diskResp.resourceId,
               networkResp.resourceId

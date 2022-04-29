@@ -19,7 +19,7 @@ import WsmDecoders._
 import WsmEncoders._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
-import org.broadinstitute.dsde.workbench.leonardo.http.service.AcrCredential
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AcrCredential, VMCredential}
 
 import java.time.ZonedDateTime
 
@@ -158,6 +158,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
           )
         ),
         AcrCredential("username", "password"),
+        VMCredential("username", "password"),
         WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
