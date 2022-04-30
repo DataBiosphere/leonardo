@@ -204,7 +204,7 @@ class RuntimeCreationDiskSpec
             val createNewFile =
               """! echo 'this should save' >> /home/jupyter/test.txt""".stripMargin
             notebookPage.executeCell(createNewFile)
-            notebookPage.executeCell("! pip install beautifulSoup4")
+            notebookPage.executeCell("! pip install simplejson")
           }
         })
         // validate that disk remained attached when runtime is stopped and
@@ -236,7 +236,7 @@ class RuntimeCreationDiskSpec
               val persistedData =
                 """! cat /home/jupyter/test.txt""".stripMargin
               notebookPage.executeCell(persistedData).get should include("this should save")
-              val persistedPackage = "! pip show beautifulSoup4"
+              val persistedPackage = "! pip show simplejson"
               notebookPage.executeCell(persistedPackage).get should include(
                 "/home/jupyter/.local/lib/python3.7/site-packages"
               )
