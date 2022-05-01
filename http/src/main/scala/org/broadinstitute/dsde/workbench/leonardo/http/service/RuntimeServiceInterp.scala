@@ -964,8 +964,10 @@ object RuntimeServiceInterp {
                 if (willBeUsedBy == FormattedBy.Galaxy) true else false
               )
             )
+            // Look up the original email in case this API was called by a pet SA:
+            originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
             _ <- authProvider
-              .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
+              .notifyResourceCreated(samResource, originatingUserEmail, googleProject)
               .handleErrorWith { t =>
                 log.error(t)(
                   s"[${ctx.traceId}] Failed to notify the AuthProvider for creation of persistent disk ${diskBeforeSave.projectNameString}"
