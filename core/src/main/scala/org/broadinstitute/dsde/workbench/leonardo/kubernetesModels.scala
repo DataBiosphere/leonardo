@@ -367,7 +367,7 @@ final case class App(id: AppId,
     appResources.services.map { service =>
       val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
       val servicePath = service.config.path match {
-        case Some(path) => path.replace("{proxyPath}", proxyPath)
+        case Some(path) => path.value.replace("{proxyPath}", proxyPath)
         case None       => ""
       }
       (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
@@ -446,8 +446,9 @@ object AppStatus {
 
 final case class KubernetesService(id: ServiceId, config: ServiceConfig)
 final case class ServiceId(id: Long) extends AnyVal
-final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName, path: Option[String] = None)
+final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName, path: Option[ServicePath] = None)
 final case class KubernetesServiceKindName(value: String) extends AnyVal
+final case class ServicePath(value: String) extends AnyVal
 
 final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: MachineTypeName, autoscalingEnabled: Boolean)
 final case class NumNodepools(value: Int) extends AnyVal

@@ -5,7 +5,8 @@ import org.broadinstitute.dsde.workbench.leonardo.{
   KubernetesService,
   KubernetesServiceKindName,
   ServiceConfig,
-  ServiceId
+  ServiceId,
+  ServicePath
 }
 import slick.lifted.Tag
 import LeoProfile.api._
@@ -20,14 +21,14 @@ final case class ServiceRecord(id: ServiceId,
                                appId: AppId,
                                serviceName: ServiceName,
                                serviceKind: KubernetesServiceKindName,
-                               servicePath: Option[String])
+                               servicePath: Option[ServicePath])
 
 class ServiceTable(tag: Tag) extends Table[ServiceRecord](tag, "SERVICE") {
   def id = column[ServiceId]("id", O.AutoInc, O.PrimaryKey)
   def appId = column[AppId]("appId")
   def serviceName = column[ServiceName]("serviceName", O.Length(254))
   def serviceKind = column[KubernetesServiceKindName]("serviceKind", O.Length(254))
-  def servicePath = column[Option[String]]("servicePath", O.Length(254))
+  def servicePath = column[Option[ServicePath]]("servicePath", O.Length(254))
 
   override def * = (id, appId, serviceName, serviceKind, servicePath) <> (ServiceRecord.tupled, ServiceRecord.unapply)
 }
