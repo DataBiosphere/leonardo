@@ -68,7 +68,7 @@ object Runtime {
           urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
         )
       case _: CloudContext.Azure =>
-        hostIp.fold(new URL("Relay endpoint not populated"))(s => new URL(s"https://${s.asString}"))
+        hostIp.fold(new URL("https://relay-not-defined-yet"))(s => new URL(s"https://${s.asString}"))
     }
   }
 }

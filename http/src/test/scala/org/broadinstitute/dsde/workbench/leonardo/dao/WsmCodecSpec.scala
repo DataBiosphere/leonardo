@@ -207,6 +207,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |        }
          |      ]
          |    },
+         |    "vmUser":{"username":"username","password":"password"},
          |    "ipId": "${fixedUUID.toString}",
          |    "diskId": "${fixedUUID.toString}",
          |    "networkId": "${fixedUUID.toString}"

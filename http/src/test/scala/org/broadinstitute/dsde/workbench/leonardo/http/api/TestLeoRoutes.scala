@@ -118,7 +118,7 @@ trait TestLeoRoutes {
     azureServiceConfig
   )
 
-  val azureService =
+  val runtimev2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    whitelistAuthProvider,
                                    new MockWsmDAO,
@@ -188,7 +188,7 @@ trait TestLeoRoutes {
       runtimeService,
       MockDiskServiceInterp,
       leoKubernetesService,
-      azureService,
+      runtimev2Service,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -201,7 +201,7 @@ trait TestLeoRoutes {
                    runtimeService,
                    MockDiskServiceInterp,
                    leoKubernetesService,
-                   azureService,
+                   runtimev2Service,
                    timedUserInfoDirectives,
                    contentSecurityPolicy,
                    refererConfig)

@@ -205,5 +205,5 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
 
   override def getRelayNamespace(workspaceId: WorkspaceId, region: Region, authorization: Authorization)(
     implicit ev: Ask[IO, AppContext]
-  ): IO[Option[RelayNamespace]] = IO.pure(None)
+  ): IO[Option[RelayNamespace]] = IO.pure(Some(RelayNamespace("fake-relay-ns")))
 }
