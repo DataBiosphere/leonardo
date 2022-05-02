@@ -422,7 +422,7 @@ object WsmEncoders {
       (x.name, x.publisher, x.`type`, x.version, x.minorVersionAutoUpgrade, x.protectedSettings)
     )
   implicit val vmCrendentialnEncoder: Encoder[VMCredential] =
-    Encoder.forProduct2("username", "password")(x => (x.username, x.password))
+    Encoder.forProduct2("name", "password")(x => (x.username, x.password))
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
     Encoder.forProduct9("name",

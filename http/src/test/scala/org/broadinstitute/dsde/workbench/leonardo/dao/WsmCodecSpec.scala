@@ -207,7 +207,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |        }
          |      ]
          |    },
-         |    "vmUser":{"username":"username","password":"password"},
+         |    "vmUser":{"name":"username","password":"password"},
          |    "ipId": "${fixedUUID.toString}",
          |    "diskId": "${fixedUUID.toString}",
          |    "networkId": "${fixedUUID.toString}"
@@ -245,6 +245,58 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |  "azureIp": {
          |    "fillerFieldsThatAreNotDecoded": "filler"
          |  }
+         |}
+         |""".stripMargin.replaceAll("\\s", "")
+    )
+
+    decodedResp shouldBe Right(expected)
+  }
+
+  it should "decode getRelayNamespace response" in {
+    val expected = GetRelayNamespace(
+      List(
+        WsmResource(
+          ResourceAttributes(
+            WsmRelayNamespace(RelayNamespace("qi-relay-ns-5-2-1"),
+                              region = com.azure.core.management.Region.US_WEST_CENTRAL)
+          )
+        )
+      )
+    )
+    val decodedResp = decode[GetRelayNamespace](
+      s"""
+         |{
+         |    "resources":
+         |    [
+         |        {
+         |            "metadata":
+         |            {
+         |                "workspaceId": "bab2beee-bc29-42d0-bc1e-d2b8baa583c3",
+         |                "resourceId": "5f22f3ce-63d7-4790-aa98-fb5b4e5b0430",
+         |                "name": "qi-relay-ns-cname-1",
+         |                "description": "relay-ns",
+         |                "resourceType": "AZURE_RELAY_NAMESPACE",
+         |                "stewardshipType": "CONTROLLED",
+         |                "cloningInstructions": "COPY_NOTHING",
+         |                "controlledResourceMetadata":
+         |                {
+         |                    "accessScope": "SHARED_ACCESS",
+         |                    "managedBy": "USER",
+         |                    "privateResourceUser":
+         |                    {},
+         |                    "privateResourceState": "NOT_APPLICABLE"
+         |                }
+         |            },
+         |            "resourceAttributes":
+         |            {
+         |                "azureRelayNamespace":
+         |                {
+         |                    "namespaceName": "qi-relay-ns-5-2-1",
+         |                    "region": "westcentralus"
+         |                }
+         |            }
+         |        }
+         |    ]
          |}
          |""".stripMargin.replaceAll("\\s", "")
     )

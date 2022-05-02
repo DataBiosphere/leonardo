@@ -142,7 +142,6 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
-  //TODO: there's a WSM bug that the namespaceName isn't correct
   def getRelayNamespace(workspaceId: WorkspaceId,
                         region: com.azure.core.management.Region,
                         authorization: Authorization)(
@@ -156,9 +155,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
             .withPath(
               Uri.Path
                 .unsafeFromString(
-                  s"/api/workspaces/v1/${workspaceId}/resources"
+                  s"/api/workspaces/v1/${workspaceId.value}/resources"
                 )
-            ),
+            )
+            .withMultiValueQueryParams(Map("resource" -> List("AZURE_RELAY_NAMESPACE"))),
           headers = Headers(authorization)
         )
       )(onError)
