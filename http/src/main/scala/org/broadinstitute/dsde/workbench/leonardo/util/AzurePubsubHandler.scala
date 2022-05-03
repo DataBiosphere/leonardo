@@ -19,7 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   DeleteAzureRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeError
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeCreationError
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
@@ -66,10 +66,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       cloudContext = params.runtime.cloudContext match {
         case _: CloudContext.Gcp =>
-          throw PubsubHandleMessageError.AzureRuntimeError(params.runtime.id,
-                                                           ctx.traceId,
-                                                           None,
-                                                           "Azure runtime should not have GCP cloud context")
+          throw PubsubHandleMessageError.AzureRuntimeCreationError(params.runtime.id,
+                                                                   ctx.traceId,
+                                                                   "Azure runtime should not have GCP cloud context")
         case x: CloudContext.Azure => x
       }
 
@@ -220,10 +219,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       cloudContext = params.runtime.cloudContext match {
         case _: CloudContext.Gcp =>
-          throw PubsubHandleMessageError.AzureRuntimeError(params.runtime.id,
-                                                           ctx.traceId,
-                                                           None,
-                                                           "Azure runtime should not have GCP cloud context")
+          throw PubsubHandleMessageError.AzureRuntimeCreationError(params.runtime.id,
+                                                                   ctx.traceId,
+                                                                   "Azure runtime should not have GCP cloud context")
         case x: CloudContext.Azure => x
       }
 
@@ -234,7 +232,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           F.fromOption(
             op,
             PubsubHandleMessageError
-              .AzureRuntimeError(params.runtime.id, ctx.traceId, None, "Could not retrieve vm for runtime from azure")
+              .AzureRuntimeCreationError(params.runtime.id, ctx.traceId, "Could not retrieve vm for runtime from azure")
           )
         )
 
@@ -251,19 +249,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         _ <- resp.jobReport.status match {
           case WsmJobStatus.Failed =>
             F.raiseError[Unit](
-              AzureRuntimeError(
+              AzureRuntimeCreationError(
                 params.runtime.id,
                 ctx.traceId,
-                None,
                 s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
               )
             )
           case WsmJobStatus.Running =>
             F.raiseError[Unit](
-              AzureRuntimeError(
+              AzureRuntimeCreationError(
                 params.runtime.id,
                 ctx.traceId,
-                None,
                 s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
             )
@@ -391,16 +387,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       }
       _ <- List(deleteDisk, deleteNetworks, deleteIp).parSequence
-      cloudContext = runtime.cloudContext match {
+      cloudContext <- runtime.cloudContext match {
         case _: CloudContext.Gcp =>
-          throw PubsubHandleMessageError.AzureRuntimeError(runtime.id,
-                                                           ctx.traceId,
-                                                           None,
-                                                           "Azure runtime should not have GCP cloud context")
-        case x: CloudContext.Azure => x
+          F.raiseError[AzureCloudContext](
+            PubsubHandleMessageError.ClusterError(runtime.id,
+                                                  ctx.traceId,
+                                                  "Azure runtime should not have GCP cloud context")
+          )
+        case x: CloudContext.Azure => F.pure(x.value)
       }
 
-      getDeleteResult = azureManager.getAzureVm(runtime.runtimeName, cloudContext.value)
+      getDeleteResult = azureManager.getAzureVm(runtime.runtimeName, cloudContext)
 
       taskToRun = for {
         _ <- streamUntilDoneOrTimeout(

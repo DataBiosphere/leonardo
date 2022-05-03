@@ -104,23 +104,14 @@ class LeoPubsubMessageSubscriber[F[_]](
         case msg: CreateAzureRuntimeMessage =>
           azurePubsubHandler.createAndPollRuntime(msg).adaptError {
             case e =>
-              PubsubHandleMessageError.AzureRuntimeError(
+              PubsubHandleMessageError.AzureRuntimeCreationError(
                 msg.runtimeId,
                 ctx.traceId,
-                Some(msg),
                 e.getMessage
               )
           }
         case msg: DeleteAzureRuntimeMessage =>
-          azurePubsubHandler.deleteAndPollRuntime(msg).adaptError {
-            case e =>
-              PubsubHandleMessageError.AzureRuntimeError(
-                msg.runtimeId,
-                ctx.traceId,
-                Some(msg),
-                e.getMessage
-              )
-          }
+          azurePubsubHandler.deleteAndPollRuntime(msg)
       }
     } yield resp
 
@@ -143,7 +134,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                     logger.error(ctx.loggingCtx, e)(s"Encountered an error for app ${ee.appId}, ${ee.getMessage}") >> handleKubernetesError(
                       ee
                     )
-                  case ee: AzureRuntimeError =>
+                  case ee: AzureRuntimeCreationError =>
                     logger.error(ctx.loggingCtx, e)(
                       s"Encountered an error for azure runtime ${ee.runtimeId}, ${ee.getMessage}"
                     ) >>

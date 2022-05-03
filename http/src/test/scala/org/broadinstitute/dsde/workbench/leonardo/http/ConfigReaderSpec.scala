@@ -47,7 +47,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
             AzureImage(
               "microsoft-dsvm",
               "ubuntu-1804",
-              "1804-gen2"
+              "1804-gen2",
+              "22.04.27"
             ),
             CustomScriptExtensionConfig(
               "vm-custom-script-extension",

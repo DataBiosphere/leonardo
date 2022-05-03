@@ -20,6 +20,6 @@ final case class UpdateAzureRuntimeRequest(machineSize: VirtualMachineSizeTypes)
 //TODO: delete this case class when current pd.diskName is no longer coupled to google2 diskService
 final case class AzureDiskName(value: String) extends AnyVal
 
-final case class AzureImage(publisher: String, offer: String, sku: String) {
-  def asString: String = s"${publisher}, ${offer}, ${sku}"
+final case class AzureImage(publisher: String, offer: String, sku: String, version: String) {
+  def asString: String = s"${publisher}, ${offer}, ${sku}, ${version}"
 }

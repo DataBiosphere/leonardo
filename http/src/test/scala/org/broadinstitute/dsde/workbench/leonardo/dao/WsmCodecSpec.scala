@@ -189,7 +189,8 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |    "vmImage": {
          |      "publisher": "microsoft-dsvm",
          |      "offer": "ubuntu-1804",
-         |      "sku": "1804-gen2"
+         |      "sku": "1804-gen2",
+         |      "version": "22.04.27"
          |    },
          |    "customScriptExtension": {
          |      "name": "vm-custom-script-extension",

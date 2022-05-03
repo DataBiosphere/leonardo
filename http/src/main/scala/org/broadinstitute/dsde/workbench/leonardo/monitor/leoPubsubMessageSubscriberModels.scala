@@ -847,7 +847,7 @@ object PubsubHandleMessageError {
       s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
   }
 
-  final case class ClusterError(clusterId: Long, msg: String) extends PubsubHandleMessageError {
+  final case class ClusterError(clusterId: Long, traceId: TraceId, msg: String) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"${clusterId}: ${msg}"
 
@@ -893,13 +893,10 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeError(runtimeId: Long,
-                                     traceId: TraceId,
-                                     pubsubMsg: Option[LeoPubsubMessage],
-                                     errorMsg: String)
+  final case class AzureRuntimeCreationError(runtimeId: Long, traceId: TraceId, errorMsg: String)
       extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\tpubsubMsg: ${pubsubMsg}, \n\ttraceId: ${traceId} \n\tmsg: ${errorMsg})"
+      s"\n\truntimeId: ${runtimeId}, \n\ttraceId: ${traceId} \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false
   }
 }
