@@ -199,6 +199,6 @@ trait LeoAuthProvider[F[_]] {
     userInfo: UserInfo
   )(implicit sr: SamResource[R], decoder: Decoder[R], ev: Ask[F, TraceId]): F[Boolean]
 
-  // Reverse lookup from pet to
+  // Get user info from Sam. If petOrUserInfo is a pet SA, Sam will return it's associated user account info
   def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail]
 }

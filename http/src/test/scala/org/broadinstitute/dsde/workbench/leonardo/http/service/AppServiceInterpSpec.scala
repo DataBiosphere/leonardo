@@ -370,17 +370,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "allow pet SA to create an app" in isolatedDbTest {
     val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val createDiskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty))
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = CreateAppRequest(
-      kubernetesRuntimeConfig = None,
-      appType = AppType.Cromwell,
-      diskConfig = Some(createDiskConfig),
-      labels = Map.empty,
-      customEnvironmentVariables = customEnvVars,
-      descriptorPath = None,
-      extraArgs = List.empty
-    )
+    val appReq = cromwellAppCreateRequest(createDiskConfig, customEnvVars)
 
     appServiceInterp
       .createApp(petUserInfo, project, appName, appReq)
@@ -413,17 +405,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "allow pet SA to get app details" in isolatedDbTest {
     val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val createDiskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty))
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = CreateAppRequest(
-      kubernetesRuntimeConfig = None,
-      appType = AppType.Cromwell,
-      diskConfig = Some(createDiskConfig),
-      labels = Map.empty,
-      customEnvironmentVariables = customEnvVars,
-      descriptorPath = None,
-      extraArgs = List.empty
-    )
+    val appReq = cromwellAppCreateRequest(createDiskConfig, customEnvVars)
 
     appServiceInterp
       .createApp(petUserInfo, project, appName, appReq)
@@ -441,17 +425,9 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
     val appName = AppName("app1")
-    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val createDiskConfig = Some(PersistentDiskRequest(diskName, None, None, Map.empty))
     val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
-    val appReq = CreateAppRequest(
-      kubernetesRuntimeConfig = None,
-      appType = AppType.Cromwell,
-      diskConfig = Some(createDiskConfig),
-      labels = Map.empty,
-      customEnvironmentVariables = customEnvVars,
-      descriptorPath = None,
-      extraArgs = List.empty
-    )
+    val appReq = cromwellAppCreateRequest(createDiskConfig, customEnvVars)
 
     kubeServiceInterp
       .createApp(petUserInfo, project, appName, appReq)
