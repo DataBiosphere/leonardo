@@ -19,7 +19,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
   DeleteAzureRuntimeMessage
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
-import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeCreationError
+import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
+  AzureRuntimeCreationError,
+  ClusterError
+}
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
@@ -64,16 +67,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
 
-      cloudContext = params.runtime.cloudContext match {
+      cloudContext <- params.runtime.cloudContext match {
         case _: CloudContext.Gcp =>
-          throw PubsubHandleMessageError.AzureRuntimeCreationError(params.runtime.id,
-                                                                   ctx.traceId,
-                                                                   "Azure runtime should not have GCP cloud context")
-        case x: CloudContext.Azure => x
+          F.raiseError[AzureCloudContext](
+            PubsubHandleMessageError.AzureRuntimeCreationError(params.runtime.id,
+                                                               ctx.traceId,
+                                                               "Azure runtime should not have GCP cloud context")
+          )
+        case x: CloudContext.Azure => F.pure(x.value)
       }
-
       hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
-      primaryKey <- azureManager.createRelayHybridConnection(params.relayeNamespace, hcName, cloudContext.value)
+      primaryKey <- azureManager.createRelayHybridConnection(params.relayeNamespace, hcName, cloudContext)
       createIpAction = createIp(params, auth, params.runtime.runtimeName.asString)
       createDiskAction = createDisk(params, auth)
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
@@ -283,10 +287,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 config.createVmPollConfig.interval,
                 s"Azure runtime was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
-              hostIp = s"${params.relayNamespace}.servicebus.windows.net/${params.runtime.runtimeName.asString}"
-              _ <- dbRef.inTransaction(
-                clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now)
-              )
+              hostIp = s"${params.relayNamespace.value}.servicebus.windows.net/${params.runtime.runtimeName.asString}/lab"
+              _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now).transaction
             } yield ()
         }
       } yield ()
@@ -386,6 +388,34 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           auth
         )
       }
+
+      deleteHybridConnection = for {
+        leoAuth <- samDAO.getLeoAuthToken
+        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+        azureRuntimeConfig <- runtimeConfig match {
+          case x: RuntimeConfig.AzureConfig => F.pure(x)
+          case _ =>
+            F.raiseError(ClusterError(msg.runtimeId, ctx.traceId, s"Runtime should have Azure config, but it doesn't"))
+        }
+        relayNamespaceOpt <- wsmDao.getRelayNamespace(msg.workspaceId, azureRuntimeConfig.region, leoAuth)
+        cloudContext <- runtime.cloudContext match {
+          case _: CloudContext.Gcp =>
+            F.raiseError[AzureCloudContext](
+              PubsubHandleMessageError.AzureRuntimeCreationError(msg.runtimeId,
+                                                                 ctx.traceId,
+                                                                 "Azure runtime should not have GCP cloud context")
+            )
+          case x: CloudContext.Azure => F.pure(x.value)
+        }
+        _ <- relayNamespaceOpt.traverse(ns =>
+          azureManager.createRelayHybridConnection(
+            ns,
+            RelayHybridConnectionName(runtime.runtimeName.asString),
+            cloudContext
+          )
+        )
+      } yield ()
+
       _ <- List(deleteDisk, deleteNetworks, deleteIp).parSequence
       cloudContext <- runtime.cloudContext match {
         case _: CloudContext.Gcp =>

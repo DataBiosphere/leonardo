@@ -21,6 +21,9 @@ trait AzureManagerDao[F[_]] {
   def createRelayHybridConnection(relayNamespace: RelayNamespace,
                                   hybridConnectionName: RelayHybridConnectionName,
                                   cloudContext: AzureCloudContext): F[PrimaryKey]
+  def deleteRelayHybridConnection(relayNamespace: RelayNamespace,
+                                  hybridConnectionName: RelayHybridConnectionName,
+                                  cloudContext: AzureCloudContext): F[Unit]
 }
 
 class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(implicit val F: Async[F],
@@ -86,6 +89,19 @@ class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(impli
             .primaryKey()
         )
     } yield PrimaryKey(key)
+
+  override def deleteRelayHybridConnection(relayNamespace: RelayNamespace,
+                                           hybridConnectionName: RelayHybridConnectionName,
+                                           cloudContext: AzureCloudContext): F[Unit] =
+    for {
+      manager <- buildRelayManager(cloudContext)
+      _ <- F
+        .delay(
+          manager
+            .hybridConnections()
+            .delete(cloudContext.managedResourceGroupName.value, relayNamespace.value, hybridConnectionName.value)
+        )
+    } yield ()
 
   private def buildAzureProfile(azureCloudContext: AzureCloudContext): (ClientSecretCredential, AzureProfile) = {
     val azureCreds = new ClientSecretCredentialBuilder()
