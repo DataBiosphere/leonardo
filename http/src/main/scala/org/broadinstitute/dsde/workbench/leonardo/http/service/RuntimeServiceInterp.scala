@@ -951,9 +951,11 @@ object RuntimeServiceInterp {
                                                         userInfo)
             _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
+            // Look up the original email in case this API was called by a pet SA
+            originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
             diskBeforeSave <- F.fromEither(
               DiskServiceInterp.convertToDisk(
-                userInfo,
+                originatingUserEmail,
                 serviceAccount,
                 cloudContext,
                 req.name,
@@ -964,8 +966,6 @@ object RuntimeServiceInterp {
                 if (willBeUsedBy == FormattedBy.Galaxy) true else false
               )
             )
-            // Look up the original email in case this API was called by a pet SA:
-            originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
             _ <- authProvider
               .notifyResourceCreated(samResource, originatingUserEmail, googleProject)
               .handleErrorWith { t =>

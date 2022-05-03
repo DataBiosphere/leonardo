@@ -72,7 +72,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
       samResourceId <- F.delay(AppSamResourceId(UUID.randomUUID().toString))
 
-      // Look up the original email in case this API was called by a pet SA:
+      // Look up the original email in case this API was called by a pet SA
       originatingUserEmail <- authProvider.lookupOriginatingUserEmail(userInfo)
       _ <- authProvider
         .notifyResourceCreated(samResourceId, originatingUserEmail, googleProject)
@@ -82,7 +82,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           ) >> F.raiseError(t)
         }
 
-      saveCluster <- F.fromEither(getSavableCluster(userInfo, googleProject, ctx.now, None))
+      saveCluster <- F.fromEither(getSavableCluster(originatingUserEmail, googleProject, ctx.now, None))
       saveClusterResult <- KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster).transaction
       // TODO Remove the block below to allow app creation on a new cluster when the existing cluster is in Error status
       _ <- if (saveClusterResult.minimalCluster.status == KubernetesClusterStatus.Error)
@@ -106,7 +106,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
       // We want to know if the user already has a nodepool with the requested config that can be re-used
       userNodepoolOpt <- nodepoolQuery
-        .getMinimalByUserAndConfig(userInfo.userEmail, googleProject, machineConfig)
+        .getMinimalByUserAndConfig(originatingUserEmail, googleProject, machineConfig)
         .transaction
 
       nodepool <- userNodepoolOpt match {
@@ -119,7 +119,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](
             _ <- log.info(ctx.loggingCtx)(
               s"No nodepool with ${machineConfig} found for this user in project ${saveClusterResult.minimalCluster.googleProject}. Will create a new nodepool."
             )
-            saveNodepool <- F.fromEither(getUserNodepool(clusterId, userInfo, req.kubernetesRuntimeConfig, ctx.now))
+            saveNodepool <- F.fromEither(
+              getUserNodepool(clusterId, originatingUserEmail, req.kubernetesRuntimeConfig, ctx.now)
+            )
             savedNodepool <- nodepoolQuery.saveForCluster(saveNodepool).transaction
           } yield savedNodepool
       }
@@ -136,6 +138,8 @@ final class LeoAppServiceInterp[F[_]: Parallel](
         validateGalaxy(googleProject, req.diskConfig.flatMap(_.size), machineConfig.machineType).map(_.some)
       } else F.pure(None)
 
+      // if request was created by pet SA, processPersistentDiskRequest will look up it's corresponding user email
+      // as needed
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
         RuntimeServiceInterp.processPersistentDiskRequest(
           diskReq,
@@ -204,7 +208,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       saveApp <- F.fromEither(
         getSavableApp(googleProject,
                       appName,
-                      userInfo,
+                      originatingUserEmail,
                       samResourceId,
                       req,
                       diskResultOpt.map(_.disk),
@@ -427,13 +431,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](
     } yield ()
 
   private[service] def getSavableCluster(
-    userInfo: UserInfo,
+    userEmail: WorkbenchEmail,
     googleProject: GoogleProject,
     now: Instant,
     numNodepools: Option[NumNodepools],
     clusterName: Option[KubernetesClusterName] = None
   ): Either[Throwable, SaveKubernetesCluster] = {
-    val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
+    val auditInfo = AuditInfo(userEmail, now, None, now)
 
     val defaultNodepool = for {
       nodepoolName <- KubernetesNameUtils.getUniqueName(NodepoolName.apply)
@@ -476,10 +480,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](
   }
 
   private[service] def getUserNodepool(clusterId: KubernetesClusterLeoId,
-                                       userInfo: UserInfo,
+                                       userEmail: WorkbenchEmail,
                                        runtimeConfig: Option[KubernetesRuntimeConfig],
                                        now: Instant): Either[Throwable, Nodepool] = {
-    val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
+    val auditInfo = AuditInfo(userEmail, now, None, now)
 
     val machineConfig = runtimeConfig.getOrElse(
       KubernetesRuntimeConfig(
@@ -543,7 +547,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
   private[service] def getSavableApp(googleProject: GoogleProject,
                                      appName: AppName,
-                                     userInfo: UserInfo,
+                                     userEmail: WorkbenchEmail,
                                      samResourceId: AppSamResourceId,
                                      req: CreateAppRequest,
                                      diskOpt: Option[PersistentDisk],
@@ -552,7 +556,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
                                      nodepoolId: NodepoolLeoId,
                                      ctx: AppContext): Either[Throwable, SaveApp] = {
     val now = ctx.now
-    val auditInfo = AuditInfo(userInfo.userEmail, now, None, now)
+    val auditInfo = AuditInfo(userEmail, now, None, now)
     val gkeAppConfig: GkeAppConfig = req.appType match {
       case Galaxy   => leoKubernetesConfig.galaxyAppConfig
       case Cromwell => leoKubernetesConfig.cromwellAppConfig
@@ -562,7 +566,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
     val allLabels =
       DefaultKubernetesLabels(googleProject,
                               appName,
-                              userInfo.userEmail,
+                              userEmail,
                               leoKubernetesConfig.serviceAccountConfig.leoServiceAccountEmail).toMap ++ req.labels
     for {
       // check the labels do not contain forbidden keys

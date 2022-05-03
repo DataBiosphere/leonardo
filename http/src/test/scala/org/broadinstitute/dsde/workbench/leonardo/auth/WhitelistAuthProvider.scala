@@ -7,6 +7,7 @@ import cats.mtl.Ask
 import com.typesafe.config.Config
 import io.circe.{Decoder, Encoder}
 import net.ceedubs.ficus.Ficus._
+import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{serviceAccountEmail, userEmail}
 import org.broadinstitute.dsde.workbench.leonardo.{ProjectAction, WorkspaceId}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -113,5 +114,8 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
 
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(
     implicit ev: Ask[IO, TraceId]
-  ): IO[WorkbenchEmail] = IO(petOrUserInfo.userEmail)
+  ): IO[WorkbenchEmail] = petOrUserInfo.userEmail.value match {
+    case serviceAccountEmail.value => IO(userEmail)
+    case _                         => IO(petOrUserInfo.userEmail)
+  }
 }

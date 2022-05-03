@@ -368,6 +368,129 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResult.map(_.app.appName) shouldEqual Some(appName)
   }
 
+  it should "allow pet SA to create an app" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = CreateAppRequest(
+      kubernetesRuntimeConfig = None,
+      appType = AppType.Cromwell,
+      diskConfig = Some(createDiskConfig),
+      labels = Map.empty,
+      customEnvironmentVariables = customEnvVars,
+      descriptorPath = None,
+      extraArgs = List.empty
+    )
+
+    appServiceInterp
+      .createApp(petUserInfo, project, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val clusters = dbFutureValue {
+      KubernetesServiceDbQueries.listFullApps(Some(project))
+    }
+    clusters.length shouldEqual 1
+    clusters.flatMap(_.nodepools).length shouldEqual 1
+    val cluster = clusters.head
+    cluster.auditInfo.creator shouldEqual userEmail
+
+    val nodepool = clusters.flatMap(_.nodepools).head
+    nodepool.auditInfo.creator shouldEqual userEmail
+
+    clusters.flatMap(_.nodepools).flatMap(_.apps).length shouldEqual 1
+    val app = clusters.flatMap(_.nodepools).flatMap(_.apps).head
+    app.appName shouldEqual appName
+    app.appType shouldEqual AppType.Cromwell
+    app.auditInfo.creator shouldEqual userEmail
+    app.customEnvironmentVariables shouldEqual customEnvVars
+
+    val savedDisk = dbFutureValue {
+      persistentDiskQuery.getById(app.appResources.disk.get.id)
+    }.get
+    savedDisk.name shouldEqual diskName
+    savedDisk.auditInfo.creator shouldEqual userEmail
+  }
+
+  it should "allow pet SA to get app details" in isolatedDbTest {
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = CreateAppRequest(
+      kubernetesRuntimeConfig = None,
+      appType = AppType.Cromwell,
+      diskConfig = Some(createDiskConfig),
+      labels = Map.empty,
+      customEnvironmentVariables = customEnvVars,
+      descriptorPath = None,
+      extraArgs = List.empty
+    )
+
+    appServiceInterp
+      .createApp(petUserInfo, project, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val getApp: GetAppResponse =
+      appServiceInterp.getApp(petUserInfo, project, appName).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    getApp.appType shouldBe AppType.Cromwell
+    getApp.diskName shouldBe Some(diskName)
+    getApp.auditInfo.creator shouldBe userEmail
+    getApp.customEnvironmentVariables shouldBe customEnvVars
+  }
+
+  it should "allow pet SA to delete an app" in isolatedDbTest {
+    val publisherQueue = QueueFactory.makePublisherQueue()
+    val kubeServiceInterp = makeInterp(publisherQueue)
+    val appName = AppName("app1")
+    val createDiskConfig = PersistentDiskRequest(diskName, None, None, Map.empty)
+    val customEnvVars = Map("WORKSPACE_NAME" -> "testWorkspace")
+    val appReq = CreateAppRequest(
+      kubernetesRuntimeConfig = None,
+      appType = AppType.Cromwell,
+      diskConfig = Some(createDiskConfig),
+      labels = Map.empty,
+      customEnvironmentVariables = customEnvVars,
+      descriptorPath = None,
+      extraArgs = List.empty
+    )
+
+    kubeServiceInterp
+      .createApp(petUserInfo, project, appName, appReq)
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    val appResultPreStatusUpdate = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
+    }
+
+    // Set the app status and nodepool status to Running
+    dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
+    dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
+
+    // Call deleteApp
+    val params = DeleteAppRequest(petUserInfo, project, appName, true)
+    kubeServiceInterp.deleteApp(params).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+
+    // Verify that request using pet SA was successful and app is marked to be deleted
+    val appResultPreDelete = dbFutureValue {
+      KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
+    }
+    appResultPreDelete.get.app.status shouldEqual AppStatus.Predeleting
+
+    // Verify database state
+    val clusterPostDelete = dbFutureValue {
+      KubernetesServiceDbQueries.listFullApps(Some(project), includeDeleted = true)
+    }
+    clusterPostDelete.length shouldEqual 1
+    val nodepool = clusterPostDelete.head.nodepools.head
+    nodepool.status shouldEqual NodepoolStatus.Running
+    nodepool.auditInfo.destroyedDate shouldBe None
+
+    // throw away create message
+    publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe a[CreateAppMessage]
+
+    // Verify DeleteAppMessage message was generated
+    publisherQueue.tryTake.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe a[Some[DeleteAppMessage]]
+  }
+
   it should "error creating an app with an existing disk if no restore info found" in isolatedDbTest {
     val disk = makePersistentDisk(None, formattedBy = Some(FormattedBy.Galaxy))
       .copy(cloudContext = cloudContext)
