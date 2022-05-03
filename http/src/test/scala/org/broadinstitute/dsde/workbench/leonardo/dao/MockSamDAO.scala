@@ -295,7 +295,7 @@ class MockSamDAO extends SamDAO[IO] {
     IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
 
   def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
-    IO.pure(Some(SamUserInfo(UserSubjectId("test"), UserEmail("test@gmail.com"), enabled = true)))
+    IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
 }
 
 object MockSamDAO {

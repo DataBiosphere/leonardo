@@ -78,4 +78,3 @@ trait SamDAO[F[_]] {
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal
-final case class UserEmail(asString: String) extends AnyVal

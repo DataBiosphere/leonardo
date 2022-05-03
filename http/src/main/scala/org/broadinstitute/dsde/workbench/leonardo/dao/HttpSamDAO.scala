@@ -419,8 +419,6 @@ object HttpSamDAO {
     Decoder.decodeString.map(s => SamPolicyName.stringToSamPolicyName.getOrElse(s, SamPolicyName.Other(s)))
   implicit val userSubjectIdDecoder: Decoder[UserSubjectId] =
     Decoder.decodeString.map(UserSubjectId.apply)
-  implicit val userEmailDecoder: Decoder[UserEmail] =
-    Decoder.decodeString.map(UserEmail.apply)
   implicit val samPolicyEmailDecoder: Decoder[SamPolicyEmail] = Decoder[WorkbenchEmail].map(SamPolicyEmail)
   implicit val projectActionDecoder: Decoder[ProjectAction] =
     Decoder.decodeString.map(x => ProjectAction.stringToAction.getOrElse(x, ProjectAction.Other(x)))
@@ -504,7 +502,7 @@ final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: G
 final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
 final case class SamRoleAction(roles: List[SamPolicyName])
 
-final case class SamUserInfo(userSubjectId: UserSubjectId, userEmail: UserEmail, enabled: Boolean)
+final case class SamUserInfo(userSubjectId: UserSubjectId, userEmail: WorkbenchEmail, enabled: Boolean)
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
     extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))

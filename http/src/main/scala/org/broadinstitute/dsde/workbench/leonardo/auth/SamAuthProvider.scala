@@ -216,11 +216,20 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         samUserInfoOpt,
         AuthProviderException(
           traceId,
-          s"[SamAuthProvider.lookupOriginatingUserEmail] Subject info not found for ${petOrUserInfo.userEmail}",
+          s"[SamAuthProvider.lookupOriginatingUserEmail] Subject info not found for ${petOrUserInfo.userEmail.value}",
           StatusCodes.Unauthorized
         )
       )
-    } yield WorkbenchEmail.apply(samUserInfo.userEmail.asString)
+      _ <- if (samUserInfo.enabled) F.unit
+      else
+        F.raiseError(
+          AuthProviderException(
+            traceId,
+            s"[SamAuthProvider.lookupOriginatingUserEmail] User ${samUserInfo.userEmail.value} is disabled.",
+            StatusCodes.Forbidden
+          )
+        )
+    } yield samUserInfo.userEmail
 }
 
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
