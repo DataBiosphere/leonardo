@@ -17,11 +17,11 @@ set -e -x
 #
 
 # The versions below don't matter; they are replaced by the Jenkins job
-terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.5"
-terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.0.6"
-terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.0.5"
-terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.10"
-terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.0.9"
+terra_jupyter_python="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:1.0.6"
+terra_jupyter_r="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-r:2.0.7"
+terra_jupyter_bioconductor="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-bioconductor:2.0.6"
+terra_jupyter_hail="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-hail:1.0.11"
+terra_jupyter_gatk="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-gatk:2.1.0"
 terra_jupyter_aou="us.gcr.io/broad-dsp-gcr-public/terra-jupyter-aou:2.0.14"
 welder_server="us.gcr.io/broad-dsp-gcr-public/welder-server:72e1f03"
 openidc_proxy="broadinstitute/openidc-proxy:2.3.1_2"
