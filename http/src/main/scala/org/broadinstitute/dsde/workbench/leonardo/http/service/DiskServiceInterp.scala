@@ -72,7 +72,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
           for {
             samResource <- F.delay(PersistentDiskSamResourceId(UUID.randomUUID().toString))
             disk <- F.fromEither(
-              convertToDisk(userInfo, petSA, cloudContext, diskName, samResource, config, req, ctx.now)
+              convertToDisk(userInfo.userEmail, petSA, cloudContext, diskName, samResource, config, req, ctx.now)
             )
             _ <- authProvider
               .notifyResourceCreated(samResource, userInfo.userEmail, googleProject)
@@ -226,7 +226,7 @@ class DiskServiceInterp[F[_]: Parallel](config: PersistentDiskConfig,
 }
 
 object DiskServiceInterp {
-  private[service] def convertToDisk(userInfo: UserInfo,
+  private[service] def convertToDisk(userEmail: WorkbenchEmail,
                                      serviceAccount: WorkbenchEmail,
                                      cloudContext: CloudContext,
                                      diskName: DiskName,
@@ -234,9 +234,9 @@ object DiskServiceInterp {
                                      config: PersistentDiskConfig,
                                      req: CreateDiskRequest,
                                      now: Instant): Either[Throwable, PersistentDisk] =
-    convertToDisk(userInfo, serviceAccount, cloudContext, diskName, samResource, config, req, now, false)
+    convertToDisk(userEmail, serviceAccount, cloudContext, diskName, samResource, config, req, now, false)
 
-  private[service] def convertToDisk(userInfo: UserInfo,
+  private[service] def convertToDisk(userEmail: WorkbenchEmail,
                                      serviceAccount: WorkbenchEmail,
                                      cloudContext: CloudContext,
                                      diskName: DiskName,
@@ -249,7 +249,7 @@ object DiskServiceInterp {
     val defaultLabels = DefaultDiskLabels(
       diskName,
       cloudContext,
-      userInfo.userEmail,
+      userEmail,
       serviceAccount
     ).toMap
 
@@ -270,7 +270,7 @@ object DiskServiceInterp {
       serviceAccount,
       samResource,
       DiskStatus.Creating,
-      AuditInfo(userInfo.userEmail, now, None, now),
+      AuditInfo(userEmail, now, None, now),
       if (willBeUsedByGalaxy) req.size.getOrElse(config.defaultGalaxyNfsdiskSizeGb)
       else req.size.getOrElse(config.defaultDiskSizeGb),
       req.diskType.getOrElse(config.defaultDiskType),

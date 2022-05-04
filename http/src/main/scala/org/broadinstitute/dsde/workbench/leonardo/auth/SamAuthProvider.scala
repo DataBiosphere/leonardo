@@ -1,6 +1,7 @@
 package org.broadinstitute.dsde.workbench.leonardo
 package auth
 
+import akka.http.scaladsl.model.StatusCodes
 import cats.data.NonEmptyList
 import cats.effect.{Async, Sync}
 import cats.mtl.Ask
@@ -8,7 +9,7 @@ import cats.syntax.all._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.dao.SamDAO
+import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthProviderException, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -207,6 +208,28 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   )(implicit sr: SamResource[R], ev: Ask[F, TraceId]): F[Unit] =
     samDao.deleteResource(samResource, creatorEmail, googleProject)
 
+  override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail] =
+    for {
+      traceId <- ev.ask
+      samUserInfoOpt <- samDao.getSamUserInfo(petOrUserInfo.accessToken.token)
+      samUserInfo <- F.fromOption(
+        samUserInfoOpt,
+        AuthProviderException(
+          traceId,
+          s"[SamAuthProvider.lookupOriginatingUserEmail] Subject info not found for ${petOrUserInfo.userEmail.value}",
+          StatusCodes.Unauthorized
+        )
+      )
+      _ <- if (samUserInfo.enabled) F.unit
+      else
+        F.raiseError(
+          AuthProviderException(
+            traceId,
+            s"[SamAuthProvider.lookupOriginatingUserEmail] User ${samUserInfo.userEmail.value} is disabled.",
+            StatusCodes.Forbidden
+          )
+        )
+    } yield samUserInfo.userEmail
 }
 
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
