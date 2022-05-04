@@ -37,6 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext
@@ -69,7 +70,8 @@ class LeoPubsubMessageSubscriber[F[_]](
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
   runtimeInstances: RuntimeInstances[F],
-  monitor: RuntimeMonitor[F, CloudService]) {
+  monitor: RuntimeMonitor[F, CloudService],
+  metrics: OpenTelemetryMetrics[F]) {
 
   private[monitor] def messageResponder(
     message: LeoPubsubMessage
@@ -106,7 +108,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             case e =>
               PubsubHandleMessageError.AzureRuntimeCreationError(
                 msg.runtimeId,
-                ctx.traceId,
+                msg.workspaceId,
                 e.getMessage
               )
           }
@@ -135,10 +137,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                       ee
                     )
                   case ee: AzureRuntimeCreationError =>
-                    logger.error(ctx.loggingCtx, e)(
-                      s"Encountered an error for azure runtime ${ee.runtimeId}, ${ee.getMessage}"
-                    ) >>
-                      createRuntimeErrorHandler(ee.runtimeId, now)(ee)
+                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, now)
                   case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
                 }
                 _ <- if (ee.isRetryable)
@@ -168,9 +167,25 @@ class LeoPubsubMessageSubscriber[F[_]](
     .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] =
-    logger.info(s"acking message: ${event}") >> F.delay(
-      event.consumer.ack()
-    )
+    for {
+      _ <- logger.info(s"acking message: ${event}")
+      _ <- F.delay(
+        event.consumer.ack()
+      )
+      end <- F.realTimeInstant
+      duration = (end.toEpochMilli - com.google.protobuf.util.Timestamps.toMillis(event.publishedTime)).millis
+      distributionBucket = List(0.5 minutes,
+                                1 minutes,
+                                1.5 minutes,
+                                2 minutes,
+                                2.5 minutes,
+                                3 minutes,
+                                3.5 minutes,
+                                4 minutes,
+                                4.5 minutes)
+      metricsName = s"pubsub/${event.msg.messageType.asString}"
+      _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
+    } yield ()
 
   private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(
     implicit ev: Ask[F, AppContext]

@@ -50,6 +50,8 @@ final class KubernetesDnsCache[F[_]: Logger: OpenTelemetryMetrics](
       case None => F.pure[HostStatus](HostNotReady)
       case Some(ip) =>
         val h = kubernetesProxyHost(appResult.cluster, proxyConfig.proxyDomain)
-        hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
+        hostToIpMapping
+          .getAndUpdate(_ + (h -> ip))
+          .as[HostStatus](HostReady(h, "")) //TODO: update this once we start support AKS
     }
 }

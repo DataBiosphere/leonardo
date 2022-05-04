@@ -314,7 +314,6 @@ object LeoPubsubMessage {
   final case class CreateAzureRuntimeMessage(runtimeId: Long,
                                              workspaceId: WorkspaceId,
                                              relayNamespace: RelayNamespace,
-                                             jobId: WsmJobId,
                                              traceId: Option[TraceId])
       extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
@@ -474,7 +473,7 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct5("runtimeId", "workspaceId", "relayNamespace", "jobId", "traceId")(
+    Decoder.forProduct4("runtimeId", "workspaceId", "relayNamespace", "traceId")(
       CreateAzureRuntimeMessage.apply
     )
 
@@ -806,8 +805,8 @@ object LeoPubsubCodec {
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct6("messageType", "runtimeId", "workspaceId", "relayNamespace", "jobId", "traceId")(x =>
-      (x.messageType, x.runtimeId, x.workspaceId, x.relayNamespace, x.jobId, x.traceId)
+    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "relayNamespace", "traceId")(x =>
+      (x.messageType, x.runtimeId, x.workspaceId, x.relayNamespace, x.traceId)
     )
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
@@ -893,10 +892,10 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeCreationError(runtimeId: Long, traceId: TraceId, errorMsg: String)
+  final case class AzureRuntimeCreationError(runtimeId: Long, workspaceId: WorkspaceId, errorMsg: String)
       extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\ttraceId: ${traceId} \n\tmsg: ${errorMsg})"
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false
   }
 }

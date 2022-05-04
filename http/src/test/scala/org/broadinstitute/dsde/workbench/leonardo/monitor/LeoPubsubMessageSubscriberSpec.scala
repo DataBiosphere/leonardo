@@ -1605,11 +1605,7 @@ class LeoPubsubMessageSubscriberSpec
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
         jobId <- IO.delay(UUID.randomUUID())
-        msg = CreateAzureRuntimeMessage(runtime.id,
-                                        workspaceId,
-                                        RelayNamespace("relay-ns"),
-                                        WsmJobId(jobId.toString),
-                                        None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), None)
 
         _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
 
@@ -1624,55 +1620,6 @@ class LeoPubsubMessageSubscriberSpec
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
       } yield ()
-
-    res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-  }
-
-  it should "handle top-level error in delete azure vm properly" in isolatedDbTest {
-    val exceptionMsg = "test exception"
-    val mockWsmDao = new MockWsmDAO {
-      override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
-      ): IO[DeleteWsmResourceResult] =
-        IO.raiseError(new Exception(exceptionMsg))
-    }
-    val mockAckConsumer = mock[AckReplyConsumer]
-    val queue = makeTaskQueue()
-    val leoSubscriber = makeLeoSubscriber(azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao),
-                                          asyncTaskQueue = queue)
-
-    val res =
-      for {
-        disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
-
-        azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
-                                                       disk.id,
-                                                       azureRegion)
-        runtime = makeCluster(2)
-          .copy(
-            status = RuntimeStatus.Running,
-            cloudContext = CloudContext.Azure(azureCloudContext)
-          )
-          .saveWithRuntimeConfig(azureRuntimeConfig)
-
-        msg = DeleteAzureRuntimeMessage(runtime.id, Some(disk.id), workspaceId, Some(wsmResourceId), None)
-
-        //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
-        _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
-          .transaction
-
-        _ <- leoSubscriber.messageHandler(Event(msg, None, timestamp, mockAckConsumer))
-        getRuntimeOpt <- clusterQuery.getClusterById(runtime.id).transaction
-        getRuntime = getRuntimeOpt.get
-        error <- clusterErrorQuery.get(runtime.id).transaction
-        controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
-      } yield {
-        getRuntime.status shouldBe RuntimeStatus.Error
-        error.length shouldBe 1
-        error.map(_.errorMessage).head should include(exceptionMsg)
-        controlledResources.length shouldBe 1
-      }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -1741,6 +1688,7 @@ class LeoPubsubMessageSubscriberSpec
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
+      new MockJupyterDAO(),
       computeManagerDao
     )
 

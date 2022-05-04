@@ -73,7 +73,10 @@ class RuntimeDnsCacheSpec
     eventually {
       runtimeDnsCache
         .getHostStatus(cacheKeyForRunningCluster)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostReady(runningClusterHost)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostReady(
+        runningClusterHost,
+        s"proxy/${cloudContext.asString}/${runningCluster.runtimeName.asString}"
+      )
     }
     eventually(
       runtimeDnsCache

@@ -7,7 +7,7 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.client.Client
-import org.http4s.{Method, Request, Uri}
+import org.http4s.{Method, Request}
 import org.typelevel.log4cats.Logger
 
 class HttpWelderDAO[F[_]: Async: Logger](
@@ -21,13 +21,12 @@ class HttpWelderDAO[F[_]: Async: Logger](
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
       res <- host match {
-        case HostReady(targetHost) =>
+        case x: HostReady =>
           client.successful(
             Request[F](
               method = Method.POST,
-              uri = Uri.unsafeFromString(
-                s"https://${targetHost.address}/proxy/${cloudContext.asString}/${runtimeName.asString}/welder/cache/flush"
-              )
+              uri =
+                x.toUri / "welder/cache/flush"
             )
           )
         case x =>
@@ -47,14 +46,12 @@ class HttpWelderDAO[F[_]: Async: Logger](
     for {
       host <- Proxy.getRuntimeTargetHost(runtimeDnsCache, cloudContext, runtimeName)
       res <- host match {
-        case HostReady(targetHost) =>
+        case x: HostReady =>
           client
             .successful(
               Request[F](
                 method = Method.GET,
-                uri = Uri.unsafeFromString(
-                  s"https://${targetHost.address}/proxy/${cloudContext.asString}/${runtimeName.asString}/welder/status"
-                )
+                uri = x.toUri / "welder/status"
               )
             )
             .handleError(_ => false)

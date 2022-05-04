@@ -7,7 +7,7 @@ import cats.effect.Async
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
-import com.azure.resourcemanager.compute.models.{PowerState, VirtualMachine, VirtualMachineSizeTypes}
+import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineSizeTypes}
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
@@ -27,6 +27,7 @@ import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
 import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
@@ -34,6 +35,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
   samDAO: SamDAO[F],
+  jupyterDAO: JupyterDAO[F],
   azureManager: AzureManagerDao[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
@@ -47,14 +49,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: RuntimeConfig.AzureConfig => F.pure(x)
         case x                            => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
+      createVmJobId = WsmJobId(s"create-vm-${msg.runtimeId}")
       _ <- createRuntime(CreateAzureRuntimeParams(msg.workspaceId,
                                                   runtime,
                                                   msg.relayNamespace,
                                                   azureConfig,
                                                   config.runtimeDefaults.image),
-                         WsmJobControl(msg.jobId))
+                         WsmJobControl(createVmJobId))
       _ <- monitorCreateRuntime(
-        PollRuntimeParams(msg.workspaceId, runtime, msg.jobId, msg.relayNamespace)
+        PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.relayNamespace)
       )
     } yield ()
 
@@ -70,9 +73,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       cloudContext <- params.runtime.cloudContext match {
         case _: CloudContext.Gcp =>
           F.raiseError[AzureCloudContext](
-            PubsubHandleMessageError.AzureRuntimeCreationError(params.runtime.id,
-                                                               ctx.traceId,
-                                                               "Azure runtime should not have GCP cloud context")
+            PubsubHandleMessageError.ClusterError(params.runtime.id,
+                                                  ctx.traceId,
+                                                  "Azure runtime should not have GCP cloud context")
           )
         case x: CloudContext.Azure => F.pure(x.value)
       }
@@ -211,8 +214,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     )
 
   private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {
-    implicit val azureRuntimeCreatingDoneCheckable: DoneCheckable[VirtualMachine] = (v: VirtualMachine) =>
-      v.powerState().toString.equals(PowerState.RUNNING.toString)
+    implicit val isJupyterUpDoneCheckable: DoneCheckable[Boolean] = (v: Boolean) => v
     implicit val wsmCreateVmDoneCheckable: DoneCheckable[GetCreateVmJobResult] = (v: GetCreateVmJobResult) =>
       v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
     for {
@@ -223,22 +225,14 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
       cloudContext = params.runtime.cloudContext match {
         case _: CloudContext.Gcp =>
-          throw PubsubHandleMessageError.AzureRuntimeCreationError(params.runtime.id,
-                                                                   ctx.traceId,
-                                                                   "Azure runtime should not have GCP cloud context")
+          throw PubsubHandleMessageError.ClusterError(params.runtime.id,
+                                                      ctx.traceId,
+                                                      "Azure runtime should not have GCP cloud context")
         case x: CloudContext.Azure => x
       }
 
       // TODO: this probably isn't super necessary...But we should add a check for pinging jupyter once proxy work is done
-      getRuntime = azureManager
-        .getAzureVm(params.runtime.runtimeName, cloudContext.value)
-        .flatMap(op =>
-          F.fromOption(
-            op,
-            PubsubHandleMessageError
-              .AzureRuntimeCreationError(params.runtime.id, ctx.traceId, "Could not retrieve vm for runtime from azure")
-          )
-        )
+      isJupyterUp = jupyterDAO.isProxyAvailable(cloudContext, params.runtime.runtimeName)
 
       taskToRun = for {
         _ <- F.sleep(
@@ -255,7 +249,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             F.raiseError[Unit](
               AzureRuntimeCreationError(
                 params.runtime.id,
-                ctx.traceId,
+                params.workspaceId,
                 s"Wsm createVm job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
               )
             )
@@ -263,7 +257,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             F.raiseError[Unit](
               AzureRuntimeCreationError(
                 params.runtime.id,
-                ctx.traceId,
+                params.workspaceId,
                 s"Wsm createVm job was not completed within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
             )
@@ -280,15 +274,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                   clusterQuery.updateSamResourceId(params.runtime.id, WsmResourceSamResourceId(x.metadata.resourceId))
                 )
               }
+              hostIp = s"${params.relayNamespace.value}.servicebus.windows.net"
+              _ <- clusterQuery.updateClusterHostIp(params.runtime.id, Some(IP(hostIp)), ctx.now).transaction
               // then poll the azure VM for Running status, retrieving the final azure representation
               _ <- streamUntilDoneOrTimeout(
-                getRuntime,
+                isJupyterUp,
                 config.createVmPollConfig.maxAttempts,
                 config.createVmPollConfig.interval,
-                s"Azure runtime was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
+                s"Jupyter was not running within ${config.createVmPollConfig.maxAttempts} attempts with ${config.createVmPollConfig.interval} delay"
               )
-              hostIp = s"${params.relayNamespace.value}.servicebus.windows.net/${params.runtime.runtimeName.asString}/lab"
               _ <- clusterQuery.setToRunning(params.runtime.id, IP(hostIp), ctx.now).transaction
+              _ <- logger.info(ctx.loggingCtx)("runtime is ready")
             } yield ()
         }
       } yield ()
@@ -298,13 +294,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           ctx.traceId,
           taskToRun,
           Some(e =>
-            dbRef
-              .inTransaction(
-                clusterErrorQuery
-                  .save(params.runtime.id, RuntimeError(e.getMessage, None, ctx.now, Some(ctx.traceId))) >>
-                  clusterQuery.updateClusterStatus(params.runtime.id, RuntimeStatus.Error, ctx.now)
-              )
-              .void
+            handleAzureRuntimeCreationError(AzureRuntimeCreationError(params.runtime.id,
+                                                                      params.workspaceId,
+                                                                      e.getMessage),
+                                            ctx.now)
           ),
           ctx.now
         )
@@ -351,7 +344,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           ),
           auth
         )
-      }
+      }.void
 
       diskResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
@@ -368,7 +361,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           ),
           auth
         )
-      }
+      }.void
 
       networkResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureNetwork)
@@ -387,7 +380,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           ),
           auth
         )
-      }
+      }.void
 
       deleteHybridConnection = for {
         leoAuth <- samDAO.getLeoAuthToken
@@ -401,9 +394,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         cloudContext <- runtime.cloudContext match {
           case _: CloudContext.Gcp =>
             F.raiseError[AzureCloudContext](
-              PubsubHandleMessageError.AzureRuntimeCreationError(msg.runtimeId,
-                                                                 ctx.traceId,
-                                                                 "Azure runtime should not have GCP cloud context")
+              PubsubHandleMessageError.ClusterError(msg.runtimeId,
+                                                    ctx.traceId,
+                                                    "Azure runtime should not have GCP cloud context")
             )
           case x: CloudContext.Azure => F.pure(x.value)
         }
@@ -416,7 +409,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       } yield ()
 
-      _ <- List(deleteDisk, deleteNetworks, deleteIp).parSequence
+      _ <- List(deleteDisk, deleteNetworks, deleteIp, deleteHybridConnection).parSequence
       cloudContext <- runtime.cloudContext match {
         case _: CloudContext.Gcp =>
           F.raiseError[AzureCloudContext](
@@ -461,4 +454,45 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       )
     } yield ()
   }
+
+  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError,
+                                      now: Instant)(implicit ev: Ask[F, AppContext]): F[Unit] =
+    for {
+      ctx <- ev.ask
+      _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create Azure VM ${e.runtimeId}")
+      _ <- clusterErrorQuery
+        .save(e.runtimeId, RuntimeError(e.errorMsg.take(1024), None, now))
+        .transaction
+      _ <- clusterQuery.updateClusterStatus(e.runtimeId, RuntimeStatus.Error, now).transaction
+
+      auth <- samDAO.getLeoAuthToken
+
+      diskResourceOpt <- controlledResourceQuery
+        .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureDisk)
+        .transaction
+      _ <- diskResourceOpt.traverse { disk =>
+        wsmDao.deleteDisk(
+          DeleteWsmResourceRequest(
+            e.workspaceId,
+            disk.resourceId,
+            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${e.runtimeId}-disk")))
+          ),
+          auth
+        )
+      }.void
+
+      networkResourceOpt <- controlledResourceQuery
+        .getWsmRecordForRuntime(e.runtimeId, WsmResourceType.AzureNetwork)
+        .transaction
+      _ <- networkResourceOpt.traverse { network =>
+        wsmDao.deleteNetworks(
+          DeleteWsmResourceRequest(
+            e.workspaceId,
+            network.resourceId,
+            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${e.runtimeId}-networks")))
+          ),
+          auth
+        )
+      }.void
+    } yield ()
 }

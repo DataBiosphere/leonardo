@@ -267,9 +267,9 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
           .Azure(AzureCloudContext(TenantId("tenantId"), SubscriptionId("sid"), ManagedResourceGroupName("mrg"))),
         name0,
         Set(welderImage, customDataprocImage, rstudioImage),
-        Some(IP("qi-relay.servicebus.windows.net/qi-real-no-auth")),
+        Some(IP("qi-relay.servicebus.windows.net")),
         Map("tool" -> "Jupyter", "foo" -> "bar")
       )
-      .toString shouldBe "https://qi-relay.servicebus.windows.net/qi-real-no-auth"
+      .toString shouldBe s"https://qi-relay.servicebus.windows.net/${name0.asString}"
   }
 }

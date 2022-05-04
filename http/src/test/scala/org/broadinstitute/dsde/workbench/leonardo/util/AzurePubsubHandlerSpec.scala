@@ -86,7 +86,7 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), WsmJobId("job1"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -185,7 +185,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), WsmJobId("job1"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -258,6 +258,7 @@ class AzurePubsubHandlerSpec
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
+      new MockJupyterDAO(),
       computeManagerDao
     )
 

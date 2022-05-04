@@ -6,6 +6,7 @@ import cats.effect.Async
 import cats.effect.implicits._
 import org.broadinstitute.dsde.workbench.leonardo.dns._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
+import org.http4s.Uri
 
 import scala.concurrent.duration._
 
@@ -14,14 +15,18 @@ object HostStatus {
   final case object HostNotFound extends HostStatus
   final case object HostNotReady extends HostStatus
   final case object HostPaused extends HostStatus
-  final case class HostReady(hostname: Host) extends HostStatus
+  final case class HostReady(hostname: Host, path: String) extends HostStatus {
+    def toUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/${path}")
+  }
 }
 
 object Proxy {
   def getRuntimeTargetHost[F[_]: Async](runtimeDnsCache: RuntimeDnsCache[F],
                                         cloudContext: CloudContext,
                                         runtimeName: RuntimeName): F[HostStatus] =
-    runtimeDnsCache.getHostStatus(RuntimeDnsCacheKey(cloudContext, runtimeName)).timeout(5 seconds)
+    runtimeDnsCache
+      .getHostStatus(RuntimeDnsCacheKey(cloudContext, runtimeName))
+      .timeout(5 seconds)
 
   def getAppTargetHost[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F],
                                     googleProject: GoogleProject,

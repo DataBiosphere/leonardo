@@ -7,7 +7,7 @@ import cats.syntax.all._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
-import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, DbReference}
+import org.broadinstitute.dsde.workbench.leonardo.db.{clusterQuery, ClusterRecord, DbReference}
 import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.Logger
@@ -38,11 +38,24 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
       _ <- Logger[F]
         .debug(s"DNS Cache miss for ${key.cloudContext} / ${key.runtimeName}...loading from DB...")
       runtimeOpt <- dbRef.inTransaction {
-        clusterQuery.getActiveClusterByNameMinimal(key.cloudContext, key.runtimeName)
+        clusterQuery.getActiveClusterRecordByName(key.cloudContext, key.runtimeName)
       }
       hostStatus <- runtimeOpt match {
         case Some(runtime) =>
-          hostStatusByProjectAndCluster(runtime)
+          key.cloudContext match {
+            case x: CloudContext.Gcp =>
+              hostStatusByProjectAndCluster(runtime, x, key.runtimeName)
+            case _: CloudContext.Azure =>
+              runtime.hostIp match {
+                case Some(ip) => F.pure(HostReady(Host(s"${ip.asString}"), runtime.runtimeName.asString))
+                case None =>
+                  if (runtime.status.isStartable)
+                    F.pure[HostStatus](HostPaused)
+                  else
+                    F.pure[HostStatus](HostNotReady)
+              }
+          }
+
         case None =>
           F.pure[HostStatus](HostNotFound)
       }
@@ -51,16 +64,22 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
   private def host(googleId: ProxyHostName): Host =
     Host(googleId.value + proxyConfig.proxyDomain)
 
-  private def hostStatusByProjectAndCluster(r: Runtime): F[HostStatus] = {
+  private def hostStatusByProjectAndCluster(r: ClusterRecord,
+                                            cloudContext: CloudContext.Gcp,
+                                            runtimeName: RuntimeName): F[HostStatus] = {
     val hostAndIpOpt = for {
-      a <- r.asyncRuntimeFields
-      h = host(a.proxyHostName)
-      ip <- a.hostIp
+      a <- r.googleId
+      h = host(a)
+      ip <- r.hostIp
     } yield (h, ip)
 
     hostAndIpOpt match {
       case Some((h, ip)) =>
-        hostToIpMapping.getAndUpdate(_ + (h -> ip)).as[HostStatus](HostReady(h))
+        hostToIpMapping
+          .getAndUpdate(_ + (h -> ip))
+          .as[HostStatus](
+            HostReady(h, s"proxy/${cloudContext.asString}/${runtimeName.asString}")
+          )
       case None =>
         if (r.status.isStartable)
           F.pure[HostStatus](HostPaused)

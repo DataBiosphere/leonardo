@@ -14,7 +14,7 @@ class HttpAppDAO[F[_]: Async](val kubernetesDnsCache: KubernetesDnsCache[F], cli
 
   def isProxyAvailable(googleProject: GoogleProject, appName: AppName, serviceName: ServiceName): F[Boolean] =
     Proxy.getAppTargetHost[F](kubernetesDnsCache, googleProject, appName) flatMap {
-      case HostReady(targetHost) =>
+      case HostReady(targetHost, _) => // Update once we support Relay for apps
         client
           .successful(
             Request[F](

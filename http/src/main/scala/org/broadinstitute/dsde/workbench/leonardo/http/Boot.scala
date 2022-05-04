@@ -538,6 +538,7 @@ object Boot extends IOApp {
                                                      asyncTasksQueue,
                                                      wsmDao,
                                                      samDao,
+                                                     jupyterDao,
                                                      computeManagerDao)
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)

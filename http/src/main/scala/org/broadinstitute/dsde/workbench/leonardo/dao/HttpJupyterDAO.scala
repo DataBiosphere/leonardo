@@ -3,15 +3,15 @@ package org.broadinstitute.dsde.workbench.leonardo.dao
 import cats.effect.Async
 import cats.syntax.all._
 import io.circe.Decoder
-import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.leonardo.dao.ExecutionState.{Idle, OtherState}
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.HostReady
 import org.broadinstitute.dsde.workbench.leonardo.dao.HttpJupyterDAO._
 import org.broadinstitute.dsde.workbench.leonardo.dns.RuntimeDnsCache
+import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
-import org.http4s.{Method, Request, Uri}
+import org.http4s.{Method, Request}
 import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
@@ -21,14 +21,12 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
 ) extends JupyterDAO[F] {
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName) flatMap {
-      case HostReady(targetHost) =>
+      case x: HostReady =>
         client
           .successful(
             Request[F](
               method = Method.GET,
-              uri = Uri.unsafeFromString(
-                s"https://${targetHost.address}/notebooks/${cloudContext.asString}/${runtimeName.asString}/api/status"
-              )
+              uri = x.toUri / "api/status"
             )
           )
           .handleError(_ => false)
@@ -39,14 +37,12 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
       resp <- hostStatus match {
-        case HostReady(targetHost) =>
+        case x: HostReady =>
           for {
             res <- client.expect[List[Session]](
               Request[F](
                 method = Method.GET,
-                uri = Uri.unsafeFromString(
-                  s"https://${targetHost.address}/notebooks/${cloudContext.asString}/${runtimeName.asString}/api/sessions"
-                )
+                uri = x.toUri / "api/sessions"
               )
             )
           } yield res.forall(k => k.kernel.executionState == Idle)
@@ -56,14 +52,12 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
 
   override def createTerminal(googleProject: GoogleProject, runtimeName: RuntimeName): F[Unit] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, CloudContext.Gcp(googleProject), runtimeName) flatMap {
-      case HostReady(targetHost) =>
+      case x: HostReady =>
         client
           .successful(
             Request[F](
               method = Method.POST,
-              uri = Uri.unsafeFromString(
-                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals"
-              )
+              uri = x.toUri / "api/terminals"
             )
           )
           .flatMap(res => if (res) F.unit else logger.error("Fail to create new terminal"))
@@ -74,14 +68,12 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
                               runtimeName: RuntimeName,
                               terminalName: TerminalName): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, CloudContext.Gcp(googleProject), runtimeName) flatMap {
-      case HostReady(targetHost) =>
+      case x: HostReady =>
         client
           .successful(
             Request[F](
               method = Method.GET,
-              uri = Uri.unsafeFromString(
-                s"https://${targetHost.address}/notebooks/${googleProject.value}/${runtimeName.asString}/api/terminals/${terminalName.asString}" // this returns 404 if the terminal doesn't exist
-              )
+              uri = x.toUri / s"api/terminals/${terminalName.asString}"
             )
           )
       case _ => F.pure(false)

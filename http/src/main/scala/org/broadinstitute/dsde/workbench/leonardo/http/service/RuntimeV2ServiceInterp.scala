@@ -44,8 +44,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
-                             req: CreateAzureRuntimeRequest,
-                             createVmJobId: WsmJobId)(implicit as: Ask[F, AppContext]): F[Unit] =
+                             req: CreateAzureRuntimeRequest)(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
 
@@ -121,7 +120,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
             runtimeToSave = SaveCluster(cluster = runtime, runtimeConfig = runtimeConfig, now = ctx.now)
             savedRuntime <- clusterQuery.save(runtimeToSave).transaction
             _ <- publisherQueue.offer(
-              CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, relayNamespace, createVmJobId, Some(ctx.traceId))
+              CreateAzureRuntimeMessage(savedRuntime.id, workspaceId, relayNamespace, Some(ctx.traceId))
             )
           } yield ()
       }
