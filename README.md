@@ -27,7 +27,7 @@ $ git clone https://github.com/DataBiosphere/leonardo.git
 $ cd leonardo
 ```
 
-The instructions to run Leo locally are maintained in this [confluence article](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/104399223/Callisto+Developer+Handbook#CallistoDeveloperHandbook-RunningLeoLocally) (It may ask you to make an account, but no permissions are required to view)
+The instructions to run Leo locally are maintained in this [confluence article](https://broadworkbench.atlassian.net/wiki/spaces/IA/pages/104399223/Callisto+Developer+Handbook#CallistoDeveloperHandbook-RunningLeoLocally). It may ask you to make an account, but no permissions are required to view.
 
 ### Run Leonardo unit tests
 
