@@ -28,6 +28,7 @@ import org.http4s.headers.Authorization
 import org.typelevel.log4cats.StructuredLogger
 
 import java.time.Instant
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
@@ -85,13 +86,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       createDiskAction = createDisk(params, auth)
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
+      samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
       createVmRequest <- (createIpAction, createDiskAction, createNetworkAction).parMapN {
         (ipResp, diskResp, networkResp) =>
-          val vmCommon = getCommonFields(ControlledResourceName(params.runtime.runtimeName.asString),
-                                         config.runtimeDefaults.vmControlledResourceDesc,
-                                         params.runtime.auditInfo.creator)
+          val vmCommon = getCommonFields(
+            ControlledResourceName(params.runtime.runtimeName.asString),
+            config.runtimeDefaults.vmControlledResourceDesc,
+            params.runtime.auditInfo.creator,
+            Some(samResourceId)
+          )
           val cmdToExecute =
-            s"bash azure_vm_init_script.sh ${params.relayeNamespace.value} ${hcName.value} localhost listener ${primaryKey.value} ${config.runtimeDefaults.acrCredential.username} ${config.runtimeDefaults.acrCredential.password} ${config.runtimeDefaults.listenerImage}"
+            s"""bash azure_vm_init_script.sh ${params.relayeNamespace.value} ${hcName.value} localhost listener ${primaryKey.value} ${config.runtimeDefaults.acrCredential.username} ${config.runtimeDefaults.acrCredential.password} ${config.runtimeDefaults.listenerImage} ${config.samUrl.renderString} ${samResourceId.value.toString}"""
           CreateVmRequest(
             params.workspaceId,
             vmCommon,
@@ -128,7 +133,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   ): F[CreateIpResponse] = {
     val common = getCommonFields(ControlledResourceName(s"ip-${nameSuffix}"),
                                  config.runtimeDefaults.ipControlledResourceDesc,
-                                 params.runtime.auditInfo.creator)
+                                 params.runtime.auditInfo.creator,
+                                 None)
 
     val request: CreateIpRequest = CreateIpRequest(
       params.workspaceId,
@@ -153,7 +159,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       disk <- F.fromOption(diskOpt, new RuntimeException("no disk found"))
       common = getCommonFields(ControlledResourceName(disk.name.value),
                                config.runtimeDefaults.diskControlledResourceDesc,
-                               params.runtime.auditInfo.creator)
+                               params.runtime.auditInfo.creator,
+                               None)
       request: CreateDiskRequest = CreateDiskRequest(
         params.workspaceId,
         common,
@@ -178,7 +185,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   )(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] = {
     val common = getCommonFields(ControlledResourceName(s"network-${nameSuffix}"),
                                  config.runtimeDefaults.networkControlledResourceDesc,
-                                 params.runtime.auditInfo.creator)
+                                 params.runtime.auditInfo.creator,
+                                 None)
     val request: CreateNetworkRequest = CreateNetworkRequest(
       params.workspaceId,
       common,
@@ -198,7 +206,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     } yield networkResp
   }
 
-  private def getCommonFields(name: ControlledResourceName, resourceDesc: String, userEmail: WorkbenchEmail) =
+  private def getCommonFields(name: ControlledResourceName,
+                              resourceDesc: String,
+                              userEmail: WorkbenchEmail,
+                              resourceId: Option[WsmControlledResourceId]) =
     ControlledResourceCommonFields(
       name,
       ControlledResourceDescription(resourceDesc),
@@ -210,7 +221,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           userEmail,
           List(ControlledResourceIamRole.Writer)
         )
-      )
+      ),
+      resourceId
     )
 
   private def monitorCreateRuntime(params: PollRuntimeParams)(implicit ev: Ask[F, AppContext]): F[Unit] = {

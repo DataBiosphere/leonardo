@@ -77,7 +77,6 @@ class LeoPubsubMessageSubscriber[F[_]](
     message: LeoPubsubMessage
   )(implicit traceId: Ask[F, AppContext]): F[Unit] =
     for {
-      ctx <- traceId.ask
       resp <- message match {
         case msg: CreateRuntimeMessage =>
           handleCreateRuntimeMessage(msg)

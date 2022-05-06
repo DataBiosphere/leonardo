@@ -11,38 +11,55 @@ import org.broadinstitute.dsde.workbench.leonardo.{CloudContext, RuntimeName}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.http4s.circe.CirceEntityDecoder._
 import org.http4s.client.Client
-import org.http4s.{Method, Request}
+import org.http4s.{Headers, Method, Request}
 import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
-class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
+class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F], samDAO: SamDAO[F])(
   implicit F: Async[F],
   logger: Logger[F]
 ) extends JupyterDAO[F] {
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
-    Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName) flatMap {
-      case x: HostReady =>
-        client
-          .successful(
-            Request[F](
-              method = Method.GET,
-              uri = x.toUri / "api/status"
+    for {
+      hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
+      headers <- cloudContext match {
+        case _: CloudContext.Azure =>
+          samDAO.getLeoAuthToken.map(x => Headers(x))
+        case _: CloudContext.Gcp =>
+          F.pure(Headers.empty)
+      }
+      res <- hostStatus match {
+        case x: HostReady =>
+          client
+            .successful(
+              Request[F](
+                method = Method.GET,
+                uri = x.toUri / "api" / "status",
+                headers = headers
+              )
             )
-          )
-          .handleError(_ => false)
-      case _ => F.pure(false)
-    }
+            .handleError(_ => false)
+        case _ => F.pure(false)
+      }
+    } yield res
 
   def isAllKernelsIdle(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
     for {
       hostStatus <- Proxy.getRuntimeTargetHost[F](runtimeDnsCache, cloudContext, runtimeName)
+      headers <- cloudContext match {
+        case _: CloudContext.Azure =>
+          samDAO.getLeoAuthToken.map(x => Headers(x))
+        case _: CloudContext.Gcp =>
+          F.pure(Headers.empty)
+      }
       resp <- hostStatus match {
         case x: HostReady =>
           for {
             res <- client.expect[List[Session]](
               Request[F](
                 method = Method.GET,
-                uri = x.toUri / "api/sessions"
+                uri = x.toUri / "api" / "sessions",
+                headers = headers
               )
             )
           } yield res.forall(k => k.kernel.executionState == Idle)
@@ -57,7 +74,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
           .successful(
             Request[F](
               method = Method.POST,
-              uri = x.toUri / "api/terminals"
+              uri = x.toUri / "api" / "terminals"
             )
           )
           .flatMap(res => if (res) F.unit else logger.error("Fail to create new terminal"))
@@ -73,7 +90,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
           .successful(
             Request[F](
               method = Method.GET,
-              uri = x.toUri / s"api/terminals/${terminalName.asString}"
+              uri = x.toUri / "api" / "terminals" / terminalName.asString
             )
           )
       case _ => F.pure(false)

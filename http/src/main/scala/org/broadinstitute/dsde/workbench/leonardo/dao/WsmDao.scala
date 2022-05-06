@@ -164,7 +164,8 @@ final case class ControlledResourceCommonFields(name: ControlledResourceName,
                                                 cloningInstructions: CloningInstructions,
                                                 accessScope: AccessScope,
                                                 managedBy: ManagedBy,
-                                                privateResourceUser: Option[PrivateResourceUser])
+                                                privateResourceUser: Option[PrivateResourceUser],
+                                                resourceId: Option[WsmControlledResourceId])
 
 final case class ControlledResourceName(value: String) extends AnyVal
 final case class ControlledResourceDescription(value: String) extends AnyVal
@@ -373,18 +374,20 @@ object WsmEncoders {
   implicit val privateResourceUserEncoder: Encoder[PrivateResourceUser] =
     Encoder.forProduct2("userName", "privateResourceIamRoles")(x => (x.userName.value, x.privateResourceIamRoles))
   implicit val wsmCommonFieldsEncoder: Encoder[ControlledResourceCommonFields] =
-    Encoder.forProduct6("name",
+    Encoder.forProduct7("name",
                         "description",
                         "cloningInstructions",
                         "accessScope",
                         "managedBy",
-                        "privateResourceUser")(x =>
+                        "privateResourceUser",
+                        "resourceId")(x =>
       (x.name.value,
        x.description.value,
        x.cloningInstructions.toString,
        x.accessScope.toString,
        x.managedBy.toString,
-       x.privateResourceUser)
+       x.privateResourceUser,
+       x.resourceId)
     )
 
   implicit val ipRequestDataEncoder: Encoder[CreateIpRequestData] =

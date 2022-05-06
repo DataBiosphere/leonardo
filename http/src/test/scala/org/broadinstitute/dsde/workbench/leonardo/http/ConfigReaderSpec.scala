@@ -32,6 +32,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
       ),
       AzureConfig(
         AzurePubsubHandlerConfig(
+          Uri.unsafeFromString("https://sam.test.org:443"),
           PollMonitorConfig(1 seconds, 120, 1 seconds),
           PollMonitorConfig(1 seconds, 120, 1 seconds),
           AzureRuntimeDefaults(
@@ -60,7 +61,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                 "https://raw.githubusercontent.com/DataBiosphere/leonardo/fd5512bf8c56c11a850bcdfd1005cbf81a2f162e/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:4ff156f",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:d0cafa5",
             AcrCredential(username = "username", password = "password"),
             VMCredential(username = "username", password = "password")
           )

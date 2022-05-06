@@ -33,6 +33,8 @@ RELAY_CONNECTION_POLICY_KEY=$5
 DOCKER_USER_NAME=$6
 DOCKER_USER_PASSWORD=$7
 LISTENER_DOCKER_IMAGE=$8
+SAMURL=$9
+SAMRESOURCEID=$10
 
 # Define environment variables for Jupyter Server customization
 
@@ -75,8 +77,10 @@ docker login terradevacrpublic.azurecr.io -u $DOCKER_USER_NAME -p $DOCKER_USER_P
 
 #Run docker container with Relay Listener
 
-docker run -d --restart always --network host --name RelayListener \
+docker run -d --restart always --network host --name listener \
 --env LISTENER_RELAYCONNECTIONSTRING=$RELAY_CONNECTIONSTRING \
 --env LISTENER_RELAYCONNECTIONNAME=$RELAY_CONNECTION_NAME \
+--env LISTENER_SAMINSPECTORPROPERTIES_SAMRESOURCEID=$SAMRESOURCEID \
+--env LISTENER_SAMINSPECTORPROPERTIES_SAMURL=$SAMURL \
 --env LISTENER_TARGETPROPERTIES_TARGETHOST="http://${RELAY_TARGET_HOST}:8888" \
 $LISTENER_DOCKER_IMAGE

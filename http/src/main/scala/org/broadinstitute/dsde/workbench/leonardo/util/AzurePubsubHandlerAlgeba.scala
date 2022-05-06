@@ -9,6 +9,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 }
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.AzureRuntimeCreationError
+import org.http4s.Uri
 
 import java.time.Instant
 
@@ -38,6 +39,7 @@ final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    jobId: WsmJobId,
                                    relayNamespace: RelayNamespace)
 
-final case class AzurePubsubHandlerConfig(createVmPollConfig: PollMonitorConfig,
+final case class AzurePubsubHandlerConfig(samUrl: Uri,
+                                          createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
                                           runtimeDefaults: AzureRuntimeDefaults)

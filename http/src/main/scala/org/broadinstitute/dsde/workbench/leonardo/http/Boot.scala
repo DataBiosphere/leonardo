@@ -196,7 +196,10 @@ object Boot extends IOApp {
 
         val backLeoOnlyProcesses = {
           val monitorAtBoot =
-            new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.googleComputeService)
+            new MonitorAtBoot[IO](appDependencies.publisherQueue,
+                                  googleDependencies.googleComputeService,
+                                  appDependencies.samDAO,
+                                  appDependencies.wsmDAO)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -302,7 +305,7 @@ object Boot extends IOApp {
         HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
       )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
-        client => new HttpJupyterDAO[F](runtimeDnsCache, client)
+        client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
       welderDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_welder_client"), false).map(
         client => new HttpWelderDAO[F](runtimeDnsCache, client)

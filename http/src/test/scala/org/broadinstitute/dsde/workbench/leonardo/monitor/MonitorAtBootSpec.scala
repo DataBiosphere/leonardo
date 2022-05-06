@@ -21,6 +21,7 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.scalatest.Assertions
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData.{makeApp, makeKubeCluster, makeNodepool}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockSamDAO, MockWsmDAO}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.ClusterNodepoolAction.{
   CreateClusterAndNodepool,
   CreateNodepool
@@ -251,5 +252,5 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
     queue: Queue[IO, LeoPubsubMessage] =
       Queue.bounded[IO, LeoPubsubMessage](10).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   ): MonitorAtBoot[IO] =
-    new MonitorAtBoot[IO](queue, FakeGoogleComputeService)
+    new MonitorAtBoot[IO](queue, FakeGoogleComputeService, new MockSamDAO(), new MockWsmDAO())
 }

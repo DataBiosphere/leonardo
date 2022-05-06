@@ -354,6 +354,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
         }
         RuntimeToMonitor(
           rec._1._1.id,
+          rec._1._1.workspaceId,
           rec._1._1.cloudContext,
           rec._1._1.runtimeName,
           rec._1._1.status,

@@ -486,7 +486,8 @@ object CommonTestData {
         userEmail,
         List(ControlledResourceIamRole.Editor)
       )
-    )
+    ),
+    None
   )
 
   val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
