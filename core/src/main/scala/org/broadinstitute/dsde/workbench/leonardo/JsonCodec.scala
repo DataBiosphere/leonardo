@@ -151,13 +151,12 @@ object JsonCodec {
       else none[VirtualMachineSizeTypes]
     machineSizeOpt.toRight(s"Invalid azure virtualMachineSizeType ${s}")
   }
-  //TODO IA-3120 revert one the WSM bug is fixed
-  implicit val azureImageUriDecoder: Decoder[AzureImage] = Decoder.forProduct3(
+  implicit val azureImageUriDecoder: Decoder[AzureImage] = Decoder.forProduct4(
     "publisher",
     "offer",
-    "sku" //,
-//    "version"
-  )((x, y, z) => AzureImage(x, y, z, "v"))
+    "sku",
+    "version"
+  )((x, y, z, v) => AzureImage(x, y, z, v))
   implicit val azureDiskNameDecoder: Decoder[AzureDiskName] = Decoder.decodeString.map(AzureDiskName)
 
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
@@ -682,12 +681,10 @@ object JsonCodec {
   implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
   implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
 
-  //TODO IA-3120 revert one the WSM bug is fixed
-  implicit val azureImageEncoder: Encoder[AzureImage] = Encoder.forProduct3(
+  implicit val azureImageEncoder: Encoder[AzureImage] = Encoder.forProduct4(
     "publisher",
     "offer",
-    "sku"
-//    ,
-//    "version"
-  )(x => (x.publisher, x.offer, x.sku))
+    "sku",
+    "version"
+  )(x => (x.publisher, x.offer, x.sku, x.version))
 }

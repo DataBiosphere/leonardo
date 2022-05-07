@@ -34,7 +34,7 @@ DOCKER_USER_NAME=$6
 DOCKER_USER_PASSWORD=$7
 LISTENER_DOCKER_IMAGE=$8
 SAMURL=$9
-SAMRESOURCEID=$10
+SAMRESOURCEID="${10}"
 
 # Define environment variables for Jupyter Server customization
 
