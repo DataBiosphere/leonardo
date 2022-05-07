@@ -95,8 +95,20 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             params.runtime.auditInfo.creator,
             Some(samResourceId)
           )
+          val arguments = List(
+            params.relayeNamespace.value,
+            hcName.value,
+            "localhost",
+            "listener",
+            primaryKey.value,
+            config.runtimeDefaults.acrCredential.username,
+            config.runtimeDefaults.acrCredential.password,
+            config.runtimeDefaults.listenerImage,
+            config.samUrl.renderString,
+            samResourceId.value.toString
+          )
           val cmdToExecute =
-            s"""bash azure_vm_init_script.sh ${params.relayeNamespace.value} ${hcName.value} localhost listener ${primaryKey.value} ${config.runtimeDefaults.acrCredential.username} ${config.runtimeDefaults.acrCredential.password} ${config.runtimeDefaults.listenerImage} ${config.samUrl.renderString} ${samResourceId.value.toString}"""
+            s"bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
           CreateVmRequest(
             params.workspaceId,
             vmCommon,

@@ -26,7 +26,7 @@ class HttpWelderDAO[F[_]: Async: Logger](
             Request[F](
               method = Method.POST,
               uri =
-                x.toUri / "welder/cache/flush"
+                x.toUri / "welder" / "cache" / "flush"
             )
           )
         case x =>
@@ -51,7 +51,7 @@ class HttpWelderDAO[F[_]: Async: Logger](
             .successful(
               Request[F](
                 method = Method.GET,
-                uri = x.toUri / "welder/status"
+                uri = x.toUri / "welder" / "status"
               )
             )
             .handleError(_ => false)
