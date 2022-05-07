@@ -130,7 +130,7 @@ object Dependencies {
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
   val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.13.0"
-  val azureIdentity =  "com.azure" % "azure-identity" % "1.4.6"
+  val azureIdentity =  "com.azure" % "azure-identity" % "1.5.1"
 
   val coreDependencies = List(
     scalaTest,
