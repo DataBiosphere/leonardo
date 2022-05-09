@@ -121,7 +121,7 @@ object LeonardoApiClient {
   val defaultCreateAzureRuntimeRequest = CreateAzureRuntimeRequest(
     Map.empty,
     Region.US_WEST_CENTRAL,
-    VirtualMachineSizeTypes.STANDARD_D1_V2,
+    VirtualMachineSizeTypes.STANDARD_DS1_V2,
     Map.empty,
     CreateAzureDiskRequest(
       Map.empty,

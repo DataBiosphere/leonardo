@@ -146,19 +146,21 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
       runtime <- RuntimeServiceDbQueries.getRuntime(cloudContext, runtimeName).transaction
 
-      controlledResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureVm)
-        .transaction
-
-      azureRuntimeControlledResource <- F.fromOption(
-        controlledResourceOpt,
-        AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, ctx.traceId)
-      )
-
       // If user is creator of the runtime, they should definitely be able to see the runtime.
       hasPermission <- if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
-      else
-        checkSamPermission(azureRuntimeControlledResource, userInfo, WsmResourceAction.Read).map(_._1)
+      else {
+        for {
+          controlledResourceOpt <- controlledResourceQuery
+            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureVm)
+            .transaction
+
+          azureRuntimeControlledResource <- F.fromOption(
+            controlledResourceOpt,
+            AzureRuntimeControlledResourceNotFoundException(cloudContext, runtimeName, ctx.traceId)
+          )
+          res <- checkSamPermission(azureRuntimeControlledResource, userInfo, WsmResourceAction.Read).map(_._1)
+        } yield res
+      }
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
