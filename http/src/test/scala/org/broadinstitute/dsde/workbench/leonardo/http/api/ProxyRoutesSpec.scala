@@ -448,7 +448,7 @@ class ProxyRoutesSpec
 
   it should "reject setCookie if user is not registered" in {
     val samDao = new MockSamDAO {
-      override def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[UserSubjectId]] =
+      override def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
         IO.pure(None)
     }
     val proxyService =
