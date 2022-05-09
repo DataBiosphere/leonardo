@@ -136,6 +136,10 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
     decoder: Decoder[R],
     ev: Ask[IO, TraceId]
   ): IO[Boolean] = ???
+
+  override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[WorkbenchEmail] = ???
 }
 
 class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {

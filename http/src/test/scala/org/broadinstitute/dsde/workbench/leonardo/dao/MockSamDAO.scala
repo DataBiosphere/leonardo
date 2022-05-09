@@ -291,11 +291,11 @@ class MockSamDAO extends SamDAO[IO] {
     implicit ev: Ask[IO, TraceId]
   ): IO[Option[UserSubjectId]] = IO.pure(None)
 
-  def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[UserSubjectId]] =
-    IO.pure(Some(UserSubjectId("test")))
-
   override def getLeoAuthToken: IO[Authorization] =
     IO.pure(Authorization(Credentials.Token(AuthScheme.Bearer, "")))
+
+  def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
+    IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
 }
 
 object MockSamDAO {

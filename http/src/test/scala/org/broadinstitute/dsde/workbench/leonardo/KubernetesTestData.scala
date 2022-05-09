@@ -6,7 +6,13 @@ import org.broadinstitute.dsde.workbench.google2.{Location, MachineTypeName, Reg
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.AppSamResourceId
 import org.broadinstitute.dsde.workbench.model.IP
-import org.broadinstitute.dsde.workbench.leonardo.http.{CreateAppRequest, GetAppResponse, GetAppResult, ListAppResponse}
+import org.broadinstitute.dsde.workbench.leonardo.http.{
+  CreateAppRequest,
+  GetAppResponse,
+  GetAppResult,
+  ListAppResponse,
+  PersistentDiskRequest
+}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 
@@ -78,6 +84,17 @@ object KubernetesTestData {
                    "https://leo/proxy/",
                    List.empty)
       .toVector
+
+  def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest], customEnvVars: Map[String, String]) =
+    CreateAppRequest(
+      kubernetesRuntimeConfig = None,
+      appType = AppType.Cromwell,
+      diskConfig = diskConfig,
+      labels = Map.empty,
+      customEnvironmentVariables = customEnvVars,
+      descriptorPath = None,
+      extraArgs = List.empty
+    )
 
   def makeNodepool(index: Int, clusterId: KubernetesClusterLeoId, prefix: String = "", isDefault: Boolean = false) = {
     val name = NodepoolName(prefix + "nodepoolname" + index)

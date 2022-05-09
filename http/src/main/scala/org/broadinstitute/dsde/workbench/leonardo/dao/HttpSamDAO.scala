@@ -367,21 +367,21 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
           )
         )(s => F.pure(s))
       )
-      resp <- getUserSubjectIdFromToken(token)
-    } yield resp
+      userInfo <- getSamUserInfo(token)
+    } yield userInfo.map(_.userSubjectId)
 
-  override def getUserSubjectIdFromToken(token: String)(implicit ev: Ask[F, TraceId]): F[Option[UserSubjectId]] = {
+  override def getSamUserInfo(token: String)(implicit ev: Ask[F, TraceId]): F[Option[SamUserInfo]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, token))
 
     for {
-      resp <- httpClient.expectOptionOr[GetGoogleSubjectIdResponse](
+      resp <- httpClient.expectOptionOr[SamUserInfo](
         Request[F](
           method = Method.GET,
           uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/register/user/v2/self/info")),
           headers = Headers(authHeader)
         )
       )(onError)
-    } yield resp.map(_.userSubjectId)
+    } yield resp
   }
 }
 
@@ -478,10 +478,11 @@ object HttpSamDAO {
       systems <- c.downField("systems").as[Map[Subsystem, SubsystemStatus]]
     } yield StatusCheckResponse(ok, systems)
   }
-  implicit val getGoogleSubjectIdResponseDecoder: Decoder[GetGoogleSubjectIdResponse] =
-    Decoder.forProduct1("userSubjectId")(GetGoogleSubjectIdResponse.apply)
-  implicit val registerInfoResponseDecoder: Decoder[RegisterInfoResponse] =
+  implicit val registerInfoResponseDecoder: Decoder[RegisterInfoResponse] = {
     Decoder.forProduct1("enabled")(RegisterInfoResponse.apply)
+  }
+  implicit val samUserInfoDecoder: Decoder[SamUserInfo] =
+    Decoder.forProduct3("userSubjectId", "userEmail", "enabled")(SamUserInfo.apply)
 }
 
 final case class CreateSamResourceRequest[R](samResourceId: R,
@@ -501,7 +502,7 @@ final case class UserEmailAndProject(userEmail: WorkbenchEmail, googleProject: G
 final case class SerializableSamResource(resourceTypeName: SamResourceType, resourceId: SamResourceId)
 final case class SamRoleAction(roles: List[SamPolicyName])
 
-final case class GetGoogleSubjectIdResponse(userSubjectId: UserSubjectId)
+final case class SamUserInfo(userSubjectId: UserSubjectId, userEmail: WorkbenchEmail, enabled: Boolean)
 final case object NotFoundException extends NoStackTrace
 final case class AuthProviderException(traceId: TraceId, msg: String, code: StatusCode)
     extends LeoException(message = s"AuthProvider error: $msg", statusCode = code, traceId = Some(traceId))

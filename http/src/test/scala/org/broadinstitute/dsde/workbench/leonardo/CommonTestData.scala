@@ -180,6 +180,9 @@ object CommonTestData {
   val tokenValue = "accessToken"
   val tokenCookie = HttpCookiePair(tokenName, tokenValue)
 
+  // assumption: this pet SA is linked to userEmail (user1@example.com)
+  val petUserInfo = UserInfo(OAuth2BearerToken("accessToken"), WorkbenchUserId("user1"), serviceAccountEmail, 0)
+
   val validRefererUri = "http://example.com/this/is/a/test"
 
   val networkName = NetworkName("default")
