@@ -367,13 +367,7 @@ final case class App(id: AppId,
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
-      appType match {
-        case Galaxy | Custom =>
-          (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}"))
-        case Cromwell =>
-          (service.config.name,
-           new URL(s"${proxyUrlBase}${proxyPath}/swagger/index.html?url=/proxy/${proxyPath}/swagger/cromwell.yaml"))
-      }
+      (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}"))
     }.toMap
 }
 
