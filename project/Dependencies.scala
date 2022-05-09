@@ -111,7 +111,7 @@ object Dependencies {
     excludeBouncyCastlePkix)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
-  val wsmClient: ModuleID = "bio.terra" % "workspace-manager-client" % "0.254.192-SNAPSHOT"
+  val wsmClient: ModuleID = "bio.terra" % "workspace-manager-client" % "0.254.251-SNAPSHOT"
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
   val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
