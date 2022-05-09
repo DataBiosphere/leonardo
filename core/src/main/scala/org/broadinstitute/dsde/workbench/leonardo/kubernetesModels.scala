@@ -367,7 +367,9 @@ final case class App(id: AppId,
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
-      (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}"))
+      // Holding fix until BW-620. For Cromwell only, a trailing '/' is appended:
+      val url = if (appType == Cromwell) s"${proxyUrlBase}${proxyPath}/" else s"${proxyUrlBase}${proxyPath}"
+      (service.config.name, new URL(url))
     }.toMap
 }
 
