@@ -34,7 +34,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
             .successful(
               Request[F](
                 method = Method.GET,
-                uri = x.toUri / "api" / "status",
+                uri = x.toNotebooksUri / "api" / "status",
                 headers = headers
               )
             )
@@ -58,7 +58,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
             res <- client.expect[List[Session]](
               Request[F](
                 method = Method.GET,
-                uri = x.toUri / "api" / "sessions",
+                uri = x.toNotebooksUri / "api" / "sessions",
                 headers = headers
               )
             )
@@ -74,7 +74,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
           .successful(
             Request[F](
               method = Method.POST,
-              uri = x.toUri / "api" / "terminals"
+              uri = x.toNotebooksUri / "api" / "terminals"
             )
           )
           .flatMap(res => if (res) F.unit else logger.error("Fail to create new terminal"))
@@ -90,7 +90,7 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
           .successful(
             Request[F](
               method = Method.GET,
-              uri = x.toUri / "api" / "terminals" / terminalName.asString
+              uri = x.toNotebooksUri / "api" / "terminals" / terminalName.asString
             )
           )
       case _ => F.pure(false)

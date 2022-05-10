@@ -78,7 +78,7 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
         hostToIpMapping
           .getAndUpdate(_ + (h -> ip))
           .as[HostStatus](
-            HostReady(h, s"proxy/${cloudContext.asString}/${runtimeName.asString}")
+            HostReady(h, s"${cloudContext.asString}/${runtimeName.asString}")
           )
       case None =>
         if (r.status.isStartable)

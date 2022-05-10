@@ -16,7 +16,9 @@ object HostStatus {
   final case object HostNotReady extends HostStatus
   final case object HostPaused extends HostStatus
   final case class HostReady(hostname: Host, path: String) extends HostStatus {
-    def toUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/${path}")
+    def toUri: Uri = Uri.unsafeFromString(s"https://${hostname.address()}/proxy/${path}")
+    def toNotebooksUri: Uri =
+      Uri.unsafeFromString(s"https://${hostname.address()}/notebooks/${path}")
   }
 }
 
