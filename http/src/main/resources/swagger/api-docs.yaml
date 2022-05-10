@@ -27,6 +27,10 @@ security:
       - openid
       - email
       - profile
+  - oidc:
+      - openid
+      - email
+      - profile
 
 ##########################################################################################
 ## PATHS
@@ -2305,6 +2309,16 @@ components:
       flows:
         implicit:
           authorizationUrl: https://accounts.google.com/o/oauth2/auth
+          scopes:
+            openid: open id authorization
+            email: email authorization
+            profile: profile authorization
+    oidc:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth2/authorize
+          tokenUrl: /oauth2/token
           scopes:
             openid: open id authorization
             email: email authorization
