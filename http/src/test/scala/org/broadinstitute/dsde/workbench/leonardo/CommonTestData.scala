@@ -150,6 +150,14 @@ object CommonTestData {
   val contentSecurityPolicy = Config.contentSecurityPolicy
   val refererConfig = Config.refererConfig
   val leoKubernetesConfig = Config.leoKubernetesConfig
+  lazy val openIdConnectionConfiguration = org.broadinstitute.dsde.workbench.oauth2
+    .OpenIDConnectConfiguration[IO](
+      ConfigReader.appConfig.oidc.authorityEndpoint.renderString,
+      ConfigReader.appConfig.oidc.clientId,
+      oidcClientSecret = ConfigReader.appConfig.oidc.clientSecret,
+      extraGoogleClientId = Some(ConfigReader.appConfig.oidc.legacyGoogleClientId)
+    )
+    .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   val azureServiceConfig = AzureServiceConfig(
     //For now azure disks share same defaults as normal disks
     ConfigReader.appConfig.persistentDisk,

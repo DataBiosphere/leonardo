@@ -134,6 +134,8 @@ object Dependencies {
   val azureIdentity =  "com.azure" % "azure-identity" % "1.4.6"
 
   val coreDependencies = List(
+    workbenchOauth2,
+    workbenchOauth2Tests,
     scalaTest,
     slick,
     guava,
@@ -160,8 +162,6 @@ object Dependencies {
   )
 
   val httpDependencies = Seq(
-    workbenchOauth2,
-    workbenchOauth2Tests,
     logbackClassic,
     scalaLogging,
     ficus,

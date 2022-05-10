@@ -184,7 +184,7 @@ trait TestLeoRoutes {
 
   val httpRoutes =
     new HttpRoutes(
-      swaggerConfig,
+      openIdConnectionConfiguration,
       statusService,
       proxyService,
       runtimeService,
@@ -197,7 +197,7 @@ trait TestLeoRoutes {
     )
 
   val timedHttpRoutes =
-    new HttpRoutes(swaggerConfig,
+    new HttpRoutes(openIdConnectionConfiguration,
                    statusService,
                    proxyService,
                    runtimeService,
