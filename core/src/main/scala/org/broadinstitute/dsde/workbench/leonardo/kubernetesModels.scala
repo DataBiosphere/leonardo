@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppType.{Cromwell, Custom, Galaxy}
+import org.broadinstitute.dsde.workbench.leonardo.AppType.Cromwell
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
@@ -367,13 +367,9 @@ final case class App(id: AppId,
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
-      appType match {
-        case Galaxy | Custom =>
-          (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}"))
-        case Cromwell =>
-          (service.config.name,
-           new URL(s"${proxyUrlBase}${proxyPath}/swagger/index.html?url=/proxy/${proxyPath}/swagger/cromwell.yaml"))
-      }
+      // Holding fix until BW-620. For Cromwell only, a trailing '/' is appended:
+      val url = if (appType == Cromwell) s"${proxyUrlBase}${proxyPath}/" else s"${proxyUrlBase}${proxyPath}"
+      (service.config.name, new URL(url))
     }.toMap
 }
 
