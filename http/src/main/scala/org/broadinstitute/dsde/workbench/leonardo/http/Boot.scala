@@ -635,7 +635,7 @@ object Boot extends IOApp {
         // hostname resolution, so it's okay to use for all clients.
         .withCustomDnsResolver(dnsResolver)
         .resource
-      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = true, logAction = Some(s => logAction(s)))(
+      httpClientWithLogging = Http4sLogger[F](logHeaders = true, logBody = false, logAction = Some(s => logAction(s)))(
         httpClient
       )
       client = if (withRetry) Retry(retryPolicy)(httpClientWithLogging) else httpClientWithLogging
