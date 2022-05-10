@@ -7,7 +7,7 @@ cd $LEONARDO_DIR
 rm -f leonardo*.jar
 
 # Test
-JAVA_OPTS="-Dmysql.host=mysql -Dmysql.port=3306" sbt -J-Xms8g -J-Xmx8g -J-XX:MaxMetaspaceSize=1g "project http" clean assembly
+JAVA_OPTS="-Dmysql.host=mysql -Dmysql.port=3306 -Xmx6G -Xms6G" sbt -J-Xms6g -J-Xmx6g -J-XX:MaxMetaspaceSize=1g "project http" clean assembly
 LEONARDO_JAR=$(find http/target | grep 'http-assembly.*\.jar')
 
 # new generated jar name starts with `http`, but renaming it to `leonardo*.jar`
