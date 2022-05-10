@@ -596,7 +596,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
       runtimeConfig shouldBe RuntimeConfig.GceWithPdConfig(
         MachineTypeName("n1-standard-4"),
         Some(disk.id),
-        bootDiskSize = DiskSize(100),
+        bootDiskSize = DiskSize(120),
         zone = ZoneName("us-central1-a"),
         None
       ) //TODO: this is a problem in terms of inconsistency
@@ -618,7 +618,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
           scopes = Config.gceConfig.defaultScopes,
           runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig(runtimeConfig.machineType,
                                                                               disk.id,
-                                                                              bootDiskSize = DiskSize(100),
+                                                                              bootDiskSize = DiskSize(120),
                                                                               zone = ZoneName("us-central1-a"),
                                                                               None)
         )
