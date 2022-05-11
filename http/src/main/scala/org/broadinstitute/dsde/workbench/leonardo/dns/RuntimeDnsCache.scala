@@ -47,7 +47,8 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
               hostStatusByProjectAndCluster(runtime, x, key.runtimeName)
             case _: CloudContext.Azure =>
               runtime.hostIp match {
-                case Some(ip) => F.pure(HostReady(Host(s"${ip.asString}"), runtime.runtimeName.asString))
+                case Some(ip) =>
+                  F.pure(HostReady(Host(s"${ip.asString}"), runtime.runtimeName.asString, CloudProvider.Azure))
                 case None =>
                   if (runtime.status.isStartable)
                     F.pure[HostStatus](HostPaused)
@@ -78,7 +79,7 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
         hostToIpMapping
           .getAndUpdate(_ + (h -> ip))
           .as[HostStatus](
-            HostReady(h, s"${cloudContext.asString}/${runtimeName.asString}")
+            HostReady(h, s"${cloudContext.asString}/${runtimeName.asString}", CloudProvider.Gcp)
           )
       case None =>
         if (r.status.isStartable)

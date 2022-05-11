@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfigId, RuntimeStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudProvider, Runtime, RuntimeConfigId, RuntimeStatus}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -75,7 +75,8 @@ class RuntimeDnsCacheSpec
         .getHostStatus(cacheKeyForRunningCluster)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostReady(
         runningClusterHost,
-        s"${cloudContext.asString}/${runningCluster.runtimeName.asString}"
+        s"${cloudContext.asString}/${runningCluster.runtimeName.asString}",
+        CloudProvider.Gcp
       )
     }
     eventually(

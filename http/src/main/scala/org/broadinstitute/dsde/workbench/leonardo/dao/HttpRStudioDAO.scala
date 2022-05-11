@@ -19,7 +19,7 @@ class HttpRStudioDAO[F[_]: Async](val runtimeDnsCache: RuntimeDnsCache[F], clien
           .successful(
             Request[F](
               method = Method.GET,
-              uri = x.toUri / "rstudio" /
+              uri = x.toUri / "rstudio" / ""
             )
           )
           .handleError(_ => false)

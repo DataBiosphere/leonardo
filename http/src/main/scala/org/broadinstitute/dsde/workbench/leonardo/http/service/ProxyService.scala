@@ -227,7 +227,7 @@ class ProxyService(
       } else IO.unit
       hostStatus <- getRuntimeTargetHost(cloudContext, runtimeName)
       _ <- hostStatus match {
-        case HostReady(_, _) =>
+        case HostReady(_, _, _) =>
           dateAccessUpdaterQueue.offer(UpdateDateAccessMessage(runtimeName, cloudContext, ctx.now))
         case _ => IO.unit
       }
@@ -313,7 +313,7 @@ class ProxyService(
     for {
       ctx <- ev.ask[AppContext]
       res <- hostContext.status match {
-        case HostReady(targetHost, _) =>
+        case HostReady(targetHost, _, _) =>
           // If this is a WebSocket request (e.g. wss://leo:8080/...) then akka-http injects a
           // virtual UpgradeToWebSocket header which contains facilities to handle the WebSocket data.
           // The presence of this header distinguishes WebSocket from http requests.
