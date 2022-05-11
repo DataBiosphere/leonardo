@@ -451,7 +451,8 @@ object Boot extends IOApp {
           ConfigReader.appConfig.oidc.authorityEndpoint.renderString,
           ConfigReader.appConfig.oidc.clientId,
           oidcClientSecret = ConfigReader.appConfig.oidc.clientSecret,
-          extraGoogleClientId = Some(ConfigReader.appConfig.oidc.legacyGoogleClientId)
+          extraGoogleClientId = Some(ConfigReader.appConfig.oidc.legacyGoogleClientId),
+          extraAuthParams = Some("prompt=login")
         )
       )
 
