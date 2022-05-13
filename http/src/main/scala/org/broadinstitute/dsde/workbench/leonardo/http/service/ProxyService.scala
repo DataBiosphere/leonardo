@@ -5,7 +5,7 @@ package service
 import akka.actor.ActorSystem
 import akka.http.scaladsl.model.Uri.Host
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.`Content-Disposition`
+import akka.http.scaladsl.model.headers.{`Content-Disposition`, OAuth2BearerToken}
 import akka.http.scaladsl.model.ws._
 import akka.http.scaladsl.settings.ClientConnectionSettings
 import akka.http.scaladsl.unmarshalling.Unmarshal
@@ -15,12 +15,14 @@ import cats.effect.IO
 import cats.effect.std.Queue
 import cats.mtl.Ask
 import cats.syntax.all._
+import com.auth0.jwt.JWT
+import com.auth0.jwt.exceptions.JWTDecodeException
 import com.typesafe.scalalogging.LazyLogging
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.ServiceName
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2Service, OAuth2Service}
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, SamDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
@@ -29,7 +31,7 @@ import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheK
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
-import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.typelevel.log4cats.StructuredLogger
@@ -105,28 +107,36 @@ class ProxyService(
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
   logger.info(s"Leo proxy request timeout is $requestTimeout")
 
-  private[leonardo] def getUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[(UserInfo, Instant)] =
-    for {
-      now <- IO.realTimeInstant
-      userInfo <- googleOauth2Service.getUserInfoFromToken(token)
-      samUserInfo <- samDAO.getSamUserInfo(token)
-      _ <- IO.fromOption(samUserInfo.map(_.userSubjectId))(AuthenticationError(Some(userInfo.userEmail)))
-    } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
+  private[leonardo] def getUserInfo(token: String,
+                                    now: Instant)(implicit ev: Ask[IO, TraceId]): IO[(UserInfo, Instant)] =
+    decodeB2cToken(token, now) match {
+      case Left(_: JWTDecodeException) =>
+        for {
+          userInfo <- googleOauth2Service.getUserInfoFromToken(token)
+          samUserInfo <- samDAO.getSamUserInfo(token)
+          _ <- IO.fromOption(samUserInfo.map(_.userSubjectId))(AuthenticationError(Some(userInfo.userEmail)))
+        } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
+      case Left(e) =>
+        IO.raiseError(e)
+      case Right(value) =>
+        IO.pure(value)
+    }
 
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[UserInfo] =
     for {
-      cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token)).adaptError {
+      now <- IO.realTimeInstant
+
+      cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token, now)).adaptError {
         case e: AuthenticationError => e
         case _                      =>
           // Rethrow AuthenticationError if unable to look up the token
           AuthenticationError()
       }
-      now <- IO.realTimeInstant
       res <- cache match {
-        case (userInfo, expireTime) =>
-          if (expireTime.isAfter(now))
-            IO.pure(userInfo.copy(tokenExpiresIn = expireTime.getEpochSecond - now.getEpochSecond))
+        case (userInfo, expiresAt) =>
+          if (expiresAt.isAfter(now))
+            IO.pure(userInfo.copy(tokenExpiresIn = expiresAt.getEpochSecond - now.getEpochSecond))
           else
             IO.raiseError(AccessTokenExpiredException)
       }
@@ -497,4 +507,22 @@ object ProxyService {
       }
       case _ => path
     }
+
+  def decodeB2cToken(token: String, now: Instant): Either[Throwable, (UserInfo, Instant)] =
+    for {
+      decoded <- Either.catchNonFatal(JWT.decode(token))
+      nonNullDecoded <- Either.fromOption(Option(decoded), AuthenticationError(msg = "get null decoded token"))
+      email <- Either.fromOption(Option(nonNullDecoded.getClaim("email")),
+                                 AuthenticationError(msg = "no email claim found"))
+      subjectId = Option(nonNullDecoded.getClaim("google_id"))
+        .orElse(Option(nonNullDecoded.getClaim("sub")))
+        .map(x => x.asString())
+      userId <- Either.fromOption(subjectId, AuthenticationError(msg = "no google_id nor sub claim found"))
+      expiresAt = nonNullDecoded.getExpiresAt.toInstant
+      expiresIn <- if (expiresAt.isAfter(now))
+        (expiresAt.getEpochSecond - now.getEpochSecond).asRight[Exception]
+      else
+        AccessTokenExpiredException.asLeft[Long]
+    } yield (UserInfo(OAuth2BearerToken(token), WorkbenchUserId(userId), WorkbenchEmail(email.asString()), expiresIn),
+             expiresAt)
 }
