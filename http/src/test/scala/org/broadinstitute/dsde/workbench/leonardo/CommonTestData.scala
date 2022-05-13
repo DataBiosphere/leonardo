@@ -56,19 +56,20 @@ import org.broadinstitute.dsde.workbench.leonardo.http.{
 }
 import org.broadinstitute.dsde.workbench.model._
 import org.broadinstitute.dsde.workbench.model.google.{
-  ServiceAccountKeyId,
-  ServiceAccountPrivateKeyData,
   GoogleProject,
   ServiceAccountKey,
+  ServiceAccountKeyId,
+  ServiceAccountPrivateKeyData,
   _
 }
+
 import java.nio.file.Paths
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.{Date, UUID}
-
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import org.broadinstitute.dsde.workbench.leonardo.http.service.AzureServiceConfig
+import org.broadinstitute.dsde.workbench.oauth2.mock.FakeOpenIDConnectConfiguration
 
 import scala.concurrent.duration._
 
@@ -142,7 +143,6 @@ object CommonTestData {
   val clusterFilesConfig = Config.securityFilesConfig
   val clusterResourcesConfig = Config.clusterResourcesConfig
   val proxyConfig = Config.proxyConfig
-  val swaggerConfig = Config.swaggerConfig
   val autoFreezeConfig = Config.autoFreezeConfig
   val clusterToolConfig = Config.clusterToolMonitorConfig
   val proxyUrlBase = proxyConfig.proxyUrlBase
@@ -150,6 +150,7 @@ object CommonTestData {
   val contentSecurityPolicy = Config.contentSecurityPolicy
   val refererConfig = Config.refererConfig
   val leoKubernetesConfig = Config.leoKubernetesConfig
+  val openIdConnectionConfiguration = FakeOpenIDConnectConfiguration
   val azureServiceConfig = AzureServiceConfig(
     //For now azure disks share same defaults as normal disks
     ConfigReader.appConfig.persistentDisk,

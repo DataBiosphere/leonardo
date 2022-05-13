@@ -50,6 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscribe
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
@@ -154,7 +155,7 @@ object Boot extends IOApp {
       )
 
       val httpRoutes = new HttpRoutes(
-        swaggerConfig,
+        appDependencies.openIDConnectConfiguration,
         statusService,
         proxyService,
         runtimeService,
@@ -445,6 +446,16 @@ object Boot extends IOApp {
         F.delay(CaffeineCache[F, Long, OperationFuture[Operation, Operation]](underlyingOperationFutureCache))
       )(_.close)
 
+      oidcConfig <- Resource.eval(
+        OpenIDConnectConfiguration[F](
+          ConfigReader.appConfig.oidc.authorityEndpoint.renderString,
+          ConfigReader.appConfig.oidc.clientId,
+          oidcClientSecret = ConfigReader.appConfig.oidc.clientSecret,
+          extraGoogleClientId = Some(ConfigReader.appConfig.oidc.legacyGoogleClientId),
+          extraAuthParams = Some("prompt=login")
+        )
+      )
+
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
@@ -588,7 +599,8 @@ object Boot extends IOApp {
         samResourceCache,
         pubsubSubscriber,
         gkeAlg,
-        dataprocInterp
+        dataprocInterp,
+        oidcConfig
       )
     }
 
@@ -683,5 +695,6 @@ final case class AppDependencies[F[_]](
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, Option[String]],
   pubsubSubscriber: LeoPubsubMessageSubscriber[F],
   gkeAlg: GKEAlgebra[F],
-  dataprocInterp: DataprocInterpreter[F]
+  dataprocInterp: DataprocInterpreter[F],
+  openIDConnectConfiguration: OpenIDConnectConfiguration
 )
