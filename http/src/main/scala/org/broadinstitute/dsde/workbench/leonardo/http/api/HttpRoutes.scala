@@ -15,18 +15,19 @@ import cats.effect.unsafe.implicits.global
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Encoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
-import org.broadinstitute.dsde.workbench.leonardo.config.{RefererConfig, SwaggerConfig}
+import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes.errorReportEncoder
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
 import org.broadinstitute.dsde.workbench.model.ErrorReport
+import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.typelevel.log4cats.StructuredLogger
 
 import scala.concurrent.{ExecutionContext, Future}
 
 class HttpRoutes(
-  swaggerConfig: SwaggerConfig,
+  oidcConfig: OpenIDConnectConfiguration,
   statusService: StatusService,
   proxyService: ProxyService,
   runtimeService: RuntimeService[IO],
@@ -37,7 +38,6 @@ class HttpRoutes(
   contentSecurityPolicy: String,
   refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
-  private val swaggerRoutes = new SwaggerRoutes(swaggerConfig)
   private val statusRoutes = new StatusRoutes(statusService)
   private val corsSupport = new CorsSupport(contentSecurityPolicy)
   private val proxyRoutes = new ProxyRoutes(proxyService, corsSupport, refererConfig)
@@ -106,7 +106,8 @@ class HttpRoutes(
   val route: Route = {
     logRequestResult {
       Route.seal(
-        swaggerRoutes.routes ~ proxyRoutes.route ~ statusRoutes.route ~
+        oidcConfig
+          .swaggerRoutes("swagger/api-docs.yaml") ~ oidcConfig.oauth2Routes ~ proxyRoutes.route ~ statusRoutes.route ~
           pathPrefix("api") {
             runtimeRoutes.routes ~ runtimeV2Routes.routes ~ diskRoutes.routes ~ kubernetesRoutes.routes
           }

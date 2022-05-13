@@ -73,8 +73,6 @@ class RuntimeTemplateValuesSpec extends LeonardoTestSuite with AnyFlatSpecLike {
       result.rstudioDockerCompose shouldBe GcsPath(CommonTestData.initBucketName,
                                                    GcsObjectName("test-rstudio-docker-compose.yaml")).toUri
       result.rstudioDockerImage shouldBe ""
-      result.rstudioLicenseFile shouldBe GcsPath(CommonTestData.initBucketName,
-                                                 GcsObjectName("rstudio-license-file.lic")).toUri
       result.rstudioServerName shouldBe "rstudio-server"
       result.runtimeOperation shouldBe RuntimeOperation.Restarting.asString
       result.stagingBucketName shouldBe CommonTestData.stagingBucketName.value

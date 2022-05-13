@@ -15,12 +15,13 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "f6dcc68"
+  private val workbenchLibsHash = "a78f6e9"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.24-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.3-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.1-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.4"
 
@@ -57,7 +58,6 @@ object Dependencies {
 
   val logbackClassic: ModuleID =  "ch.qos.logback"              % "logback-classic" % "1.2.11"
   val scalaLogging: ModuleID =    "com.typesafe.scala-logging"  %% "scala-logging"  % scalaLoggingV
-  val swaggerUi: ModuleID =       "org.webjars"                 % "swagger-ui"      % "4.1.3"
   val ficus: ModuleID =           "com.iheart"                  %% "ficus"          % "1.5.2"
   val enumeratum: ModuleID =      "com.beachape"                %% "enumeratum"     % "1.7.0"
 
@@ -99,7 +99,8 @@ object Dependencies {
     excludeCloudBilling,
     excludeSundrCodegen,
     excludeGuava)
-
+  val workbenchOauth2: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V
+  val workbenchOauth2Tests: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-oauth2" % workbenchOauth2V % "test" classifier "tests"
   val workbenchGoogleTest: ModuleID =   "org.broadinstitute.dsde.workbench" %% "workbench-google"   % workbenchGoogleV  % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
   val workbenchGoogle2Test: ModuleID =  "org.broadinstitute.dsde.workbench" %% "workbench-google2"  % workbenchGoogle2V % "test" classifier "tests" excludeAll (excludeGuava) //for generators
   val workbenchOpenTelemetry: ModuleID =     "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV excludeAll (
@@ -133,6 +134,8 @@ object Dependencies {
   val azureIdentity =  "com.azure" % "azure-identity" % "1.4.6"
 
   val coreDependencies = List(
+    workbenchOauth2,
+    workbenchOauth2Tests,
     scalaTest,
     slick,
     guava,
@@ -161,7 +164,6 @@ object Dependencies {
   val httpDependencies = Seq(
     logbackClassic,
     scalaLogging,
-    swaggerUi,
     ficus,
     enumeratum,
     akkaSlf4j,
