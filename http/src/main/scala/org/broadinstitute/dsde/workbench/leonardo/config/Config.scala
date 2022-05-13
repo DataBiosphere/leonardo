@@ -191,8 +191,7 @@ object Config {
       config.as[Path]("proxyServerCrt"),
       config.as[Path]("proxyServerKey"),
       config.as[Path]("proxyRootCaPem"),
-      config.as[Path]("proxyRootCaKey"),
-      config.as[Path]("rstudioLicenseFile")
+      config.as[Path]("proxyRootCaKey")
     )
   }
 
@@ -249,13 +248,6 @@ object Config {
         config.as[Boolean]("enabled")
       )
     }
-
-  implicit private val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
-    SwaggerConfig(
-      config.getString("googleClientId"),
-      config.getString("realm")
-    )
-  }
 
   implicit private val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
     PubsubConfig(
@@ -455,7 +447,6 @@ object Config {
   val imageConfig = config.as[ImageConfig]("image")
   val prometheusConfig = config.as[PrometheusConfig]("prometheus")
   val proxyConfig = config.as[ProxyConfig]("proxy")
-  val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val securityFilesConfig = config.as[SecurityFilesConfig]("clusterFiles")
   val gceClusterResourcesConfig = config.as[ClusterResourcesConfig]("gceClusterResources")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
