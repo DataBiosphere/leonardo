@@ -82,85 +82,60 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       }
       hcName = RelayHybridConnectionName(params.runtime.runtimeName.asString)
       primaryKey <- azureManager.createRelayHybridConnection(params.relayeNamespace, hcName, cloudContext)
-      createIpAction = createIp(params, auth, params.runtime.runtimeName.asString)
       createDiskAction = createDisk(params, auth)
       createNetworkAction = createNetwork(params, auth, params.runtime.runtimeName.asString)
 
       samResourceId <- F.delay(WsmControlledResourceId(UUID.randomUUID()))
-      createVmRequest <- (createIpAction, createDiskAction, createNetworkAction).parMapN {
-        (ipResp, diskResp, networkResp) =>
-          val vmCommon = getCommonFields(
-            ControlledResourceName(params.runtime.runtimeName.asString),
-            config.runtimeDefaults.vmControlledResourceDesc,
-            params.runtime.auditInfo.creator,
-            Some(samResourceId)
-          )
-          val arguments = List(
-            params.relayeNamespace.value,
-            hcName.value,
-            "localhost",
-            "listener",
-            primaryKey.value,
-            config.runtimeDefaults.acrCredential.username,
-            config.runtimeDefaults.acrCredential.password,
-            config.runtimeDefaults.listenerImage,
-            config.samUrl.renderString,
-            samResourceId.value.toString
-          )
-          val cmdToExecute =
-            s"bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
-          CreateVmRequest(
-            params.workspaceId,
-            vmCommon,
-            CreateVmRequestData(
-              params.runtime.runtimeName,
-              params.runtimeConfig.region,
-              VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
-              config.runtimeDefaults.image,
-              CustomScriptExtension(
-                name = config.runtimeDefaults.customScriptExtension.name,
-                publisher = config.runtimeDefaults.customScriptExtension.publisher,
-                `type` = config.runtimeDefaults.customScriptExtension.`type`,
-                version = config.runtimeDefaults.customScriptExtension.version,
-                minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
-                protectedSettings = ProtectedSettings(
-                  config.runtimeDefaults.customScriptExtension.fileUris,
-                  cmdToExecute
-                )
-              ),
-              config.runtimeDefaults.acrCredential,
-              config.runtimeDefaults.vmCredential,
-              ipResp.resourceId,
-              diskResp.resourceId,
-              networkResp.resourceId
+      createVmRequest <- (createDiskAction, createNetworkAction).parMapN { (diskResp, networkResp) =>
+        val vmCommon = getCommonFields(
+          ControlledResourceName(params.runtime.runtimeName.asString),
+          config.runtimeDefaults.vmControlledResourceDesc,
+          params.runtime.auditInfo.creator,
+          Some(samResourceId)
+        )
+        val arguments = List(
+          params.relayeNamespace.value,
+          hcName.value,
+          "localhost",
+          "listener",
+          primaryKey.value,
+          config.runtimeDefaults.acrCredential.username,
+          config.runtimeDefaults.acrCredential.password,
+          config.runtimeDefaults.listenerImage,
+          config.samUrl.renderString,
+          samResourceId.value.toString
+        )
+        val cmdToExecute =
+          s"bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
+        CreateVmRequest(
+          params.workspaceId,
+          vmCommon,
+          CreateVmRequestData(
+            params.runtime.runtimeName,
+            params.runtimeConfig.region,
+            VirtualMachineSizeTypes.fromString(params.runtimeConfig.machineType.value),
+            config.runtimeDefaults.image,
+            CustomScriptExtension(
+              name = config.runtimeDefaults.customScriptExtension.name,
+              publisher = config.runtimeDefaults.customScriptExtension.publisher,
+              `type` = config.runtimeDefaults.customScriptExtension.`type`,
+              version = config.runtimeDefaults.customScriptExtension.version,
+              minorVersionAutoUpgrade = config.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
+              protectedSettings = ProtectedSettings(
+                config.runtimeDefaults.customScriptExtension.fileUris,
+                cmdToExecute
+              )
             ),
-            jobControl
-          )
+            config.runtimeDefaults.acrCredential,
+            config.runtimeDefaults.vmCredential,
+            diskResp.resourceId,
+            networkResp.resourceId
+          ),
+          jobControl
+        )
       }
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
-
-  private def createIp(params: CreateAzureRuntimeParams, leoAuth: Authorization, nameSuffix: String)(
-    implicit ev: Ask[F, AppContext]
-  ): F[CreateIpResponse] = {
-    val common = getCommonFields(ControlledResourceName(s"ip-${nameSuffix}"),
-                                 config.runtimeDefaults.ipControlledResourceDesc,
-                                 params.runtime.auditInfo.creator,
-                                 None)
-
-    val request: CreateIpRequest = CreateIpRequest(
-      params.workspaceId,
-      common,
-      CreateIpRequestData(
-        AzureIpName(s"ip-${nameSuffix}"),
-        params.runtimeConfig.region
-      )
-    )
-    for {
-      ipResp <- wsmDao.createIp(request, leoAuth)
-      _ <- controlledResourceQuery.save(params.runtime.id, ipResp.resourceId, WsmResourceType.AzureIp).transaction
-    } yield ipResp
-  }
 
   private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(
     implicit ev: Ask[F, AppContext]

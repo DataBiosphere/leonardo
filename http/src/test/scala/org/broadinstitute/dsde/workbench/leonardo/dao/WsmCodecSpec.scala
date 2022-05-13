@@ -160,7 +160,6 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         AcrCredential("username", "password"),
         VMCredential("username", "password"),
         WsmControlledResourceId(fixedUUID),
-        WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
       ),
       WsmJobControl(WsmJobId("job1"))

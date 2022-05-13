@@ -101,7 +101,6 @@ final case class CreateVmRequestData(name: RuntimeName,
                                      customScriptExtension: CustomScriptExtension,
                                      acrCredential: AcrCredential,
                                      vmUserCredential: VMCredential,
-                                     ipId: WsmControlledResourceId,
                                      diskId: WsmControlledResourceId,
                                      networkId: WsmControlledResourceId)
 
@@ -428,24 +427,15 @@ object WsmEncoders {
     Encoder.forProduct2("name", "password")(x => (x.username, x.password))
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
-    Encoder.forProduct9("name",
+    Encoder.forProduct8("name",
                         "region",
                         "vmSize",
                         "vmImage",
                         "customScriptExtension",
                         "vmUser",
-                        "ipId",
                         "diskId",
                         "networkId")(x =>
-      (x.name,
-       x.region,
-       x.vmSize,
-       x.vmImage,
-       x.customScriptExtension,
-       x.vmUserCredential,
-       x.ipId,
-       x.diskId,
-       x.networkId)
+      (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId, x.networkId)
     )
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 
