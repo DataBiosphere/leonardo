@@ -22,7 +22,7 @@ import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName.Serv
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config.ProxyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus._
-import org.broadinstitute.dsde.workbench.leonardo.dao.google.{GoogleOAuth2Service, OAuth2Service}
+import org.broadinstitute.dsde.workbench.leonardo.dao.google.GoogleOAuth2Service
 import org.broadinstitute.dsde.workbench.leonardo.dao.{HostStatus, JupyterDAO, Proxy, SamDAO, TerminalName}
 import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
 import org.broadinstitute.dsde.workbench.leonardo.dns.{KubernetesDnsCache, ProxyResolver, RuntimeDnsCache}
@@ -125,13 +125,16 @@ class ProxyService(
   /* Ask the cache for the corresponding user info given a token */
   def getCachedUserInfoFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[UserInfo] =
     for {
+      ctx <- ev.ask[TraceId]
       now <- IO.realTimeInstant
 
-      cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token, now)).adaptError {
-        case e: AuthenticationError => e
-        case _                      =>
+      cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token, now)).handleErrorWith {
+        case e: AuthenticationError =>
+          loggerIO.error(Map("traceId" -> ctx.asString), e)(s"${e.message} due to ${e.extraMessage}") >> IO
+            .raiseError(e)
+        case e =>
           // Rethrow AuthenticationError if unable to look up the token
-          AuthenticationError()
+          loggerIO.error(Map("traceId" -> ctx.asString), e)(e.getMessage) >> IO.raiseError(AuthenticationError())
       }
       res <- cache match {
         case (userInfo, expiresAt) =>
@@ -511,13 +514,13 @@ object ProxyService {
   def decodeB2cToken(token: String, now: Instant): Either[Throwable, (UserInfo, Instant)] =
     for {
       decoded <- Either.catchNonFatal(JWT.decode(token))
-      nonNullDecoded <- Either.fromOption(Option(decoded), AuthenticationError(msg = "get null decoded token"))
+      nonNullDecoded <- Either.fromOption(Option(decoded), AuthenticationError(extraMessage = "get null decoded token"))
       email <- Either.fromOption(Option(nonNullDecoded.getClaim("email")),
-                                 AuthenticationError(msg = "no email claim found"))
+                                 AuthenticationError(extraMessage = "no email claim found"))
       subjectId = Option(nonNullDecoded.getClaim("google_id"))
         .orElse(Option(nonNullDecoded.getClaim("sub")))
         .map(x => x.asString())
-      userId <- Either.fromOption(subjectId, AuthenticationError(msg = "no google_id nor sub claim found"))
+      userId <- Either.fromOption(subjectId, AuthenticationError(extraMessage = "no google_id nor sub claim found"))
       expiresAt = nonNullDecoded.getExpiresAt.toInstant
       expiresIn <- if (expiresAt.isAfter(now))
         (expiresAt.getEpochSecond - now.getEpochSecond).asRight[Exception]
