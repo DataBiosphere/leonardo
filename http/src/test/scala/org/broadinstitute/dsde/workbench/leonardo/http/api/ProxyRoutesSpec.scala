@@ -636,7 +636,7 @@ class ProxyRoutesSpec
     }
   }
 
-  it should "fail to decode b2c token if token expired" in {
+  it should "fail to decode b2c token if token expired" ignore {
     val token = "" // use a valid expired token for testing
     val now = Instant.now()
     val res = ProxyService.decodeB2cToken(token, now)
@@ -644,7 +644,7 @@ class ProxyRoutesSpec
   }
 
   it should "fail to decode b2c token" in {
-    val res = proxyService.getCachedUserInfoFromToken("").attempt.unsafeRunSync()
+    val res = proxyService.getCachedUserInfoFromToken("", false).attempt.unsafeRunSync()
 
     res shouldBe Left(AuthenticationError(extraMessage = "invalid token"))
   }

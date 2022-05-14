@@ -107,14 +107,18 @@ class ProxyService(
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
   logger.info(s"Leo proxy request timeout is $requestTimeout")
 
-  private[leonardo] def getUserInfo(token: String,
-                                    now: Instant)(implicit ev: Ask[IO, TraceId]): IO[(UserInfo, Instant)] =
+  private[leonardo] def getUserInfo(token: String, now: Instant, checkUserEnabled: Boolean)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[(UserInfo, Instant)] =
     decodeB2cToken(token, now) match {
       case Left(_: JWTDecodeException) =>
         for {
           userInfo <- googleOauth2Service.getUserInfoFromToken(token)
-          samUserInfo <- samDAO.getSamUserInfo(token)
-          _ <- IO.fromOption(samUserInfo.map(_.userSubjectId))(AuthenticationError(Some(userInfo.userEmail)))
+          _ <- if (checkUserEnabled) for {
+            samUserInfo <- samDAO.getSamUserInfo(token)
+            _ <- IO.fromOption(samUserInfo.map(_.userSubjectId))(AuthenticationError(Some(userInfo.userEmail)))
+          } yield ()
+          else IO.unit
         } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
       case Left(e) =>
         IO.raiseError(e)
@@ -123,12 +127,13 @@ class ProxyService(
     }
 
   /* Ask the cache for the corresponding user info given a token */
-  def getCachedUserInfoFromToken(token: String)(implicit ev: Ask[IO, TraceId]): IO[UserInfo] =
+  def getCachedUserInfoFromToken(token: String,
+                                 checkUserEnabled: Boolean)(implicit ev: Ask[IO, TraceId]): IO[UserInfo] =
     for {
       ctx <- ev.ask[TraceId]
       now <- IO.realTimeInstant
 
-      cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token, now)).handleErrorWith {
+      cache <- googleTokenCache.cachingF(token)(None)(getUserInfo(token, now, checkUserEnabled)).handleErrorWith {
         case e: AuthenticationError =>
           loggerIO.error(Map("traceId" -> ctx.asString), e)(s"${e.message} due to ${e.extraMessage}") >> IO
             .raiseError(e)
