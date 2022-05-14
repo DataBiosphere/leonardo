@@ -11,6 +11,7 @@ import akka.http.scaladsl.testkit.ScalatestRouteTest
 import akka.stream.scaladsl.{Keep, Sink, Source}
 import cats.effect.IO
 import cats.effect.std.Queue
+import cats.effect.unsafe.implicits.global
 import cats.mtl.Ask
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
@@ -21,7 +22,14 @@ import org.broadinstitute.dsde.workbench.leonardo.dao.google.MockGoogleOAuth2Ser
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
 import org.broadinstitute.dsde.workbench.leonardo.http.service.SamResourceCacheKey.{AppCacheKey, RuntimeCacheKey}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.TestProxy.{dataDecoder, Data}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{MockDiskServiceInterp, MockProxyService, TestProxy}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AccessTokenExpiredException,
+  MockDiskServiceInterp,
+  MockProxyService,
+  ProxyService,
+  TestProxy
+}
+import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.UpdateDateAccessMessage
 import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -31,7 +39,9 @@ import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.time.{Seconds, Span}
 import org.scalatest.{BeforeAndAfter, BeforeAndAfterAll}
 import org.scalatestplus.mockito.MockitoSugar
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
+import java.time.Instant
 import scala.collection.immutable
 import scala.concurrent.duration._
 
@@ -624,5 +634,18 @@ class ProxyRoutesSpec
       status shouldEqual StatusCodes.OK
       validateCors()
     }
+  }
+
+  it should "fail to decode b2c token if token expired" ignore {
+    val token = "" // use a valid expired token for testing
+    val now = Instant.now()
+    val res = ProxyService.decodeB2cToken(token, now)
+    res shouldBe Left(AccessTokenExpiredException)
+  }
+
+  it should "fail to decode b2c token" in {
+    val res = proxyService.getCachedUserInfoFromToken("", false).attempt.unsafeRunSync()
+
+    res shouldBe Left(AuthenticationError(extraMessage = "invalid token"))
   }
 }
