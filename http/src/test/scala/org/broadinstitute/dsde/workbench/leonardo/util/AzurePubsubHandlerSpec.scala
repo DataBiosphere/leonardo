@@ -94,7 +94,7 @@ class AzurePubsubHandlerSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
         controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
       } yield {
-        controlledResources.length shouldBe 4
+        controlledResources.length shouldBe 3
         val resourceTypes = controlledResources.map(_.resourceType)
         resourceTypes.contains(WsmResourceType.AzureVm) shouldBe true
         resourceTypes.contains(WsmResourceType.AzureNetwork) shouldBe true
@@ -132,9 +132,6 @@ class AzurePubsubHandlerSpec
           controlledResources.length shouldBe 0
         }
 
-        _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureIp)
-          .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
           .transaction
@@ -222,9 +219,6 @@ class AzurePubsubHandlerSpec
         //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
-          .transaction
-        _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureIp)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)

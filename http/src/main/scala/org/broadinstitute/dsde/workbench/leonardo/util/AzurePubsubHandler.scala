@@ -330,21 +330,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .void
       }
 
-      ipResourceOpt <- controlledResourceQuery.getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureIp).transaction
-      _ <- logger
-        .info(ctx.loggingCtx)(s"No ip resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteIp.")
-        .whenA(ipResourceOpt.isEmpty)
-      deleteIp = ipResourceOpt.traverse { ip =>
-        wsmDao.deleteIp(
-          DeleteWsmResourceRequest(
-            msg.workspaceId,
-            ip.resourceId,
-            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${msg.runtimeId}-ip")))
-          ),
-          auth
-        )
-      }.void
-
       diskResourceOpt <- controlledResourceQuery
         .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
         .transaction
@@ -408,7 +393,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       } yield ()
 
-      _ <- List(deleteDisk, deleteNetworks, deleteIp, deleteHybridConnection).parSequence
+      _ <- List(deleteDisk, deleteNetworks, deleteHybridConnection).parSequence
       cloudContext <- runtime.cloudContext match {
         case _: CloudContext.Gcp =>
           F.raiseError[AzureCloudContext](
