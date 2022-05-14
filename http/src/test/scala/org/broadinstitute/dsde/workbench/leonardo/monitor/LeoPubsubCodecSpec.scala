@@ -41,7 +41,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                     DiskSize(50),
                                                     bootDiskSize = DiskSize(50),
                                                     zone = ZoneName("us-central1-a"),
-                                                    None),
+                                                    None
+      ),
       None
     )
 
@@ -70,7 +71,8 @@ class LeoPubsubCodecSpec extends AnyFlatSpec with Matchers {
                                                           DiskId(2),
                                                           bootDiskSize = DiskSize(50),
                                                           zone = ZoneName("us-central1-a"),
-                                                          None),
+                                                          None
+      ),
       None
     )
 

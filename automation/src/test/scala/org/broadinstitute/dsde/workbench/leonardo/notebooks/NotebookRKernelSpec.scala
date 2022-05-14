@@ -105,7 +105,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           installOutput shouldBe defined
           installOutput.get should include("Installing package into")
           installOutput.get should include("/home/jupyter/packages")
-          installOutput.get should not include ("Installation failed")
+          installOutput.get should not include "Installation failed"
 
           // Make sure it was installed correctly; if not, this will return an error
           notebookPage.executeCell("library(mlr)").get should include("Loading required package: ParamHelpers")
@@ -141,7 +141,7 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           installOutput shouldBe defined
           installOutput.get should include("Installing package into")
           installOutput.get should include("/home/jupyter/packages")
-          installOutput.get should not include ("cannot find -lgfortran")
+          installOutput.get should not include "cannot find -lgfortran"
         }
       }
     }
@@ -161,11 +161,10 @@ class NotebookRKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               "WORKSPACE_NAME" -> "home"
             )
         withNewNotebook(runtimeFixture.runtime, RKernel) { notebookPage =>
-          expectedEVs.foreach {
-            case (k, v) =>
-              val res = notebookPage.executeCell(s"Sys.getenv('$k')")
-              res shouldBe defined
-              res.get shouldBe s"'$v'"
+          expectedEVs.foreach { case (k, v) =>
+            val res = notebookPage.executeCell(s"Sys.getenv('$k')")
+            res shouldBe defined
+            res.get shouldBe s"'$v'"
           }
         }
       }

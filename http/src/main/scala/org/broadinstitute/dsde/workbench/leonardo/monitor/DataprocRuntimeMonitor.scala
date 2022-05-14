@@ -40,14 +40,15 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
   googleStorageService: GoogleStorageService[F],
   override val runtimeAlg: RuntimeAlgebra[F],
   googleDataprocService: GoogleDataprocService[F]
-)(implicit override val dbRef: DbReference[F],
+)(implicit
+  override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   override val F: Async[F],
   override val parallel: Parallel[F],
   override val logger: StructuredLogger[F],
   override val ec: ExecutionContext,
-  override val openTelemetry: OpenTelemetryMetrics[F])
-    extends BaseCloudServiceRuntimeMonitor[F] {
+  override val openTelemetry: OpenTelemetryMetrics[F]
+) extends BaseCloudServiceRuntimeMonitor[F] {
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
 
@@ -55,8 +56,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
    * Queries Google for the cluster status and takes appropriate action depending on the result.
    * @return ClusterMonitorMessage
    */
-  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: Ask[F, AppContext]
+  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+    ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
@@ -126,47 +127,52 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
               checkAgain(monitorContext,
                          runtimeAndRuntimeConfig,
                          Some(fetchInstances),
-                         Some(s"Cluster is still in creating"))
+                         Some(s"Cluster is still in creating")
+              )
             case DataprocClusterStatus.Running =>
               for {
                 dataprocAndComputeInstances <- getDataprocInstances(c, googleProject)
                 instances = dataprocAndComputeInstances.map(_._1)
-                r <- if (instances.exists(_.status != GceInstanceStatus.Running))
-                  checkAgain(monitorContext,
-                             runtimeAndRuntimeConfig,
-                             Some(fetchInstances),
-                             Some(s"Not all instances for this cluster is Running yet"))
-                else {
-                  // Note we don't need to check startup script results here because Dataproc
-                  // won't transition the cluster to Running if a startup script failed.
+                r <-
+                  if (instances.exists(_.status != GceInstanceStatus.Running))
+                    checkAgain(monitorContext,
+                               runtimeAndRuntimeConfig,
+                               Some(fetchInstances),
+                               Some(s"Not all instances for this cluster is Running yet")
+                    )
+                  else {
+                    // Note we don't need to check startup script results here because Dataproc
+                    // won't transition the cluster to Running if a startup script failed.
 
-                  val masterInstance = instances.find(_.dataprocRole == DataprocRole.Master)
+                    val masterInstance = instances.find(_.dataprocRole == DataprocRole.Master)
 
-                  masterInstance match {
-                    case Some(dataprocInstance) =>
-                      dataprocInstance.ip match {
-                        case Some(ip) =>
-                          // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
-                          F.sleep(8 seconds) >> handleCheckTools(monitorContext,
-                                                                 runtimeAndRuntimeConfig,
-                                                                 ip,
-                                                                 masterInstance,
-                                                                 true)
-                        case None =>
-                          checkAgain(monitorContext,
-                                     runtimeAndRuntimeConfig,
-                                     Some(fetchInstances),
-                                     Some("Could not retrieve instance IP"))
-                      }
-                    case None =>
-                      failedRuntime(
-                        monitorContext,
-                        runtimeAndRuntimeConfig,
-                        RuntimeErrorDetails(s"Can't find master instance for this cluster"),
-                        instances.find(_.dataprocRole == DataprocRole.Master)
-                      )
+                    masterInstance match {
+                      case Some(dataprocInstance) =>
+                        dataprocInstance.ip match {
+                          case Some(ip) =>
+                            // It takes a bit for jupyter to startup, hence wait 5 seconds before we check jupyter
+                            F.sleep(8 seconds) >> handleCheckTools(monitorContext,
+                                                                   runtimeAndRuntimeConfig,
+                                                                   ip,
+                                                                   masterInstance,
+                                                                   true
+                            )
+                          case None =>
+                            checkAgain(monitorContext,
+                                       runtimeAndRuntimeConfig,
+                                       Some(fetchInstances),
+                                       Some("Could not retrieve instance IP")
+                            )
+                        }
+                      case None =>
+                        failedRuntime(
+                          monitorContext,
+                          runtimeAndRuntimeConfig,
+                          RuntimeErrorDetails(s"Can't find master instance for this cluster"),
+                          instances.find(_.dataprocRole == DataprocRole.Master)
+                        )
+                    }
                   }
-                }
               } yield r
 
             case DataprocClusterStatus.Error =>
@@ -264,12 +270,14 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             checkAgain(monitorContext,
                        runtimeAndRuntimeConfig,
                        Some(fetchInstances),
-                       Some(s"Dataproc cluster is still STOPPED"))
-          case DataprocClusterStatus.Running if (instances.exists(_.status != GceInstanceStatus.Running)) =>
+                       Some(s"Dataproc cluster is still STOPPED")
+            )
+          case DataprocClusterStatus.Running if instances.exists(_.status != GceInstanceStatus.Running) =>
             checkAgain(monitorContext,
                        runtimeAndRuntimeConfig,
                        Some(fetchInstances),
-                       Some(s"Not all instances for this cluster is Running yet"))
+                       Some(s"Not all instances for this cluster is Running yet")
+            )
           case DataprocClusterStatus.Running =>
             val main = dataprocAndComputeInstances
               .find(_._1.dataprocRole == DataprocRole.Master)
@@ -277,7 +285,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             val userStartupScriptOutputFile = main.map(_._2).flatMap(getUserScript)
             for {
               validationResult <- validateUserStartupScript(userStartupScriptOutputFile,
-                                                            runtimeAndRuntimeConfig.runtime.startUserScriptUri)
+                                                            runtimeAndRuntimeConfig.runtime.startUserScriptUri
+              )
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
                   checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(msg))
@@ -288,7 +297,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                   msg,
                                   shortMessage = Some("user_startup_script")
                                 ),
-                                None)
+                                None
+                  )
                 case UserScriptsValidationResult.Success =>
                   main.flatMap(_._1.ip) match {
                     case Some(ip) =>
@@ -297,12 +307,14 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                                                              runtimeAndRuntimeConfig,
                                                              ip,
                                                              main.map(_._1),
-                                                             false)
+                                                             false
+                      )
                     case None =>
                       checkAgain(monitorContext,
                                  runtimeAndRuntimeConfig,
                                  Some(fetchInstances),
-                                 Some("Could not retrieve instance IP"))
+                                 Some("Could not retrieve instance IP")
+                      )
                   }
               }
             } yield r
@@ -346,23 +358,27 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
           new RuntimeException("this should never happen. Dataproc runtime's cloud context should be a google project")
         )
         fetchInstances = getDataprocInstances(c, googleProject).map(x => x.map(_._1))
-        res <- if (c.getStatus.getState == com.google.cloud.dataproc.v1.ClusterStatus.State.STOPPED) {
-          stopRuntime(runtimeAndRuntimeConfig, monitorContext)
-        } else {
-          for {
-            instances <- fetchInstances
-            r <- if (instances
-                       .forall(i => i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated))
-              stopRuntime(runtimeAndRuntimeConfig, monitorContext)
-            else
-              checkAgain(
-                monitorContext,
-                runtimeAndRuntimeConfig,
-                Some(fetchInstances),
-                Some(s"not all instances has been terminated yet.")
-              )
-          } yield r
-        }
+        res <-
+          if (c.getStatus.getState == com.google.cloud.dataproc.v1.ClusterStatus.State.STOPPED) {
+            stopRuntime(runtimeAndRuntimeConfig, monitorContext)
+          } else {
+            for {
+              instances <- fetchInstances
+              r <-
+                if (
+                  instances
+                    .forall(i => i.status == GceInstanceStatus.Stopped || i.status == GceInstanceStatus.Terminated)
+                )
+                  stopRuntime(runtimeAndRuntimeConfig, monitorContext)
+                else
+                  checkAgain(
+                    monitorContext,
+                    runtimeAndRuntimeConfig,
+                    Some(fetchInstances),
+                    Some(s"not all instances has been terminated yet.")
+                  )
+            } yield r
+          }
       } yield res
   }
 
@@ -397,12 +413,14 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
             checkAgain(monitorContext,
                        runtimeAndRuntimeConfig,
                        Some(fetchInstances),
-                       Some(s"Dataproc cluster still being updated"))
-          case DataprocClusterStatus.Running if (instances.exists(_.status != GceInstanceStatus.Running)) =>
+                       Some(s"Dataproc cluster still being updated")
+            )
+          case DataprocClusterStatus.Running if instances.exists(_.status != GceInstanceStatus.Running) =>
             checkAgain(monitorContext,
                        runtimeAndRuntimeConfig,
                        Some(fetchInstances),
-                       Some(s"Not all instances for this cluster is Running yet"))
+                       Some(s"Not all instances for this cluster is Running yet")
+            )
           case DataprocClusterStatus.Running => //TODO: is this right? we can only start runtime if it's a Running dataproc cluster
             val main = instances.find(_.dataprocRole == DataprocRole.Master)
             main.flatMap(_.ip) match {
@@ -413,7 +431,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                 checkAgain(monitorContext,
                            runtimeAndRuntimeConfig,
                            Some(fetchInstances),
-                           Some("Could not retrieve instance IP"))
+                           Some("Could not retrieve instance IP")
+                )
             }
           case DataprocClusterStatus.Error =>
             failedRuntime(
@@ -435,8 +454,9 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
 
   private[monitor] def deletedRuntime(cluster: Option[Cluster],
                                       monitorContext: MonitorContext,
-                                      runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: Ask[F, AppContext]
+                                      runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[CheckResult] =
     cluster match {
       case Some(c) =>
@@ -451,7 +471,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
           r <- checkAgain(monitorContext,
                           runtimeAndRuntimeConfig,
                           Some(fetchInstances),
-                          Some("Instance hasn't been deleted yet"))
+                          Some("Instance hasn't been deleted yet")
+          )
         } yield r
       case None =>
         for {
@@ -469,7 +490,8 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
 
           // set the staging bucket to be deleted in ten days so that logs are still accessible until then
           _ <- setStagingBucketLifecycle(runtimeAndRuntimeConfig.runtime,
-                                         config.runtimeBucketConfig.stagingBucketExpiration)
+                                         config.runtimeBucketConfig.stagingBucketExpiration
+          )
 
           _ <- dbRef.inTransaction {
             clusterQuery.completeDeletion(runtimeAndRuntimeConfig.runtime.id, ctx.now)
@@ -508,10 +530,10 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
       zone = getZone(cluster)
       dataprocInstances <- zone.fold(F.pure(Set.empty[(DataprocInstance, Instance)])) { z =>
         instances.toList
-          .flatTraverse {
-            case (DataprocRoleZonePreemptibility(role, _, _), instances) =>
-              instances.toList.traverseFilter { i =>
-                googleComputeService.getInstance(googleProject, z, i).map { instanceOpt => //TODO: is this necessary? do we actually need to know all instance's IP?
+          .flatTraverse { case (DataprocRoleZonePreemptibility(role, _, _), instances) =>
+            instances.toList.traverseFilter { i =>
+              googleComputeService.getInstance(googleProject, z, i).map {
+                instanceOpt => //TODO: is this necessary? do we actually need to know all instance's IP?
                   instanceOpt.map { instance =>
                     (DataprocInstance(
                        DataprocInstanceKey(googleProject, z, i),
@@ -521,10 +543,11 @@ class DataprocRuntimeMonitor[F[_]: Parallel](
                        role,
                        parseGoogleTimestamp(instance.getCreationTimestamp).getOrElse(ctx.now)
                      ),
-                     instance)
+                     instance
+                    )
                   }
-                }
               }
+            }
           }
           .map(_.toSet)
       }

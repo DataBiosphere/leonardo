@@ -51,6 +51,6 @@ class AsyncTaskProcessorSpec extends AnyFlatSpec with Matchers with LeonardoTest
     // If tasks are executed sequentially, then each sleep takes 2 seconds, which will result int at least 20 seconds latency
     // stream terminates where queue becomes empty, but queue becomes empty before all items are processed,
     // hence initialize 15 items in the original queue
-    (end.toEpochMilli - start.toEpochMilli < 5000) shouldBe (true)
+    (end.toEpochMilli - start.toEpochMilli < 5000) shouldBe true
   }
 }

@@ -7,12 +7,14 @@ import fs2.Stream
 import org.broadinstitute.dsde.workbench.model.TraceId
 
 class MockRuntimeMonitor extends RuntimeMonitor[IO, CloudService] {
-  def process(a: CloudService)(runtimeId: Long,
-                               action: RuntimeStatus)(implicit ev: Ask[IO, TraceId]): Stream[IO, Unit] =
+  def process(a: CloudService)(runtimeId: Long, action: RuntimeStatus)(implicit
+    ev: Ask[IO, TraceId]
+  ): Stream[IO, Unit] =
     Stream.emit(()).covary[IO]
 
-  def handlePollCheckCompletion(a: CloudService)(monitorContext: MonitorContext,
-                                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): IO[Unit] = IO.unit
+  def handlePollCheckCompletion(
+    a: CloudService
+  )(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): IO[Unit] = IO.unit
 }
 
 object MockRuntimeMonitor extends MockRuntimeMonitor

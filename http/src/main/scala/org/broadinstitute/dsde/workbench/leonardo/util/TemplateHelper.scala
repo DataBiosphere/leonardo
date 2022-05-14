@@ -18,7 +18,8 @@ object TemplateHelper {
       .through(text.utf8.encode)
 
   def templateResource[F[_]: Sync](replacementMap: Map[String, String],
-                                   clusterResource: RuntimeResource): Stream[F, Byte] =
+                                   clusterResource: RuntimeResource
+  ): Stream[F, Byte] =
     resourceStream(clusterResource)
       .through(text.utf8.decode)
       .through(text.lines)

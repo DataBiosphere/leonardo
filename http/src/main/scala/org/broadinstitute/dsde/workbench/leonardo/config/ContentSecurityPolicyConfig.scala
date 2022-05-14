@@ -17,7 +17,8 @@ final case class ContentSecurityPolicyConfig(frameAncestors: FrameAncestors,
                                              styleSrc: StyleSrc,
                                              connectSrc: ConnectSrc,
                                              objectSrc: ObjectSrc,
-                                             reportUri: ReportUri) {
+                                             reportUri: ReportUri
+) {
   def asString: String = {
     val components = List(frameAncestors, scriptSrc, styleSrc, connectSrc, objectSrc, reportUri)
     components.map(c => s"${c.name} ${c.values.mkString(" ")}").mkString("; ")

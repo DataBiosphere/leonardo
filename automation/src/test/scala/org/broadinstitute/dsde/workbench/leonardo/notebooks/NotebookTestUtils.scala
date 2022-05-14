@@ -63,11 +63,13 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   )(implicit webDriver: WebDriver, token: AuthToken): T =
     withNewNotebookWithCheck(RuntimeProjectAndName(CloudContext.Gcp(cluster.googleProject), cluster.clusterName),
                              kernel,
-                             timeout)(testCode)
+                             timeout
+    )(testCode)
 
   def withNewNotebookWithCheck[T](runtimeProjectAndName: RuntimeProjectAndName,
                                   kernel: NotebookKernel = Python3,
-                                  timeout: FiniteDuration = 3.minutes)(
+                                  timeout: FiniteDuration = 3.minutes
+  )(
     testCode: NotebookPage => T
   )(implicit webDriver: WebDriver, token: AuthToken): T = {
     // Note we retry the entire notebook creation when we encounter KernelNotReadyException
@@ -105,7 +107,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     // Note we retry the entire notebook creation when we encounter KernelNotReadyException
     val result =
       retryUntilSuccessOrTimeout(whenKernelNotReady, failureLogMessage = s"Cannot make new notebook")(30 seconds,
-                                                                                                      2 minutes) { () =>
+                                                                                                      2 minutes
+      ) { () =>
         withNotebooksListPage(RuntimeProjectAndName(CloudContext.Gcp(cluster.googleProject), cluster.clusterName)) {
           notebooksListPage =>
             notebooksListPage.withSubFolder(timeout) { notebooksListPage =>
@@ -164,7 +167,7 @@ trait NotebookTestUtils extends LeonardoTestUtils {
     installOutput.get should include(s"Collecting $packageName")
     installOutput.get should include("Installing collected packages:")
     installOutput.get should include("Successfully installed")
-    installOutput.get should not include ("Exception:")
+    installOutput.get should not include "Exception:"
   }
 
   // https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/1_Introduction/helloworld.ipynb
@@ -207,13 +210,14 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           case Some(instantStr) => Instant.ofEpochMilli(instantStr.toLong).compareTo(Instant.now()) == 1
           case None             => false
         }
-        lastLockedBy = if (currentlyLocked) {
-          metadata match {
-            case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lastLockedBy") =>
-              Some(metadataMap("lastLockedBy"))
-            case _ => None
-          }
-        } else None
+        lastLockedBy =
+          if (currentlyLocked) {
+            metadata match {
+              case Some(GetMetadataResponse.Metadata(_, metadataMap, _)) if metadataMap.contains("lastLockedBy") =>
+                Some(metadataMap("lastLockedBy"))
+              case _ => None
+            }
+          } else None
       } yield lastLockedBy
     }
 
@@ -234,7 +238,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
 
   def setObjectMetadata(workspaceBucketName: GcsBucketName,
                         notebookName: GcsBlobName,
-                        metadata: Map[String, String]): IO[Unit] =
+                        metadata: Map[String, String]
+  ): IO[Unit] =
     //lockExpiresAt, lastLockedBy
     google2StorageResource.use { google2StorageDAO =>
       google2StorageDAO.setObjectMetadata(workspaceBucketName, notebookName, metadata, None).compile.drain
@@ -243,7 +248,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   def setObjectContents(googleProject: GoogleProject,
                         workspaceBucketName: GcsBucketName,
                         notebookName: GcsBlobName,
-                        contents: String)(implicit token: AuthToken): IO[Unit] = {
+                        contents: String
+  )(implicit token: AuthToken): IO[Unit] = {
     val petServiceAccount = Sam.user.petServiceAccountEmail(googleProject.value)
     val userID = Identity.serviceAccount(petServiceAccount.value)
 
@@ -255,7 +261,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
           .drain
         _ <- google2StorageDAO
           .setIamPolicy(workspaceBucketName,
-                        Map(ObjectAdmin.asInstanceOf[StorageRole] -> NonEmptyList[Identity](userID, List())))
+                        Map(ObjectAdmin.asInstanceOf[StorageRole] -> NonEmptyList[Identity](userID, List()))
+          )
           .compile
           .drain
       } yield ()
@@ -263,7 +270,8 @@ trait NotebookTestUtils extends LeonardoTestUtils {
   }
 
   def startAndMonitorRuntime(googleProject: GoogleProject, runtimeName: RuntimeName, checkJupyterSetup: Boolean)(
-    implicit token: AuthToken,
+    implicit
+    token: AuthToken,
     authorization: IO[Authorization]
   ): Unit = {
     // verify with get()

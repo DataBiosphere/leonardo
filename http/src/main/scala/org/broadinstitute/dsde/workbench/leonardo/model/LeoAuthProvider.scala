@@ -132,8 +132,8 @@ object SamResourceAction {
 trait LeoAuthProvider[F[_]] {
   def serviceAccountProvider: ServiceAccountProvider[F]
 
-  def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[Boolean]
 
@@ -145,18 +145,18 @@ trait LeoAuthProvider[F[_]] {
     googleProject: GoogleProject
   )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[Boolean]
 
-  def getActions[R, A](samResource: R, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[List[sr.ActionCategory]]
 
-  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[(List[sr.ActionCategory], List[ProjectAction])]
 
-  def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
-    implicit sr: SamResource[R],
+  def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[R]]
@@ -164,8 +164,8 @@ trait LeoAuthProvider[F[_]] {
   def filterUserVisibleWithProjectFallback[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
-  )(
-    implicit sr: SamResource[R],
+  )(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]]
@@ -173,15 +173,15 @@ trait LeoAuthProvider[F[_]] {
   def filterUserVisibleWithWorkspaceFallback[R](
     resources: NonEmptyList[(WorkspaceId, R)],
     userInfo: UserInfo
-  )(
-    implicit sr: SamResource[R],
+  )(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(WorkspaceId, R)]]
 
   // Creates a resource in Sam
-  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
   ): F[Unit]

@@ -175,7 +175,8 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     val nodepool = listAppsWithDeleted.head.nodepools.head
     nodepool.apps.length shouldEqual 1
     nodepool.apps.head shouldEqual app1.copy(status = AppStatus.Deleted,
-                                             auditInfo = app1.auditInfo.copy(destroyedDate = Some(destroyedDate)))
+                                             auditInfo = app1.auditInfo.copy(destroyedDate = Some(destroyedDate))
+    )
 
     //delete nodepool for deleted app
     dbFutureValue(nodepoolQuery.markAsDeleted(savedNodepool.id, destroyedDate)) shouldBe 1
@@ -192,7 +193,8 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
     )
     deletedNodepool.apps.length shouldEqual 1
     nodepool.apps.head shouldEqual app1.copy(status = AppStatus.Deleted,
-                                             auditInfo = app1.auditInfo.copy(destroyedDate = Some(destroyedDate)))
+                                             auditInfo = app1.auditInfo.copy(destroyedDate = Some(destroyedDate))
+    )
   }
 
   it should "not list deleted apps when includeDelete is false" in isolatedDbTest {
@@ -225,7 +227,8 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
                               c.status,
                               c.ingressChart,
                               c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        )
       )
       .get
 
@@ -255,7 +258,8 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
                               c.status,
                               c.ingressChart,
                               c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        )
       )
       .get
     val saveCluster2 = Some(makeCluster2)
@@ -267,7 +271,8 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
                               c.status,
                               c.ingressChart,
                               c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        )
       )
       .get
 
@@ -296,7 +301,8 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
                               c.status,
                               c.ingressChart,
                               c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        )
       )
       .get
 
@@ -323,7 +329,8 @@ class AppServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent {
                               c.status,
                               c.ingressChart,
                               c.auditInfo,
-                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get))
+                              DefaultNodepool.fromNodepool(c.nodepools.headOption.get)
+        )
       )
       .get
     val saveClusterResult = dbFutureValue(KubernetesServiceDbQueries.saveOrGetClusterForApp(saveCluster2))

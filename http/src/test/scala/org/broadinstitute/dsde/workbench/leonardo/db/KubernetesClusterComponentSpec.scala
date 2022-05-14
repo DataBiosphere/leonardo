@@ -68,7 +68,8 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
     getCluster.map(c => c.copy(nodepools = c.nodepools.sortBy(_.nodepoolName.value))) shouldEqual Some(
       savedCluster1
         .copy(namespaces = namespaces,
-              nodepools = (savedCluster1.nodepools ++ List(savedNodepool1)).sortBy(_.nodepoolName.value))
+              nodepools = (savedCluster1.nodepools ++ List(savedNodepool1)).sortBy(_.nodepoolName.value)
+        )
     )
 
     //we expect 3 records to be affected by the delete: 2 nodepools, 1 cluster

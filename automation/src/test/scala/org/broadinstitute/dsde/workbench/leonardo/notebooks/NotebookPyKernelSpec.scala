@@ -33,7 +33,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             notebookPage.executeCell(getPythonVersion).get should include("3.7")
             notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
             notebookPage.executeCell(getPandasLocation).get should include("/opt/conda/lib/python3.7/site-packages")
-            notebookPage.executeCell("! pwd").get shouldBe ("/home/jupyter")
+            notebookPage.executeCell("! pwd").get shouldBe "/home/jupyter"
           }
         }
     }
@@ -85,8 +85,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
       contentSecurityHeader shouldBe defined
       contentSecurityHeader.get.value should include("https://bvdp-saturn-dev.appspot.com")
-      contentSecurityHeader.get.value should not include ("https://bvdp-saturn-prod.appspot.com")
-      contentSecurityHeader.get.value should not include ("*.terra.bio")
+      contentSecurityHeader.get.value should not include "https://bvdp-saturn-prod.appspot.com"
+      contentSecurityHeader.get.value should not include "*.terra.bio"
     }
 
     "should allow BigQuerying via the command line" in { runtimeFixture =>
@@ -197,11 +197,10 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             )
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import os")
-          expectedEVs.foreach {
-            case (k, v) =>
-              val res = notebookPage.executeCell(s"os.getenv('$k')")
-              res shouldBe defined
-              res.get shouldBe s"'$v'"
+          expectedEVs.foreach { case (k, v) =>
+            val res = notebookPage.executeCell(s"os.getenv('$k')")
+            res shouldBe defined
+            res.get shouldBe s"'$v'"
           }
         }
       }

@@ -15,8 +15,8 @@ import org.http4s.{Method, Request, Uri}
 import org.typelevel.log4cats.Logger
 
 //Jupyter server API doc https://github.com/jupyter/jupyter/wiki/Jupyter-Notebook-Server-API
-class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(
-  implicit F: Async[F],
+class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Client[F])(implicit
+  F: Async[F],
   logger: Logger[F]
 ) extends JupyterDAO[F] {
   def isProxyAvailable(cloudContext: CloudContext, runtimeName: RuntimeName): F[Boolean] =
@@ -72,7 +72,8 @@ class HttpJupyterDAO[F[_]](val runtimeDnsCache: RuntimeDnsCache[F], client: Clie
 
   override def terminalExists(googleProject: GoogleProject,
                               runtimeName: RuntimeName,
-                              terminalName: TerminalName): F[Boolean] =
+                              terminalName: TerminalName
+  ): F[Boolean] =
     Proxy.getRuntimeTargetHost[F](runtimeDnsCache, CloudContext.Gcp(googleProject), runtimeName) flatMap {
       case HostReady(targetHost) =>
         client

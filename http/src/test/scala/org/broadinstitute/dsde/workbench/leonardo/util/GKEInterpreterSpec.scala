@@ -63,12 +63,14 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
     val maxNodes = 2
     val savedNodepool1 = makeNodepool(1, savedCluster1.id)
       .copy(autoscalingEnabled = true,
-            autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes))))
+            autoscalingConfig = Some(AutoscalingConfig(AutoscalingMin(minNodes), AutoscalingMax(maxNodes)))
+      )
       .save()
     val googleNodepool =
       gkeInterp.buildGoogleNodepool(savedNodepool1,
                                     savedCluster1.googleProject,
-                                    Some(Map("gke-default-sa" -> "gke-node-default-sa")))
+                                    Some(Map("gke-default-sa" -> "gke-node-default-sa"))
+      )
     googleNodepool.getAutoscaling.getEnabled shouldBe true
     googleNodepool.getAutoscaling.getMinNodeCount shouldBe minNodes
     googleNodepool.getAutoscaling.getMaxNodeCount shouldBe maxNodes
@@ -109,7 +111,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       userEmail,
       Map("WORKSPACE_NAME" -> "test-workspace",
           "WORKSPACE_BUCKET" -> "gs://test-bucket",
-          "WORKSPACE_NAMESPACE" -> "dsp-leo-test1"),
+          "WORKSPACE_NAMESPACE" -> "dsp-leo-test1"
+      ),
       ServiceAccountName("app1-galaxy-ksa"),
       NamespaceName("ns"),
       savedDisk1,
@@ -118,7 +121,9 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       None
     )
 
-    res.mkString(",") shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.galaxyPersistentVolumeClaims.data.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: pool1,galaxy.postgresql.master.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0].host=1455694897.jupyter.firecloud.org,galaxy.ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,galaxy.ingress.tls[0].secretName=tls-secret,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,galaxy.terra.launch.workspace=test-workspace,galaxy.terra.launch.namespace=dsp-leo-test1,galaxy.terra.launch.apiURL=https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/,galaxy.terra.launch.drsURL=https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3,galaxy.jobs.maxLimits.memory=6,galaxy.jobs.maxLimits.cpu=4,galaxy.jobs.maxRequests.memory=1,galaxy.jobs.maxRequests.cpu=1,galaxy.serviceAccount.create=false,galaxy.serviceAccount.name=app1-galaxy-ksa,rbac.serviceAccount=app1-galaxy-ksa,persistence.nfs.name=ns-nfs-disk,persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=disk1,persistence.nfs.size=250Gi,persistence.postgres.name=ns-postgres-disk,galaxy.postgresql.galaxyDatabasePassword=replace-me,persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=disk1-gxy-postres-disk,persistence.postgres.size=10Gi,nfs.persistence.existingClaim=ns-nfs-disk-pvc,nfs.persistence.size=250Gi,galaxy.postgresql.persistence.existingClaim=ns-postgres-disk-pvc,galaxy.persistence.size=200Gi,configs.WORKSPACE_NAME=test-workspace,extraEnv[0].name=WORKSPACE_NAME,extraEnv[0].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[0].valueFrom.configMapKeyRef.key=WORKSPACE_NAME,configs.WORKSPACE_BUCKET=gs://test-bucket,extraEnv[1].name=WORKSPACE_BUCKET,extraEnv[1].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[1].valueFrom.configMapKeyRef.key=WORKSPACE_BUCKET,configs.WORKSPACE_NAMESPACE=dsp-leo-test1,extraEnv[2].name=WORKSPACE_NAMESPACE,extraEnv[2].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[2].valueFrom.configMapKeyRef.key=WORKSPACE_NAMESPACE"""
+    res.mkString(
+      ","
+    ) shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.galaxyPersistentVolumeClaims.data.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: pool1,galaxy.postgresql.master.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0].host=1455694897.jupyter.firecloud.org,galaxy.ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,galaxy.ingress.tls[0].secretName=tls-secret,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,galaxy.terra.launch.workspace=test-workspace,galaxy.terra.launch.namespace=dsp-leo-test1,galaxy.terra.launch.apiURL=https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/,galaxy.terra.launch.drsURL=https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3,galaxy.jobs.maxLimits.memory=6,galaxy.jobs.maxLimits.cpu=4,galaxy.jobs.maxRequests.memory=1,galaxy.jobs.maxRequests.cpu=1,galaxy.serviceAccount.create=false,galaxy.serviceAccount.name=app1-galaxy-ksa,rbac.serviceAccount=app1-galaxy-ksa,persistence.nfs.name=ns-nfs-disk,persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=disk1,persistence.nfs.size=250Gi,persistence.postgres.name=ns-postgres-disk,galaxy.postgresql.galaxyDatabasePassword=replace-me,persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=disk1-gxy-postres-disk,persistence.postgres.size=10Gi,nfs.persistence.existingClaim=ns-nfs-disk-pvc,nfs.persistence.size=250Gi,galaxy.postgresql.persistence.existingClaim=ns-postgres-disk-pvc,galaxy.persistence.size=200Gi,configs.WORKSPACE_NAME=test-workspace,extraEnv[0].name=WORKSPACE_NAME,extraEnv[0].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[0].valueFrom.configMapKeyRef.key=WORKSPACE_NAME,configs.WORKSPACE_BUCKET=gs://test-bucket,extraEnv[1].name=WORKSPACE_BUCKET,extraEnv[1].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[1].valueFrom.configMapKeyRef.key=WORKSPACE_BUCKET,configs.WORKSPACE_NAMESPACE=dsp-leo-test1,extraEnv[2].name=WORKSPACE_NAMESPACE,extraEnv[2].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[2].valueFrom.configMapKeyRef.key=WORKSPACE_NAMESPACE"""
   }
 
   it should "build Galaxy override values string with restore info" in {
@@ -133,7 +138,8 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         userEmail,
         Map("WORKSPACE_NAME" -> "test-workspace",
             "WORKSPACE_BUCKET" -> "gs://test-bucket",
-            "WORKSPACE_NAMESPACE" -> "dsp-leo-test1"),
+            "WORKSPACE_NAMESPACE" -> "dsp-leo-test1"
+        ),
         ServiceAccountName("app1-galaxy-ksa"),
         NamespaceName("ns"),
         savedDisk1,
@@ -143,7 +149,9 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           GalaxyRestore(PvcId("galaxy-pvc-id"), PvcId("cvmfs-pvc-id"), AppId(123))
         )
       )
-    result.mkString(",") shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.galaxyPersistentVolumeClaims.data.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: pool1,galaxy.postgresql.master.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0].host=1455694897.jupyter.firecloud.org,galaxy.ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,galaxy.ingress.tls[0].secretName=tls-secret,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,galaxy.terra.launch.workspace=test-workspace,galaxy.terra.launch.namespace=dsp-leo-test1,galaxy.terra.launch.apiURL=https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/,galaxy.terra.launch.drsURL=https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3,galaxy.jobs.maxLimits.memory=6,galaxy.jobs.maxLimits.cpu=4,galaxy.jobs.maxRequests.memory=1,galaxy.jobs.maxRequests.cpu=1,galaxy.serviceAccount.create=false,galaxy.serviceAccount.name=app1-galaxy-ksa,rbac.serviceAccount=app1-galaxy-ksa,persistence.nfs.name=ns-nfs-disk,persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=disk1,persistence.nfs.size=250Gi,persistence.postgres.name=ns-postgres-disk,galaxy.postgresql.galaxyDatabasePassword=replace-me,persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=disk1-gxy-postres,persistence.postgres.size=10Gi,nfs.persistence.existingClaim=ns-nfs-disk-pvc,nfs.persistence.size=250Gi,galaxy.postgresql.persistence.existingClaim=ns-postgres-disk-pvc,galaxy.persistence.size=200Gi,configs.WORKSPACE_NAME=test-workspace,extraEnv[0].name=WORKSPACE_NAME,extraEnv[0].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[0].valueFrom.configMapKeyRef.key=WORKSPACE_NAME,configs.WORKSPACE_BUCKET=gs://test-bucket,extraEnv[1].name=WORKSPACE_BUCKET,extraEnv[1].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[1].valueFrom.configMapKeyRef.key=WORKSPACE_BUCKET,configs.WORKSPACE_NAMESPACE=dsp-leo-test1,extraEnv[2].name=WORKSPACE_NAMESPACE,extraEnv[2].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[2].valueFrom.configMapKeyRef.key=WORKSPACE_NAMESPACE,restore.persistence.nfs.galaxy.pvcID=galaxy-pvc-id,restore.persistence.nfs.cvmfsCache.pvcID=cvmfs-pvc-id,galaxy.persistence.existingClaim=app1-galaxy-rls-galaxy-pvc,cvmfs.cache.alienCache.existingClaim=app1-galaxy-rls-cvmfs-alien-cache-pvc""".stripMargin
+    result.mkString(
+      ","
+    ) shouldBe """nfs.storageClass.name=nfs-app1-galaxy-rls,cvmfs.repositories.cvmfs-gxy-data-app1-galaxy-rls=data.galaxyproject.org,cvmfs.cache.alienCache.storageClass=nfs-app1-galaxy-rls,galaxy.persistence.storageClass=nfs-app1-galaxy-rls,galaxy.cvmfs.galaxyPersistentVolumeClaims.data.storageClassName=cvmfs-gxy-data-app1-galaxy-rls,galaxy.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,nfs.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.configs.job_conf\.yml.runners.k8s.k8s_node_selector=cloud.google.com/gke-nodepool: pool1,galaxy.postgresql.master.nodeSelector.cloud\.google\.com/gke-nodepool=pool1,galaxy.ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,galaxy.ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,galaxy.ingress.hosts[0].host=1455694897.jupyter.firecloud.org,galaxy.ingress.hosts[0].paths[0].path=/proxy/google/v1/apps/dsp-leo-test1/app1/galaxy,galaxy.ingress.tls[0].hosts[0]=1455694897.jupyter.firecloud.org,galaxy.ingress.tls[0].secretName=tls-secret,galaxy.configs.galaxy\.yml.galaxy.single_user=user1@example.com,galaxy.configs.galaxy\.yml.galaxy.admin_users=user1@example.com,galaxy.terra.launch.workspace=test-workspace,galaxy.terra.launch.namespace=dsp-leo-test1,galaxy.terra.launch.apiURL=https://firecloud-orchestration.dsde-dev.broadinstitute.org/api/,galaxy.terra.launch.drsURL=https://us-central1-broad-dsde-dev.cloudfunctions.net/martha_v3,galaxy.jobs.maxLimits.memory=6,galaxy.jobs.maxLimits.cpu=4,galaxy.jobs.maxRequests.memory=1,galaxy.jobs.maxRequests.cpu=1,galaxy.serviceAccount.create=false,galaxy.serviceAccount.name=app1-galaxy-ksa,rbac.serviceAccount=app1-galaxy-ksa,persistence.nfs.name=ns-nfs-disk,persistence.nfs.persistentVolume.extraSpec.gcePersistentDisk.pdName=disk1,persistence.nfs.size=250Gi,persistence.postgres.name=ns-postgres-disk,galaxy.postgresql.galaxyDatabasePassword=replace-me,persistence.postgres.persistentVolume.extraSpec.gcePersistentDisk.pdName=disk1-gxy-postres,persistence.postgres.size=10Gi,nfs.persistence.existingClaim=ns-nfs-disk-pvc,nfs.persistence.size=250Gi,galaxy.postgresql.persistence.existingClaim=ns-postgres-disk-pvc,galaxy.persistence.size=200Gi,configs.WORKSPACE_NAME=test-workspace,extraEnv[0].name=WORKSPACE_NAME,extraEnv[0].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[0].valueFrom.configMapKeyRef.key=WORKSPACE_NAME,configs.WORKSPACE_BUCKET=gs://test-bucket,extraEnv[1].name=WORKSPACE_BUCKET,extraEnv[1].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[1].valueFrom.configMapKeyRef.key=WORKSPACE_BUCKET,configs.WORKSPACE_NAMESPACE=dsp-leo-test1,extraEnv[2].name=WORKSPACE_NAMESPACE,extraEnv[2].valueFrom.configMapKeyRef.name=app1-galaxy-rls-galaxykubeman-configs,extraEnv[2].valueFrom.configMapKeyRef.key=WORKSPACE_NAMESPACE,restore.persistence.nfs.galaxy.pvcID=galaxy-pvc-id,restore.persistence.nfs.cvmfsCache.pvcID=cvmfs-pvc-id,galaxy.persistence.existingClaim=app1-galaxy-rls-galaxy-pvc,cvmfs.cache.alienCache.existingClaim=app1-galaxy-rls-cvmfs-alien-cache-pvc""".stripMargin
   }
 
   it should "build Cromwell override values string" in {
@@ -163,25 +171,25 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
 
     res.mkString(",") shouldBe
       """nodeSelector.cloud\.google\.com/gke-nodepool=pool1,""" +
-        """persistence.size=250G,""" +
-        """persistence.gcePersistentDisk=disk1,""" +
-        """env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,""" +
-        """config.gcsProject=dsp-leo-test1,""" +
-        """config.gcsBucket=gs://test-bucket/cromwell-execution,""" +
-        """config.serviceAccount.name=app1-cromwell-ksa,""" +
-        """config.serviceAccount.annotations.gcpServiceAccount=pet123-abc@terra-test-abc.iam.gserviceaccount.com,""" +
-        """ingress.enabled=true,""" +
-        """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
-        """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,""" +
-        """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
-        """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
-        """ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,""" +
-        """ingress.hosts[0].host=1455694897.jupyter.firecloud.org,""" +
-        """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service(/|$)(.*),""" +
-        """ingress.tls[0].secretName=tls-secret,""" +
-        """ingress.tls[0].hosts[0]=1455694897.""" +
-        """jupyter.firecloud.org,""" +
-        """db.password=replace-me"""
+      """persistence.size=250G,""" +
+      """persistence.gcePersistentDisk=disk1,""" +
+      """env.swaggerBasePath=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,""" +
+      """config.gcsProject=dsp-leo-test1,""" +
+      """config.gcsBucket=gs://test-bucket/cromwell-execution,""" +
+      """config.serviceAccount.name=app1-cromwell-ksa,""" +
+      """config.serviceAccount.annotations.gcpServiceAccount=pet123-abc@terra-test-abc.iam.gserviceaccount.com,""" +
+      """ingress.enabled=true,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-from=https://1455694897.jupyter.firecloud.org,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/proxy-redirect-to=https://leo,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/rewrite-target=/$2,""" +
+      """ingress.annotations.nginx\.ingress\.kubernetes\.io/auth-tls-secret=ns/ca-secret,""" +
+      """ingress.path=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service,""" +
+      """ingress.hosts[0].host=1455694897.jupyter.firecloud.org,""" +
+      """ingress.hosts[0].paths[0]=/proxy/google/v1/apps/dsp-leo-test1/app1/cromwell-service(/|$)(.*),""" +
+      """ingress.tls[0].secretName=tls-secret,""" +
+      """ingress.tls[0].hosts[0]=1455694897.""" +
+      """jupyter.firecloud.org,""" +
+      """db.password=replace-me"""
   }
 
   it should "check if a pod is done" in {
@@ -201,9 +209,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       )
       _ <- gkeInterp.deleteAndPollCluster(m)
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster.id).transaction
-    } yield {
-      clusterOpt.get.status shouldBe KubernetesClusterStatus.Deleted
-    }
+    } yield clusterOpt.get.status shouldBe KubernetesClusterStatus.Deleted
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -215,17 +221,15 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       m = DeleteNodepoolParams(savedNodepool.id, savedCluster.googleProject)
       _ <- gkeInterp.deleteAndPollNodepool(m)
       nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
-    } yield {
-      nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
-    }
+    } yield nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   it should "mark a nodepool as Deleted in DB when it doesn't exist in Google" in isolatedDbTest {
     val mockGKEService = new MockGKEService {
-      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(
-        implicit ev: Ask[IO, TraceId]
+      override def deleteNodepool(nodepoolId: GKEModels.NodepoolId)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Operation]] = IO.pure(None)
     }
 
@@ -251,9 +255,7 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       m = DeleteNodepoolParams(savedNodepool.id, savedCluster.googleProject)
       _ <- gkeInterpDelete.deleteAndPollNodepool(m)
       nodepoolOpt <- nodepoolQuery.getMinimalById(savedNodepool.id).transaction
-    } yield {
-      nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
-    }
+    } yield nodepoolOpt.get.status shouldBe NodepoolStatus.Deleted
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -305,16 +307,15 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         .createCluster(
           CreateClusterParams(KubernetesClusterLeoId(-1),
                               GoogleProject("fake"),
-                              List(NodepoolLeoId(-1), NodepoolLeoId(-1)))
+                              List(NodepoolLeoId(-1), NodepoolLeoId(-1))
+          )
         )
         .attempt
-    } yield {
-      r shouldBe (Left(
-        KubernetesClusterNotFoundException(
-          s"Failed kubernetes cluster creation. Cluster with id -1 not found in database | trace id: ${ctx.traceId}"
-        )
-      ))
-    }
+    } yield r shouldBe (Left(
+      KubernetesClusterNotFoundException(
+        s"Failed kubernetes cluster creation. Cluster with id -1 not found in database | trace id: ${ctx.traceId}"
+      )
+    ))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -330,11 +331,9 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           PollClusterParams(savedCluster1.id, savedCluster1.googleProject, createResult.get)
         )
         .attempt
-    } yield {
-      r shouldBe (Left(
-        DefaultNodepoolNotFoundException(savedCluster1.id)
-      ))
-    }
+    } yield r shouldBe (Left(
+      DefaultNodepoolNotFoundException(savedCluster1.id)
+    ))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -348,14 +347,12 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           CreateClusterParams(savedCluster1.id, savedCluster1.googleProject, List(NodepoolLeoId(-2)))
         )
         .attempt
-    } yield {
-      r shouldBe (Left(
-        org.broadinstitute.dsde.workbench.leonardo.util.ClusterCreationException(
-          ctx.traceId,
-          s"CreateCluster was called with nodepools that are not present in the database for cluster ${savedCluster1.getGkeClusterId.toString}"
-        )
-      ))
-    }
+    } yield r shouldBe (Left(
+      org.broadinstitute.dsde.workbench.leonardo.util.ClusterCreationException(
+        ctx.traceId,
+        s"CreateCluster was called with nodepools that are not present in the database for cluster ${savedCluster1.getGkeClusterId.toString}"
+      )
+    ))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -369,15 +366,13 @@ class GKEInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           CreateAppParams(AppId(-1), savedCluster1.googleProject, AppName("non-existent"), None)
         )
         .attempt
-    } yield {
-      r shouldBe (Left(
-        AppNotFoundException(
-          savedCluster1.googleProject,
-          AppName("non-existent"),
-          ctx.traceId
-        )
-      ))
-    }
+    } yield r shouldBe (Left(
+      AppNotFoundException(
+        savedCluster1.googleProject,
+        AppName("non-existent"),
+        ctx.traceId
+      )
+    ))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

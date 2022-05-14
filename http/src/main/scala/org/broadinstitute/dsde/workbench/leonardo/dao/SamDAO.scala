@@ -14,62 +14,64 @@ trait SamDAO[F[_]] {
 
   def getStatus(implicit ev: Ask[F, TraceId]): F[StatusCheckResponse]
 
-  def hasResourcePermission[R, A](resource: R, action: A, authHeader: Authorization)(
-    implicit sr: SamResourceAction[R, A],
+  def hasResourcePermission[R, A](resource: R, action: A, authHeader: Authorization)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[Boolean] =
     hasResourcePermissionUnchecked(sr.resourceType,
                                    sr.resourceIdAsString(resource),
                                    sr.actionAsString(action),
-                                   authHeader)
+                                   authHeader
+    )
 
   // This exists because of guava cache
   private[leonardo] def hasResourcePermissionUnchecked(resourceType: SamResourceType,
                                                        resource: String,
                                                        action: String,
-                                                       authHeader: Authorization)(
-    implicit ev: Ask[F, TraceId]
+                                                       authHeader: Authorization
+  )(implicit
+    ev: Ask[F, TraceId]
   ): F[Boolean]
 
-  def getResourcePolicies[R](authHeader: Authorization)(
-    implicit sr: SamResource[R],
+  def getResourcePolicies[R](authHeader: Authorization)(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(R, SamPolicyName)]]
 
-  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def createResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def createResourceWithParent[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def deleteResource[R](resource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
 
-  def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(
-    implicit sr: SamResourceAction[R, A],
+  def getListOfResourcePermissions[R, A](resource: R, authHeader: Authorization)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[List[sr.ActionCategory]]
 
-  def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  def getPetServiceAccount(authorization: Authorization, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
   def getUserProxy(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Option[WorkbenchEmail]]
 
-  def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  def getCachedPetAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[String]]
 
-  def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  def getUserSubjectId(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[UserSubjectId]]
 
   def getSamUserInfo(token: String)(implicit ev: Ask[F, TraceId]): F[Option[SamUserInfo]]

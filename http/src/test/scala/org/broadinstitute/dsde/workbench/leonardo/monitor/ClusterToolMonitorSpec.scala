@@ -37,15 +37,18 @@ class ClusterToolMonitorSpec
 
   val welderEnabledCluster = makeCluster(1).copy(status = RuntimeStatus.Running,
                                                  runtimeImages = Set(jupyterImage, welderImage),
-                                                 welderEnabled = true)
+                                                 welderEnabled = true
+  )
   val welderDisabledCluster =
     makeCluster(2).copy(status = RuntimeStatus.Running, runtimeImages = Set(jupyterImage), welderEnabled = false)
   val notRunningCluster = makeCluster(3).copy(status = RuntimeStatus.Deleted,
                                               runtimeImages = Set(jupyterImage, welderImage),
-                                              welderEnabled = true)
+                                              welderEnabled = true
+  )
   val rstudioCluster = makeCluster(4).copy(status = RuntimeStatus.Running,
                                            runtimeImages = Set(rstudioImage, welderImage),
-                                           welderEnabled = true)
+                                           welderEnabled = true
+  )
 
   it should "report all services are up normally" in isolatedDbTest {
     welderEnabledCluster.save()
@@ -70,13 +73,16 @@ class ClusterToolMonitorSpec
         //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
         verify(metrics, atLeastOnce).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
                                                       ArgumentMatchers.anyLong(),
-                                                      ArgumentMatchers.any[Map[String, String]])
+                                                      ArgumentMatchers.any[Map[String, String]]
+        )
         verify(metrics, atLeastOnce).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
                                                       ArgumentMatchers.anyLong(),
-                                                      ArgumentMatchers.any[Map[String, String]])
+                                                      ArgumentMatchers.any[Map[String, String]]
+        )
         verify(metrics, never()).incrementCounter(ArgumentMatchers.eq("RStudioServiceDown"),
                                                   ArgumentMatchers.anyLong(),
-                                                  ArgumentMatchers.any[Map[String, String]])
+                                                  ArgumentMatchers.any[Map[String, String]]
+        )
       }
     }
   }
@@ -91,13 +97,16 @@ class ClusterToolMonitorSpec
           //explicitly specifying the count in the incrementCounterIO in the monitor itself does not fix this
           verify(mockNewRelic, atLeastOnce).incrementCounter(ArgumentMatchers.eq("RStudioServiceDown"),
                                                              ArgumentMatchers.anyLong(),
-                                                             ArgumentMatchers.any[Map[String, String]])
+                                                             ArgumentMatchers.any[Map[String, String]]
+          )
           verify(mockNewRelic, atLeastOnce).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
                                                              ArgumentMatchers.anyLong(),
-                                                             ArgumentMatchers.any[Map[String, String]])
+                                                             ArgumentMatchers.any[Map[String, String]]
+          )
           verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
                                                          ArgumentMatchers.anyLong(),
-                                                         ArgumentMatchers.any[Map[String, String]])
+                                                         ArgumentMatchers.any[Map[String, String]]
+          )
         }
     }
   }
@@ -110,13 +119,15 @@ class ClusterToolMonitorSpec
         eventually(timeout(clusterToolConfig.pollPeriod * 4)) {
           verify(mockNewRelic, atLeastOnce).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
                                                              ArgumentMatchers.anyLong(),
-                                                             ArgumentMatchers.any[Map[String, String]])
+                                                             ArgumentMatchers.any[Map[String, String]]
+          )
         }
 
         val res = IO.sleep(clusterToolConfig.pollPeriod) >> IO(
           verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
                                                          ArgumentMatchers.anyLong(),
-                                                         ArgumentMatchers.any[Map[String, String]])
+                                                         ArgumentMatchers.any[Map[String, String]]
+          )
         )
         res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
@@ -130,10 +141,12 @@ class ClusterToolMonitorSpec
         Thread.sleep(clusterToolConfig.pollPeriod.toMillis * 3)
         verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("WelderServiceDown"),
                                                        ArgumentMatchers.anyLong(),
-                                                       ArgumentMatchers.any[Map[String, String]])
+                                                       ArgumentMatchers.any[Map[String, String]]
+        )
         verify(mockNewRelic, never()).incrementCounter(ArgumentMatchers.eq("JupyterServiceDown"),
                                                        ArgumentMatchers.anyLong(),
-                                                       ArgumentMatchers.any[Map[String, String]])
+                                                       ArgumentMatchers.any[Map[String, String]]
+        )
     }
   }
 

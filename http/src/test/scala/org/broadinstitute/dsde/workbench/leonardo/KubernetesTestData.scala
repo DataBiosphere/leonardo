@@ -82,7 +82,8 @@ object KubernetesTestData {
     ListAppResponse
       .fromCluster(testCluster.copy(nodepools = List(testNodepool.copy(apps = List(testApp)))),
                    "https://leo/proxy/",
-                   List.empty)
+                   List.empty
+      )
       .toVector
 
   def cromwellAppCreateRequest(diskConfig: Option[PersistentDiskRequest], customEnvVars: Map[String, String]) =
@@ -138,7 +139,8 @@ object KubernetesTestData {
 
   def makeApp(index: Int,
               nodepoolId: NodepoolLeoId,
-              customEnvironmentVariables: Map[String, String] = Map.empty): App = {
+              customEnvironmentVariables: Map[String, String] = Map.empty
+  ): App = {
     val name = AppName("app" + index)
     val namespace = makeNamespace(index, "app")
     App(

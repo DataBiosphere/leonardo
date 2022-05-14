@@ -104,9 +104,7 @@ class RuntimeCreationDiskSpec
       for {
         getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
-      } yield {
-        getRuntimeResponse.diskConfig.map(_.diskType) shouldBe Some(DiskType.SSD)
-      }
+      } yield getRuntimeResponse.diskConfig.map(_.diskType) shouldBe Some(DiskType.SSD)
     }
     res.unsafeRunSync()
   }
@@ -144,25 +142,25 @@ class RuntimeCreationDiskSpec
         _ = getRuntimeResponse.runtimeConfig.asInstanceOf[RuntimeConfig.GceWithPdConfig].persistentDiskId shouldBe None
         ioa = getRuntime(googleProject, runtimeName).attempt
         res <- IO.sleep(20 seconds) >> streamFUntilDone(ioa, 50, 5 seconds).compile.lastOrError
-        _ <- if (res.isDone) IO.unit
-        else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
+        _ <-
+          if (res.isDone) IO.unit
+          else IO.raiseError(new TimeoutException(s"delete runtime ${googleProject.value}/${runtimeName.asString}"))
         disk <- LeonardoApiClient.getDisk(googleProject, diskName)
         _ <- IO(disk.status shouldBe DiskStatus.Ready)
         _ <- IO(disk.size shouldBe diskSize)
         _ <- LeonardoApiClient.deleteDiskWithWait(googleProject, diskName)
         listofDisks <- LeonardoApiClient.listDisk(googleProject, true)
-      } yield {
-        listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
-          DiskStatus.Deleted
-        ) //assume we won't have multiple disks with same name in the same project in tests
-      }
+      } yield listofDisks.collect { case resp if resp.name == diskName => resp.status } shouldBe List(
+        DiskStatus.Deleted
+      ) //assume we won't have multiple disks with same name in the same project in tests
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
   "create runtime and attach an existing persistent disk" taggedAs Retryable in { googleProject =>
     val randomeName = randomClusterName
-    val runtimeName = randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
+    val runtimeName =
+      randomeName.copy(asString = randomeName.asString + "pd-spec") // just to make sure the test runtime name is unique
     val runtimeWithDataName = randomeName.copy(asString = randomeName.asString + "pd-spec-data-persist")
     val diskName = genDiskName.sample.get
     val diskSize = DiskSize(110)
@@ -194,7 +192,8 @@ class RuntimeCreationDiskSpec
       for {
         _ <- LeonardoApiClient.createDiskWithWait(googleProject,
                                                   diskName,
-                                                  defaultCreateDiskRequest.copy(size = Some(diskSize)))
+                                                  defaultCreateDiskRequest.copy(size = Some(diskSize))
+        )
         implicit0(authToken: AuthToken) <- Ron.authToken()
         runtime <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
         clusterCopy = ClusterCopy.fromGetRuntimeResponseCopy(runtime)
@@ -231,22 +230,21 @@ class RuntimeCreationDiskSpec
         runtimeWithData <- createRuntimeWithWait(googleProject, runtimeWithDataName, createRuntime2Request)
         clusterCopyWithData = ClusterCopy.fromGetRuntimeResponseCopy(runtimeWithData)
         _ <- IO(withWebDriver { implicit driver =>
-          withNewNotebook(clusterCopyWithData, Python3) {
-            notebookPage =>
-              val persistedData =
-                """! cat /home/jupyter/test.txt""".stripMargin
-              notebookPage.executeCell(persistedData).get should include("this should save")
-              val persistedPackage = "! pip show simplejson"
-              notebookPage.executeCell(persistedPackage).get should include(
-                "/home/jupyter/.local/lib/python3.7/site-packages"
-              )
+          withNewNotebook(clusterCopyWithData, Python3) { notebookPage =>
+            val persistedData =
+              """! cat /home/jupyter/test.txt""".stripMargin
+            notebookPage.executeCell(persistedData).get should include("this should save")
+            val persistedPackage = "! pip show simplejson"
+            notebookPage.executeCell(persistedPackage).get should include(
+              "/home/jupyter/.local/lib/python3.7/site-packages"
+            )
 
-              val res = notebookPage
-                .executeCell(
-                  "! df -h --output=size $HOME"
-                )
-                .get
-              res should include("148G")
+            val res = notebookPage
+              .executeCell(
+                "! df -h --output=size $HOME"
+              )
+              .get
+            res should include("148G")
           }
         })
         _ <- deleteRuntimeWithWait(googleProject, runtimeWithDataName, deleteDisk = true)

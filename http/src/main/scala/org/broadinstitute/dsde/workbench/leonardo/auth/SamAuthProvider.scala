@@ -31,8 +31,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     extends LeoAuthProvider[F]
     with Http4sClientDsl[F] {
   override def serviceAccountProvider: ServiceAccountProvider[F] = saProvider
-  override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[Boolean] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
@@ -50,8 +50,9 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   private def checkPermission(samResourceType: SamResourceType,
                               samResource: String,
                               action: String,
-                              authHeader: Authorization)(
-    implicit ev: Ask[F, TraceId]
+                              authHeader: Authorization
+  )(implicit
+    ev: Ask[F, TraceId]
   ): F[Boolean] =
     for {
       traceId <- ev.ask
@@ -93,8 +94,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield callerActions
   }
 
-  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[(List[sr.ActionCategory], List[ProjectAction])] = {
     val authorization = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
@@ -105,7 +106,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
       callerActions = sr.allActions.collect { case a if setOfPermissions.contains(a) => a }
 
       listOfProjectPermissions <- samDao.getListOfResourcePermissions(ProjectSamResourceId(googleProject),
-                                                                      authorization)
+                                                                      authorization
+      )
       setOfProjectPermissions = listOfProjectPermissions.toSet
       projectCallerActions = ProjectAction.allActions.toList.collect {
         case a if setOfProjectPermissions.contains(a) => a
@@ -113,8 +115,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     } yield (callerActions, projectCallerActions)
   }
 
-  override def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
-    implicit sr: SamResource[R],
+  override def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[R]] = {
@@ -129,46 +131,44 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
   def filterUserVisibleWithProjectFallback[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
-  )(
-    implicit sr: SamResource[R],
+  )(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       projectPolicies <- samDao.getResourcePolicies[ProjectSamResourceId](authHeader)
-      owningProjects = projectPolicies.collect {
-        case (r, SamPolicyName.Owner) => r.googleProject
+      owningProjects = projectPolicies.collect { case (r, SamPolicyName.Owner) =>
+        r.googleProject
       }
       resourcePolicies <- samDao
         .getResourcePolicies[R](authHeader)
       res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
-    } yield resources.filter {
-      case (project, r) =>
-        owningProjects.contains(project) || res.exists(_._1 == r)
+    } yield resources.filter { case (project, r) =>
+      owningProjects.contains(project) || res.exists(_._1 == r)
     }
   }
 
   def filterUserVisibleWithWorkspaceFallback[R](
     resources: NonEmptyList[(WorkspaceId, R)],
     userInfo: UserInfo
-  )(
-    implicit sr: SamResource[R],
+  )(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(WorkspaceId, R)]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       workspacePolicies <- samDao.getResourcePolicies[WorkspaceResourceSamResourceId](authHeader)
-      owningWorkspaces = workspacePolicies.collect {
-        case (r, SamPolicyName.Owner) => r.workspaceId
+      owningWorkspaces = workspacePolicies.collect { case (r, SamPolicyName.Owner) =>
+        r.workspaceId
       }
       resourcePolicies <- samDao
         .getResourcePolicies[R](authHeader)
       res = resourcePolicies.filter { case (_, pn) => sr.policyNames.contains(pn) }
-    } yield resources.filter {
-      case (id, r) =>
-        owningWorkspaces.contains(id) || res.exists(_._1 == r)
+    } yield resources.filter { case (id, r) =>
+      owningWorkspaces.contains(id) || res.exists(_._1 == r)
     }
   }
 
@@ -180,8 +180,8 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     for {
       workspacePolicies <- samDao.getResourcePolicies[WorkspaceResourceSamResourceId](authHeader)
-      owningWorkspaces = workspacePolicies.collect {
-        case (r, SamPolicyName.Owner) => r.workspaceId
+      owningWorkspaces = workspacePolicies.collect { case (r, SamPolicyName.Owner) =>
+        r.workspaceId
       }
       resourcePolicies <- samDao
         .getResourcePolicies[R](authHeader)
@@ -220,23 +220,26 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
           StatusCodes.Unauthorized
         )
       )
-      _ <- if (samUserInfo.enabled) F.unit
-      else
-        F.raiseError(
-          AuthProviderException(
-            traceId,
-            s"[SamAuthProvider.lookupOriginatingUserEmail] User ${samUserInfo.userEmail.value} is disabled.",
-            StatusCodes.Forbidden
+      _ <-
+        if (samUserInfo.enabled) F.unit
+        else
+          F.raiseError(
+            AuthProviderException(
+              traceId,
+              s"[SamAuthProvider.lookupOriginatingUserEmail] User ${samUserInfo.userEmail.value} is disabled.",
+              StatusCodes.Forbidden
+            )
           )
-        )
     } yield samUserInfo.userEmail
 }
 
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
                                        authCacheMaxSize: Int = 1000,
-                                       authCacheExpiryTime: FiniteDuration = 15 minutes)
+                                       authCacheExpiryTime: FiniteDuration = 15 minutes
+)
 
 private[leonardo] case class AuthCacheKey(samResourceType: SamResourceType,
                                           samResource: String,
                                           authorization: Authorization,
-                                          action: String)
+                                          action: String
+)

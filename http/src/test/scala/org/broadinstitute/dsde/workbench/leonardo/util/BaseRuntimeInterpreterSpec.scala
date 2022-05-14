@@ -57,7 +57,8 @@ class BaseRuntimeInterpreterSpec
                                          vpcInterp,
                                          FakeGoogleComputeService,
                                          MockGoogleDiskService,
-                                         MockWelderDAO)
+                                         MockWelderDAO
+  )
 
   override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
@@ -80,8 +81,6 @@ class BaseRuntimeInterpreterSpec
         UpdateMachineTypeParams(RuntimeAndRuntimeConfig(runtime.get, runtimeConfig), newMachineType, now)
       )
       newMachineType <- RuntimeConfigQueries.getRuntimeConfig(runtime.get.runtimeConfigId).transaction
-    } yield {
-      newMachineType shouldBe (newMachineType)
-    }
+    } yield newMachineType shouldBe newMachineType
   }
 }

@@ -99,7 +99,8 @@ trait TestProxy { this: ScalaFutures =>
                     HttpResponse(
                       headers = immutable.Seq(
                         `Content-Disposition`(ContentDispositionTypes.attachment,
-                                              Map("filename" -> "utf-8''notebook.ipynb"))
+                                              Map("filename" -> "utf-8''notebook.ipynb")
+                        )
                       )
                     )
                   }

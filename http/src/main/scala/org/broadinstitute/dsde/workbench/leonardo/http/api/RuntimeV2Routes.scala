@@ -22,8 +22,9 @@ import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 
 class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                       runtimeV2Service: RuntimeV2Service[IO],
-                      userInfoDirectives: UserInfoDirectives)(
-  implicit metrics: OpenTelemetryMetrics[IO]
+                      userInfoDirectives: UserInfoDirectives
+)(implicit
+  metrics: OpenTelemetryMetrics[IO]
 ) {
   // See https://github.com/DataBiosphere/terra-ui/blob/ef88f396a61383ee08beb65a37af7cae9476cc20/src/libs/ajax.js#L1358
   private val allValidSaturnIframeExtensions =
@@ -138,8 +139,9 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def createAzureRuntimeHandler(userInfo: UserInfo,
                                              workspaceId: WorkspaceId,
                                              runtimeName: RuntimeName,
-                                             req: CreateAzureRuntimeRequest)(
-    implicit ev: Ask[IO, AppContext]
+                                             req: CreateAzureRuntimeRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -169,8 +171,9 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   def updateAzureRuntimeHandler(userInfo: UserInfo,
                                 workspaceId: WorkspaceId,
                                 runtimeName: RuntimeName,
-                                req: UpdateAzureRuntimeRequest)(
-    implicit ev: Ask[IO, AppContext]
+                                req: UpdateAzureRuntimeRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -182,8 +185,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
-  def deleteAzureRuntimeHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(
-    implicit ev: Ask[IO, AppContext]
+  def deleteAzureRuntimeHandler(userInfo: UserInfo, workspaceId: WorkspaceId, runtimeName: RuntimeName)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -198,8 +201,9 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def listRuntimesHandler(userInfo: UserInfo,
                                        workspaceId: Option[WorkspaceId],
                                        cloudProvider: Option[CloudProvider],
-                                       params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                       params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -229,7 +233,8 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
                                       machineSize,
                                       imageUri,
                                       customEnvVars.getOrElse(Map.empty),
-                                      azureDiskReq)
+                                      azureDiskReq
+    )
   }
 
   implicit val updateAzureRuntimeRequestDecoder: Decoder[UpdateAzureRuntimeRequest] =

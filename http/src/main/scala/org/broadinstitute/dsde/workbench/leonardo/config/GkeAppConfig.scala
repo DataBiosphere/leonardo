@@ -35,8 +35,8 @@ final case class GalaxyAppConfig(releaseNameSuffix: ReleaseNameSuffix,
                                  orchUrl: GalaxyOrchUrl,
                                  drsUrl: GalaxyDrsUrl,
                                  minMemoryGb: Int,
-                                 minNumOfCpus: Int)
-    extends GkeAppConfig {
+                                 minNumOfCpus: Int
+) extends GkeAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
@@ -46,8 +46,8 @@ final case class CromwellAppConfig(chartName: ChartName,
                                    releaseNameSuffix: ReleaseNameSuffix,
                                    services: List[ServiceConfig],
                                    serviceAccountName: ServiceAccountName,
-                                   dbPassword: DbPassword)
-    extends GkeAppConfig {
+                                   dbPassword: DbPassword
+) extends GkeAppConfig {
   override lazy val kubernetesServices: List[KubernetesService] = services.map(s => KubernetesService(ServiceId(-1), s))
 }
 
@@ -55,8 +55,8 @@ final case class CustomAppConfig(chartName: ChartName,
                                  chartVersion: ChartVersion,
                                  releaseNameSuffix: ReleaseNameSuffix,
                                  namespaceNameSuffix: NamespaceNameSuffix,
-                                 serviceAccountName: ServiceAccountName)
-    extends GkeAppConfig {
+                                 serviceAccountName: ServiceAccountName
+) extends GkeAppConfig {
   // Not known at config. Generated at runtime.
   override lazy val kubernetesServices: List[KubernetesService] = List.empty
 }

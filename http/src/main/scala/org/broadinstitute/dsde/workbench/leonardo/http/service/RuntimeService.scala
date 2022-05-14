@@ -23,32 +23,34 @@ trait RuntimeService[F[_]] {
   def createRuntime(userInfo: UserInfo,
                     cloudContext: CloudContext,
                     runtimeName: RuntimeName,
-                    req: CreateRuntime2Request)(implicit as: Ask[F, AppContext]): F[Unit]
+                    req: CreateRuntime2Request
+  )(implicit as: Ask[F, AppContext]): F[Unit]
 
-  def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
-    implicit as: Ask[F, AppContext]
+  def getRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
   ): F[GetRuntimeResponse]
 
-  def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
-    implicit as: Ask[F, AppContext]
+  def listRuntimes(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(implicit
+    as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
 
-  def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(
-    implicit as: Ask[F, AppContext]
+  def deleteRuntime(deleteRuntimeRequest: DeleteRuntimeRequest)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
-  def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
-    implicit as: Ask[F, AppContext]
+  def stopRuntime(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
-  def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(
-    implicit as: Ask[F, AppContext]
+  def startRuntime(userInfo: UserInfo, googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
   def updateRuntime(userInfo: UserInfo,
                     googleProject: GoogleProject,
                     runtimeName: RuntimeName,
-                    req: UpdateRuntimeRequest)(implicit as: Ask[F, AppContext]): F[Unit]
+                    req: UpdateRuntimeRequest
+  )(implicit as: Ask[F, AppContext]): F[Unit]
 }
 
 object RuntimeService {
@@ -59,8 +61,9 @@ object RuntimeService {
                             dockerDAO: DockerDAO[F],
                             googleStorageService: GoogleStorageService[F],
                             googleComputeService: GoogleComputeService[F],
-                            publisherQueue: Queue[F, LeoPubsubMessage])(
-    implicit F: Async[F],
+                            publisherQueue: Queue[F, LeoPubsubMessage]
+  )(implicit
+    F: Async[F],
     log: StructuredLogger[F],
     dbReference: DbReference[F],
     ec: ExecutionContext,
@@ -81,4 +84,5 @@ object RuntimeService {
 final case class DeleteRuntimeRequest(userInfo: UserInfo,
                                       googleProject: GoogleProject,
                                       runtimeName: RuntimeName,
-                                      deleteDisk: Boolean)
+                                      deleteDisk: Boolean
+)

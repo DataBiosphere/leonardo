@@ -16,8 +16,8 @@ import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
 import org.typelevel.log4cats.StructuredLogger
 
-class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
-  implicit logger: StructuredLogger[F],
+class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
+  logger: StructuredLogger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) extends WsmDao[F]
@@ -25,8 +25,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
 
   val defaultMediaType = `Content-Type`(MediaType.application.json)
 
-  override def createIp(request: CreateIpRequest,
-                        authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[CreateIpResponse] =
+  override def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreateIpResponse] =
     httpClient.expectOr[CreateIpResponse](
       Request[F](
         method = Method.POST,
@@ -42,8 +43,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
-  override def createDisk(request: CreateDiskRequest,
-                          authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[CreateDiskResponse] =
+  override def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreateDiskResponse] =
     httpClient.expectOr[CreateDiskResponse](
       Request[F](
         method = Method.POST,
@@ -59,8 +61,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
-  override def createNetwork(request: CreateNetworkRequest,
-                             authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] =
+  override def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreateNetworkResponse] =
     httpClient.expectOr[CreateNetworkResponse](
       Request[F](
         method = Method.POST,
@@ -76,8 +79,9 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
-  override def createVm(request: CreateVmRequest,
-                        authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[CreateVmResult] =
+  override def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[CreateVmResult] =
     httpClient.expectOr[CreateVmResult](
       Request[F](
         method = Method.POST,
@@ -93,8 +97,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
-  override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]] =
     httpClient.expectOptionOr[WorkspaceDescription](
       Request[F](
@@ -108,25 +112,28 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
-  override def deleteVm(request: DeleteWsmResourceRequest,
-                        authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[DeleteWsmResourceResult] =
+  override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[DeleteWsmResourceResult] =
     deleteHelper(request, authorization, "vm")
 
-  override def deleteDisk(request: DeleteWsmResourceRequest,
-                          authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[DeleteWsmResourceResult] =
+  override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[DeleteWsmResourceResult] =
     deleteHelper(request, authorization, "disks")
 
-  override def deleteIp(request: DeleteWsmResourceRequest,
-                        authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[DeleteWsmResourceResult] =
+  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
+  ): F[DeleteWsmResourceResult] =
     deleteHelper(request, authorization, "ip")
 
-  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult] =
     deleteHelper(request, authorization, "network")
 
-  override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult] =
     httpClient.expectOr[GetCreateVmJobResult](
       Request[F](
@@ -142,8 +149,8 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       )
     )(onError)
 
-  private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(
-    implicit ev: Ask[F, AppContext]
+  private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(implicit
+    ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult] =
     httpClient.expectOr[DeleteWsmResourceResult](
       Request[F](

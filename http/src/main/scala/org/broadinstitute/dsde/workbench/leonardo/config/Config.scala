@@ -714,13 +714,15 @@ object Config {
     topic,
     Some(
       ProjectSubscriptionName.of(applicationConfig.leoGoogleProject.value,
-                                 config.as[String]("pubsub.non-leo-message-subscriber.subscription-name"))
+                                 config.as[String]("pubsub.non-leo-message-subscriber.subscription-name")
+      )
     ),
     config.as[FiniteDuration]("pubsub.ackDeadLine"),
     Some(
       SubscriberDeadLetterPolicy(
         TopicName.of(applicationConfig.leoGoogleProject.value,
-                     config.as[String]("pubsub.non-leo-message-subscriber.dead-letter-topic")),
+                     config.as[String]("pubsub.non-leo-message-subscriber.dead-letter-topic")
+        ),
         MaxRetries(5)
       )
     ),
@@ -762,7 +764,8 @@ object Config {
     gceClusterResourcesConfig,
     securityFilesConfig,
     gceMonitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating,
-                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
+                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating")
+    )
   )
   val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 

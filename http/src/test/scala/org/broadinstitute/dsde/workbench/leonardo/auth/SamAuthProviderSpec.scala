@@ -37,7 +37,8 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     UserInfo(OAuth2BearerToken(s"TokenFor${MockSamDAO.projectOwnerEmail}"),
              WorkbenchUserId("owner"),
              MockSamDAO.projectOwnerEmail,
-             0)
+             0
+    )
   val projectOwnerAuthHeader = MockSamDAO.userEmailToAuthorization(MockSamDAO.projectOwnerEmail)
   val authHeader = MockSamDAO.userEmailToAuthorization(userInfo.userEmail)
 
@@ -102,37 +103,36 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       (RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus),
       (RuntimeAction.DeleteRuntime, ProjectAction.DeleteRuntime),
       (RuntimeAction.StopStartRuntime, ProjectAction.StopStartRuntime)
-    ).foreach {
-      case (runtimeAction, projectAction) =>
-        // project fallback should work as the user
-        samAuthProvider
-          .hasPermissionWithProjectFallback(runtimeSamResource, runtimeAction, projectAction, userInfo, project)
-          .unsafeRunSync() shouldBe true
+    ).foreach { case (runtimeAction, projectAction) =>
+      // project fallback should work as the user
+      samAuthProvider
+        .hasPermissionWithProjectFallback(runtimeSamResource, runtimeAction, projectAction, userInfo, project)
+        .unsafeRunSync() shouldBe true
 
-        // project fallback should work as the project owner
-        samAuthProvider
-          .hasPermissionWithProjectFallback(runtimeSamResource,
-                                            runtimeAction,
-                                            projectAction,
-                                            projectOwnerUserInfo,
-                                            project)
-          .unsafeRunSync() shouldBe true
+      // project fallback should work as the project owner
+      samAuthProvider
+        .hasPermissionWithProjectFallback(runtimeSamResource,
+                                          runtimeAction,
+                                          projectAction,
+                                          projectOwnerUserInfo,
+                                          project
+        )
+        .unsafeRunSync() shouldBe true
 
     }
     List(
       (PersistentDiskAction.ReadPersistentDisk, ProjectAction.ReadPersistentDisk),
       (PersistentDiskAction.DeletePersistentDisk, ProjectAction.DeletePersistentDisk)
-    ).foreach {
-      case (diskAction, projectAction) =>
-        // project fallback should work as the user
-        samAuthProvider
-          .hasPermissionWithProjectFallback(diskSamResource, diskAction, projectAction, userInfo, project)
-          .unsafeRunSync() shouldBe true
+    ).foreach { case (diskAction, projectAction) =>
+      // project fallback should work as the user
+      samAuthProvider
+        .hasPermissionWithProjectFallback(diskSamResource, diskAction, projectAction, userInfo, project)
+        .unsafeRunSync() shouldBe true
 
-        // project fallback should work as the project owner
-        samAuthProvider
-          .hasPermissionWithProjectFallback(diskSamResource, diskAction, projectAction, projectOwnerUserInfo, project)
-          .unsafeRunSync() shouldBe true
+      // project fallback should work as the project owner
+      samAuthProvider
+        .hasPermissionWithProjectFallback(diskSamResource, diskAction, projectAction, projectOwnerUserInfo, project)
+        .unsafeRunSync() shouldBe true
     }
 
     // negative tests
@@ -140,24 +140,23 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       (RuntimeAction.GetRuntimeStatus, ProjectAction.GetRuntimeStatus),
       (RuntimeAction.DeleteRuntime, ProjectAction.DeleteRuntime),
       (RuntimeAction.StopStartRuntime, ProjectAction.StopStartRuntime)
-    ).foreach {
-      case (runtimeAction, projectAction) =>
-        samAuthProvider
-          .hasPermissionWithProjectFallback(runtimeSamResource,
-                                            runtimeAction,
-                                            projectAction,
-                                            unauthorizedUserInfo,
-                                            project)
-          .unsafeRunSync() shouldBe false
+    ).foreach { case (runtimeAction, projectAction) =>
+      samAuthProvider
+        .hasPermissionWithProjectFallback(runtimeSamResource,
+                                          runtimeAction,
+                                          projectAction,
+                                          unauthorizedUserInfo,
+                                          project
+        )
+        .unsafeRunSync() shouldBe false
     }
     List(
       (PersistentDiskAction.ReadPersistentDisk, ProjectAction.ReadPersistentDisk),
       (PersistentDiskAction.DeletePersistentDisk, ProjectAction.DeletePersistentDisk)
-    ).foreach {
-      case (diskAction, projectAction) =>
-        samAuthProvider
-          .hasPermissionWithProjectFallback(diskSamResource, diskAction, projectAction, unauthorizedUserInfo, project)
-          .unsafeRunSync() shouldBe false
+    ).foreach { case (diskAction, projectAction) =>
+      samAuthProvider
+        .hasPermissionWithProjectFallback(diskSamResource, diskAction, projectAction, unauthorizedUserInfo, project)
+        .unsafeRunSync() shouldBe false
     }
   }
 
@@ -267,7 +266,8 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     }
     List(PersistentDiskAction.DeletePersistentDisk,
          PersistentDiskAction.ModifyPersistentDisk,
-         PersistentDiskAction.AttachPersistentDisk).foreach { a =>
+         PersistentDiskAction.AttachPersistentDisk
+    ).foreach { a =>
       samAuthProviderWithCache
         .hasPermission(diskSamResource, a, userInfo)
         .unsafeRunSync() shouldBe true
@@ -285,23 +285,28 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       AuthCacheKey(SamResourceType.Project,
                    project.value,
                    projectOwnerAuthHeader,
-                   ProjectAction.GetRuntimeStatus.asString),
+                   ProjectAction.GetRuntimeStatus.asString
+      ),
       AuthCacheKey(SamResourceType.Project,
                    project.value,
                    projectOwnerAuthHeader,
-                   ProjectAction.ReadPersistentDisk.asString),
+                   ProjectAction.ReadPersistentDisk.asString
+      ),
       AuthCacheKey(SamResourceType.Runtime,
                    runtimeSamResource.resourceId,
                    authHeader,
-                   RuntimeAction.ConnectToRuntime.asString),
+                   RuntimeAction.ConnectToRuntime.asString
+      ),
       AuthCacheKey(SamResourceType.Runtime,
                    runtimeSamResource.resourceId,
                    authHeader,
-                   RuntimeAction.GetRuntimeStatus.asString),
+                   RuntimeAction.GetRuntimeStatus.asString
+      ),
       AuthCacheKey(SamResourceType.PersistentDisk,
                    diskSamResource.resourceId,
                    authHeader,
-                   PersistentDiskAction.ReadPersistentDisk.asString),
+                   PersistentDiskAction.ReadPersistentDisk.asString
+      ),
       AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.GetAppStatus.asString),
       AuthCacheKey(SamResourceType.App, appSamId.resourceId, authHeader, AppAction.ConnectToApp.asString)
     )
@@ -399,11 +404,13 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
     mockSam.createResource(newRuntime, userEmail2, project).unsafeRunSync()
     samAuthProvider
       .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
-                                            userInfo)
+                                            userInfo
+      )
       .unsafeRunSync() shouldBe List((project, runtimeSamResource))
     samAuthProvider
       .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, runtimeSamResource), (project, newRuntime)),
-                                            projectOwnerUserInfo)
+                                            projectOwnerUserInfo
+      )
       .unsafeRunSync() shouldBe List((project, runtimeSamResource), (project, newRuntime))
 
     val newDisk = PersistentDiskSamResourceId("new_disk")
@@ -413,7 +420,8 @@ class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with Before
       .unsafeRunSync() shouldBe List((project, diskSamResource))
     samAuthProvider
       .filterUserVisibleWithProjectFallback(NonEmptyList.of((project, diskSamResource), (project, newDisk)),
-                                            projectOwnerUserInfo)
+                                            projectOwnerUserInfo
+      )
       .unsafeRunSync() shouldBe List((project, diskSamResource), (project, newDisk))
 
     // negative tests

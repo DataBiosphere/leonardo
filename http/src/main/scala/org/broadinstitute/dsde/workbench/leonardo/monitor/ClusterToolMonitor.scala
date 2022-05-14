@@ -20,8 +20,10 @@ object ClusterToolMonitor {
     config: ClusterToolConfig,
     dbRef: DbReference[IO],
     metrics: OpenTelemetryMetrics[IO]
-  )(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
-    ec: ExecutionContext): Props =
+  )(implicit
+    clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
+    ec: ExecutionContext
+  ): Props =
     Props(new ClusterToolMonitor(config, dbRef, metrics))
 
   sealed trait ClusterToolMonitorMessage
@@ -38,9 +40,10 @@ class ClusterToolMonitor(
   config: ClusterToolConfig,
   dbRef: DbReference[IO],
   metrics: OpenTelemetryMetrics[IO]
-)(implicit clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
-  ec: ExecutionContext)
-    extends Actor
+)(implicit
+  clusterToolToToolDao: RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType],
+  ec: ExecutionContext
+) extends Actor
     with Timers
     with LazyLogging {
 

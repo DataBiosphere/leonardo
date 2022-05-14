@@ -143,7 +143,8 @@ object Boot extends IOApp {
                                 appDependencies.serviceAccountProvider,
                                 leoKubernetesConfig,
                                 appDependencies.publisherQueue,
-                                appDependencies.googleDependencies.googleComputeService)
+                                appDependencies.googleDependencies.googleComputeService
+        )
 
       val azureService = new RuntimeV2ServiceInterp[IO](
         runtimeServiceConfig,
@@ -175,19 +176,19 @@ object Boot extends IOApp {
 //        Disable for now since this causes fiab start to fail
 //        _ <- appDependencies.samDAO.registerLeo
 
-        _ <- if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
-          appDependencies.dataprocInterp.setupDataprocImageGoogleGroup
-        } else IO.unit
+        _ <-
+          if (leoExecutionModeConfig == LeoExecutionModeConfig.BackLeoOnly) {
+            appDependencies.dataprocInterp.setupDataprocImageGoogleGroup
+          } else IO.unit
         _ <- IO.fromFuture {
           IO {
             Http()
               .newServerAt("0.0.0.0", 8080)
               .bindFlow(httpRoutes.route)
-              .onError {
-                case t: Throwable =>
-                  logger
-                    .error(t)("FATAL - failure starting http server")
-                    .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+              .onError { case t: Throwable =>
+                logger
+                  .error(t)("FATAL - failure starting http server")
+                  .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
               }
           }
         }
@@ -212,7 +213,8 @@ object Boot extends IOApp {
                                             appDependencies.samDAO,
                                             appDependencies.nonLeoMessageGoogleSubscriber,
                                             googleDependencies.cryptoMiningUserPublisher,
-                                            appDependencies.asyncTasksQueue)
+                                            appDependencies.asyncTasksQueue
+            )
 
           List(
             nonLeoMessageSubscriber.process,
@@ -252,10 +254,12 @@ object Boot extends IOApp {
 
   private def createDependencies[F[_]: Parallel](
     pathToCredentialJson: String
-  )(implicit logger: StructuredLogger[F],
+  )(implicit
+    logger: StructuredLogger[F],
     ec: ExecutionContext,
     as: ActorSystem,
-    F: Async[F]): Resource[F, AppDependencies[F]] =
+    F: Async[F]
+  ): Resource[F, AppDependencies[F]] =
     for {
       semaphore <- Resource.eval(Semaphore[F](applicationConfig.concurrency))
       // This is for sending custom metrics to stackdriver. all custom metrics starts with `OpenCensus/leonardo/`.
@@ -330,7 +334,8 @@ object Boot extends IOApp {
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
       underlyingAuthCache = buildCache[AuthCacheKey, scalacache.Entry[Boolean]](samAuthConfig.authCacheMaxSize,
-                                                                                samAuthConfig.authCacheExpiryTime)
+                                                                                samAuthConfig.authCacheExpiryTime
+      )
       authCache <- Resource.make(F.delay(CaffeineCache[F, AuthCacheKey, Boolean](underlyingAuthCache)))(s => s.close)
       authProvider = new SamAuthProvider(samDao, samAuthConfig, serviceAccountProvider, authCache)
 
@@ -348,7 +353,8 @@ object Boot extends IOApp {
       googleIamDAO = new HttpGoogleIamDAO(applicationConfig.applicationName, json, workbenchMetricsBaseName)
       googleDirectoryDAO = new HttpGoogleDirectoryDAO(applicationConfig.applicationName,
                                                       jsonWithServiceAccountUser,
-                                                      workbenchMetricsBaseName)
+                                                      workbenchMetricsBaseName
+      )
       googleResourceService <- GoogleResourceService.resource[F](Paths.get(pathToCredentialJson), semaphore)
       googleStorage <- GoogleStorageService.resource[F](pathToCredentialJson, Some(semaphore))
       googlePublisher <- GooglePublisher.resource[F](publisherConfig)
@@ -358,7 +364,8 @@ object Boot extends IOApp {
       // Retry 400 responses from Google, as those can occur when resources aren't ready yet
       // (e.g. if the subnet isn't ready when creating an instance).
       googleComputeRetryPolicy = RetryPredicates.retryConfigWithPredicates(RetryPredicates.standardGoogleRetryPredicate,
-                                                                           RetryPredicates.whenStatusCode(400))
+                                                                           RetryPredicates.whenStatusCode(400)
+      )
 
       googleComputeService <- GoogleComputeService.fromCredential(
         scopedCredential,
@@ -540,7 +547,8 @@ object Boot extends IOApp {
                                              asyncTasksQueue,
                                              wsmDao,
                                              samDao,
-                                             computeManagerDao)
+                                             computeManagerDao
+      )
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
       val gceRuntimeMonitor = new GceRuntimeMonitor[F](
@@ -608,7 +616,8 @@ object Boot extends IOApp {
     StructuredLogger[F].info(s)
 
   private def buildCache[K, V](maxSize: Int,
-                               expiresIn: FiniteDuration): com.github.benmanes.caffeine.cache.Cache[K, V] =
+                               expiresIn: FiniteDuration
+  ): com.github.benmanes.caffeine.cache.Cache[K, V] =
     Caffeine
       .newBuilder()
       .maximumSize(maxSize)

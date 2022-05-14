@@ -16,8 +16,8 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-class NotebookPage(override val url: String)(
-  implicit override val webDriver: WebDriver,
+class NotebookPage(override val url: String)(implicit
+  override val webDriver: WebDriver,
   override val authToken: AuthToken
 ) extends JupyterPage
     with Eventually {
@@ -29,45 +29,40 @@ class NotebookPage(override val url: String)(
 
   // menu elements
 
-  lazy val fileMenu: Element = {
+  lazy val fileMenu: Element =
     findAll(menus)
       .filter(e => e.text == "File")
       .toList
       .head
-  }
 
-  lazy val cellMenu: Element = {
+  lazy val cellMenu: Element =
     findAll(menus)
       .filter(e => e.text == "Cell")
       .toList
       .head
-  }
 
-  lazy val kernelMenu: Element = {
+  lazy val kernelMenu: Element =
     findAll(menus)
       .filter(e => e.text == "Kernel")
       .toList
       .head
-  }
 
   // selects all submenus which appear in dropdowns after clicking a main menu header
   lazy val submenus: Query = cssSelector("[class='menu_focus_highlight dropdown-submenu']")
 
   // File -> Download as
-  lazy val downloadSubMenu: Element = {
+  lazy val downloadSubMenu: Element =
     findAll(submenus)
       .filter(e => e.text == "Download as")
       .toList
       .head
-  }
 
   // Cell -> Cell type
-  lazy val cellTypeSubMenu: Element = {
+  lazy val cellTypeSubMenu: Element =
     findAll(submenus)
       .filter(e => e.text == "Cell Type")
       .toList
       .head
-  }
   // File -> Download as -> ipynb
   lazy val downloadSelectionAsIpynb: Query = cssSelector("[id='download_ipynb']")
 
@@ -206,7 +201,8 @@ class NotebookPage(override val url: String)(
   //It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
   def executeCell(code: String,
                   timeout: FiniteDuration = 1 minute,
-                  cellNumberOpt: Option[Int] = None): Option[String] = {
+                  cellNumberOpt: Option[Int] = None
+  ): Option[String] = {
     dismissNotebookChanged()
     await enabled cells
     val cell = lastCell
@@ -223,7 +219,8 @@ class NotebookPage(override val url: String)(
 
   def executeCellWithCellOutput(code: String,
                                 timeout: FiniteDuration = 1 minute,
-                                cellNumberOpt: Option[Int] = None): Option[CellOutput] = {
+                                cellNumberOpt: Option[Int] = None
+  ): Option[CellOutput] = {
     dismissNotebookChanged()
     await enabled cells
     val cell = lastCell
@@ -306,7 +303,7 @@ class NotebookPage(override val url: String)(
       val t0 = System.nanoTime()
 
       eventually(time, pollInterval) {
-        val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
+        val ready = !cellsAreRunning && isKernelReady && kernelNotificationText == "none"
         ready shouldBe true
       }
 

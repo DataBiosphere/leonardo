@@ -95,18 +95,14 @@ object ProxyRedirectClient {
       // Instantiate a dedicated execution context for this server
       blockingEc <- IO(Executors.newCachedThreadPool).map(ExecutionContext.fromExecutor)
       route = HttpRoutes
-        .of[IO] {
-          case GET -> Root / "proxyRedirectClient" :? Rurl(rurl) =>
-            Ok(getContent(rurl), `Content-Type`(MediaType.text.html))
+        .of[IO] { case GET -> Root / "proxyRedirectClient" :? Rurl(rurl) =>
+          Ok(getContent(rurl), `Content-Type`(MediaType.text.html))
         }
         .orNotFound
       // Note this uses `bindAny` which will bind to an arbitrary port. We can't use a dedicated port
       // because multiple test suites may be running on the same host in different class loaders.
       server <- BlazeServerBuilder[IO](blockingEc).bindAny("0.0.0.0").withHttpApp(route).allocated
-    } yield {
-
-      server
-    }
+    } yield server
 
   private object Rurl extends QueryParamDecoderMatcher[String]("rurl")
 }

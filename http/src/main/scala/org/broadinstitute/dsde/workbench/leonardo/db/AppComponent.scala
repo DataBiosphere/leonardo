@@ -39,7 +39,8 @@ final case class AppRecord(id: AppId,
                            diskId: Option[DiskId],
                            customEnvironmentVariables: Option[Map[String, String]],
                            descriptorPath: Option[Uri],
-                           extraArgs: Option[List[String]])
+                           extraArgs: Option[List[String]]
+)
 
 class AppTable(tag: Tag) extends Table[AppRecord](tag, "APP") {
   //unique (appName, destroyedDate)
@@ -93,7 +94,8 @@ object appQuery extends TableQuery(new AppTable(_)) {
                    labels: LabelMap,
                    namespace: Namespace,
                    disk: Option[PersistentDisk],
-                   errors: List[AppError]): App =
+                   errors: List[AppError]
+  ): App =
     App(
       app.id,
       app.nodepoolId,
@@ -156,11 +158,12 @@ object appQuery extends TableQuery(new AppTable(_)) {
         DBIO.failed(AppExistsForProjectException(appResult.app.appName, cluster.googleProject))
       )
 
-      namespace <- if (saveApp.app.appResources.namespace.id.id == -1)
-        namespaceQuery
-          .save(nodepool.clusterId, namespaceName)
-          .map(id => saveApp.app.appResources.namespace.copy(id = id))
-      else DBIO.successful(saveApp.app.appResources.namespace)
+      namespace <-
+        if (saveApp.app.appResources.namespace.id.id == -1)
+          namespaceQuery
+            .save(nodepool.clusterId, namespaceName)
+            .map(id => saveApp.app.appResources.namespace.copy(id = id))
+        else DBIO.successful(saveApp.app.appResources.namespace)
 
       diskOpt = saveApp.app.appResources.disk
 
@@ -229,20 +232,19 @@ object appQuery extends TableQuery(new AppTable(_)) {
 
   def getLastUsedApp(id: AppId, traceId: Option[TraceId])(implicit ec: ExecutionContext): DBIO[Option[LastUsedApp]] =
     appQuery.filter(_.id === id).join(namespaceQuery).on(_.namespaceId === _.id).result.flatMap { x =>
-      x.headOption.traverse[DBIO, LastUsedApp] {
-        case (app, namespace) =>
-          app.customEnvironmentVariables match {
-            case None =>
-              DBIO.failed(new LeoException(s"no customEnvironmentVariables found for ${id}", traceId = traceId))
-            case Some(envs) =>
-              envs.get(WORKSPACE_NAME_KEY) match {
-                case Some(ws) =>
-                  DBIO.successful(
-                    LastUsedApp(app.chart, app.release, app.namespaceId, namespace.namespaceName, WorkspaceName(ws))
-                  )
-                case None => DBIO.failed(new LeoException(s"no WORKSPACE_NAME found for ${id}", traceId = traceId))
-              }
-          }
+      x.headOption.traverse[DBIO, LastUsedApp] { case (app, namespace) =>
+        app.customEnvironmentVariables match {
+          case None =>
+            DBIO.failed(new LeoException(s"no customEnvironmentVariables found for ${id}", traceId = traceId))
+          case Some(envs) =>
+            envs.get(WORKSPACE_NAME_KEY) match {
+              case Some(ws) =>
+                DBIO.successful(
+                  LastUsedApp(app.chart, app.release, app.namespaceId, namespace.namespaceName, WorkspaceName(ws))
+                )
+              case None => DBIO.failed(new LeoException(s"no WORKSPACE_NAME found for ${id}", traceId = traceId))
+            }
+        }
       }
     }
 
@@ -281,4 +283,5 @@ final case class LastUsedApp(chart: Chart,
                              release: Release,
                              namespaceId: NamespaceId,
                              namespaceName: NamespaceName,
-                             workspace: WorkspaceName)
+                             workspace: WorkspaceName
+)

@@ -4,8 +4,10 @@ import enumeratum.{Enum, EnumEntry}
 import ca.mrvisser.sealerate
 import com.google.cloud.compute.v1.Instance.Status
 
-/** Google Compute Instance Status
- *  See: https://cloud.google.com/compute/docs/instances/checking-instance-status */
+/**
+ * Google Compute Instance Status
+ *  See: https://cloud.google.com/compute/docs/instances/checking-instance-status
+ */
 sealed trait GceInstanceStatus extends EnumEntry with Product with Serializable {
   def instanceStatus: Status
 }

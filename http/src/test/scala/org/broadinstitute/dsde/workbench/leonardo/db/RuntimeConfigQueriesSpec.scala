@@ -28,9 +28,7 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       now <- IO.realTimeInstant
       id <- RuntimeConfigQueries.insertRuntimeConfig(runtimeConfig, now).transaction
       rc <- RuntimeConfigQueries.getRuntimeConfig(id).transaction
-    } yield {
-      rc shouldBe runtimeConfig
-    }
+    } yield rc shouldBe runtimeConfig
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -76,9 +74,7 @@ class RuntimeConfigQueriesSpec extends AnyFlatSpecLike with TestComponent with L
       )
       id <- RuntimeConfigQueries.insertRuntimeConfig(runtimeConfig, now).transaction
       rc <- RuntimeConfigQueries.getRuntimeConfig(id).transaction
-    } yield {
-      rc shouldBe runtimeConfig
-    }
+    } yield rc shouldBe runtimeConfig
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

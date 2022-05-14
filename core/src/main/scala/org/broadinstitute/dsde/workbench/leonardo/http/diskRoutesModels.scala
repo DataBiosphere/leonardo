@@ -9,7 +9,8 @@ final case class CreateDiskRequest(labels: LabelMap,
                                    size: Option[DiskSize],
                                    diskType: Option[DiskType],
                                    blockSize: Option[BlockSize],
-                                   zone: Option[ZoneName])
+                                   zone: Option[ZoneName]
+)
 
 object CreateDiskRequest {
   def fromDiskConfigRequest(create: PersistentDiskRequest, zone: Option[ZoneName]): CreateDiskRequest =
@@ -19,7 +20,8 @@ object CreateDiskRequest {
 final case class PersistentDiskRequest(name: DiskName,
                                        size: Option[DiskSize],
                                        diskType: Option[DiskType],
-                                       labels: LabelMap)
+                                       labels: LabelMap
+)
 
 final case class DiskConfig(name: DiskName, size: DiskSize, diskType: DiskType, blockSize: BlockSize)
 object DiskConfig {
@@ -36,7 +38,8 @@ final case class ListPersistentDiskResponse(id: DiskId,
                                             size: DiskSize,
                                             diskType: DiskType,
                                             blockSize: BlockSize,
-                                            labels: LabelMap)
+                                            labels: LabelMap
+)
 
 final case class GetPersistentDiskResponse(id: DiskId,
                                            cloudContext: CloudContext,
@@ -49,6 +52,7 @@ final case class GetPersistentDiskResponse(id: DiskId,
                                            size: DiskSize,
                                            diskType: DiskType,
                                            blockSize: BlockSize,
-                                           labels: LabelMap)
+                                           labels: LabelMap
+)
 
 final case class UpdateDiskRequest(labels: LabelMap, size: DiskSize)

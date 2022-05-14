@@ -18,7 +18,8 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
-                                                     azureRegion)
+                                                     azureRegion
+      )
       runtime = makeCluster(1)
         .copy(
           runtimeImages = Set(azureImage),
@@ -47,7 +48,8 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
-                                                     azureRegion)
+                                                     azureRegion
+      )
       runtime = makeCluster(1)
         .copy(
           runtimeImages = Set(azureImage),
@@ -73,7 +75,8 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       disk <- makePersistentDisk().copy(status = DiskStatus.Ready).save()
       azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                      disk.id,
-                                                     azureRegion)
+                                                     azureRegion
+      )
       runtime = makeCluster(1)
         .copy(
           runtimeImages = Set(azureImage),
@@ -89,9 +92,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
         .transaction
       _ <- controlledResourceQuery.deleteAllForRuntime(runtime.id).transaction
       controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
-    } yield {
-      controlledResources.length shouldBe 0
-    }
+    } yield controlledResources.length shouldBe 0
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 }

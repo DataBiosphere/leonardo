@@ -122,7 +122,8 @@ object JsonCodec {
      x.cloudService,
      x.region,
      x.componentGatewayEnabled,
-     x.workerPrivateAccess)
+     x.workerPrivateAccess
+    )
   )
   implicit val gceRuntimeConfigEncoder: Encoder[RuntimeConfig.GceConfig] = Encoder.forProduct6(
     "machineType",
@@ -143,10 +144,12 @@ object JsonCodec {
 
   implicit val azureMachineTypeDecoder: Decoder[VirtualMachineSizeTypes] = Decoder.decodeString.emap { s =>
     val machineSizeOpt: Option[VirtualMachineSizeTypes] =
-      if (VirtualMachineSizeTypes.values.stream
-            .map((x: VirtualMachineSizeTypes) => x.toString)
-            .collect(Collectors.toList[String])
-            .contains(s))
+      if (
+        VirtualMachineSizeTypes.values.stream
+          .map((x: VirtualMachineSizeTypes) => x.toString)
+          .collect(Collectors.toList[String])
+          .contains(s)
+      )
         Some(VirtualMachineSizeTypes.fromString(s))
       else none[VirtualMachineSizeTypes]
     machineSizeOpt.toRight(s"Invalid azure virtualMachineSizeType ${s}")
@@ -402,7 +405,8 @@ object JsonCodec {
     } yield UserJupyterExtensionConfig(ne.getOrElse(Map.empty),
                                        se.getOrElse(Map.empty),
                                        ce.getOrElse(Map.empty),
-                                       le.getOrElse(Map.empty))
+                                       le.getOrElse(Map.empty)
+    )
   }
 
   // Used only in pubsub messages
@@ -422,7 +426,9 @@ object JsonCodec {
           case None =>
             x.downField("googleProject")
               .as[GoogleProject]
-              .map(p => CloudContext.Gcp(p)) //TODO: remove this case since this is just for backwards compatibility once this change is released to prod
+              .map(p =>
+                CloudContext.Gcp(p)
+              ) //TODO: remove this case since this is just for backwards compatibility once this change is released to prod
         }
         runtimeName <- x.downField("clusterName").as[RuntimeName].orElse(x.downField("runtimeName").as[RuntimeName])
       } yield RuntimeProjectAndName(cloudContext, runtimeName)

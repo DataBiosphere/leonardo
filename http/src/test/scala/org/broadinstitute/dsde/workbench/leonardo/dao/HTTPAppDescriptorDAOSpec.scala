@@ -44,7 +44,8 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
   "HttpAppDescriptorDAO" should "properly parse an app.yaml with a stubbed client response" in {
 
     withStubbedAppDescriptorDAO(
-      rstudioRespYaml, { dao =>
+      rstudioRespYaml,
+      { dao =>
         val descriptor = dao.getDescriptor(dummyRequestURI).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
         descriptor.author shouldBe "workbench-interactive-analysis@broadinstitute.org"
         descriptor.description should include("RStudio")

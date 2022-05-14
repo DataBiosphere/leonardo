@@ -45,15 +45,17 @@ object Notebook extends RestClient with LazyLogging {
   def localizePath(googleProject: GoogleProject, clusterName: RuntimeName, async: Boolean = false): String =
     s"${notebooksBasePath(googleProject, clusterName)}/api/localize${if (async) "?async=true" else ""}"
 
-  def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit token: AuthToken,
-                                                                  webDriver: WebDriver): NotebooksListPage = {
+  def get(googleProject: GoogleProject, clusterName: RuntimeName)(implicit
+    token: AuthToken,
+    webDriver: WebDriver
+  ): NotebooksListPage = {
     val path = notebooksBasePath(googleProject, clusterName)
     logger.info(s"Get notebook: GET /$path")
     new NotebooksListPage(url + path)
   }
 
-  def createFileAtJupyterRoot(googleProject: GoogleProject, clusterName: RuntimeName, fileName: String)(
-    implicit token: AuthToken
+  def createFileAtJupyterRoot(googleProject: GoogleProject, clusterName: RuntimeName, fileName: String)(implicit
+    token: AuthToken
   ): File = {
     val path = contentsPath(googleProject, clusterName, fileName)
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
@@ -79,8 +81,9 @@ object Notebook extends RestClient with LazyLogging {
     parseResponse(getRequest(url + path, httpHeaders = List(referer)))
   }
 
-  def getApiHeaders(googleProject: GoogleProject,
-                    clusterName: RuntimeName)(implicit token: AuthToken): Seq[HttpHeader] = {
+  def getApiHeaders(googleProject: GoogleProject, clusterName: RuntimeName)(implicit
+    token: AuthToken
+  ): Seq[HttpHeader] = {
     val path = notebooksTreePath(googleProject, clusterName)
     val referer = Referer(Uri(refererUrl))
     logger.info(s"Get notebook: GET /$path")
@@ -90,7 +93,8 @@ object Notebook extends RestClient with LazyLogging {
   def localize(googleProject: GoogleProject,
                clusterName: RuntimeName,
                locMap: Map[String, String],
-               async: Boolean = false)(implicit token: AuthToken): String = {
+               async: Boolean = false
+  )(implicit token: AuthToken): String = {
     val path = localizePath(googleProject, clusterName, async)
     logger.info(s"Localize notebook files: POST /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
@@ -101,7 +105,8 @@ object Notebook extends RestClient with LazyLogging {
   def getContentItem(googleProject: GoogleProject,
                      clusterName: RuntimeName,
                      contentPath: String,
-                     includeContent: Boolean = true)(implicit token: AuthToken): ContentItem = {
+                     includeContent: Boolean = true
+  )(implicit token: AuthToken): ContentItem = {
     val path = contentsPath(googleProject, clusterName, contentPath) + (if (includeContent) "?content=1" else "")
     logger.info(s"Get notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))
@@ -113,7 +118,8 @@ object Notebook extends RestClient with LazyLogging {
   def getNotebookItem(googleProject: GoogleProject,
                       clusterName: RuntimeName,
                       contentPath: String,
-                      includeContent: Boolean = true)(implicit token: AuthToken): NotebookContentItem = {
+                      includeContent: Boolean = true
+  )(implicit token: AuthToken): NotebookContentItem = {
     val path = contentsPath(googleProject, clusterName, contentPath) + (if (includeContent) "?content=1" else "")
     logger.info(s"Get notebook contents: GET /$path")
     val cookie = Cookie(HttpCookiePair("LeoToken", token.value))

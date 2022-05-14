@@ -24,14 +24,14 @@ object RuntimeServiceDbQueries {
 
   def runtimeLabelQuery(baseQuery: Query[ClusterTable, ClusterRecord, Seq]): RuntimeJoinLabel =
     for {
-      (runtime, label) <- baseQuery.joinLeft(labelQuery).on {
-        case (r, lbl) =>
-          lbl.resourceId === r.id && lbl.resourceType === LabelResourceType.runtime
+      (runtime, label) <- baseQuery.joinLeft(labelQuery).on { case (r, lbl) =>
+        lbl.resourceId === r.id && lbl.resourceType === LabelResourceType.runtime
       }
     } yield (runtime, label)
 
-  def getStatusByName(cloudContext: CloudContext,
-                      name: RuntimeName)(implicit ec: ExecutionContext): DBIO[Option[RuntimeStatus]] = {
+  def getStatusByName(cloudContext: CloudContext, name: RuntimeName)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[RuntimeStatus]] = {
     val res = clusterQuery
       .filter(_.cloudContextDb === cloudContext.asCloudContextDb)
       .filter(_.runtimeName === name)
@@ -42,8 +42,8 @@ object RuntimeServiceDbQueries {
     res.map(recs => recs.headOption)
   }
 
-  def getRuntime(cloudContext: CloudContext, runtimeName: RuntimeName)(
-    implicit executionContext: ExecutionContext
+  def getRuntime(cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
+    executionContext: ExecutionContext
   ): DBIO[GetRuntimeResponse] = {
     val activeRuntime = getRuntimeQueryByUniqueKey(cloudContext, runtimeName, None)
       .join(runtimeConfigs)
@@ -59,7 +59,8 @@ object RuntimeServiceDbQueries {
           .map(d => persistentDiskQuery.unmarshalPersistentDisk(d, Map.empty))
         runtime <- unmarshalGetRuntime(runtimeRecs,
                                        runtimeConfig.runtimeConfig,
-                                       persistentDisk.map(DiskConfig.fromPersistentDisk)).headOption
+                                       persistentDisk.map(DiskConfig.fromPersistentDisk)
+        ).headOption
       } yield runtime
       res.fold[DBIO[GetRuntimeResponse]](
         DBIO.failed(RuntimeNotFoundException(cloudContext, runtimeName, "Not found in database"))
@@ -75,7 +76,8 @@ object RuntimeServiceDbQueries {
        Option[ExtensionRecord],
        Option[ClusterImageRecord],
        Option[ScopeRecord],
-       Option[PatchRecord])
+       Option[PatchRecord]
+      )
     ],
     runtimeConfig: RuntimeConfig,
     diskConfig: Option[DiskConfig]
@@ -90,7 +92,9 @@ object RuntimeServiceDbQueries {
                                Chain[ExtensionRecord],
                                Chain[ClusterImageRecord],
                                Chain[ScopeRecord],
-                               Chain[PatchRecord])] = clusterRecords.toList.foldMap {
+                               Chain[PatchRecord]
+                              )
+    ] = clusterRecords.toList.foldMap {
       case (clusterRecord, errorRecordOpt, labelRecordOpt, extensionOpt, clusterImageOpt, scopeOpt, patchOpt) =>
         val labelMap = labelRecordOpt.map(labelRecordOpt => labelRecordOpt.key -> Chain(labelRecordOpt.value)).toMap
         val errorList = errorRecordOpt.toList
@@ -111,7 +115,8 @@ object RuntimeServiceDbQueries {
             AsyncRuntimeFields(googleId,
                                OperationName(operationName),
                                GcsBucketName(stagingBucket),
-                               clusterRecord.hostIp map IP)
+                               clusterRecord.hostIp map IP
+            )
         }
         val clusterImages = clusterImageRecords.toList map clusterImageQuery.unmarshalClusterImage toSet
         val patchInProgress = patch.headOption match {
@@ -134,7 +139,8 @@ object RuntimeServiceDbQueries {
                               clusterRecord.cloudContext,
                               name,
                               clusterImages,
-                              labelMap),
+                              labelMap
+          ),
           clusterRecord.status,
           labelMap,
           clusterRecord.userScriptUri,
@@ -156,8 +162,8 @@ object RuntimeServiceDbQueries {
     }.toSeq
   }
 
-  def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, cloudContext: Option[CloudContext] = None)(
-    implicit ec: ExecutionContext
+  def listRuntimes(labelMap: LabelMap, includeDeleted: Boolean, cloudContext: Option[CloudContext] = None)(implicit
+    ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByDeletion =
       if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
@@ -173,8 +179,9 @@ object RuntimeServiceDbQueries {
   def listRuntimesForWorkspace(labelMap: LabelMap,
                                includeDeleted: Boolean,
                                workspaceId: Option[WorkspaceId],
-                               cloudProvider: Option[CloudProvider])(
-    implicit ec: ExecutionContext
+                               cloudProvider: Option[CloudProvider]
+  )(implicit
+    ec: ExecutionContext
   ): DBIO[List[ListRuntimeResponse2]] = {
     val runtimeQueryFilteredByDeletion =
       if (includeDeleted) clusterQuery else clusterQuery.filterNot(_.status === (RuntimeStatus.Deleted: RuntimeStatus))
@@ -201,20 +208,19 @@ object RuntimeServiceDbQueries {
     val runtimeQueryFilteredByLabel = if (labelMap.isEmpty) {
       runtimeQueryJoinedWithLabel
     } else {
-      runtimeQueryJoinedWithLabel.filter {
-        case (runtimeRec, _) =>
-          labelQuery
-            .filter(lbl => lbl.resourceId === runtimeRec.id && lbl.resourceType === LabelResourceType.runtime)
-            // The following confusing line is equivalent to the much simpler:
-            // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
-            // Unfortunately slick doesn't support inSet/inSetBind for tuples.
-            // https://github.com/slick/slick/issues/517
-            .filter(lbl =>
-              labelMap
-                .map { case (k, v) => lbl.key === k && lbl.value === v }
-                .fold[Rep[Boolean]](false)(_ || _)
-            )
-            .length === labelMap.size
+      runtimeQueryJoinedWithLabel.filter { case (runtimeRec, _) =>
+        labelQuery
+          .filter(lbl => lbl.resourceId === runtimeRec.id && lbl.resourceType === LabelResourceType.runtime)
+          // The following confusing line is equivalent to the much simpler:
+          // .filter { lbl => (lbl.key, lbl.value) inSetBind labelMap.toSet }
+          // Unfortunately slick doesn't support inSet/inSetBind for tuples.
+          // https://github.com/slick/slick/issues/517
+          .filter(lbl =>
+            labelMap
+              .map { case (k, v) => lbl.key === k && lbl.value === v }
+              .fold[Rep[Boolean]](false)(_ || _)
+          )
+          .length === labelMap.size
       }
     }
 
@@ -224,37 +230,36 @@ object RuntimeServiceDbQueries {
 
     runtimeQueryFilteredByLabelAndJoinedWithRuntimeAndPatch.result.map { x =>
       val runtimeLabelMap: Map[(ClusterRecord, RuntimeConfig, Option[PatchRecord]), Map[String, Chain[String]]] =
-        x.toList.foldMap {
-          case (((runtimeRec, labelRecOpt), runtimeConfigRec), patchRecOpt) =>
-            val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
-            Map((runtimeRec, runtimeConfigRec.runtimeConfig, patchRecOpt) -> labelMap)
+        x.toList.foldMap { case (((runtimeRec, labelRecOpt), runtimeConfigRec), patchRecOpt) =>
+          val labelMap = labelRecOpt.map(labelRec => labelRec.key -> Chain(labelRec.value)).toMap
+          Map((runtimeRec, runtimeConfigRec.runtimeConfig, patchRecOpt) -> labelMap)
         }
 
-      runtimeLabelMap.map {
-        case ((runtimeRec, runtimeConfig, patchRecOpt), labelMap) =>
-          val lmp = labelMap.view.mapValues(_.toList.toSet.headOption.getOrElse("")).toMap
+      runtimeLabelMap.map { case ((runtimeRec, runtimeConfig, patchRecOpt), labelMap) =>
+        val lmp = labelMap.view.mapValues(_.toList.toSet.headOption.getOrElse("")).toMap
 
-          val patchInProgress = patchRecOpt match {
-            case Some(patchRec) => patchRec.inProgress
-            case None           => false
-          }
-          ListRuntimeResponse2(
-            runtimeRec.id,
-            runtimeRec.workspaceId,
-            RuntimeSamResourceId(runtimeRec.internalId),
-            runtimeRec.runtimeName,
-            runtimeRec.cloudContext,
-            runtimeRec.auditInfo,
-            runtimeConfig,
-            Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                                runtimeRec.cloudContext,
-                                runtimeRec.runtimeName,
-                                Set.empty,
-                                lmp),
-            runtimeRec.status,
-            lmp,
-            patchInProgress
-          )
+        val patchInProgress = patchRecOpt match {
+          case Some(patchRec) => patchRec.inProgress
+          case None           => false
+        }
+        ListRuntimeResponse2(
+          runtimeRec.id,
+          runtimeRec.workspaceId,
+          RuntimeSamResourceId(runtimeRec.internalId),
+          runtimeRec.runtimeName,
+          runtimeRec.cloudContext,
+          runtimeRec.auditInfo,
+          runtimeConfig,
+          Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
+                              runtimeRec.cloudContext,
+                              runtimeRec.runtimeName,
+                              Set.empty,
+                              lmp
+          ),
+          runtimeRec.status,
+          lmp,
+          patchInProgress
+        )
       }.toList
     }
   }

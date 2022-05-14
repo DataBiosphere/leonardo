@@ -34,7 +34,8 @@ class HttpComputerManagerDao[F[_]](azureConfig: AzureAppRegistrationConfig)(impl
     } yield vmOpt
 
   private def buildComputeManager(azureCloudContext: AzureCloudContext,
-                                  azureConfig: AzureAppRegistrationConfig): ComputeManager = {
+                                  azureConfig: AzureAppRegistrationConfig
+  ): ComputeManager = {
     val azureCreds = new ClientSecretCredentialBuilder()
       .clientId(azureConfig.clientId.value)
       .clientSecret(azureConfig.clientSecret.value)

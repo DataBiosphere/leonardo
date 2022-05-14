@@ -52,7 +52,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(d1RuntimeConfig)
       )
@@ -62,7 +63,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(d2RuntimeConfig)
       )
@@ -90,21 +92,25 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       d2 <- makePersistentDisk(Some(DiskName("d2"))).save()
       c2RuntimeConfig = RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      None)
+                                                      None
+      )
       c2 <- IO(makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig))
       labels1 = Map("googleProject" -> c1.cloudContext.asString,
                     "clusterName" -> c1.runtimeName.asString,
-                    "creator" -> c1.auditInfo.creator.value)
+                    "creator" -> c1.auditInfo.creator.value
+      )
       labels2 = Map("googleProject" -> c2.cloudContext.asString,
                     "clusterName" -> c2.runtimeName.asString,
-                    "creator" -> c2.auditInfo.creator.value)
+                    "creator" -> c2.auditInfo.creator.value
+      )
       list1 <- RuntimeServiceDbQueries.listRuntimes(labels1, false, None).transaction
       list2 <- RuntimeServiceDbQueries.listRuntimes(labels2, false, None).transaction
       _ <- labelQuery.saveAllForResource(c1.id, LabelResourceType.Runtime, labels1).transaction
@@ -139,7 +145,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c1 <- IO(
         makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig)
       )
@@ -148,7 +155,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      None)
+                                                      None
+      )
       c2 <- IO(
         makeCluster(2).saveWithRuntimeConfig(c2RuntimeConfig)
       )
@@ -176,7 +184,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      None)
+                                                      None
+      )
       c1 <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Deleted)
@@ -187,7 +196,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c2 <- IO(
         makeCluster(2)
           .copy(status = RuntimeStatus.Deleted)
@@ -198,14 +208,16 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d3.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c3 <- IO(
         makeCluster(3).saveWithRuntimeConfig(
           RuntimeConfig.GceWithPdConfig(defaultMachineType,
                                         Some(d3.id),
                                         bootDiskSize = DiskSize(50),
                                         zone = ZoneName("us-west2-b"),
-                                        CommonTestData.gpuConfig)
+                                        CommonTestData.gpuConfig
+          )
         )
       )
       list1 <- RuntimeServiceDbQueries.listRuntimes(Map.empty, true, None).transaction
@@ -233,7 +245,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      None)
+                                                      None
+      )
       c1 <- IO(
         makeCluster(1)
           .copy(status = RuntimeStatus.Deleted)
@@ -244,7 +257,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c2 <- IO(
         makeCluster(2)
           .copy(status = RuntimeStatus.Deleted)
@@ -286,7 +300,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      None)
+                                                      None
+      )
       c1 <- IO(
         makeCluster(1)
           .copy(workspaceId = Some(workspaceId1))
@@ -298,7 +313,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d2.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c2 <- IO(
         makeCluster(2)
           .copy(workspaceId = Some(workspaceId1), status = RuntimeStatus.Deleted)
@@ -343,7 +359,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(d1.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      None)
+                                                      None
+      )
       c1 <- IO(
         makeCluster(1)
           .copy(workspaceId = Some(workspaceId1))
@@ -417,7 +434,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                                                       Some(disk.id),
                                                       bootDiskSize = DiskSize(50),
                                                       zone = ZoneName("us-west2-b"),
-                                                      CommonTestData.gpuConfig)
+                                                      CommonTestData.gpuConfig
+      )
       c1 <- IO(makeCluster(1).saveWithRuntimeConfig(c1RuntimeConfig))
       get1 <- RuntimeServiceDbQueries.getRuntime(c1.cloudContext, c1.runtimeName).transaction
       get2 <- RuntimeServiceDbQueries.getRuntime(c1.cloudContext, RuntimeName("does-not-exist")).transaction.attempt
@@ -446,7 +464,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                           runtime.cloudContext,
                           runtime.runtimeName,
                           Set.empty,
-                          labels),
+                          labels
+      ),
       runtime.status,
       labels,
       false

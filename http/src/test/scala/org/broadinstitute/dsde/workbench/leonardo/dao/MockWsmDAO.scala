@@ -9,16 +9,18 @@ import org.http4s.headers.Authorization
 import java.time.ZonedDateTime
 
 class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDao[IO] {
-  override def createIp(request: CreateIpRequest,
-                        authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[CreateIpResponse] =
+  override def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[CreateIpResponse] =
     IO.pure(
       CreateIpResponse(
         WsmControlledResourceId(UUID.randomUUID())
       )
     )
 
-  override def createDisk(request: CreateDiskRequest,
-                          authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[CreateDiskResponse] =
+  override def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[CreateDiskResponse] =
     IO.pure(
       CreateDiskResponse(
         WsmControlledResourceId(UUID.randomUUID())
@@ -35,8 +37,9 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def createVm(request: CreateVmRequest,
-                        authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[CreateVmResult] =
+  override def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[CreateVmResult] =
     IO.pure(
       CreateVmResult(
         WsmJobReport(
@@ -88,8 +91,9 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def deleteVm(request: DeleteWsmResourceRequest,
-                        authorization: Authorization)(implicit ev: Ask[IO, AppContext]): IO[DeleteWsmResourceResult] =
+  override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
+  ): IO[DeleteWsmResourceResult] =
     IO.pure(
       DeleteWsmResourceResult(
         WsmJobReport(
@@ -113,8 +117,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
-    implicit ev: Ask[IO, AppContext]
+  override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[Option[WorkspaceDescription]] =
     IO.pure(
       Some(
@@ -127,8 +131,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       )
     )
 
-  override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[IO, AppContext]
+  override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[DeleteWsmResourceResult] = IO.pure(
     DeleteWsmResourceResult(
       WsmJobReport(
@@ -152,8 +156,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     )
   )
 
-  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[IO, AppContext]
+  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[DeleteWsmResourceResult] = IO.pure(
     DeleteWsmResourceResult(
       WsmJobReport(
@@ -177,8 +181,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
     )
   )
 
-  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[IO, AppContext]
+  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[DeleteWsmResourceResult] = IO.pure(
     DeleteWsmResourceResult(
       WsmJobReport(

@@ -27,8 +27,9 @@ import scala.concurrent.duration._
 
 class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
                     runtimeService: RuntimeService[IO],
-                    userInfoDirectives: UserInfoDirectives)(
-  implicit metrics: OpenTelemetryMetrics[IO]
+                    userInfoDirectives: UserInfoDirectives
+)(implicit
+  metrics: OpenTelemetryMetrics[IO]
 ) {
   // See https://github.com/DataBiosphere/terra-ui/blob/ef88f396a61383ee08beb65a37af7cae9476cc20/src/libs/ajax.js#L1358
   private val allValidSaturnIframeExtensions =
@@ -147,8 +148,9 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def createRuntimeHandler(userInfo: UserInfo,
                                         cloudContext: CloudContext,
                                         runtimeName: RuntimeName,
-                                        req: CreateRuntime2Request)(
-    implicit ev: Ask[IO, AppContext]
+                                        req: CreateRuntime2Request
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -166,8 +168,8 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
       )
     } yield StatusCodes.Accepted: ToResponseMarshallable
 
-  private[api] def getRuntimeHandler(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(
-    implicit ev: Ask[IO, AppContext]
+  private[api] def getRuntimeHandler(userInfo: UserInfo, cloudContext: CloudContext, runtimeName: RuntimeName)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -181,8 +183,9 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
 
   private[api] def listRuntimesHandler(userInfo: UserInfo,
                                        cloudContext: Option[CloudContext],
-                                       params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                       params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -197,8 +200,9 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def deleteRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                        params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -242,8 +246,9 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
   private[api] def updateRuntimeHandler(userInfo: UserInfo,
                                         googleProject: GoogleProject,
                                         runtimeName: RuntimeName,
-                                        req: UpdateRuntimeRequest)(
-    implicit ev: Ask[IO, AppContext]
+                                        req: UpdateRuntimeRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -296,9 +301,12 @@ object RuntimeRoutes {
       diskSizeBeforeValidation <- c
         .downField("masterDiskSize")
         .as[Option[DiskSize]]
-      masterDiskSize <- if (diskSizeBeforeValidation.exists(x => x.gb < 50)) // Dataproc cluster doesn't have a separate boot disk, hence disk size needs to be larger than the VM image
-        Left(DecodingFailure("Minimum required masterDiskSize is 50GB", List.empty))
-      else Right(diskSizeBeforeValidation)
+      masterDiskSize <-
+        if (
+          diskSizeBeforeValidation.exists(x => x.gb < 50)
+        ) // Dataproc cluster doesn't have a separate boot disk, hence disk size needs to be larger than the VM image
+          Left(DecodingFailure("Minimum required masterDiskSize is 50GB", List.empty))
+        else Right(diskSizeBeforeValidation)
       workerMachineType <- c.downField("workerMachineType").as[Option[MachineTypeName]]
       workerDiskSize <- c
         .downField("workerDiskSize")
@@ -503,9 +511,7 @@ object RuntimeRoutes {
           updateDefaultLabelDecodingFailure.asLeft[LabelMap]
         case Some(m: LabelMap) => m.asRight[DecodingFailure]
       }
-    } yield {
-      UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), labelsToUpdate, labelsToDelete)
-    }
+    } yield UpdateRuntimeRequest(rc, as.getOrElse(false), ap, at.map(_.minutes), labelsToUpdate, labelsToDelete)
   }
 
 }

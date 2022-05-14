@@ -8,12 +8,14 @@ final case class CreateAzureRuntimeRequest(labels: LabelMap,
                                            machineSize: VirtualMachineSizeTypes,
                                            imageUri: Option[AzureImageUri],
                                            customEnvironmentVariables: Map[String, String],
-                                           azureDiskConfig: CreateAzureDiskRequest)
+                                           azureDiskConfig: CreateAzureDiskRequest
+)
 
 final case class CreateAzureDiskRequest(labels: LabelMap,
                                         name: AzureDiskName,
                                         size: Option[DiskSize],
-                                        diskType: Option[DiskType])
+                                        diskType: Option[DiskType]
+)
 
 //TODO: implement
 final case class UpdateAzureRuntimeRequest(machineSize: VirtualMachineSizeTypes)

@@ -17,12 +17,14 @@ final case class VPCConfig(highSecurityProjectNetworkLabel: NetworkLabel,
                            firewallsToAdd: List[FirewallRuleConfig],
                            firewallsToRemove: List[FirewallRuleName],
                            pollPeriod: FiniteDuration,
-                           maxAttempts: Int)
+                           maxAttempts: Int
+)
 
 final case class FirewallRuleConfig(namePrefix: String,
                                     rbsName: Option[String],
                                     sourceRanges: Map[RegionName, List[IpRange]],
-                                    allowed: List[Allowed])
+                                    allowed: List[Allowed]
+)
 
 final case class Allowed(protocol: String, port: Option[String])
 

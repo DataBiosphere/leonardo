@@ -49,8 +49,8 @@ class AzurePubsubHandlerSpec
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
     val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[GetCreateVmJobResult] =
         IO.pure(
           GetCreateVmJobResult(
@@ -63,7 +63,8 @@ class AzurePubsubHandlerSpec
     val azureInterp =
       makeAzureInterp(computeManagerDao = new MockComputeManagerDao(Some(vmReturn)),
                       asyncTaskQueue = queue,
-                      wsmDAO = mockWsmDAO)
+                      wsmDAO = mockWsmDAO
+      )
 
     val res =
       for {
@@ -71,7 +72,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(1)
           .copy(
             runtimeImages = Set(azureImage),
@@ -113,7 +115,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(2)
           .copy(
             runtimeImages = Set(azureImage),
@@ -155,8 +158,8 @@ class AzurePubsubHandlerSpec
     val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[GetCreateVmJobResult] = IO.raiseError(new Exception(exceptionMsg))
     }
     val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
@@ -167,7 +170,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(1)
           .copy(
             runtimeImages = Set(azureImage),
@@ -211,7 +215,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(2)
           .copy(
             runtimeImages = Set(azureImage),
@@ -253,7 +258,8 @@ class AzurePubsubHandlerSpec
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
                       computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
-                      wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
+                      wsmDAO: MockWsmDAO = new MockWsmDAO
+  ): AzureInterpreter[IO] =
     new AzureInterpreter[IO](
       ConfigReader.appConfig.azure.monitor,
       asyncTaskQueue,

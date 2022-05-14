@@ -55,11 +55,13 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val userScriptPathMappedColumnType: BaseColumnType[UserScriptPath] =
       MappedColumnType
         .base[UserScriptPath, String](_.asString,
-                                      s => UserScriptPath.stringToUserScriptPath(s).fold(e => throw e, identity))
+                                      s => UserScriptPath.stringToUserScriptPath(s).fold(e => throw e, identity)
+        )
     implicit val gsPathMappedColumnType: BaseColumnType[GcsPath] =
       MappedColumnType
         .base[GcsPath, String](_.toUri,
-                               s => parseGcsPath(s).fold(e => throw ColumnDecodingException(e.toString()), identity))
+                               s => parseGcsPath(s).fold(e => throw ColumnDecodingException(e.toString()), identity)
+        )
 
     implicit val statusMappedColumnType: BaseColumnType[RuntimeStatus] =
       MappedColumnType

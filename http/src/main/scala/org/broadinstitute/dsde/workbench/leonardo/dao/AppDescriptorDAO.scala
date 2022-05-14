@@ -17,7 +17,8 @@ final case class AppDescriptor(name: String,
                                author: String,
                                description: String,
                                version: String,
-                               services: Map[String, CustomAppService])
+                               services: Map[String, CustomAppService]
+)
 
 final case class CustomAppService(image: ContainerImage,
                                   port: Int,
@@ -26,8 +27,10 @@ final case class CustomAppService(image: ContainerImage,
                                   args: List[String],
                                   pdMountPath: String,
                                   pdAccessMode: String,
-                                  environment: Map[String, String])
+                                  environment: Map[String, String]
+)
 
 final case class AppDescriptorException(traceId: TraceId, path: String, msg: String)
     extends LeoException(message = s"Error occurred fetching app descriptor from path $path: $msg",
-                         traceId = Some(traceId))
+                         traceId = Some(traceId)
+    )

@@ -20,8 +20,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s.Uri
 
-class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(
-  implicit metrics: OpenTelemetryMetrics[IO]
+class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoDirectives)(implicit
+  metrics: OpenTelemetryMetrics[IO]
 ) {
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
@@ -109,8 +109,9 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
   private[api] def createAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     appName: AppName,
-                                    req: CreateAppRequest)(
-    implicit ev: Ask[IO, AppContext]
+                                    req: CreateAppRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -124,8 +125,8 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "createApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
-  private[api] def getAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit ev: Ask[IO, AppContext]
+  private[api] def getAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -140,8 +141,9 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
 
   private[api] def listAppHandler(userInfo: UserInfo,
                                   googleProject: Option[GoogleProject],
-                                  params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                  params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -157,8 +159,9 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
   private[api] def deleteAppHandler(userInfo: UserInfo,
                                     googleProject: GoogleProject,
                                     appName: AppName,
-                                    params: Map[String, String])(
-    implicit ev: Ask[IO, AppContext]
+                                    params: Map[String, String]
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -178,8 +181,8 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "deleteApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
-  private[api] def stopAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit ev: Ask[IO, AppContext]
+  private[api] def stopAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -188,8 +191,8 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
       _ <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "stopApp").use(_ => apiCall))
     } yield StatusCodes.Accepted
 
-  private[api] def startAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit ev: Ask[IO, AppContext]
+  private[api] def startAppHandler(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[ToResponseMarshallable] =
     for {
       ctx <- ev.ask[AppContext]
@@ -216,7 +219,8 @@ object AppRoutes {
                                l.getOrElse(Map.empty),
                                cv.getOrElse(Map.empty),
                                dp,
-                               ea.getOrElse(List.empty))
+                               ea.getOrElse(List.empty)
+      )
     }
 
   implicit val numNodepoolsDecoder: Decoder[NumNodepools] = Decoder.decodeInt.emap(n =>
@@ -238,7 +242,8 @@ object AppRoutes {
                          "appType",
                          "diskName",
                          "auditInfo",
-                         "labels")(x => ListAppResponse.unapply(x).get)
+                         "labels"
+    )(x => ListAppResponse.unapply(x).get)
 
   implicit val getAppResponseEncoder: Encoder[GetAppResponse] =
     Encoder.forProduct8("kubernetesRuntimeConfig",
@@ -248,5 +253,6 @@ object AppRoutes {
                         "diskName",
                         "customEnvironmentVariables",
                         "auditInfo",
-                        "appType")(x => GetAppResponse.unapply(x).get)
+                        "appType"
+    )(x => GetAppResponse.unapply(x).get)
 }

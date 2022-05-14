@@ -26,12 +26,14 @@ final case class CreateAppRequest(kubernetesRuntimeConfig: Option[KubernetesRunt
                                   labels: LabelMap = Map.empty,
                                   customEnvironmentVariables: Map[String, String],
                                   descriptorPath: Option[Uri],
-                                  extraArgs: List[String])
+                                  extraArgs: List[String]
+)
 
 final case class DeleteAppRequest(userInfo: UserInfo,
                                   googleProject: GoogleProject,
                                   appName: AppName,
-                                  deleteDisk: Boolean)
+                                  deleteDisk: Boolean
+)
 
 final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig,
                                 errors: List[AppError],
@@ -40,7 +42,8 @@ final case class GetAppResponse(kubernetesRuntimeConfig: KubernetesRuntimeConfig
                                 diskName: Option[DiskName],
                                 customEnvironmentVariables: Map[String, String],
                                 auditInfo: AuditInfo,
-                                appType: AppType)
+                                appType: AppType
+)
 
 final case class ListAppResponse(googleProject: GoogleProject,
                                  kubernetesRuntimeConfig: KubernetesRuntimeConfig,
@@ -51,7 +54,8 @@ final case class ListAppResponse(googleProject: GoogleProject,
                                  appType: AppType,
                                  diskName: Option[DiskName],
                                  auditInfo: AuditInfo,
-                                 labels: LabelMap)
+                                 labels: LabelMap
+)
 
 final case class GetAppResult(cluster: KubernetesCluster, nodepool: Nodepool, app: App)
 

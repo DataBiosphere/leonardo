@@ -58,7 +58,8 @@ object Leonardo extends RestClient with LazyLogging {
 
     def runtimePath(googleProject: GoogleProject,
                     runtimeName: RuntimeName,
-                    version: Option[ApiVersion] = None): String = {
+                    version: Option[ApiVersion] = None
+    ): String = {
       val versionPath = version.map(_.toUrlSegment).getOrElse("")
       s"api/google${versionPath}/runtimes/${googleProject.value}/${runtimeName.asString}"
     }
@@ -72,8 +73,9 @@ object Leonardo extends RestClient with LazyLogging {
       handleListRuntimeResponse(parsedRequest)
     }
 
-    def getRuntime(googleProject: GoogleProject,
-                   runtimeName: RuntimeName)(implicit token: AuthToken): GetRuntimeResponseCopy = {
+    def getRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit
+      token: AuthToken
+    ): GetRuntimeResponseCopy = {
       val path = runtimePath(googleProject, runtimeName, Some(ApiVersion.V1))
 
       val responseString = parseResponse(getRequest(url + path))
@@ -83,10 +85,12 @@ object Leonardo extends RestClient with LazyLogging {
         r <- json.as[GetRuntimeResponseCopy]
       } yield r
 
-      res.fold(e => throw e, resp => {
-        logger.info(s"Get runtime: GET /$path. Status = ${resp.status}")
-        resp
-      })
+      res.fold(e => throw e,
+               resp => {
+                 logger.info(s"Get runtime: GET /$path. Status = ${resp.status}")
+                 resp
+               }
+      )
     }
 
     def deleteRuntime(googleProject: GoogleProject, runtimeName: RuntimeName)(implicit token: AuthToken): String = {
@@ -127,7 +131,8 @@ object AutomationTestJsonCodec {
                          Option[List[RuntimeError]],
                          Instant,
                          Int,
-                         Boolean](
+                         Boolean
+    ](
       "clusterName",
       "googleProject",
       "googleServiceAccount",

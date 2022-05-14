@@ -37,8 +37,8 @@ case object RKernel extends NotebookKernel {
   override def cssSelectorString: String = super.cssSelectorString + "[title='Create a new notebook with R']"
 }
 
-class NotebooksListPage(override val url: String)(
-  implicit override val webDriver: WebDriver,
+class NotebooksListPage(override val url: String)(implicit
+  override val webDriver: WebDriver,
   override val authToken: AuthToken
 ) extends JupyterPage {
 
@@ -66,15 +66,15 @@ class NotebooksListPage(override val url: String)(
     val notebookPage = new NotebookPage(url + "/notebooks/" + file.getPath).open
     notebookPage.awaitReadyKernel(timeout)
     val result = Try(testCode(notebookPage))
-    Try(notebookPage.shutdownKernel()).recover {
-      case e =>
-        logger.error(s"Error occurred shutting down kernel for notebook ${file.getAbsolutePath}", e)
+    Try(notebookPage.shutdownKernel()).recover { case e =>
+      logger.error(s"Error occurred shutting down kernel for notebook ${file.getAbsolutePath}", e)
     }
     result.get
   }
 
-  def withNewNotebook[T](kernel: NotebookKernel = Python3,
-                         timeout: FiniteDuration = 3.minutes)(testCode: NotebookPage => T): T = {
+  def withNewNotebook[T](kernel: NotebookKernel = Python3, timeout: FiniteDuration = 3.minutes)(
+    testCode: NotebookPage => T
+  ): T = {
     switchToNewTab {
       await visible (newButton, timeout.toSeconds)
       click on newButton
@@ -93,10 +93,9 @@ class NotebooksListPage(override val url: String)(
     if (attempt > 5)
       logger.error(s"Error occurred shutting down ${kernel} kernel")
     else
-      Try(page.shutdownKernel()).recover {
-        case e =>
-          logger.error(s"Error occurred shutting down ${kernel} kernel on attempt ${attempt}", e)
-          shutDownKernel(page, kernel, attempt + 1)
+      Try(page.shutdownKernel()).recover { case e =>
+        logger.error(s"Error occurred shutting down ${kernel} kernel on attempt ${attempt}", e)
+        shutDownKernel(page, kernel, attempt + 1)
       }
 
   def withSubFolder[T](timeout: FiniteDuration = 1.minutes)(testCode: NotebooksListPage => T): T = {

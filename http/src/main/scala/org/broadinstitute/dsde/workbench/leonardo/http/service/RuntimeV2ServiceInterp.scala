@@ -42,8 +42,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                              wsmDao: WsmDao[F],
                                              samDAO: SamDAO[F],
                                              asyncTasks: Queue[F, Task[F]],
-                                             publisherQueue: Queue[F, LeoPubsubMessage])(
-  implicit F: Async[F],
+                                             publisherQueue: Queue[F, LeoPubsubMessage]
+)(implicit
+  F: Async[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
 ) extends RuntimeV2Service[F] {
@@ -51,7 +52,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
                              req: CreateAzureRuntimeRequest,
-                             createVmJobId: WsmJobId)(implicit as: Ask[F, AppContext]): F[Unit] =
+                             createVmJobId: WsmJobId
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     for {
       ctx <- as.ask
 
@@ -107,7 +109,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                        req,
                                        RuntimeSamResourceId(samResource.resourceId),
                                        Set(runtimeImage),
-                                       ctx.now)
+                                       ctx.now
+            )
 
             disk <- persistentDiskQuery.save(diskToSave).transaction
             runtimeConfig = RuntimeConfig.AzureConfig(
@@ -122,7 +125,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
               ctx.traceId,
               //TODO: generalize for google
               createRuntime(CreateAzureRuntimeParams(workspaceId, savedRuntime, runtimeConfig, disk, runtimeImage),
-                            WsmJobControl(createVmJobId)),
+                            WsmJobControl(createVmJobId)
+              ),
               Some(errorHandler(savedRuntime.id, ctx)),
               ctx.now
             )
@@ -136,8 +140,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
     } yield ()
 
-  override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[GetRuntimeResponse] =
     for {
       leoAuth <- samDAO.getLeoAuthToken
@@ -165,9 +169,10 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       )
 
       // If user is creator of the runtime, they should definitely be able to see the runtime.
-      hasPermission <- if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
-      else
-        checkSamPermission(azureRuntimeControlledResource, userInfo, WsmResourceAction.Read).map(_._1)
+      hasPermission <-
+        if (runtime.auditInfo.creator == userInfo.userEmail) F.pure(true)
+        else
+          checkSamPermission(azureRuntimeControlledResource, userInfo, WsmResourceAction.Read).map(_._1)
 
       _ <- ctx.span.traverse(s => F.delay(s.addAnnotation("Done auth call for get azure runtime permission")))
       _ <- F
@@ -181,11 +186,12 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   override def updateRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
-                             req: UpdateAzureRuntimeRequest)(implicit as: Ask[F, AppContext]): F[Unit] =
+                             req: UpdateAzureRuntimeRequest
+  )(implicit as: Ask[F, AppContext]): F[Unit] =
     F.pure(AzureUnimplementedException("patch not implemented yet"))
 
-  override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit] =
     for {
       leoAuth <- samDAO.getLeoAuthToken
@@ -324,7 +330,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                      diskName: DiskName,
                                      config: PersistentDiskConfig,
                                      req: CreateAzureRuntimeRequest,
-                                     now: Instant): Either[Throwable, PersistentDisk] = {
+                                     now: Instant
+  ): Either[Throwable, PersistentDisk] = {
     // create a LabelMap of default labels
     val defaultLabelMap: LabelMap =
       Map(
@@ -338,10 +345,11 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
     for {
       // check the labels do not contain forbidden keys
-      labels <- if (allLabels.contains(includeDeletedKey))
-        Left(IllegalLabelKeyException(includeDeletedKey))
-      else
-        Right(allLabels)
+      labels <-
+        if (allLabels.contains(includeDeletedKey))
+          Left(IllegalLabelKeyException(includeDeletedKey))
+        else
+          Right(allLabels)
     } yield PersistentDisk(
       DiskId(0),
       cloudContext,
@@ -361,11 +369,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     )
   }
 
-  /** Creates an Azure VM but doesn't wait for its completion.
+  /**
+   * Creates an Azure VM but doesn't wait for its completion.
    * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
-   * */
-  private def createRuntime(params: CreateAzureRuntimeParams,
-                            jobControl: WsmJobControl)(implicit ev: Ask[F, AppContext]): F[Unit] =
+   */
+  private def createRuntime(params: CreateAzureRuntimeParams, jobControl: WsmJobControl)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
     for {
       auth <- samDAO.getLeoAuthToken
 
@@ -377,7 +387,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
         (ipResp, diskResp, networkResp) =>
           val vmCommon = getCommonFields(ControlledResourceName(params.runtime.runtimeName.asString),
                                          config.azureRuntimeDefaults.vmControlledResourceDesc,
-                                         params.runtime.auditInfo.creator)
+                                         params.runtime.auditInfo.creator
+          )
           CreateVmRequest(
             params.workspaceId,
             vmCommon,
@@ -396,12 +407,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
 
-  private def createIp(params: CreateAzureRuntimeParams, leoAuth: Authorization, nameSuffix: String)(
-    implicit ev: Ask[F, AppContext]
+  private def createIp(params: CreateAzureRuntimeParams, leoAuth: Authorization, nameSuffix: String)(implicit
+    ev: Ask[F, AppContext]
   ): F[CreateIpResponse] = {
     val common = getCommonFields(ControlledResourceName(s"ip-${nameSuffix}"),
                                  config.azureRuntimeDefaults.ipControlledResourceDesc,
-                                 params.runtime.auditInfo.creator)
+                                 params.runtime.auditInfo.creator
+    )
 
     val request: CreateIpRequest = CreateIpRequest(
       params.workspaceId,
@@ -417,12 +429,13 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
     } yield ipResp
   }
 
-  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[CreateDiskResponse] = {
     val common = getCommonFields(ControlledResourceName(params.disk.name.value),
                                  config.azureRuntimeDefaults.diskControlledResourceDesc,
-                                 params.runtime.auditInfo.creator)
+                                 params.runtime.auditInfo.creator
+    )
     val request: CreateDiskRequest = CreateDiskRequest(
       params.workspaceId,
       common,
@@ -450,7 +463,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
   )(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] = {
     val common = getCommonFields(ControlledResourceName(s"network-${nameSuffix}"),
                                  config.azureRuntimeDefaults.networkControlledResourceDesc,
-                                 params.runtime.auditInfo.creator)
+                                 params.runtime.auditInfo.creator
+    )
     val request: CreateNetworkRequest = CreateNetworkRequest(
       params.workspaceId,
       common,
@@ -487,8 +501,9 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
 
   private def checkSamPermission(azureRuntimeControlledResource: RuntimeControlledResourceRecord,
                                  userInfo: UserInfo,
-                                 wsmResourceAction: WsmResourceAction)(
-    implicit ctx: Ask[F, AppContext]
+                                 wsmResourceAction: WsmResourceAction
+  )(implicit
+    ctx: Ask[F, AppContext]
   ): F[(Boolean, WsmControlledResourceId)] =
     for {
       context <- ctx.ask
@@ -514,7 +529,8 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
                                request: CreateAzureRuntimeRequest,
                                samResourceId: RuntimeSamResourceId,
                                runtimeImages: Set[RuntimeImage],
-                               now: Instant): Runtime = {
+                               now: Instant
+  ): Runtime = {
     // create a LabelMap of default labels
     val defaultLabels = DefaultRuntimeLabels(
       runtimeName,
@@ -578,8 +594,8 @@ final case class CloudContextNotFoundException(workspaceId: WorkspaceId, traceId
 
 final case class AzureRuntimeControlledResourceNotFoundException(cloudContext: CloudContext,
                                                                  runtimeName: RuntimeName,
-                                                                 traceId: TraceId)
-    extends LeoException(
+                                                                 traceId: TraceId
+) extends LeoException(
       s"Controlled resource record not found for runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString}",
       StatusCodes.NotFound,
       traceId = Some(traceId)
@@ -587,8 +603,8 @@ final case class AzureRuntimeControlledResourceNotFoundException(cloudContext: C
 
 final case class AzureRuntimeHasInvalidRuntimeConfig(cloudContext: CloudContext,
                                                      runtimeName: RuntimeName,
-                                                     traceId: TraceId)
-    extends LeoException(
+                                                     traceId: TraceId
+) extends LeoException(
       s"Azure runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} was found with an invalid runtime config",
       StatusCodes.InternalServerError,
       traceId = Some(traceId)

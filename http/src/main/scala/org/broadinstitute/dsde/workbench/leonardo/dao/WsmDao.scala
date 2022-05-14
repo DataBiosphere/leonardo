@@ -24,54 +24,56 @@ import java.time.ZonedDateTime
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait WsmDao[F[_]] {
-  def createIp(request: CreateIpRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def createIp(request: CreateIpRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[CreateIpResponse]
 
-  def createDisk(request: CreateDiskRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def createDisk(request: CreateDiskRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[CreateDiskResponse]
 
-  def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def createNetwork(request: CreateNetworkRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[CreateNetworkResponse]
 
-  def createVm(request: CreateVmRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def createVm(request: CreateVmRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[CreateVmResult]
 
-  def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
 
-  def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult]
 
-  def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult]
-  def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult]
-  def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult]
-  def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
 }
 
 final case class WorkspaceDescription(id: WorkspaceId,
                                       displayName: String,
                                       azureContext: Option[AzureCloudContext],
-                                      gcpContext: Option[GoogleProject])
+                                      gcpContext: Option[GoogleProject]
+)
 
 //Azure Vm Models
 final case class CreateVmRequest(workspaceId: WorkspaceId,
                                  common: ControlledResourceCommonFields,
                                  vmData: CreateVmRequestData,
-                                 jobControl: WsmJobControl)
+                                 jobControl: WsmJobControl
+)
 
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
@@ -79,14 +81,16 @@ final case class CreateVmRequestData(name: RuntimeName,
                                      vmImageUri: RuntimeImage,
                                      ipId: WsmControlledResourceId,
                                      diskId: WsmControlledResourceId,
-                                     networkId: WsmControlledResourceId)
+                                     networkId: WsmControlledResourceId
+)
 
 final case class WsmVMMetadata(resourceId: WsmControlledResourceId)
 final case class WsmVm(metadata: WsmVMMetadata)
 
 final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
                                           resourceId: WsmControlledResourceId,
-                                          deleteRequest: DeleteControlledAzureResourceRequest)
+                                          deleteRequest: DeleteControlledAzureResourceRequest
+)
 
 final case class CreateVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class GetCreateVmJobResult(vm: Option[WsmVm], jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
@@ -96,7 +100,8 @@ final case class GetJobResultRequest(workspaceId: WorkspaceId, jobId: WsmJobId)
 // Azure IP models
 final case class CreateIpRequest(workspaceId: WorkspaceId,
                                  common: ControlledResourceCommonFields,
-                                 ipData: CreateIpRequestData)
+                                 ipData: CreateIpRequestData
+)
 
 final case class CreateIpRequestData(name: AzureIpName, region: com.azure.core.management.Region)
 
@@ -107,7 +112,8 @@ final case class CreateIpResponse(resourceId: WsmControlledResourceId)
 // Azure Disk models
 final case class CreateDiskRequest(workspaceId: WorkspaceId,
                                    common: ControlledResourceCommonFields,
-                                   diskData: CreateDiskRequestData)
+                                   diskData: CreateDiskRequestData
+)
 
 final case class CreateDiskRequestData(name: AzureDiskName, size: DiskSize, region: com.azure.core.management.Region)
 
@@ -116,13 +122,15 @@ final case class CreateDiskResponse(resourceId: WsmControlledResourceId)
 //Network models
 final case class CreateNetworkRequest(workspaceId: WorkspaceId,
                                       common: ControlledResourceCommonFields,
-                                      networkData: CreateNetworkRequestData)
+                                      networkData: CreateNetworkRequestData
+)
 
 final case class CreateNetworkRequestData(networkName: AzureNetworkName,
                                           subnetName: AzureSubnetName,
                                           addressSpaceCidr: CidrIP,
                                           subnetAddressCidr: CidrIP,
-                                          region: com.azure.core.management.Region)
+                                          region: com.azure.core.management.Region
+)
 
 final case class AzureNetworkName(value: String) extends AnyVal
 final case class AzureSubnetName(value: String) extends AnyVal
@@ -136,7 +144,8 @@ final case class ControlledResourceCommonFields(name: ControlledResourceName,
                                                 cloningInstructions: CloningInstructions,
                                                 accessScope: AccessScope,
                                                 managedBy: ManagedBy,
-                                                privateResourceUser: Option[PrivateResourceUser])
+                                                privateResourceUser: Option[PrivateResourceUser]
+)
 
 final case class ControlledResourceName(value: String) extends AnyVal
 final case class ControlledResourceDescription(value: String) extends AnyVal
@@ -149,7 +158,8 @@ final case class WsmJobReport(id: WsmJobId,
                               statusCode: Int,
                               submitted: ZonedDateTime,
                               completed: Option[ZonedDateTime],
-                              resultUrl: String)
+                              resultUrl: String
+)
 
 final case class WsmJobControl(id: WsmJobId)
 final case class DeleteControlledAzureResourceRequest(jobControl: WsmJobControl)
@@ -283,7 +293,8 @@ object WsmDecoders {
       resourceGroupId <- c.downField("resourceGroupId").as[String]
     } yield AzureCloudContext(TenantId(tenantId),
                               SubscriptionId(subscriptionId),
-                              ManagedResourceGroupName(resourceGroupId))
+                              ManagedResourceGroupName(resourceGroupId)
+    )
   }
 
   implicit val wsmGcpContextDecoder: Decoder[WsmGcpContext] =
@@ -341,13 +352,15 @@ object WsmEncoders {
                         "cloningInstructions",
                         "accessScope",
                         "managedBy",
-                        "privateResourceUser")(x =>
+                        "privateResourceUser"
+    )(x =>
       (x.name.value,
        x.description.value,
        x.cloningInstructions.toString,
        x.accessScope.toString,
        x.managedBy.toString,
-       x.privateResourceUser)
+       x.privateResourceUser
+      )
     )
 
   implicit val ipRequestDataEncoder: Encoder[CreateIpRequestData] =

@@ -22,30 +22,33 @@ trait RuntimeV2Service[F[_]] {
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
                     req: CreateAzureRuntimeRequest,
-                    createVmJobId: WsmJobId)(
-    implicit as: Ask[F, AppContext]
+                    createVmJobId: WsmJobId
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
-  def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[GetRuntimeResponse]
 
   def updateRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
-                    req: UpdateAzureRuntimeRequest)(
-    implicit as: Ask[F, AppContext]
+                    req: UpdateAzureRuntimeRequest
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
-  def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
   def listRuntimes(userInfo: UserInfo,
                    workspaceId: Option[WorkspaceId],
                    cloudProvider: Option[CloudProvider],
-                   params: Map[String, String])(
-    implicit as: Ask[F, AppContext]
+                   params: Map[String, String]
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
 }
 
@@ -60,4 +63,5 @@ final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,
                                       addressSpaceCidr: CidrIP,
                                       subnetAddressCidr: CidrIP,
                                       diskControlledResourceDesc: String,
-                                      vmControlledResourceDesc: String)
+                                      vmControlledResourceDesc: String
+)

@@ -58,7 +58,8 @@ class AzureInterpreter[F[_]: Parallel](
           throw PubsubHandleMessageError.AzureRuntimeError(params.runtime.id,
                                                            ctx.traceId,
                                                            None,
-                                                           "Azure runtime should not have GCP cloud context")
+                                                           "Azure runtime should not have GCP cloud context"
+          )
         case x: CloudContext.Azure => x
       }
 
@@ -230,7 +231,8 @@ class AzureInterpreter[F[_]: Parallel](
           throw PubsubHandleMessageError.AzureRuntimeError(runtime.id,
                                                            ctx.traceId,
                                                            None,
-                                                           "Azure runtime should not have GCP cloud context")
+                                                           "Azure runtime should not have GCP cloud context"
+          )
         case x: CloudContext.Azure => x
       }
 

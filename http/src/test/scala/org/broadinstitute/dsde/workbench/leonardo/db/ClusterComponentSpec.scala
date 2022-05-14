@@ -104,7 +104,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
                                   Some(gcsPath("gs://bucket3")),
                                   Some(serviceAccountKey.id),
                                   defaultDataprocRuntimeConfig,
-                                  Instant.now())
+                                  Instant.now()
+    )
     dbFailure(clusterQuery.save(saveCluster)) shouldBe a[
       SQLException
     ]
@@ -157,7 +158,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     val runningCluster = dbFutureValue(clusterQuery.getClusterById(initialCluster.id)).get
     val expectedRunningCluster = initialCluster.copy(id = initialCluster.id,
                                                      auditInfo =
-                                                       initialCluster.auditInfo.copy(dateAccessed = dateAccessed))
+                                                       initialCluster.auditInfo.copy(dateAccessed = dateAccessed)
+    )
     runningCluster
       .copy(auditInfo = runningCluster.auditInfo.copy(dateAccessed = dateAccessed)) shouldEqual expectedRunningCluster
     runningCluster.auditInfo.dateAccessed should be > stoppedCluster.auditInfo.dateAccessed
@@ -166,12 +168,14 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
   it should "get list of clusters to auto freeze" in isolatedDbTest {
     val runningCluster1 = makeCluster(1)
       .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
-            status = RuntimeStatus.Running)
+            status = RuntimeStatus.Running
+      )
       .save()
 
     val runningCluster2 = makeCluster(2)
       .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
-            status = RuntimeStatus.Stopped)
+            status = RuntimeStatus.Stopped
+      )
       .save()
 
     val stoppedCluster = makeCluster(3).copy(status = RuntimeStatus.Stopped).save()
@@ -179,7 +183,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
     val autopauseDisabledCluster = makeCluster(4)
       .copy(auditInfo = auditInfo.copy(dateAccessed = Instant.now().minus(100, ChronoUnit.DAYS)),
             status = RuntimeStatus.Running,
-            autopauseThreshold = 0)
+            autopauseThreshold = 0
+      )
       .save()
 
     val autoFreezeList = dbFutureValue(clusterQuery.getClustersReadyToAutoFreeze).map(_.id)
@@ -317,7 +322,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
                                         Some(savedDisk.id),
                                         bootDiskSize = DiskSize(50),
                                         zone = ZoneName("us-west2-b"),
-                                        None)
+                                        None
+          )
         )
       )
       retrievedRuntime <- clusterQuery.getClusterById(savedRuntime.id).transaction
@@ -328,7 +334,8 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
                                         Some(DiskId(-1)),
                                         bootDiskSize = DiskSize(50),
                                         zone = ZoneName("us-west2-b"),
-                                        None)
+                                        None
+          )
         )
       ).attempt
     } yield {
@@ -347,9 +354,7 @@ class ClusterComponentSpec extends AnyFlatSpecLike with TestComponent with GcsPa
       )
       _ <- clusterQuery.updateDeletedFrom(savedRuntime.id, "zombieMonitor").transaction
       deletedFrom <- clusterQuery.getDeletedFrom(savedRuntime.id).transaction
-    } yield {
-      deletedFrom shouldBe Some("zombieMonitor")
-    }
+    } yield deletedFrom shouldBe Some("zombieMonitor")
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

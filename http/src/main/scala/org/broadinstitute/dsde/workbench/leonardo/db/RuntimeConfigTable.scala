@@ -69,8 +69,10 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              region,
              gpuConfig,
              componentGatewayEnabled,
-             workerPrivateAccess),
-            dateAccessed) =>
+             workerPrivateAccess
+            ),
+            dateAccessed
+          ) =>
         val r = cloudService match {
           case CloudService.GCE =>
             diskSize match {
@@ -79,7 +81,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
                                         size,
                                         bootDiskSize,
                                         zone.getOrElse(throw new SQLDataException("zone should not be null for GCE")),
-                                        getGpuConfig(gpuConfig._1, gpuConfig._2))
+                                        getGpuConfig(gpuConfig._1, gpuConfig._2)
+                )
               case None =>
                 val bds =
                   bootDiskSize.getOrElse(throw new SQLDataException("gce runtime with PD has to have a boot disk"))
@@ -147,7 +150,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus)),
              false,
-             false),
+             false
+            ),
             x.dateAccessed
           )
         case r: RuntimeConfig.DataprocConfig =>
@@ -168,7 +172,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              Some(r.region),
              (None, None),
              r.componentGatewayEnabled,
-             r.workerPrivateAccess),
+             r.workerPrivateAccess
+            ),
             x.dateAccessed
           )
         case r: RuntimeConfig.GceWithPdConfig =>
@@ -189,7 +194,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              None,
              (r.gpuConfig.map(_.gpuType), r.gpuConfig.map(_.numOfGpus)),
              false,
-             false),
+             false
+            ),
             x.dateAccessed
           )
         case r: RuntimeConfig.AzureConfig =>
@@ -211,7 +217,8 @@ class RuntimeConfigTable(tag: Tag) extends Table[RuntimeConfigRecord](tag, "RUNT
              Some(RegionName(r.region.toString)),
              (None, None),
              false,
-             false),
+             false
+            ),
             x.dateAccessed
           )
       }

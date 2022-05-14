@@ -12,8 +12,8 @@ import org.typelevel.log4cats.StructuredLogger
 import java.time.Instant
 import scala.concurrent.duration._
 
-final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTasks: Queue[F, Task[F]])(
-  implicit logger: StructuredLogger[F],
+final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTasks: Queue[F, Task[F]])(implicit
+  logger: StructuredLogger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F]
 ) {
@@ -33,11 +33,10 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
       _ <- logger.info(Map("traceId" -> task.traceId.asString))(
         s"Executing task with latency of ${latency.toSeconds} seconds"
       )
-      _ <- task.op.handleErrorWith {
-        case err =>
-          task.errorHandler.traverse(cb => cb(err)) >> logger.error(Map("traceId" -> task.traceId.asString), err)(
-            s"Error when executing async task"
-          )
+      _ <- task.op.handleErrorWith { case err =>
+        task.errorHandler.traverse(cb => cb(err)) >> logger.error(Map("traceId" -> task.traceId.asString), err)(
+          s"Error when executing async task"
+        )
       }
     } yield ()
 
@@ -62,7 +61,8 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
                              8 minutes,
                              16 minutes,
                              32 minutes
-                           ))
+                           )
+    )
 }
 
 object AsyncTaskProcessor {
@@ -75,6 +75,7 @@ object AsyncTaskProcessor {
   final case class Task[F[_]](traceId: TraceId,
                               op: F[Unit],
                               errorHandler: Option[Throwable => F[Unit]] = None,
-                              enqueuedTime: Instant)
+                              enqueuedTime: Instant
+  )
   final case class Config(queueBound: Int, maxConcurrentTasks: Int)
 }

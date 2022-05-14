@@ -9,7 +9,8 @@ import scala.concurrent.ExecutionContext
 
 case class RuntimeControlledResourceRecord(runtimeId: Long,
                                            resourceId: WsmControlledResourceId,
-                                           resourceType: WsmResourceType)
+                                           resourceType: WsmResourceType
+)
 
 class RuntimeControlledResourceTable(tag: Tag)
     extends Table[RuntimeControlledResourceRecord](tag, "RUNTIME_CONTROLLED_RESOURCE") {
@@ -18,7 +19,10 @@ class RuntimeControlledResourceTable(tag: Tag)
   def resourceType = column[WsmResourceType]("resourceType")
 
   def * =
-    (runtimeId, resourceId, resourceType) <> (RuntimeControlledResourceRecord.tupled, RuntimeControlledResourceRecord.unapply)
+    (runtimeId,
+     resourceId,
+     resourceType
+    ) <> (RuntimeControlledResourceRecord.tupled, RuntimeControlledResourceRecord.unapply)
 }
 
 object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceTable(_)) {
@@ -31,7 +35,8 @@ object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceT
     controlledResourceQuery += RuntimeControlledResourceRecord(runtimeId, resourceId, resourceType)
 
   def getWsmRecordForRuntime(runtimeId: Long,
-                             resourceType: WsmResourceType): DBIO[Option[RuntimeControlledResourceRecord]] =
+                             resourceType: WsmResourceType
+  ): DBIO[Option[RuntimeControlledResourceRecord]] =
     controlledResourceQuery
       .filter(_.runtimeId === runtimeId)
       .filter(_.resourceType === resourceType)

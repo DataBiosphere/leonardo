@@ -17,8 +17,8 @@ import org.typelevel.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
 
-class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeService: GoogleComputeService[F])(
-  implicit F: Async[F],
+class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeService: GoogleComputeService[F])(implicit
+  F: Async[F],
   dbRef: DbReference[F],
   logger: Logger[F],
   ec: ExecutionContext,
@@ -43,13 +43,12 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
 
   private def processApps: Stream[F, Unit] =
     monitoredApps
-      .parEvalMapUnordered(10) {
-        case (a, n, c) =>
-          for {
-            now <- F.realTimeInstant
-            implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitoring${now}"))
-            _ <- handleApp(a, n, c)
-          } yield ()
+      .parEvalMapUnordered(10) { case (a, n, c) =>
+        for {
+          now <- F.realTimeInstant
+          implicit0(traceId: Ask[F, TraceId]) = Ask.const[F, TraceId](TraceId(s"BootMonitoring${now}"))
+          _ <- handleApp(a, n, c)
+        } yield ()
       }
       .handleErrorWith(e =>
         Stream.eval(logger.error(e)("MonitorAtBoot: Error retrieving apps that need to be monitored during startup"))
@@ -80,35 +79,38 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
     for {
       traceId <- ev.ask
       patchInProgress <- patchQuery.isInprogress(runtimeToMonitor.id).transaction
-      _ <- if (patchInProgress) {
-        for {
-          statusOpt <- clusterQuery.getClusterStatus(runtimeToMonitor.id).transaction
-          s <- F.fromEither(
-            statusOpt
-              .toRight(
-                MonitorAtBootException(s"${runtimeToMonitor.id} not found after transition. This is very weird!",
-                                       traceId)
-              )
-          )
-          _ <- if (s != RuntimeStatus.Running) {
-            // There's slight chance where pubsub message is never published during a redeploy.
-            // In this case, user will see that the runtime doesn't get patched after clicking patch button.
-            // In the ideal case, patch is completed, and runtime has come back to Running.
-            metrics.incrementCounter("PatchInProgressFailed")
-          } else {
-            // If patch is in progress and we didn't finish patching, we don't really have a good way to recover;
-            // There is a chance that leonardo will be able to recover if the UpdateRuntimeEvent has already been sent to pubsub,
-            // we'll evaluate if this edge case is worth addressing based on PatchInProgressAtStartUp metrics
-            F.unit
-          }
-          _ <- patchQuery.updatePatchAsComplete(runtimeToMonitor.id).transaction
-          _ <- metrics.incrementCounter("PatchInProgressAtStartUp")
-        } yield ()
-      } else F.unit
+      _ <-
+        if (patchInProgress) {
+          for {
+            statusOpt <- clusterQuery.getClusterStatus(runtimeToMonitor.id).transaction
+            s <- F.fromEither(
+              statusOpt
+                .toRight(
+                  MonitorAtBootException(s"${runtimeToMonitor.id} not found after transition. This is very weird!",
+                                         traceId
+                  )
+                )
+            )
+            _ <-
+              if (s != RuntimeStatus.Running) {
+                // There's slight chance where pubsub message is never published during a redeploy.
+                // In this case, user will see that the runtime doesn't get patched after clicking patch button.
+                // In the ideal case, patch is completed, and runtime has come back to Running.
+                metrics.incrementCounter("PatchInProgressFailed")
+              } else {
+                // If patch is in progress and we didn't finish patching, we don't really have a good way to recover;
+                // There is a chance that leonardo will be able to recover if the UpdateRuntimeEvent has already been sent to pubsub,
+                // we'll evaluate if this edge case is worth addressing based on PatchInProgressAtStartUp metrics
+                F.unit
+              }
+            _ <- patchQuery.updatePatchAsComplete(runtimeToMonitor.id).transaction
+            _ <- metrics.incrementCounter("PatchInProgressAtStartUp")
+          } yield ()
+        } else F.unit
     } yield ()
 
-  private def handleApp(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(
-    implicit ev: Ask[F, TraceId]
+  private def handleApp(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(implicit
+    ev: Ask[F, TraceId]
   ): F[Unit] = {
     val res = for {
       msg <- appStatusToMessage(app, nodepool, cluster)
@@ -117,8 +119,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
     res.handleErrorWith(e => logger.error(e)(s"MonitorAtBoot: Error monitoring app ${app.id}"))
   }
 
-  private def appStatusToMessage(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(
-    implicit ev: Ask[F, TraceId]
+  private def appStatusToMessage(app: App, nodepool: Nodepool, cluster: KubernetesCluster)(implicit
+    ev: Ask[F, TraceId]
   ): F[LeoPubsubMessage] =
     ev.ask.flatMap(traceId =>
       app.status match {
@@ -132,7 +134,8 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
                                       MonitorAtBootException(
                                         s"Default nodepool not found for cluster ${cluster.id} in Provisioning status",
                                         traceId
-                                      ))
+                                      )
+                  )
                 } yield Some(ClusterNodepoolAction.CreateClusterAndNodepool(cluster.id, dnp.id, nodepool.id)): Option[
                   ClusterNodepoolAction
                 ]
@@ -155,9 +158,10 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
                 nodepool.machineType
               ) //TODO: if use non `us-central1-a` zone for galaxy, this needs to be udpated
               .flatMap(opt =>
-                F.fromOption(opt,
-                             new LeoException(s"can't find machine config for ${app.appName.value}",
-                                              traceId = Some(traceId)))
+                F.fromOption(
+                  opt,
+                  new LeoException(s"can't find machine config for ${app.appName.value}", traceId = Some(traceId))
+                )
               )
 
             diskIdOpt = app.appResources.disk.flatMap(d => if (d.status == DiskStatus.Creating) Some(d.id) else None)
@@ -245,25 +249,23 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
         for {
           rtConfigInMessage <- F.fromEither(message.leftMap(s => MonitorAtBootException(s, traceId)))
           extra <- clusterQuery.getExtraInfo(runtime.id).transaction
-        } yield {
-          LeoPubsubMessage.CreateRuntimeMessage(
-            runtime.id,
-            RuntimeProjectAndName(runtime.cloudContext, runtime.runtimeName),
-            runtime.serviceAccount,
-            runtime.asyncRuntimeFields,
-            runtime.auditInfo,
-            runtime.userScriptUri,
-            runtime.startUserScriptUri,
-            extra.userJupyterExtensionConfig,
-            runtime.defaultClientId,
-            extra.runtimeImages,
-            extra.scopes,
-            runtime.welderEnabled,
-            runtime.customEnvironmentVariables,
-            rtConfigInMessage,
-            Some(traceId)
-          )
-        }
+        } yield LeoPubsubMessage.CreateRuntimeMessage(
+          runtime.id,
+          RuntimeProjectAndName(runtime.cloudContext, runtime.runtimeName),
+          runtime.serviceAccount,
+          runtime.asyncRuntimeFields,
+          runtime.auditInfo,
+          runtime.userScriptUri,
+          runtime.startUserScriptUri,
+          extra.userJupyterExtensionConfig,
+          runtime.defaultClientId,
+          extra.runtimeImages,
+          extra.scopes,
+          runtime.welderEnabled,
+          runtime.customEnvironmentVariables,
+          rtConfigInMessage,
+          Some(traceId)
+        )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
 }
@@ -287,7 +289,8 @@ final case class RuntimeToMonitor(
 
 final case class ExtraInfoForCreateRuntime(runtimeImages: Set[RuntimeImage],
                                            userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
-                                           scopes: Set[String])
+                                           scopes: Set[String]
+)
 
 final case class MonitorAtBootException(msg: String, traceId: TraceId)
     extends Exception(s"MonitorAtBoot: $msg | trace id: ${traceId.asString}")

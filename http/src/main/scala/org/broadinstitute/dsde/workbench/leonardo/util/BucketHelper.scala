@@ -28,8 +28,8 @@ class BucketHelper[F[_]](
   /**
    * Creates the dataproc init bucket and sets the necessary ACLs.
    */
-  def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(
-    implicit ev: Ask[F, TraceId]
+  def createInitBucket(googleProject: GoogleProject, bucketName: GcsBucketName, serviceAccount: WorkbenchEmail)(implicit
+    ev: Ask[F, TraceId]
   ): Stream[F, Unit] =
     for {
       ctx <- Stream.eval(ev.ask)
@@ -80,8 +80,9 @@ class BucketHelper[F[_]](
       _ <- google2StorageDAO.setIamPolicy(bucketName, (readerAcl ++ ownerAcl).toMap, traceId = Some(ctx))
     } yield ()
 
-  def deleteInitBucket(googleProject: GoogleProject,
-                       initBucketName: GcsBucketName)(implicit ev: Ask[F, TraceId]): F[Unit] =
+  def deleteInitBucket(googleProject: GoogleProject, initBucketName: GcsBucketName)(implicit
+    ev: Ask[F, TraceId]
+  ): F[Unit] =
     for {
       traceId <- ev.ask
       _ <- google2StorageDAO
@@ -113,8 +114,8 @@ class BucketHelper[F[_]](
     //     var1=value1
     //     var2=value2
     // etc. We're building a string of that format here.
-    val customEnvVars = customClusterEnvironmentVariables.foldLeft("")({
-      case (memo, (key, value)) => memo + s"$key=$value\n"
+    val customEnvVars = customClusterEnvironmentVariables.foldLeft("")({ case (memo, (key, value)) =>
+      memo + s"$key=$value\n"
     })
 
     val uploadRawFiles = for {
@@ -215,7 +216,8 @@ class BucketHelper[F[_]](
            uploadTemplatedResources,
            uploadPrivateKey,
            uploadCustomEnvVars,
-           Stream.eval(uploadGpuDockerCompose)).parJoin(
+           Stream.eval(uploadGpuDockerCompose)
+    ).parJoin(
       6
     )
   }
@@ -231,4 +233,5 @@ class BucketHelper[F[_]](
 case class BucketHelperConfig(imageConfig: ImageConfig,
                               welderConfig: WelderConfig,
                               proxyConfig: ProxyConfig,
-                              clusterFilesConfig: SecurityFilesConfig)
+                              clusterFilesConfig: SecurityFilesConfig
+)

@@ -196,16 +196,19 @@ object CommonTestData {
   val auditInfo = AuditInfo(userEmail,
                             Instant.now().truncatedTo(ChronoUnit.MICROS),
                             None,
-                            Instant.now().truncatedTo(ChronoUnit.MICROS))
+                            Instant.now().truncatedTo(ChronoUnit.MICROS)
+  )
   val olderRuntimeAuditInfo = AuditInfo(userEmail,
                                         Instant.now().minus(1, ChronoUnit.DAYS).truncatedTo(ChronoUnit.MICROS),
                                         None,
-                                        Instant.now().truncatedTo(ChronoUnit.MICROS))
+                                        Instant.now().truncatedTo(ChronoUnit.MICROS)
+  )
   val jupyterImage =
     RuntimeImage(Jupyter,
                  "init-resources/jupyter-base:latest",
                  Some(Paths.get("/home/jupyter")),
-                 Instant.now.truncatedTo(ChronoUnit.MICROS))
+                 Instant.now.truncatedTo(ChronoUnit.MICROS)
+    )
   val rstudioImage = RuntimeImage(RStudio, "rocker/tidyverse:latest", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val welderImage = RuntimeImage(Welder, "welder/welder:latest", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val proxyImage =
@@ -238,7 +241,8 @@ object CommonTestData {
                                  Map.empty,
                                  RegionName("us-central1"),
                                  true,
-                                 true)
+                                 true
+    )
 
   val defaultCreateRuntimeRequest = CreateRuntime2Request(
     Map("lbl1" -> "true"),
@@ -259,7 +263,8 @@ object CommonTestData {
                             DiskSize(500),
                             bootDiskSize = Some(DiskSize(50)),
                             zone = ZoneName("us-west2-b"),
-                            None)
+                            None
+    )
   val defaultRuntimeConfigRequest =
     RuntimeConfigRequest.DataprocConfig(
       Some(0),
@@ -281,7 +286,8 @@ object CommonTestData {
                             DiskSize(500),
                             bootDiskSize = Some(DiskSize(50)),
                             zone = ZoneName("us-west2-b"),
-                            None)
+                            None
+    )
 
   val gceRuntimeConfigWithGpu = gceRuntimeConfig.copy(gpuConfig = gpuConfig)
   val gceWithPdRuntimeConfig =
@@ -289,7 +295,8 @@ object CommonTestData {
                                   Some(DiskId(1234)),
                                   DiskSize(50),
                                   ZoneName("us-west2-b"),
-                                  None)
+                                  None
+    )
 
   def makeCluster(index: Int): Runtime = {
     val clusterName = RuntimeName("clustername" + index.toString)
@@ -335,7 +342,8 @@ object CommonTestData {
     auditInfo = AuditInfo(userEmail,
                           Instant.now().truncatedTo(ChronoUnit.MICROS),
                           None,
-                          Instant.now().truncatedTo(ChronoUnit.MICROS)),
+                          Instant.now().truncatedTo(ChronoUnit.MICROS)
+    ),
     kernelFoundBusyDate = None,
     proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, name1, Set(jupyterImage), Map.empty),
     status = RuntimeStatus.Unknown,
@@ -407,7 +415,8 @@ object CommonTestData {
                          formattedBy: Option[FormattedBy] = None,
                          appRestore: Option[AppRestore] = None,
                          zoneName: Option[ZoneName] = None,
-                         cloudContextOpt: Option[CloudContext] = None): PersistentDisk =
+                         cloudContextOpt: Option[CloudContext] = None
+  ): PersistentDisk =
     PersistentDisk(
       DiskId(-1),
       cloudContextOpt.getOrElse(cloudContext),
@@ -432,9 +441,12 @@ object CommonTestData {
 
   val userExtConfig = UserJupyterExtensionConfig(Map("nbExt1" -> "abc", "nbExt2" -> "def"),
                                                  Map("serverExt1" -> "pqr"),
-                                                 Map("combinedExt1" -> "xyz"))
+                                                 Map("combinedExt1" -> "xyz")
+  )
 
-  val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID())) //we don't care much about traceId in unit tests, hence providing a constant UUID here
+  val traceId = Ask.const[IO, TraceId](
+    TraceId(UUID.randomUUID())
+  ) //we don't care much about traceId in unit tests, hence providing a constant UUID here
 
   def clusterServiceAccountFromProject(googleProject: GoogleProject): Option[WorkbenchEmail] =
     serviceAccountProvider.getClusterServiceAccount(userInfo, googleProject)(traceId).unsafeRunSync()

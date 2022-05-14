@@ -35,7 +35,8 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
                              CidrIP("192.168.0.0/16"),
                              CidrIP("192.168.0.0/24"),
                              "Azure Disk",
-                             "Azure Vm"),
+                             "Azure Vm"
+        ),
         HttpWsmDaoConfig(Uri.unsafeFromString("https://localhost:8000")),
         AzureAppRegistrationConfig(ClientId(""), ClientSecret(""), ManagedAppTenantId("")),
         AzureRuntimeConfig(

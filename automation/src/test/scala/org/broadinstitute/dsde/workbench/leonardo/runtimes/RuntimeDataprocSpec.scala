@@ -249,7 +249,8 @@ class RuntimeDataprocSpec
                             2,
                             0,
                             RegionName("us-central1"),
-                            DataprocClusterStatus.Stopped)
+                            DataprocClusterStatus.Stopped
+        )
 
         // start the cluster
         _ <- IO(startAndMonitorRuntime(runtime.googleProject, runtime.clusterName, true))
@@ -333,7 +334,8 @@ class RuntimeDataprocSpec
                             2,
                             0,
                             RegionName("us-central1"),
-                            workerPrivateAccess = true)
+                            workerPrivateAccess = true
+        )
 
         _ <- LeonardoApiClient.deleteRuntime(project, runtimeName)
       } yield ()
@@ -370,17 +372,16 @@ class RuntimeDataprocSpec
         case (_, 0) => 2
         case _      => 3
       }))
-      _ <- instances.toList.traverse {
-        case (k, v) =>
-          IO(
-            k.role match {
-              case Master => v.size shouldBe 1
-              case Worker => v.size shouldBe expectedNumWorkers
-              case SecondaryWorker =>
-                v.size shouldBe expectedPreemptibles
-                k.isPreemptible shouldBe true
-            }
-          )
+      _ <- instances.toList.traverse { case (k, v) =>
+        IO(
+          k.role match {
+            case Master => v.size shouldBe 1
+            case Worker => v.size shouldBe expectedNumWorkers
+            case SecondaryWorker =>
+              v.size shouldBe expectedPreemptibles
+              k.isPreemptible shouldBe true
+          }
+        )
       }
 
       // check expected network tags
@@ -397,4 +398,5 @@ class RuntimeDataprocSpec
 
 final case class RuntimeDataprocSpecDependencies(httpClient: Client[IO],
                                                  dataproc: GoogleDataprocService[IO],
-                                                 storage: GoogleStorageService[IO])
+                                                 storage: GoogleStorageService[IO]
+)

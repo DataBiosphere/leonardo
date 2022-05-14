@@ -55,7 +55,8 @@ trait TestLeoRoutes {
     dao
       .createGroup(Config.googleGroupsConfig.dataprocImageProjectGroupName,
                    Config.googleGroupsConfig.dataprocImageProjectGroupEmail,
-                   Option(dao.lockedDownGroupSettings))
+                   Option(dao.lockedDownGroupSettings)
+      )
       .futureValue(Interval(Span(30, Seconds)))(mockGoogleDirectoryDAOPatience, Position.here)
     dao
   }
@@ -91,14 +92,16 @@ trait TestLeoRoutes {
                                 mockGoogleDirectoryDAO,
                                 mockGoogleIamDAO,
                                 FakeGoogleResourceService,
-                                MockWelderDAO)
+                                MockWelderDAO
+    )
   val gceInterp =
     new GceInterpreter[IO](Config.gceInterpreterConfig,
                            bucketHelper,
                            vpcInterp,
                            FakeGoogleComputeService,
                            MockGoogleDiskService,
-                           MockWelderDAO)
+                           MockWelderDAO
+    )
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
@@ -125,7 +128,8 @@ trait TestLeoRoutes {
                                    new MockWsmDAO,
                                    new MockSamDAO,
                                    QueueFactory.asyncTaskQueue,
-                                   QueueFactory.makePublisherQueue())
+                                   QueueFactory.makePublisherQueue()
+    )
 
   val underlyingRuntimeDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
@@ -157,7 +161,8 @@ trait TestLeoRoutes {
                                           kubernetesDnsCache,
                                           googleTokenCache,
                                           samResourceCache,
-                                          MockGoogleOAuth2Service)
+                                          MockGoogleOAuth2Service
+  )
 
   val statusService =
     new StatusService(mockSamDAO, testDbRef, pollInterval = 1.second)
@@ -206,14 +211,16 @@ trait TestLeoRoutes {
                    azureService,
                    timedUserInfoDirectives,
                    contentSecurityPolicy,
-                   refererConfig)
+                   refererConfig
+    )
 
   def roundUpToNearestTen(d: Long): Long = (Math.ceil(d / 10.0) * 10).toLong
   val cookieMaxAgeRegex: Regex = "Max-Age=(\\d+);".r
 
   protected def validateCookie(setCookie: Option[`Set-Cookie`],
                                expectedCookie: HttpCookiePair = tokenCookie,
-                               age: Long = tokenAge): Unit = {
+                               age: Long = tokenAge
+  ): Unit = {
     setCookie shouldBe defined
     val cookie = setCookie.get.cookie
     cookie.name shouldBe expectedCookie.name
@@ -228,7 +235,8 @@ trait TestLeoRoutes {
   // See comment in CookieHelper.setTokenCookie.
   protected def validateRawCookie(setCookie: Option[HttpHeader],
                                   expectedCookie: HttpCookiePair = tokenCookie,
-                                  age: Long = tokenAge): Unit = {
+                                  age: Long = tokenAge
+  ): Unit = {
     setCookie shouldBe defined
     setCookie.get.name shouldBe "Set-Cookie"
 
@@ -240,7 +248,8 @@ trait TestLeoRoutes {
   }
 
   protected def validateUnsetRawCookie(setCookie: Option[HttpHeader],
-                                       expectedCookie: HttpCookiePair = tokenCookie): Unit = {
+                                       expectedCookie: HttpCookiePair = tokenCookie
+  ): Unit = {
     setCookie shouldBe defined
     setCookie.get.name shouldBe "Set-Cookie"
     setCookie.get.value shouldBe s"${tokenName}=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None"

@@ -19,11 +19,13 @@ import scala.concurrent.duration.FiniteDuration
 class DateAccessedUpdater[F[_]](
   config: DateAccessedUpdaterConfig,
   queue: Queue[F, UpdateDateAccessMessage]
-)(implicit F: Async[F],
+)(implicit
+  F: Async[F],
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F],
   logger: Logger[F],
-  ec: ExecutionContext) {
+  ec: ExecutionContext
+) {
 
   val process: Stream[F, Unit] =
     (Stream.sleep[F](config.interval) ++ Stream.eval(
@@ -64,12 +66,14 @@ object DateAccessedUpdater {
     }
 
   // group all messages by cloudContext and runtimeName, and discard all older messages for the same runtime
-  def messagesToUpdate(messages: Chain[UpdateDateAccessMessage]): List[UpdateDateAccessMessage] = {
-    messages.groupBy(m => s"${m.runtimeName.asString}/${m.cloudContext.asStringWithProvider}").toList.traverse {
-      case (_, messages) =>
+  def messagesToUpdate(messages: Chain[UpdateDateAccessMessage]): List[UpdateDateAccessMessage] =
+    messages
+      .groupBy(m => s"${m.runtimeName.asString}/${m.cloudContext.asStringWithProvider}")
+      .toList
+      .traverse { case (_, messages) =>
         messages.toChain.toList.sorted.lastOption
-    }
-  }.getOrElse(List.empty)
+      }
+      .getOrElse(List.empty)
 }
 
 final case class DateAccessedUpdaterConfig(interval: FiniteDuration, maxUpdate: Int, queueSize: Int)

@@ -77,7 +77,7 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
               .executeCellWithCellOutput(sparkJobToSucceed, cellNumberOpt = Some(3))
               .map(_.output.tail.last)
               .get
-          sparkJobToSucceedcellResult.toInt shouldBe (1000)
+          sparkJobToSucceedcellResult.toInt shouldBe 1000
         }
       }
     }
@@ -91,7 +91,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           Sam.user.petServiceAccountEmail(clusterFixture.runtime.googleProject.value)(ronToken)
         googleStorageDAO.setBucketAccessControl(bucketName,
                                                 EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                GcsRoles.Owner)
+                                                GcsRoles.Owner
+        )
 
         // Add a sample TSV to the bucket
         val tsvString =
@@ -107,7 +108,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
           googleStorageDAO.setObjectAccessControl(bucketName,
                                                   objectName,
                                                   EmailGcsEntity(GcsEntityTypes.User, ronPetServiceAccount),
-                                                  GcsRoles.Owner)
+                                                  GcsRoles.Owner
+          )
 
           withWebDriver { implicit driver =>
             withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
@@ -139,7 +141,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
     "should import a pandas DataFrame into Hail" in { clusterFixture =>
       withResourceFileInBucket(clusterFixture.runtime.googleProject,
                                ResourceFile("bucket-tests/hail_samples.csv"),
-                               "text/plain") { gcsPath =>
+                               "text/plain"
+      ) { gcsPath =>
         withWebDriver { implicit driver =>
           withNewNotebook(clusterFixture.runtime, Python3) { notebookPage =>
             // Localize the CSV
@@ -165,8 +168,8 @@ class NotebookHailSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             val result =
               notebookPage.executeCell(s"samples = hl.Table.from_pandas(df, key = 'sample')", timeout = 5.minutes)
             result shouldBe defined
-            result.get should not include ("FatalError")
-            result.get should not include ("PythonException")
+            result.get should not include "FatalError"
+            result.get should not include "PythonException"
             // TODO: Uncomment if future hail version fixes this
             //result.get should include("Coerced sorted dataset")
 

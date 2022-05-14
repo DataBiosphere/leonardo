@@ -156,45 +156,45 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
   }
 
   "DockerRegistry regex" should "match expected image url format" in {
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe (true)
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe (false)
-    ContainerRegistry.GCR.regex.pattern.asPredicate().test("eu.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (true)
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/google/ubuntu1804:latest") shouldBe true
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("us/broad-dsp-gcr-public/ubuntu1804") shouldBe false
+    ContainerRegistry.GCR.regex.pattern.asPredicate().test("eu.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
     ContainerRegistry.GCR.regex.pattern
       .asPredicate()
       .test("asia.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe true
     ContainerRegistry.GCR.regex.pattern
       .asPredicate()
-      .test("unknown.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe (false)
+      .test("unknown.gcr.io/broad-dsp-gcr-public/ubuntu1804") shouldBe false
 
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/asdf") shouldBe (true)
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd") shouldBe (false)
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_sd_as:asdf") shouldBe (false)
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/as:asdf") shouldBe (true)
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/asdf") shouldBe true
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd") shouldBe false
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_sd_as:asdf") shouldBe false
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd/as:asdf") shouldBe true
     ContainerRegistry.DockerHub.regex.pattern
       .asPredicate()
-      .test("asd_as/as:asdf ") shouldBe (false) //trailing white space
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as/as: asdf") shouldBe (false) //white space
+      .test("asd_as/as:asdf ") shouldBe false //trailing white space
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("asd_as/as: asdf") shouldBe false //white space
     ContainerRegistry.DockerHub.regex.pattern
       .asPredicate()
-      .test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe (false)
-    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("a///////") shouldBe (false)
-    ContainerRegistry.GHCR.regex.pattern.asPredicate().test("ghcr.io/github/super-linter:latest") shouldBe (true)
+      .test("myrepo/mydocker; mysql -c \"DROP ALL TABLES\"; sudo rm -rf / ") shouldBe false
+    ContainerRegistry.DockerHub.regex.pattern.asPredicate().test("a///////") shouldBe false
+    ContainerRegistry.GHCR.regex.pattern.asPredicate().test("ghcr.io/github/super-linter:latest") shouldBe true
     ContainerRegistry.GHCR.regex.pattern
       .asPredicate()
-      .test("ghcr.io/lucidtronix/ml4h/ml4h_terra:20201117_123026") shouldBe (true)
+      .test("ghcr.io/lucidtronix/ml4h/ml4h_terra:20201117_123026") shouldBe true
     ContainerRegistry.GHCR.regex.pattern
       .asPredicate()
-      .test("ghcr.io/lucidtronix/ml4h/ml4h_terra:latest") shouldBe (true)
+      .test("ghcr.io/lucidtronix/ml4h/ml4h_terra:latest") shouldBe true
     ContainerRegistry.GHCR.regex.pattern
       .asPredicate()
-      .test("us.ghcr.io/lucidtronix/ml4h/ml4h_terra:20201117_123026") shouldBe (false)
+      .test("us.ghcr.io/lucidtronix/ml4h/ml4h_terra:20201117_123026") shouldBe false
     ContainerRegistry.GHCR.regex.pattern
       .asPredicate()
-      .test("ghcr.io/github/super-linter:latest; foo") shouldBe (false)
+      .test("ghcr.io/github/super-linter:latest; foo") shouldBe false
     ContainerRegistry.GHCR.regex.pattern
       .asPredicate()
-      .test("ghcr.io:foo") shouldBe (false)
+      .test("ghcr.io:foo") shouldBe false
   }
 
   "ContainerImage.stringToJupyterDockerImage" should "match GCR first, and then dockerhub" in {
@@ -245,7 +245,8 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
                    cloudContext,
                    name0,
                    Set(welderImage, customDataprocImage, rstudioImage),
-                   Map("tool" -> "Jupyter", "foo" -> "bar"))
+                   Map("tool" -> "Jupyter", "foo" -> "bar")
+      )
       .toString shouldBe expectedBase + "rstudio"
   }
 }

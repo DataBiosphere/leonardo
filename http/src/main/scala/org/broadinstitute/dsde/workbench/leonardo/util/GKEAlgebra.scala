@@ -64,7 +64,8 @@ object GKEAlgebra {
 
   private[leonardo] def buildGalaxyPostgresDisk(zone: ZoneName,
                                                 dataDiskName: DiskName,
-                                                galaxyDiskConfig: GalaxyDiskConfig): Disk =
+                                                galaxyDiskConfig: GalaxyDiskConfig
+  ): Disk =
     Disk
       .newBuilder()
       .setName(getGalaxyPostgresDiskName(dataDiskName, galaxyDiskConfig.postgresDiskNameSuffix).value)
@@ -77,22 +78,26 @@ object GKEAlgebra {
 
 final case class CreateClusterParams(clusterId: KubernetesClusterLeoId,
                                      googleProject: GoogleProject,
-                                     nodepoolsToCreate: List[NodepoolLeoId])
+                                     nodepoolsToCreate: List[NodepoolLeoId]
+)
 
 final case class CreateClusterResult(op: KubernetesOperationId,
                                      network: KubernetesNetwork,
-                                     subnetwork: KubernetesSubNetwork)
+                                     subnetwork: KubernetesSubNetwork
+)
 
 final case class PollClusterParams(clusterId: KubernetesClusterLeoId,
                                    googleProject: GoogleProject,
-                                   createResult: CreateClusterResult)
+                                   createResult: CreateClusterResult
+)
 
 final case class CreateNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: GoogleProject)
 
 final case class CreateAppParams(appId: AppId,
                                  googleProject: GoogleProject,
                                  appName: AppName,
-                                 appMachineType: Option[AppMachineType])
+                                 appMachineType: Option[AppMachineType]
+)
 
 final case class DeleteClusterParams(clusterId: KubernetesClusterLeoId, googleProject: GoogleProject)
 
@@ -101,7 +106,8 @@ final case class DeleteNodepoolParams(nodepoolId: NodepoolLeoId, googleProject: 
 final case class DeleteAppParams(appId: AppId,
                                  googleProject: GoogleProject,
                                  appName: AppName,
-                                 errorAfterDelete: Boolean)
+                                 errorAfterDelete: Boolean
+)
 
 final case class StopAppParams(appId: AppId, appName: AppName, googleProject: GoogleProject)
 object StopAppParams {

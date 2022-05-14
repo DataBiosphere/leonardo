@@ -42,7 +42,8 @@ final case class Runtime(id: Long,
                          welderEnabled: Boolean,
                          customEnvironmentVariables: Map[String, String],
                          runtimeConfigId: RuntimeConfigId,
-                         patchInProgress: Boolean) {
+                         patchInProgress: Boolean
+) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
 }
 
@@ -51,7 +52,8 @@ object Runtime {
                   cloudContext: CloudContext,
                   runtimeName: RuntimeName,
                   runtimeImages: Set[RuntimeImage],
-                  labels: Map[String, String]): URL = {
+                  labels: Map[String, String]
+  ): URL = {
     val tool = runtimeImages
       .map(_.imageType)
       .filterNot(Set(Welder, BootSource).contains)
@@ -192,7 +194,8 @@ object RuntimeStatus extends Enum[RuntimeStatus] {
 case class AsyncRuntimeFields(proxyHostName: ProxyHostName,
                               operationName: OperationName,
                               stagingBucket: GcsBucketName,
-                              hostIp: Option[IP])
+                              hostIp: Option[IP]
+)
 
 /** The cloud environment of the runtime, e.g. Dataproc, GCE. */
 sealed trait CloudService extends EnumEntry with Product with Serializable {
@@ -254,8 +257,8 @@ object RuntimeConfig {
                                    persistentDiskId: Option[DiskId],
                                    bootDiskSize: DiskSize,
                                    zone: ZoneName,
-                                   gpuConfig: Option[GpuConfig])
-      extends RuntimeConfig {
+                                   gpuConfig: Option[GpuConfig]
+  ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.GCE
   }
 
@@ -270,8 +273,8 @@ object RuntimeConfig {
                                   properties: Map[String, String],
                                   region: RegionName,
                                   componentGatewayEnabled: Boolean,
-                                  workerPrivateAccess: Boolean)
-      extends RuntimeConfig {
+                                  workerPrivateAccess: Boolean
+  ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.Dataproc
     val machineType: MachineTypeName = masterMachineType
     val diskSize: DiskSize = masterDiskSize
@@ -280,8 +283,8 @@ object RuntimeConfig {
   //Azure machineType maps to `com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes`
   final case class AzureConfig(machineType: MachineTypeName,
                                persistentDiskId: DiskId,
-                               region: com.azure.core.management.Region)
-      extends RuntimeConfig {
+                               region: com.azure.core.management.Region
+  ) extends RuntimeConfig {
     val cloudService: CloudService = CloudService.AzureVm
   }
 }
@@ -314,7 +317,8 @@ object UserScriptPath {
 final case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map.empty,
                                             serverExtensions: Map[String, String] = Map.empty,
                                             combinedExtensions: Map[String, String] = Map.empty,
-                                            labExtensions: Map[String, String] = Map.empty) {
+                                            labExtensions: Map[String, String] = Map.empty
+) {
 
   def asLabels: Map[String, String] =
     nbExtensions ++ serverExtensions ++ combinedExtensions ++ labExtensions
@@ -377,7 +381,8 @@ object RuntimeContainerServiceType extends Enum[RuntimeContainerServiceType] {
 final case class RuntimeImage(imageType: RuntimeImageType,
                               imageUrl: String,
                               homeDirectory: Option[Path], //this is only used and populated for jupyter image
-                              timestamp: Instant) {
+                              timestamp: Instant
+) {
   def hash: Option[String] = {
     val splitUrl = imageUrl.split(":")
     if (splitUrl isDefinedAt 1) Some(splitUrl(1)) else None
@@ -389,7 +394,8 @@ final case class RuntimeImage(imageType: RuntimeImageType,
 final case class AuditInfo(creator: WorkbenchEmail,
                            createdDate: Instant,
                            destroyedDate: Option[Instant],
-                           dateAccessed: Instant)
+                           dateAccessed: Instant
+)
 
 /** UIs that can be used to access a runtime */
 sealed trait RuntimeUI extends Product with Serializable {
@@ -415,7 +421,8 @@ case class DefaultRuntimeLabels(runtimeName: RuntimeName,
                                 serviceAccount: Option[WorkbenchEmail],
                                 userScript: Option[UserScriptPath],
                                 startUserScript: Option[UserScriptPath],
-                                tool: Option[RuntimeImageType]) {
+                                tool: Option[RuntimeImageType]
+) {
   def toMap: LabelMap =
     Map(
       "runtimeName" -> runtimeName.asString,
@@ -443,7 +450,8 @@ object DefaultRuntimeLabels {
                                               Some(WorkbenchEmail("")),
                                               None,
                                               None,
-                                              None).toMap.keySet
+                                              None
+  ).toMap.keySet
 }
 
 /** Welder operations */
@@ -473,17 +481,20 @@ final case class RuntimeResourceConstraints(memoryLimit: MemorySize)
 
 final case class RunningRuntime(cloudContext: CloudContext,
                                 runtimeName: RuntimeName,
-                                containers: List[RuntimeContainerServiceType])
+                                containers: List[RuntimeContainerServiceType]
+)
 
 final case class RuntimeName(asString: String) extends AnyVal
 final case class RuntimeError(errorMessage: String,
                               errorCode: Option[Int],
                               timestamp: Instant,
-                              traceId: Option[TraceId] = None)
+                              traceId: Option[TraceId] = None
+)
 final case class RuntimeErrorDetails(longMessage: String,
                                      code: Option[Int] = None,
                                      shortMessage: Option[String] = None,
-                                     labels: Map[String, String] = Map.empty)
+                                     labels: Map[String, String] = Map.empty
+)
 final case class RuntimeResource(asString: String) extends AnyVal
 final case class RuntimeProjectAndName(cloudContext: CloudContext, runtimeName: RuntimeName) {
   override def toString: String = s"${cloudContext.asString}/${runtimeName.asString}"

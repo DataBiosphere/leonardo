@@ -16,8 +16,8 @@ import java.util.UUID
  */
 class MockPetClusterServiceAccountProvider extends ServiceAccountProvider[IO] {
   val samDao = new MockSamDAO
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: Ask[IO, TraceId]
+  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Option[WorkbenchEmail]] = {
     val auth = Authorization(Credentials.Token(AuthScheme.Bearer, s"TokenFor${userInfo.userEmail}"))
 
@@ -25,8 +25,8 @@ class MockPetClusterServiceAccountProvider extends ServiceAccountProvider[IO] {
     samDao.getPetServiceAccount(auth, googleProject)
   }
 
-  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: Ask[IO, TraceId]
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Option[WorkbenchEmail]] =
     IO.pure(None)
 
@@ -40,8 +40,8 @@ class MockPetClusterServiceAccountProvider extends ServiceAccountProvider[IO] {
     samDao.getUserProxy(userEmail).map(_.toList)
   }
 
-  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: Ask[IO, TraceId]
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[Option[String]] =
     samDao.getCachedPetAccessToken(userEmail, googleProject)
 }

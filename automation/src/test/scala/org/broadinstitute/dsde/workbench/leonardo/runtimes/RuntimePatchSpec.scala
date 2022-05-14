@@ -52,7 +52,8 @@ class RuntimePatchSpec
                                                       None,
                                                       None,
                                                       Map.empty,
-                                                      Set.empty)
+                                                      Set.empty
+      )
       val createRuntimeRequest = defaultCreateRuntime2Request.copy(
         runtimeConfig = Some(
           RuntimeConfigRequest.GceConfig(
@@ -132,7 +133,8 @@ class RuntimePatchSpec
                                                       None,
                                                       None,
                                                       Map.empty,
-                                                      Set.empty)
+                                                      Set.empty
+      )
       val createRuntimeRequest = defaultCreateRuntime2Request.copy(
         runtimeConfig = Some(
           RuntimeConfigRequest.GceWithPdConfig(
@@ -205,7 +207,8 @@ class RuntimePatchSpec
                                                       None,
                                                       None,
                                                       Map.empty,
-                                                      Set.empty)
+                                                      Set.empty
+      )
       val runtimeName = randomClusterName
       val createRuntimeRequest = defaultCreateRuntime2Request.copy(
         runtimeConfig = Some(

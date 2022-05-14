@@ -53,7 +53,7 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
       Config.imageConfig
     )
 
-    Config.gceMonitorConfig shouldBe (expected)
+    Config.gceMonitorConfig shouldBe expected
   }
 
   it should "read PrometheusConfig properly" in {
@@ -98,7 +98,8 @@ final class ConfigSpec extends AnyFlatSpec with Matchers {
     val expectedResult = GalaxyNodepoolConfig(MachineTypeName("n1-highmem-8"),
                                               NumNodes(1),
                                               false,
-                                              AutoscalingConfig(AutoscalingMin(0), AutoscalingMax(2)))
+                                              AutoscalingConfig(AutoscalingMin(0), AutoscalingMax(2))
+    )
     Config.gkeGalaxyNodepoolConfig shouldBe expectedResult
   }
 

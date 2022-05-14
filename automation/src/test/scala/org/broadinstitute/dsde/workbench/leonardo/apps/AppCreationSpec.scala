@@ -47,9 +47,11 @@ class AppCreationSpec
   private val appTestCases = Table(
     ("description", "createAppRequest"),
     ("create GALAXY app, delete it and re-create it with same disk",
-     createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo")),
+     createAppRequest(AppType.Galaxy, "Galaxy-Workshop-ASHG_2020_GWAS_Demo")
+    ),
     ("create CROMWELL app, delete it and re-create it with same disk",
-     createAppRequest(AppType.Cromwell, "cromwell-test-workspace"))
+     createAppRequest(AppType.Cromwell, "cromwell-test-workspace")
+    )
   )
 
   forAll(appTestCases) { (description, createAppRequest) =>
@@ -106,25 +108,26 @@ class AppCreationSpec
               10 seconds
             ).compile.lastOrError
             // TODO remove first case in below if statement when app deletion is reliable
-            _ <- if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
-              loggerIO.warn(
-                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
-              )
-              //IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
-            } else {
-              // Verify creating another app with the same disk doesn't error out
-              for {
-                _ <- loggerIO.info(
-                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+            _ <-
+              if (!deletedDoneCheckable.isDone(monitorDeleteResult)) {
+                loggerIO.warn(
+                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 20 minutes. Result: $monitorDeleteResult"
                 )
-                _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(
-                  client,
-                  ronAuthorization,
-                  loggerIO
-                )
-                _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName)
-              } yield ()
-            }
+                //IO(Sam.user.deleteResource("kubernetes-app", appName.value)(ronCreds.makeAuthToken()))
+              } else {
+                // Verify creating another app with the same disk doesn't error out
+                for {
+                  _ <- loggerIO.info(
+                    s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+                  )
+                  _ <- LeonardoApiClient.createAppWithWait(googleProject, restoreAppName, createAppRequest)(
+                    client,
+                    ronAuthorization,
+                    loggerIO
+                  )
+                  _ <- LeonardoApiClient.deleteAppWithWait(googleProject, restoreAppName)
+                } yield ()
+              }
           } yield ()
         }
       }
@@ -229,19 +232,20 @@ class AppCreationSpec
           implicit0(doneCheckable: DoneCheckable[List[ListAppResponse]]) = appDeleted(appName)
           monitorDeleteResult <- streamFUntilDone(listApps, 200, 10 seconds).compile.lastOrError
           // TODO remove first case in below if statement when Galaxy deletion is reliable
-          _ <- if (!doneCheckable.isDone(monitorDeleteResult)) {
-            loggerIO.warn(
-              s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes. Result: $monitorDeleteResult"
-            )
-          } else {
-            // verify disk is also deleted
-            for {
-              _ <- loggerIO.info(
-                s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+          _ <-
+            if (!doneCheckable.isDone(monitorDeleteResult)) {
+              loggerIO.warn(
+                s"AppCreationSpec: app ${googleProject.value}/${appName.value} did not finish deleting after 30 minutes. Result: $monitorDeleteResult"
               )
-              getDiskResp <- LeonardoApiClient.getDisk(googleProject, diskName).attempt
-            } yield getDiskResp.toOption shouldBe (None)
-          }
+            } else {
+              // verify disk is also deleted
+              for {
+                _ <- loggerIO.info(
+                  s"AppCreationSpec: app ${googleProject.value}/${appName.value} delete result: $monitorDeleteResult"
+                )
+                getDiskResp <- LeonardoApiClient.getDisk(googleProject, diskName).attempt
+              } yield getDiskResp.toOption shouldBe None
+            }
         } yield ()
       }
     }

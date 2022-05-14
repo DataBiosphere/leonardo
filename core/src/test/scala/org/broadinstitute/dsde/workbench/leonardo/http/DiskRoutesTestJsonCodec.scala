@@ -53,7 +53,8 @@ object DiskRoutesTestJsonCodec {
                                       size,
                                       diskType,
                                       blockSize,
-                                      labels)
+                                      labels
+    )
   }
 
   implicit val listDiskResponseDecoder: Decoder[ListPersistentDiskResponse] = Decoder.instance { x =>

@@ -19,7 +19,8 @@ final case class PersistentDisk(id: DiskId,
                                 blockSize: BlockSize,
                                 formattedBy: Option[FormattedBy],
                                 appRestore: Option[AppRestore],
-                                labels: LabelMap) {
+                                labels: LabelMap
+) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }
 
@@ -29,7 +30,8 @@ final case class DiskId(value: Long) extends AnyVal
 case class DefaultDiskLabels(diskName: DiskName,
                              cloudContext: CloudContext,
                              creator: WorkbenchEmail,
-                             serviceAccount: WorkbenchEmail) {
+                             serviceAccount: WorkbenchEmail
+) {
   def toMap: LabelMap =
     Map(
       "diskName" -> diskName.value,
