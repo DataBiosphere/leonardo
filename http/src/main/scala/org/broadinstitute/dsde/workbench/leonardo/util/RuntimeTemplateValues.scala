@@ -57,7 +57,6 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           runtimeOperation: String,
                                           updateWelder: String,
                                           disableDelocalization: String,
-                                          rstudioLicenseFile: String,
                                           proxyServerHostName: String,
                                           isGceFormatted: String,
                                           useGceStartupScript: String,
@@ -279,9 +278,6 @@ object RuntimeTemplateValues {
       config.runtimeOperation.asString,
       (config.welderAction == Some(UpdateWelder)).toString,
       (config.welderAction == Some(DisableDelocalization)).toString,
-      config.initBucketName
-        .map(n => GcsPath(n, GcsObjectName(config.clusterFilesConfig.rstudioLicenseFile.getFileName.toString)).toUri)
-        .getOrElse(""),
       config.proxyConfig.getProxyServerHostName,
       config.isGceFormatted.toString,
       config.useGceStartupScript.toString,
