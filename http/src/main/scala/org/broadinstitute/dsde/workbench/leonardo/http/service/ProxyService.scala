@@ -116,7 +116,7 @@ class ProxyService(
           userInfo <- googleOauth2Service.getUserInfoFromToken(token)
           _ <- if (checkUserEnabled) for {
             samUserInfo <- samDAO.getSamUserInfo(token)
-            _ <- IO.fromOption(samUserInfo.map(_.userSubjectId))(AuthenticationError(Some(userInfo.userEmail)))
+            _ <- IO.fromOption(samUserInfo)(AuthenticationError(Some(userInfo.userEmail)))
           } yield ()
           else IO.unit
         } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
