@@ -101,7 +101,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                   path("invalidateToken") {
                     get {
                       extractUserInfoOptWithUserEnabledCheck(implicitly) { userInfoOpt =>
-                        CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
+                        CookieSupport.unsetTokenCookie() {
                           complete {
                             invalidateTokenHandler(userInfoOpt)
                           }
