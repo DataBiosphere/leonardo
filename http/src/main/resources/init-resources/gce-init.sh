@@ -133,7 +133,6 @@ USER_SCRIPT_URI=$(userScriptUri)
 USER_SCRIPT_OUTPUT_URI=$(userScriptOutputUri)
 JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
 CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
-RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
 GPU_ENABLED=$(gpuEnabled)
 INIT_BUCKET_NAME=$(initBucketName)
 
