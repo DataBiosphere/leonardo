@@ -43,7 +43,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                 pathPrefix("google" / "v1" / "apps") {
                   pathPrefix(googleProjectSegment / appNameSegment / serviceNameSegment) {
                     (googleProject, appName, serviceName) =>
-                      extractUserInfo(implicitly) { userInfo =>
+                      extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
                         logRequestResultForMetrics(userInfo) {
                           complete {
                             proxyAppHandler(userInfo, googleProject, appName, serviceName, request)
@@ -62,7 +62,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                   pathPrefix(googleProjectSegment / runtimeNameSegment) { (googleProject, runtimeName) =>
                     // Note the setCookie route exists at the top-level /proxy/setCookie as well
                     path("setCookie") {
-                      extractUserInfoFromHeader(implicitly) { userInfoOpt =>
+                      extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
                         get {
                           val cookieDirective = userInfoOpt match {
                             case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
@@ -78,7 +78,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     } ~
                       pathPrefix("jupyter" / "terminals") {
                         pathSuffix(terminalNameSegment) { terminalName =>
-                          extractUserInfo(implicitly) { userInfo =>
+                          extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
                             logRequestResultForMetrics(userInfo) {
                               complete {
                                 openTerminalHandler(userInfo, googleProject, runtimeName, terminalName, request)
@@ -87,7 +87,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                           }
                         }
                       } ~
-                      (extractUserInfo)(implicitly) { userInfo =>
+                      (extractUserInfoWithoutUserEnabledCheck)(implicitly) { userInfo =>
                         logRequestResultForMetrics(userInfo) {
                           // Proxy logic handled by the ProxyService class
                           // Note ProxyService calls the LeoAuthProvider internally
@@ -100,7 +100,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                   // Top-level routes
                   path("invalidateToken") {
                     get {
-                      extractUserInfoOpt(implicitly) { userInfoOpt =>
+                      extractUserInfoOptWithUserEnabledCheck(implicitly) { userInfoOpt =>
                         CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
                           complete {
                             invalidateTokenHandler(userInfoOpt)
@@ -110,7 +110,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     }
                   } ~
                   path("setCookie") {
-                    extractUserInfoFromHeader(implicitly) { userInfoOpt =>
+                    extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
                       get {
                         val cookieDirective = userInfoOpt match {
                           case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
@@ -147,21 +147,24 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    * Extracts user info from an Authorization header or LeoToken cookie.
    * Returns None if a token cannot be retrieved.
    */
-  private def extractUserInfoOpt(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
+  private def extractUserInfoOptWithUserEnabledCheck(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
       case Some(token) =>
-        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
-          .map(_.some)
+        onSuccess(
+          proxyService.getCachedUserInfoFromToken(token, true).unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+        ).map(_.some)
       case None => provide(None)
     }
 
   /**
    * Like extractUserInfoOpt, but fails with AuthenticationError if a token cannot be retrieved.
    */
-  private def extractUserInfo(implicit ev: Ask[IO, TraceId]): Directive1[UserInfo] =
+  private def extractUserInfoWithoutUserEnabledCheck(implicit ev: Ask[IO, TraceId]): Directive1[UserInfo] =
     (extractTokenFromHeader orElse extractTokenFromCookie).flatMap {
       case Some(token) =>
-        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
+        onSuccess(
+          proxyService.getCachedUserInfoFromToken(token, false).unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+        )
       case None => failWith(AuthenticationError())
     }
 
@@ -169,11 +172,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    * Extracts user info from an Authorization header _only_.
    * Returns None if a token cannot be retrieved.
    */
-  private def extractUserInfoFromHeader(implicit ev: Ask[IO, TraceId]): Directive1[Option[UserInfo]] =
+  private def extractUserInfoFromHeaderWithUserEnabledCheck(
+    implicit ev: Ask[IO, TraceId]
+  ): Directive1[Option[UserInfo]] =
     extractTokenFromHeader flatMap {
       case Some(token) =>
-        onSuccess(proxyService.getCachedUserInfoFromToken(token).unsafeToFuture()(cats.effect.unsafe.IORuntime.global))
-          .map(_.some)
+        onSuccess(
+          proxyService.getCachedUserInfoFromToken(token, true).unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
+        ).map(_.some)
       case None => provide(None)
     }
 

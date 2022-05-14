@@ -39,18 +39,16 @@ class HttpRoutesSpec
   val googleProject = "dsp-leo-test"
 
   val routes =
-    new HttpRoutes(
-      swaggerConfig,
-      statusService,
-      proxyService,
-      MockRuntimeServiceInterp,
-      MockDiskServiceInterp,
-      MockAppService,
-      new MockRuntimeV2Interp,
-      timedUserInfoDirectives,
-      contentSecurityPolicy,
-      refererConfig
-    )
+    new HttpRoutes(openIdConnectionConfiguration,
+                   statusService,
+                   proxyService,
+                   MockRuntimeServiceInterp,
+                   MockDiskServiceInterp,
+                   MockAppService,
+                   new MockRuntimeV2Interp,
+                   timedUserInfoDirectives,
+                   contentSecurityPolicy,
+                   refererConfig)
 
   implicit val errorReportDecoder: Decoder[ErrorReport] = Decoder.instance { h =>
     for {
@@ -749,7 +747,7 @@ class HttpRoutesSpec
 
   def fakeRoutes(runtimeService: RuntimeService[IO]): HttpRoutes =
     new HttpRoutes(
-      swaggerConfig,
+      openIdConnectionConfiguration,
       statusService,
       proxyService,
       runtimeService,
@@ -763,7 +761,7 @@ class HttpRoutesSpec
 
   def fakeRoutes(kubernetesService: AppService[IO]): HttpRoutes =
     new HttpRoutes(
-      swaggerConfig,
+      openIdConnectionConfiguration,
       statusService,
       proxyService,
       runtimeService,

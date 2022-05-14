@@ -160,7 +160,7 @@ function docker_cmd()
 {
     if [ $DOCKER_CMD = "build" ] || [ $DOCKER_CMD = "push" ]; then
         echo "building $TARGET docker image..."
-        GIT_SHA=$(git rev-parse ${REMOTE}/${GIT_BRANCH})
+        GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
         echo GIT_SHA=$GIT_SHA > env.properties
 
         if [ -n "$DOCKER_TAG" ]; then

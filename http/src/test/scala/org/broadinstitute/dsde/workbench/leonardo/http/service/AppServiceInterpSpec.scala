@@ -464,7 +464,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe a[CreateAppMessage]
 
     // Verify DeleteAppMessage message was generated
-    publisherQueue.tryTake.unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldBe a[Some[DeleteAppMessage]]
+    publisherQueue.tryTake.unsafeRunSync()(cats.effect.unsafe.IORuntime.global).get shouldBe a[DeleteAppMessage]
   }
 
   it should "error creating an app with an existing disk if no restore info found" in isolatedDbTest {
