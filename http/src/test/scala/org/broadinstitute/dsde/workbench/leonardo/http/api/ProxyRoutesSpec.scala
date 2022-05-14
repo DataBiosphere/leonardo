@@ -462,7 +462,7 @@ class ProxyRoutesSpec
                            MockGoogleOAuth2Service,
                            samDAO = Some(samDao))
     val httpRoutes = new HttpRoutes(
-      swaggerConfig,
+      openIdConnectionConfiguration,
       statusService,
       proxyService,
       runtimeService,
@@ -565,7 +565,7 @@ class ProxyRoutesSpec
                            MockGoogleOAuth2Service)
 
     new HttpRoutes(
-      swaggerConfig,
+      openIdConnectionConfiguration,
       statusService,
       proxyService,
       runtimeService,

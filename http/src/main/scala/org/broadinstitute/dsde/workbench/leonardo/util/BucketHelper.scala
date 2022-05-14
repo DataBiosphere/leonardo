@@ -122,8 +122,7 @@ class BucketHelper[F[_]](
         Seq(
           config.clusterFilesConfig.proxyServerCrt,
           config.clusterFilesConfig.proxyServerKey,
-          config.clusterFilesConfig.proxyRootCaPem,
-          config.clusterFilesConfig.rstudioLicenseFile
+          config.clusterFilesConfig.proxyRootCaPem
         )
       )
       _ <- TemplateHelper.fileStream[F](f) through google2StorageDAO.streamUploadBlob(
