@@ -30,7 +30,7 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
         .transaction
       controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
     } yield {
-      controlledResources.length shouldBe 2
+      controlledResources.length shouldBe 1
       controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureNetwork)
     }
 
