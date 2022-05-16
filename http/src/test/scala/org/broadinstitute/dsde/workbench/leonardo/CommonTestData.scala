@@ -154,7 +154,7 @@ object CommonTestData {
   val azureServiceConfig = AzureServiceConfig(
     //For now azure disks share same defaults as normal disks
     ConfigReader.appConfig.persistentDisk,
-    ConfigReader.appConfig.azure.service
+    ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image
   )
   val singleNodeDefaultMachineConfig = dataprocConfig.runtimeConfigDefaults
   val singleNodeDefaultMachineConfigRequest = RuntimeConfigRequest.DataprocConfig(
@@ -214,7 +214,6 @@ object CommonTestData {
     RuntimeImage(BootSource, "custom_dataproc", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
   val cryptoDetectorImage =
     RuntimeImage(CryptoDetector, "crypto/crypto:0.0.1", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
-  val azureImage = RuntimeImage(RuntimeImageType.Azure, "test", None, Instant.now.truncatedTo(ChronoUnit.MICROS))
 
   val clusterResourceConstraints = RuntimeResourceConstraints(MemorySize.fromMb(3584))
   val hostToIpMapping = Ref.unsafe[IO, Map[Host, IP]](Map.empty)
@@ -303,7 +302,7 @@ object CommonTestData {
       asyncRuntimeFields = Some(makeAsyncRuntimeFields(index)),
       auditInfo = auditInfo,
       kernelFoundBusyDate = None,
-      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, clusterName, Set(jupyterImage), Map.empty),
+      proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, clusterName, Set(jupyterImage), None, Map.empty),
       status = RuntimeStatus.Unknown,
       labels = Map(),
       userScriptUri = None,
@@ -337,7 +336,7 @@ object CommonTestData {
                           None,
                           Instant.now().truncatedTo(ChronoUnit.MICROS)),
     kernelFoundBusyDate = None,
-    proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, name1, Set(jupyterImage), Map.empty),
+    proxyUrl = Runtime.getProxyUrl(proxyUrlBase, cloudContext, name1, Set(jupyterImage), None, Map.empty),
     status = RuntimeStatus.Unknown,
     labels = Map(),
     userScriptUri = Some(UserScriptPath.Gcs(GcsPath(GcsBucketName("bucket-name"), GcsObjectName("userScript")))),
@@ -487,14 +486,14 @@ object CommonTestData {
         userEmail,
         List(ControlledResourceIamRole.Editor)
       )
-    )
+    ),
+    None
   )
 
   val defaultCreateAzureRuntimeReq = CreateAzureRuntimeRequest(
     Map.empty,
     azureRegion,
     VirtualMachineSizeTypes.STANDARD_A1,
-    Some(AzureImageUri(azureImage.imageUrl)),
     Map.empty,
     CreateAzureDiskRequest(
       Map.empty,

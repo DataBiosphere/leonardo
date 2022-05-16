@@ -63,8 +63,7 @@ class RuntimeServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with T
         autoFreezeConfig,
         dataprocConfig,
         Config.gceConfig,
-        azureServiceConfig,
-        ConfigReader.appConfig.azure.runtimeDefaults
+        azureServiceConfig
       ),
       ConfigReader.appConfig.persistentDisk,
       whitelistAuthProvider,
