@@ -43,6 +43,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
 
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
+      ctx <- ev.ask
       runtimeOpt <- clusterQuery.getClusterById(msg.runtimeId).transaction
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
@@ -50,7 +51,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: RuntimeConfig.AzureConfig => F.pure(x)
         case x                            => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
-      createVmJobId = WsmJobId(s"create-vm-${msg.runtimeId}")
+      createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString}")
       _ <- createRuntime(CreateAzureRuntimeParams(msg.workspaceId,
                                                   runtime,
                                                   msg.relayNamespace,
@@ -323,7 +324,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             DeleteWsmResourceRequest(
               msg.workspaceId,
               wsmResourceId,
-              DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${msg.runtimeId}-vm")))
+              DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-vm-${ctx.traceId.asString}")))
             ),
             auth
           )
@@ -341,7 +342,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           DeleteWsmResourceRequest(
             msg.workspaceId,
             disk.resourceId,
-            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${msg.runtimeId}-disk")))
+            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString}")))
           ),
           auth
         )
@@ -360,7 +361,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           DeleteWsmResourceRequest(
             msg.workspaceId,
             network.resourceId,
-            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${msg.runtimeId}-networks")))
+            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString}")))
           ),
           auth
         )
@@ -459,7 +460,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           DeleteWsmResourceRequest(
             e.workspaceId,
             disk.resourceId,
-            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${e.runtimeId}-disk")))
+            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString}")))
           ),
           auth
         )
@@ -473,7 +474,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           DeleteWsmResourceRequest(
             e.workspaceId,
             network.resourceId,
-            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-${e.runtimeId}-networks")))
+            DeleteControlledAzureResourceRequest(WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString}")))
           ),
           auth
         )
