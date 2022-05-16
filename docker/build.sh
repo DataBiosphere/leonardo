@@ -180,8 +180,8 @@ function docker_cmd()
                 echo "pushing $GCR_IMAGE docker image..."
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
                 $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
-                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${GIT_BRANCH}
-                $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${GIT_BRANCH}
+                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKERTAG_SAFE_NAME}
+                $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKERTAG_SAFE_NAME}
             fi
 
             # Push tests image no matter what. Currently this is only supported in Dockerhub.
