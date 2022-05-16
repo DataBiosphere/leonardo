@@ -201,7 +201,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     ControlledResourceCommonFields(
       name,
       ControlledResourceDescription(resourceDesc),
-      CloningInstructions.Nothing, //TODO: these resources will not be cloned with clone-workspace. Is this correct?
+      CloningInstructions.Nothing,
       AccessScope.PrivateAccess,
       ManagedBy.Application,
       Some(
