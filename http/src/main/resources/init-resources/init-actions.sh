@@ -206,7 +206,6 @@ if [[ "${ROLE}" == 'Master' ]]; then
     START_USER_SCRIPT_OUTPUT_URI="$(startUserScriptOutputUri)"
     JUPYTER_NOTEBOOK_FRONTEND_CONFIG_URI=$(jupyterNotebookFrontendConfigUri)
     CUSTOM_ENV_VARS_CONFIG_URI=$(customEnvVarsConfigUri)
-    RSTUDIO_LICENSE_FILE=$(rstudioLicenseFile)
     RSTUDIO_SCRIPTS=/etc/rstudio/scripts
     RSTUDIO_USER_HOME=/home/rstudio
     INIT_BUCKET_NAME=$(initBucketName)

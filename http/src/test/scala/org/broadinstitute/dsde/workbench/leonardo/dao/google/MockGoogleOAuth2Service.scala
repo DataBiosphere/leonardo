@@ -3,6 +3,7 @@ package org.broadinstitute.dsde.workbench.leonardo.dao.google
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.leonardo.model.AuthenticationError
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail, WorkbenchUserId}
 
 import scala.concurrent.duration._
@@ -24,6 +25,8 @@ class MockGoogleOAuth2Service extends GoogleOAuth2Service[IO] {
                    WorkbenchEmail("non_whitelisted@example.com"),
                    (1 hour).toSeconds)
         )
+      case "" =>
+        IO.raiseError(AuthenticationError(extraMessage = "invalid token"))
       case _ =>
         IO(
           UserInfo(OAuth2BearerToken(accessToken),
