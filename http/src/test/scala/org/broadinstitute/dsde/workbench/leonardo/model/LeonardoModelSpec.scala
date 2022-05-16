@@ -4,6 +4,7 @@ package model
 import java.net.{MalformedURLException, URL}
 import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
+import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.{GcsBucketName, GcsObjectName, GcsPath}
 import org.scalatest.flatspec.AnyFlatSpecLike
 
@@ -211,32 +212,42 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
 
     // No images or labels -> default to Jupyter
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, Map.empty)
+      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, None, Map.empty)
       .toString shouldBe expectedBase + "jupyter"
 
     // images only
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set(jupyterImage), Map.empty)
+      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set(jupyterImage), None, Map.empty)
       .toString shouldBe expectedBase + "jupyter"
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set(welderImage, customDataprocImage, jupyterImage), Map.empty)
+      .getProxyUrl(proxyUrlBase,
+                   cloudContext,
+                   name0,
+                   Set(welderImage, customDataprocImage, jupyterImage),
+                   None,
+                   Map.empty)
       .toString shouldBe expectedBase + "jupyter"
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set(rstudioImage), Map.empty)
+      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set(rstudioImage), None, Map.empty)
       .toString shouldBe expectedBase + "rstudio"
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set(welderImage, customDataprocImage, rstudioImage), Map.empty)
+      .getProxyUrl(proxyUrlBase,
+                   cloudContext,
+                   name0,
+                   Set(welderImage, customDataprocImage, rstudioImage),
+                   None,
+                   Map.empty)
       .toString shouldBe expectedBase + "rstudio"
 
     // labels only
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, Map("tool" -> "Jupyter", "foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, None, Map("tool" -> "Jupyter", "foo" -> "bar"))
       .toString shouldBe expectedBase + "jupyter"
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, Map("tool" -> "RStudio", "foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, None, Map("tool" -> "RStudio", "foo" -> "bar"))
       .toString shouldBe expectedBase + "rstudio"
     Runtime
-      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, Map("foo" -> "bar"))
+      .getProxyUrl(proxyUrlBase, cloudContext, name0, Set.empty, None, Map("foo" -> "bar"))
       .toString shouldBe expectedBase + "jupyter"
 
     // images and labels -> images take precedence
@@ -245,7 +256,20 @@ class LeonardoModelSpec extends LeonardoTestSuite with AnyFlatSpecLike {
                    cloudContext,
                    name0,
                    Set(welderImage, customDataprocImage, rstudioImage),
+                   None,
                    Map("tool" -> "Jupyter", "foo" -> "bar"))
       .toString shouldBe expectedBase + "rstudio"
+
+    Runtime
+      .getProxyUrl(
+        proxyUrlBase,
+        CloudContext
+          .Azure(AzureCloudContext(TenantId("tenantId"), SubscriptionId("sid"), ManagedResourceGroupName("mrg"))),
+        name0,
+        Set(welderImage, customDataprocImage, rstudioImage),
+        Some(IP("qi-relay.servicebus.windows.net")),
+        Map("tool" -> "Jupyter", "foo" -> "bar")
+      )
+      .toString shouldBe s"https://qi-relay.servicebus.windows.net/${name0.asString}"
   }
 }

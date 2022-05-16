@@ -17,15 +17,15 @@ object CookieSupport {
   /**
    * Sets a token cookie in the HTTP response.
    */
-  def setTokenCookie(userInfo: UserInfo, cookieName: String): Directive0 =
+  def setTokenCookie(userInfo: UserInfo): Directive0 =
     //setCookie(buildCookie(userInfo, cookieName))
     respondWithHeaders(buildRawCookie(userInfo))
 
   /**
    * Unsets a token cookie in the HTTP response.
    */
-  def unsetTokenCookie(cookieName: String): Directive0 =
-    respondWithHeaders(buildRawUnsetCookie(cookieName))
+  def unsetTokenCookie(): Directive0 =
+    respondWithHeaders(buildRawUnsetCookie())
 
   private def buildCookie(userInfo: UserInfo, cookieName: String): HttpCookie =
     HttpCookie(
@@ -44,7 +44,7 @@ object CookieSupport {
         s"$tokenCookieName=${userInfo.accessToken.token}; Max-Age=${userInfo.tokenExpiresIn.toString}; Path=/; Secure; SameSite=None"
     )
 
-  private def buildRawUnsetCookie(cookieName: String): RawHeader =
+  private def buildRawUnsetCookie(): RawHeader =
     RawHeader(
       name = "Set-Cookie",
       value = s"$tokenCookieName=unset; expires=Thu, 01 Jan 1970 00:00:00 GMT; Path=/; Secure; SameSite=None"

@@ -4,9 +4,8 @@ package http
 import pureconfig.ConfigSource
 import _root_.pureconfig.generic.auto._
 import ConfigImplicits._
-import org.broadinstitute.dsde.workbench.leonardo.util.{AzureMonitorConfig, TerraAppSetupChartConfig}
+import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeConfig, AzureRuntimeDefaults}
 import org.http4s.Uri
 
 object ConfigReader {
@@ -17,11 +16,9 @@ object ConfigReader {
 }
 
 final case class AzureConfig(
-  monitor: AzureMonitorConfig,
-  runtimeDefaults: AzureRuntimeDefaults,
+  pubsubHandler: AzurePubsubHandlerConfig,
   wsm: HttpWsmDaoConfig,
-  appRegistration: AzureAppRegistrationConfig,
-  service: AzureRuntimeConfig
+  appRegistration: AzureAppRegistrationConfig
 )
 
 final case class OidcAuthConfig(

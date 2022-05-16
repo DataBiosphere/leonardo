@@ -37,6 +37,7 @@ import org.broadinstitute.dsde.workbench.leonardo.util.GKEAlgebra.{
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.google.{GcsObjectName, GcsPath, GoogleProject}
 import org.broadinstitute.dsde.workbench.model.{ErrorReport, TraceId, WorkbenchException}
+import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext
@@ -50,15 +51,9 @@ import scala.jdk.CollectionConverters._
  * @param googleDiskService
  * @param authProvider
  * @param gkeAlg
- * @param azureAlg
+ * @param azurePubsubHandler
  * @param operationFutureCache This is used to cancel long running java Futures for Google operations. Currently, we only cancel existing stopping runtime operation if a `deleteRuntime`
  *                             message is received
- * @param executionContext
- * @param F
- * @param logger
- * @param dbRef
- * @param runtimeInstances
- * @param monitor
  * @tparam F
  */
 class LeoPubsubMessageSubscriber[F[_]](
@@ -68,20 +63,20 @@ class LeoPubsubMessageSubscriber[F[_]](
   googleDiskService: GoogleDiskService[F],
   authProvider: LeoAuthProvider[F],
   gkeAlg: GKEAlgebra[F],
-  azureAlg: AzureAlgebra[F],
+  azurePubsubHandler: AzurePubsubHandlerAlgebra[F],
   operationFutureCache: scalacache.Cache[F, Long, OperationFuture[Operation, Operation]]
 )(implicit executionContext: ExecutionContext,
   F: Async[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
   runtimeInstances: RuntimeInstances[F],
-  monitor: RuntimeMonitor[F, CloudService]) {
+  monitor: RuntimeMonitor[F, CloudService],
+  metrics: OpenTelemetryMetrics[F]) {
 
   private[monitor] def messageResponder(
     message: LeoPubsubMessage
   )(implicit traceId: Ask[F, AppContext]): F[Unit] =
     for {
-      ctx <- traceId.ask
       resp <- message match {
         case msg: CreateRuntimeMessage =>
           handleCreateRuntimeMessage(msg)
@@ -108,25 +103,16 @@ class LeoPubsubMessageSubscriber[F[_]](
         case msg: StartAppMessage =>
           handleStartAppMessage(msg)
         case msg: CreateAzureRuntimeMessage =>
-          azureAlg.createAndPollRuntime(msg).adaptError {
+          azurePubsubHandler.createAndPollRuntime(msg).adaptError {
             case e =>
-              PubsubHandleMessageError.AzureRuntimeError(
+              PubsubHandleMessageError.AzureRuntimeCreationError(
                 msg.runtimeId,
-                ctx.traceId,
-                Some(msg),
+                msg.workspaceId,
                 e.getMessage
               )
           }
         case msg: DeleteAzureRuntimeMessage =>
-          azureAlg.deleteAndPollRuntime(msg).adaptError {
-            case e =>
-              PubsubHandleMessageError.AzureRuntimeError(
-                msg.runtimeId,
-                ctx.traceId,
-                Some(msg),
-                e.getMessage
-              )
-          }
+          azurePubsubHandler.deleteAndPollRuntime(msg)
       }
     } yield resp
 
@@ -149,11 +135,8 @@ class LeoPubsubMessageSubscriber[F[_]](
                     logger.error(ctx.loggingCtx, e)(s"Encountered an error for app ${ee.appId}, ${ee.getMessage}") >> handleKubernetesError(
                       ee
                     )
-                  case ee: AzureRuntimeError =>
-                    logger.error(ctx.loggingCtx, e)(
-                      s"Encountered an error for azure runtime ${ee.runtimeId}, ${ee.getMessage}"
-                    ) >>
-                      createRuntimeErrorHandler(ee.runtimeId, now)(ee)
+                  case ee: AzureRuntimeCreationError =>
+                    azurePubsubHandler.handleAzureRuntimeCreationError(ee, now)
                   case _ => logger.error(ctx.loggingCtx, ee)(s"Failed to process pubsub message.")
                 }
                 _ <- if (ee.isRetryable)
@@ -183,9 +166,25 @@ class LeoPubsubMessageSubscriber[F[_]](
     .handleErrorWith(error => Stream.eval(logger.error(error)("Failed to initialize message processor")))
 
   private def ack(event: Event[LeoPubsubMessage]): F[Unit] =
-    logger.info(s"acking message: ${event}") >> F.delay(
-      event.consumer.ack()
-    )
+    for {
+      _ <- logger.info(s"acking message: ${event}")
+      _ <- F.delay(
+        event.consumer.ack()
+      )
+      end <- F.realTimeInstant
+      duration = (end.toEpochMilli - com.google.protobuf.util.Timestamps.toMillis(event.publishedTime)).millis
+      distributionBucket = List(0.5 minutes,
+                                1 minutes,
+                                1.5 minutes,
+                                2 minutes,
+                                2.5 minutes,
+                                3 minutes,
+                                3.5 minutes,
+                                4 minutes,
+                                4.5 minutes)
+      metricsName = s"pubsub/${event.msg.messageType.asString}"
+      _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
+    } yield ()
 
   private[monitor] def handleCreateRuntimeMessage(msg: CreateRuntimeMessage)(
     implicit ev: Ask[F, AppContext]

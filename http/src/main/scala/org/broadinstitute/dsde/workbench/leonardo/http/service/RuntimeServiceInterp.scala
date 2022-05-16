@@ -840,7 +840,7 @@ object RuntimeServiceInterp {
           case CloudService.Dataproc =>
             if (req.scopes.isEmpty) config.dataprocConfig.defaultScopes else req.scopes
           case CloudService.AzureVm =>
-            config.azureConfig.runtimeConfig.defaultScopes
+            Set.empty[String] //Doesn't apply to Azure
 
         }
       case None =>
@@ -858,7 +858,7 @@ object RuntimeServiceInterp {
       asyncRuntimeFields = None,
       auditInfo = AuditInfo(userInfo.userEmail, now, None, now),
       kernelFoundBusyDate = None,
-      proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, cloudContext, runtimeName, clusterImages, allLabels),
+      proxyUrl = Runtime.getProxyUrl(config.proxyUrlBase, cloudContext, runtimeName, clusterImages, None, allLabels),
       status = RuntimeStatus.PreCreating,
       labels = allLabels,
       userScriptUri = req.userScriptUri,
@@ -999,8 +999,7 @@ final case class RuntimeServiceConfig(proxyUrlBase: String,
                                       autoFreezeConfig: AutoFreezeConfig,
                                       dataprocConfig: DataprocConfig,
                                       gceConfig: GceConfig,
-                                      azureConfig: AzureServiceConfig,
-                                      azureRuntimeDefaults: AzureRuntimeDefaults)
+                                      azureConfig: AzureServiceConfig)
 
 final case class WrongCloudServiceException(runtimeCloudService: CloudService,
                                             updateCloudService: CloudService,

@@ -51,6 +51,7 @@ object Runtime {
                   cloudContext: CloudContext,
                   runtimeName: RuntimeName,
                   runtimeImages: Set[RuntimeImage],
+                  hostIp: Option[IP],
                   labels: Map[String, String]): URL = {
     val tool = runtimeImages
       .map(_.imageType)
@@ -67,8 +68,9 @@ object Runtime {
           urlBase + cloudContext.asString + "/" + runtimeName.asString + "/" + tool.proxySegment
         )
       case _: CloudContext.Azure =>
-        //TODO: this is not the correct proxy URL
-        new URL(urlBase)
+        hostIp.fold(new URL("https://relay-not-defined-yet"))(s =>
+          new URL(s"https://${s.asString}/${runtimeName.asString}")
+        )
     }
   }
 }
