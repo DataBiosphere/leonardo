@@ -57,10 +57,6 @@ object WsmResourceType {
     override def toString: String = "AZURE_VM"
   }
 
-  case object AzureIp extends WsmResourceType {
-    override def toString: String = "AZURE_IP"
-  }
-
   case object AzureNetwork extends WsmResourceType {
     override def toString: String = "AZURE_NETWORK"
   }

@@ -117,9 +117,8 @@ object Boot extends IOApp {
         AzureServiceConfig(
           //For now azure disks share same defaults as normal disks
           ConfigReader.appConfig.persistentDisk,
-          ConfigReader.appConfig.azure.service
-        ),
-        ConfigReader.appConfig.azure.runtimeDefaults
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image
+        )
       )
       val runtimeService = RuntimeService(
         runtimeServiceConfig,
@@ -151,7 +150,6 @@ object Boot extends IOApp {
         appDependencies.authProvider,
         appDependencies.wsmDAO,
         appDependencies.samDAO,
-        appDependencies.asyncTasksQueue,
         appDependencies.publisherQueue
       )
 
@@ -199,7 +197,10 @@ object Boot extends IOApp {
 
         val backLeoOnlyProcesses = {
           val monitorAtBoot =
-            new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.googleComputeService)
+            new MonitorAtBoot[IO](appDependencies.publisherQueue,
+                                  googleDependencies.googleComputeService,
+                                  appDependencies.samDAO,
+                                  appDependencies.wsmDAO)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -308,7 +309,7 @@ object Boot extends IOApp {
         HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
       )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
-        client => new HttpJupyterDAO[F](runtimeDnsCache, client)
+        client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
       welderDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_welder_client"), false).map(
         client => new HttpWelderDAO[F](runtimeDnsCache, client)
@@ -329,7 +330,7 @@ object Boot extends IOApp {
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
 
-      computeManagerDao = new HttpComputerManagerDao[F](ConfigReader.appConfig.azure.appRegistration)
+      computeManagerDao = new AzureManagerDaoInterp[F](ConfigReader.appConfig.azure.appRegistration)
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
@@ -543,12 +544,12 @@ object Boot extends IOApp {
         googleDependencies.googleResourceService
       )
 
-      val azureAlg = new AzureInterpreter[F](ConfigReader.appConfig.azure.monitor,
-                                             asyncTasksQueue,
-                                             wsmDao,
-                                             samDao,
-                                             computeManagerDao
-      )
+      val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
+                                                     asyncTasksQueue,
+                                                     wsmDao,
+                                                     samDao,
+                                                     jupyterDao,
+                                                     computeManagerDao)
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
       val gceRuntimeMonitor = new GceRuntimeMonitor[F](

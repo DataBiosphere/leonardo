@@ -13,9 +13,7 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
-                             req: CreateAzureRuntimeRequest,
-                             createVmJobId: WsmJobId
-  )(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.pure()
+                             req: CreateAzureRuntimeRequest)(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
   override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
     as: Ask[IO, AppContext]

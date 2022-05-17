@@ -149,8 +149,33 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )
     )(onError)
 
-  private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(implicit
-    ev: Ask[F, AppContext]
+  def getRelayNamespace(workspaceId: WorkspaceId,
+                        region: com.azure.core.management.Region,
+                        authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[RelayNamespace]] =
+    for {
+      resp <- httpClient.expectOr[GetRelayNamespace](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${workspaceId.value}/resources"
+                )
+            )
+            .withMultiValueQueryParams(Map("resource" -> List("AZURE_RELAY_NAMESPACE"))),
+          headers = Headers(authorization)
+        )
+      )(onError)
+    } yield resp.resources.collect {
+      case r if r.resourceAttributes.relayNamespace.region == region =>
+        r.resourceAttributes.relayNamespace.namespaceName
+    }.headOption
+
+  private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(
+    implicit ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult] =
     httpClient.expectOr[DeleteWsmResourceResult](
       Request[F](

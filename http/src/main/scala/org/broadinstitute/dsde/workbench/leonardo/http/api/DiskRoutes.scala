@@ -26,7 +26,7 @@ class DiskRoutes(diskService: DiskService[IO], userInfoDirectives: UserInfoDirec
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+        CookieSupport.setTokenCookie(userInfo) {
           implicit val traceId = Ask.const[IO, TraceId](TraceId(UUID.randomUUID()))
           pathPrefix("google" / "v1" / "disks") {
             pathEndOrSingleSlash {

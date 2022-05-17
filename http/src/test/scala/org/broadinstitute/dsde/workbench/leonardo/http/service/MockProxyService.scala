@@ -56,9 +56,9 @@ class MockProxyService(
     ) {
 
   override def getRuntimeTargetHost(cloudContext: CloudContext, clusterName: RuntimeName): IO[HostStatus] =
-    IO.pure(HostReady(Host("localhost")))
+    IO.pure(HostReady(Host("localhost"), "path", CloudProvider.Gcp))
 
   override def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
-    IO.pure(HostReady(Host("localhost")))
+    IO.pure(HostReady(Host("localhost"), "path", CloudProvider.Gcp))
 
 }

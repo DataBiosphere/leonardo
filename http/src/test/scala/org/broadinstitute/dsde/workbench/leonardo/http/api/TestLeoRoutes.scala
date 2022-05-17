@@ -118,18 +118,15 @@ trait TestLeoRoutes {
     autoFreezeConfig,
     dataprocConfig,
     Config.gceConfig,
-    azureServiceConfig,
-    ConfigReader.appConfig.azure.runtimeDefaults
+    azureServiceConfig
   )
 
-  val azureService =
+  val runtimev2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    whitelistAuthProvider,
                                    new MockWsmDAO,
                                    new MockSamDAO,
-                                   QueueFactory.asyncTaskQueue,
-                                   QueueFactory.makePublisherQueue()
-    )
+                                   QueueFactory.makePublisherQueue())
 
   val underlyingRuntimeDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
@@ -195,7 +192,7 @@ trait TestLeoRoutes {
       runtimeService,
       MockDiskServiceInterp,
       leoKubernetesService,
-      azureService,
+      runtimev2Service,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -208,7 +205,7 @@ trait TestLeoRoutes {
                    runtimeService,
                    MockDiskServiceInterp,
                    leoKubernetesService,
-                   azureService,
+                   runtimev2Service,
                    timedUserInfoDirectives,
                    contentSecurityPolicy,
                    refererConfig

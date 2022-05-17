@@ -13,7 +13,6 @@ import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeConfigQueries._
 import org.broadinstitute.dsde.workbench.leonardo.db.clusterQuery.getRuntimeQueryByUniqueKey
 import org.broadinstitute.dsde.workbench.leonardo.http.{DiskConfig, GetRuntimeResponse, ListRuntimeResponse2}
 import org.broadinstitute.dsde.workbench.leonardo.model.RuntimeNotFoundException
-import org.broadinstitute.dsde.workbench.model.IP
 import org.broadinstitute.dsde.workbench.model.google.GcsBucketName
 
 import scala.concurrent.ExecutionContext
@@ -115,8 +114,7 @@ object RuntimeServiceDbQueries {
             AsyncRuntimeFields(googleId,
                                OperationName(operationName),
                                GcsBucketName(stagingBucket),
-                               clusterRecord.hostIp map IP
-            )
+                               clusterRecord.hostIp)
         }
         val clusterImages = clusterImageRecords.toList map clusterImageQuery.unmarshalClusterImage toSet
         val patchInProgress = patch.headOption match {
@@ -139,8 +137,8 @@ object RuntimeServiceDbQueries {
                               clusterRecord.cloudContext,
                               name,
                               clusterImages,
-                              labelMap
-          ),
+                              clusterRecord.hostIp,
+                              labelMap),
           clusterRecord.status,
           labelMap,
           clusterRecord.userScriptUri,
@@ -238,28 +236,28 @@ object RuntimeServiceDbQueries {
       runtimeLabelMap.map { case ((runtimeRec, runtimeConfig, patchRecOpt), labelMap) =>
         val lmp = labelMap.view.mapValues(_.toList.toSet.headOption.getOrElse("")).toMap
 
-        val patchInProgress = patchRecOpt match {
-          case Some(patchRec) => patchRec.inProgress
-          case None           => false
-        }
-        ListRuntimeResponse2(
-          runtimeRec.id,
-          runtimeRec.workspaceId,
-          RuntimeSamResourceId(runtimeRec.internalId),
-          runtimeRec.runtimeName,
-          runtimeRec.cloudContext,
-          runtimeRec.auditInfo,
-          runtimeConfig,
-          Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
-                              runtimeRec.cloudContext,
-                              runtimeRec.runtimeName,
-                              Set.empty,
-                              lmp
-          ),
-          runtimeRec.status,
-          lmp,
-          patchInProgress
-        )
+          val patchInProgress = patchRecOpt match {
+            case Some(patchRec) => patchRec.inProgress
+            case None           => false
+          }
+          ListRuntimeResponse2(
+            runtimeRec.id,
+            runtimeRec.workspaceId,
+            RuntimeSamResourceId(runtimeRec.internalId),
+            runtimeRec.runtimeName,
+            runtimeRec.cloudContext,
+            runtimeRec.auditInfo,
+            runtimeConfig,
+            Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
+                                runtimeRec.cloudContext,
+                                runtimeRec.runtimeName,
+                                Set.empty,
+                                runtimeRec.hostIp,
+                                lmp),
+            runtimeRec.status,
+            lmp,
+            patchInProgress
+          )
       }.toList
     }
   }

@@ -29,28 +29,29 @@ import java.time.Instant
 
 import scala.concurrent.ExecutionContext
 
-final case class ClusterRecord(id: Long,
-                               internalId: String,
-                               runtimeName: RuntimeName,
-                               googleId: Option[ProxyHostName],
-                               cloudContext: CloudContext,
-                               operationName: Option[String],
-                               status: RuntimeStatus,
-                               hostIp: Option[String],
-                               userScriptUri: Option[UserScriptPath],
-                               startUserScriptUri: Option[UserScriptPath],
-                               initBucket: Option[String],
-                               auditInfo: AuditInfo,
-                               kernelFoundBusyDate: Option[Instant],
-                               serviceAccountInfo: WorkbenchEmail,
-                               stagingBucket: Option[String],
-                               autopauseThreshold: Int,
-                               defaultClientId: Option[String],
-                               welderEnabled: Boolean,
-                               customClusterEnvironmentVariables: Map[String, String],
-                               runtimeConfigId: RuntimeConfigId,
-                               deletedFrom: Option[String],
-                               workspaceId: Option[WorkspaceId]
+final case class ClusterRecord(
+  id: Long,
+  internalId: String,
+  runtimeName: RuntimeName,
+  googleId: Option[ProxyHostName],
+  cloudContext: CloudContext,
+  operationName: Option[String],
+  status: RuntimeStatus,
+  hostIp: Option[IP], //For GCP, it is VM's public IP; For Azure VM, it is Relay HybridConnection URL
+  userScriptUri: Option[UserScriptPath],
+  startUserScriptUri: Option[UserScriptPath],
+  initBucket: Option[String],
+  auditInfo: AuditInfo,
+  kernelFoundBusyDate: Option[Instant],
+  serviceAccountInfo: WorkbenchEmail,
+  stagingBucket: Option[String],
+  autopauseThreshold: Int,
+  defaultClientId: Option[String],
+  welderEnabled: Boolean,
+  customClusterEnvironmentVariables: Map[String, String],
+  runtimeConfigId: RuntimeConfigId,
+  deletedFrom: Option[String],
+  workspaceId: Option[WorkspaceId]
 ) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
 }
@@ -67,7 +68,7 @@ class ClusterTable(tag: Tag) extends Table[ClusterRecord](tag, "CLUSTER") {
   def serviceAccount = column[WorkbenchEmail]("serviceAccount", O.Length(254))
   def operationName = column[Option[String]]("operationName", O.Length(254))
   def status = column[RuntimeStatus]("status", O.Length(254))
-  def hostIp = column[Option[String]]("hostIp", O.Length(254))
+  def hostIp = column[Option[IP]]("hostIp", O.Length(254))
   def creator = column[WorkbenchEmail]("creator", O.Length(254))
   def createdDate = column[Instant]("createdDate", O.SqlType("TIMESTAMP(6)"))
   def destroyedDate: Rep[Instant] = column[Instant]("destroyedDate", O.SqlType("TIMESTAMP(6)"))
@@ -358,14 +359,11 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       recs.map { rec =>
         val asyncFields = (rec._1._1.googleId, rec._1._1.operationName, rec._1._1.stagingBucket).mapN {
           (googleId, operationName, stagingBucket) =>
-            AsyncRuntimeFields(googleId,
-                               OperationName(operationName),
-                               GcsBucketName(stagingBucket),
-                               rec._1._1.hostIp map IP
-            )
+            AsyncRuntimeFields(googleId, OperationName(operationName), GcsBucketName(stagingBucket), rec._1._1.hostIp)
         }
         RuntimeToMonitor(
           rec._1._1.id,
+          rec._1._1.workspaceId,
           rec._1._1.cloudContext,
           rec._1._1.runtimeName,
           rec._1._1.status,
@@ -539,13 +537,13 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
   ): DBIO[Int] =
     findByIdQuery(id)
       .map(c => (c.status, c.hostIp, c.dateAccessed))
-      .update((status, hostIp.map(_.asString), dateAccessed))
+      .update((status, hostIp, dateAccessed))
 
   def updateClusterHostIp(id: Long, hostIp: Option[IP], dateAccessed: Instant): DBIO[Int] =
     clusterQuery
       .filter(x => x.id === id)
       .map(c => (c.hostIp, c.dateAccessed))
-      .update((hostIp.map(_.asString), dateAccessed))
+      .update((hostIp, dateAccessed))
 
   def updateAsyncClusterCreationFields(updateAsyncClusterCreationFields: UpdateAsyncClusterCreationFields): DBIO[Int] =
     findByIdQuery(updateAsyncClusterCreationFields.clusterId)
@@ -642,7 +640,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       runtime.cloudContext,
       runtime.asyncRuntimeFields.map(_.operationName.value),
       runtime.status,
-      runtime.asyncRuntimeFields.flatMap(_.hostIp.map(_.asString)),
+      runtime.asyncRuntimeFields.flatMap(_.hostIp),
       runtime.userScriptUri,
       runtime.startUserScriptUri,
       initBucket,
@@ -762,11 +760,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
     val cloudContext = clusterRecord.cloudContext
     val dataprocInfo = (clusterRecord.googleId, clusterRecord.operationName, clusterRecord.stagingBucket).mapN {
       (googleId, operationName, stagingBucket) =>
-        AsyncRuntimeFields(googleId,
-                           OperationName(operationName),
-                           GcsBucketName(stagingBucket),
-                           clusterRecord.hostIp map IP
-        )
+        AsyncRuntimeFields(googleId, OperationName(operationName), GcsBucketName(stagingBucket), clusterRecord.hostIp)
     }
     val clusterImages = clusterImageRecords map clusterImageQuery.unmarshalClusterImage toSet
     val patchInProgress = patch.headOption match {
@@ -783,7 +777,12 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
       asyncRuntimeFields = dataprocInfo,
       auditInfo = clusterRecord.auditInfo,
       kernelFoundBusyDate = clusterRecord.kernelFoundBusyDate,
-      proxyUrl = Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase, cloudContext, name, clusterImages, labels),
+      proxyUrl = Runtime.getProxyUrl(Config.proxyConfig.proxyUrlBase,
+                                     cloudContext,
+                                     name,
+                                     clusterImages,
+                                     clusterRecord.hostIp,
+                                     labels),
       status = clusterRecord.status,
       labels = labels,
       userScriptUri = clusterRecord.userScriptUri,

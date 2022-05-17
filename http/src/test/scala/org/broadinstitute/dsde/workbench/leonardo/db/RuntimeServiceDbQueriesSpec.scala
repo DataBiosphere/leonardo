@@ -4,7 +4,6 @@ package db
 
 import java.time.Instant
 import java.util.UUID
-
 import cats.effect.IO
 import org.broadinstitute.dsde.workbench.google2.{DiskName, ZoneName}
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData.{makeCluster, _}
@@ -17,6 +16,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   TestComponent
 }
 import org.broadinstitute.dsde.workbench.leonardo.db.RuntimeServiceDbQueries._
+import org.broadinstitute.dsde.workbench.model.IP
 import org.scalatest.concurrent.ScalaFutures
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -376,6 +376,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
             c2RuntimeConfig
           )
       )
+      c2ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c2.cloudContext, c2.runtimeName).transaction
 
       d3 <- makePersistentDisk(None).save()
       c3RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, d3.id, azureRegion)
@@ -386,6 +387,7 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
             c3RuntimeConfig
           )
       )
+      c3ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c3.cloudContext, c3.runtimeName).transaction
 
       d4 <- makePersistentDisk(Some(DiskName("d4"))).save()
       c4RuntimeConfig = RuntimeConfig.AzureConfig(defaultMachineType, d4.id, azureRegion)
@@ -396,6 +398,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
             c4RuntimeConfig
           )
       )
+      c4ClusterRecord <- clusterQuery.getActiveClusterRecordByName(c4.cloudContext, c4.runtimeName).transaction
+
       list1 <- RuntimeServiceDbQueries
         .listRuntimesForWorkspace(Map.empty, false, Some(workspaceId1), Some(CloudProvider.Azure))
         .transaction
@@ -413,9 +417,9 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
       _ <- loggerIO.info(s"listClusters took $elapsed")
     } yield {
       val c1Expected = toListRuntimeResponse(c1, Map.empty, c1RuntimeConfig)
-      val c2Expected = toListRuntimeResponse(c2, Map.empty, c2RuntimeConfig)
-      val c3Expected = toListRuntimeResponse(c3, Map.empty, c3RuntimeConfig)
-      val c4Expected = toListRuntimeResponse(c4, Map.empty, c4RuntimeConfig)
+      val c2Expected = toListRuntimeResponse(c2, Map.empty, c2RuntimeConfig, c2ClusterRecord.get.hostIp)
+      val c3Expected = toListRuntimeResponse(c3, Map.empty, c3RuntimeConfig, c3ClusterRecord.get.hostIp)
+      val c4Expected = toListRuntimeResponse(c4, Map.empty, c4RuntimeConfig, c4ClusterRecord.get.hostIp)
       list1.toSet shouldEqual Set(c2Expected, c4Expected)
       list2 shouldEqual List(c3Expected)
       list3 shouldEqual List(c1Expected)
@@ -450,7 +454,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
   private def toListRuntimeResponse(
     runtime: Runtime,
     labels: LabelMap,
-    runtimeConfig: RuntimeConfig = CommonTestData.defaultDataprocRuntimeConfig
+    runtimeConfig: RuntimeConfig = CommonTestData.defaultDataprocRuntimeConfig,
+    hostIp: Option[IP] = None
   ): ListRuntimeResponse2 =
     ListRuntimeResponse2(
       runtime.id,
@@ -464,8 +469,8 @@ class RuntimeServiceDbQueriesSpec extends AnyFlatSpecLike with TestComponent wit
                           runtime.cloudContext,
                           runtime.runtimeName,
                           Set.empty,
-                          labels
-      ),
+                          hostIp,
+                          labels),
       runtime.status,
       labels,
       false

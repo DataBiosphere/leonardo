@@ -1,19 +1,9 @@
-package org.broadinstitute.dsde.workbench.leonardo.http
+package org.broadinstitute.dsde.workbench.leonardo
+package http
 package service
 
 import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.config.PersistentDiskConfig
-import org.broadinstitute.dsde.workbench.leonardo.{
-  AppContext,
-  AzureImageUri,
-  CidrIP,
-  CloudProvider,
-  CreateAzureRuntimeRequest,
-  RuntimeName,
-  UpdateAzureRuntimeRequest,
-  WorkspaceId,
-  WsmJobId
-}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 
 //TODO: all functions but non-workspace-specific list are currently azure-specific
@@ -21,10 +11,8 @@ trait RuntimeV2Service[F[_]] {
   def createRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
-                    req: CreateAzureRuntimeRequest,
-                    createVmJobId: WsmJobId
-  )(implicit
-    as: Ask[F, AppContext]
+                    req: CreateAzureRuntimeRequest)(
+    implicit as: Ask[F, AppContext]
   ): F[Unit]
 
   def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
@@ -52,8 +40,15 @@ trait RuntimeV2Service[F[_]] {
   ): F[Vector[ListRuntimeResponse2]]
 }
 
-final case class AzureServiceConfig(diskConfig: PersistentDiskConfig, runtimeConfig: AzureRuntimeConfig)
-final case class AzureRuntimeConfig(imageUri: AzureImageUri, defaultScopes: Set[String])
+final case class CustomScriptExtensionConfig(name: String,
+                                             publisher: String,
+                                             `type`: String,
+                                             version: String,
+                                             minorVersionAutoUpgrade: Boolean,
+                                             fileUris: List[String])
+final case class AzureServiceConfig(diskConfig: PersistentDiskConfig, image: AzureImage)
+final case class AcrCredential(username: String, password: String)
+final case class VMCredential(username: String, password: String)
 
 final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,
                                       ipNamePrefix: String,
@@ -63,5 +58,9 @@ final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,
                                       addressSpaceCidr: CidrIP,
                                       subnetAddressCidr: CidrIP,
                                       diskControlledResourceDesc: String,
-                                      vmControlledResourceDesc: String
-)
+                                      vmControlledResourceDesc: String,
+                                      image: AzureImage,
+                                      customScriptExtension: CustomScriptExtensionConfig,
+                                      listenerImage: String,
+                                      acrCredential: AcrCredential,
+                                      vmCredential: VMCredential)

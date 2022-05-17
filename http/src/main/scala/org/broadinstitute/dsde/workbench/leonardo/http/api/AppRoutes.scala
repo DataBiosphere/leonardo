@@ -26,7 +26,7 @@ class AppRoutes(kubernetesService: AppService[IO], userInfoDirectives: UserInfoD
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+        CookieSupport.setTokenCookie(userInfo) {
           pathPrefix("google" / "v1" / "apps") {
             pathEndOrSingleSlash {
               parameterMap { params =>

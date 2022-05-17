@@ -378,7 +378,6 @@ object Config {
   implicit private val firewallAllowInternalLabelKeyReader: ValueReader[FirewallAllowInternalLabelKey] =
     stringValueReader.map(FirewallAllowInternalLabelKey)
   implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
-  // TODO(wnojopra): Make these more FP-friendly
   implicit private val subnetworkRegionIpRangeMapReader: ValueReader[Map[RegionName, IpRange]] =
     mapValueReader[IpRange].map(mp => mp.map { case (k, v) => (RegionName(k) -> v) })
 

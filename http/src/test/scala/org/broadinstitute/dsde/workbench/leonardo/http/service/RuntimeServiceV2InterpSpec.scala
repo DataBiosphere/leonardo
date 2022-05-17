@@ -6,11 +6,10 @@ import akka.http.scaladsl.model.headers.OAuth2BearerToken
 import cats.effect.IO
 import cats.effect.std.Queue
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
-import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config
-import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{MockWsmDAO, WorkspaceDescription, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.model.{
   ForbiddenError,
@@ -27,9 +26,10 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.leonardo.util.QueueFactory
 import org.broadinstitute.dsde.workbench.model.{UserInfo, WorkbenchEmail, WorkbenchUserId}
 import org.scalatest.flatspec.AnyFlatSpec
-import java.util.UUID
 
+import java.util.UUID
 import cats.mtl.Ask
+import com.azure.core.management.Region
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.RuntimeSamResourceId
 import org.http4s.headers.Authorization
 
@@ -42,30 +42,21 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     autoFreezeConfig,
     dataprocConfig,
     Config.gceConfig,
-    azureServiceConfig,
-    ConfigReader.appConfig.azure.runtimeDefaults
+    azureServiceConfig
   )
 
   val wsmDao = new MockWsmDAO
 
   //used when we care about queue state
-  def makeInterp(queue: Queue[IO, LeoPubsubMessage], asyncQueue: Option[Queue[IO, Task[IO]]] = None) =
-    new RuntimeV2ServiceInterp[IO](serviceConfig,
-                                   whitelistAuthProvider,
-                                   wsmDao,
-                                   mockSamDAO,
-                                   asyncQueue.getOrElse(QueueFactory.asyncTaskQueue),
-                                   queue
-    )
+  def makeInterp(queue: Queue[IO, LeoPubsubMessage], wsmDao: WsmDao[IO] = wsmDao) =
+    new RuntimeV2ServiceInterp[IO](serviceConfig, whitelistAuthProvider, wsmDao, mockSamDAO, queue)
 
   val defaultAzureService =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    whitelistAuthProvider,
                                    new MockWsmDAO,
                                    mockSamDAO,
-                                   QueueFactory.asyncTaskQueue,
-                                   QueueFactory.makePublisherQueue()
-    )
+                                   QueueFactory.makePublisherQueue())
 
   it should "submit a create azure runtime message properly" in isolatedDbTest {
     val userInfo = UserInfo(OAuth2BearerToken(""),
@@ -75,11 +66,17 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     ) // this email is white listed
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
+    val relayNamespace = RelayNamespace("relay-ns")
 
     val publisherQueue = QueueFactory.makePublisherQueue()
-    val asyncTaskQueue = QueueFactory.asyncTaskQueue()
 
-    val azureService = makeInterp(publisherQueue, Some(asyncTaskQueue))
+    val wsmDao = new MockWsmDAO {
+      override def getRelayNamespace(workspaceId: WorkspaceId, region: Region, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[Option[RelayNamespace]] =
+        IO.pure(Some(relayNamespace))
+    }
+    val azureService = makeInterp(publisherQueue, wsmDao)
     val res = for {
       _ <- publisherQueue.tryTake // just to make sure there's no messages in the queue to start with
       context <- appContext.ask[AppContext]
@@ -90,8 +87,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq,
-          jobId
+          defaultCreateAzureRuntimeReq
         )
         .attempt
       workspaceDesc <- wsmDao.getWorkspace(workspaceId, dummyAuth)
@@ -111,18 +107,6 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       diskOpt <- persistentDiskQuery.getById(azureRuntimeConfig.persistentDiskId).transaction
       disk = diskOpt.get
-      assertions = controlledResourceQuery.getAllForRuntime(cluster.id).transaction.flatMap { controlledResources =>
-        IO {
-          controlledResources.length shouldBe 3
-          //TODO: currently VM resource is persisted in back leo. Pending on resolution on resourceId in WSM, we might update this
-//          controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureVm)
-          controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureNetwork)
-          controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureDisk)
-          controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureIp)
-        }
-      }
-      asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), asyncTaskQueue)
-      _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
     } yield {
       r shouldBe Right(())
       cluster.cloudContext shouldBe cloudContext
@@ -136,7 +120,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
       val expectedRuntimeImage = RuntimeImage(
         RuntimeImageType.Azure,
-        azureImage.imageUrl,
+        "microsoft-dsvm, ubuntu-2004, 2004-gen2, 22.04.27",
         None,
         context.now
       )
@@ -146,7 +130,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       val expectedMessage = CreateAzureRuntimeMessage(
         cluster.id,
         workspaceId,
-        jobId,
+        relayNamespace,
         Some(context.traceId)
       )
       message shouldBe expectedMessage
@@ -162,7 +146,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
     val thrown = the[ForbiddenError] thrownBy {
       defaultAzureService
-        .createRuntime(userInfo, runtimeName, workspaceId, defaultCreateAzureRuntimeReq, jobUUID)
+        .createRuntime(userInfo, runtimeName, workspaceId, defaultCreateAzureRuntimeReq)
         .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
     }
 
@@ -170,15 +154,12 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
   }
 
   it should "throw RuntimeAlreadyExistsException when creating a runtime with same name and context as an existing runtime" in isolatedDbTest {
-    val jobId = WsmJobId("job")
     defaultAzureService
-      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq, jobId)
+      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    val jobId2 = WsmJobId("job2")
-
     val exc = defaultAzureService
-      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq, jobId2)
+      .createRuntime(userInfo, name0, workspaceId, defaultCreateAzureRuntimeReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
       .swap
@@ -196,18 +177,11 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val azureService = new RuntimeV2ServiceInterp[IO](
-      serviceConfig,
-      whitelistAuthProvider,
-      new MockWsmDAO {
-        override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-          ev: Ask[IO, AppContext]
-        ): IO[Option[WorkspaceDescription]] = IO.pure(None)
-      },
-      mockSamDAO,
-      QueueFactory.asyncTaskQueue,
-      QueueFactory.makePublisherQueue()
-    )
+    val azureService = new RuntimeV2ServiceInterp[IO](serviceConfig, whitelistAuthProvider, new MockWsmDAO {
+      override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[Option[WorkspaceDescription]] = IO.pure(None)
+    }, mockSamDAO, QueueFactory.makePublisherQueue())
 
     val exc = azureService
       .getRuntime(
@@ -233,19 +207,12 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val runtimeName = RuntimeName("clusterName1")
     val workspaceId = WorkspaceId(UUID.randomUUID())
 
-    val azureService = new RuntimeV2ServiceInterp[IO](
-      serviceConfig,
-      whitelistAuthProvider,
-      new MockWsmDAO {
-        override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(implicit
-          ev: Ask[IO, AppContext]
-        ): IO[Option[WorkspaceDescription]] =
-          IO.pure(Some(WorkspaceDescription(workspaceId, "workspaceName", None, None)))
-      },
-      mockSamDAO,
-      QueueFactory.asyncTaskQueue,
-      QueueFactory.makePublisherQueue()
-    )
+    val azureService = new RuntimeV2ServiceInterp[IO](serviceConfig, whitelistAuthProvider, new MockWsmDAO {
+      override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
+        implicit ev: Ask[IO, AppContext]
+      ): IO[Option[WorkspaceDescription]] =
+        IO.pure(Some(WorkspaceDescription(workspaceId, "workspaceName", None, None)))
+    }, mockSamDAO, QueueFactory.makePublisherQueue())
 
     val exc = azureService
       .getRuntime(
@@ -282,8 +249,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq,
-          WsmJobId("job")
+          defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       clusterOpt <- clusterQuery
@@ -322,8 +288,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq,
-          WsmJobId("job1")
+          defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       clusterOpt <- clusterQuery
@@ -361,8 +326,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq,
-          WsmJobId("job")
+          defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       clusterOpt <- clusterQuery
@@ -400,8 +364,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq,
-          WsmJobId("job")
+          defaultCreateAzureRuntimeReq
         )
       _ <- publisherQueue.tryTake //clean out create msg
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
@@ -462,8 +425,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq,
-          WsmJobId("job1")
+          defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       preDeleteClusterOpt <- clusterQuery
@@ -503,8 +465,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
           userInfo,
           runtimeName,
           workspaceId,
-          defaultCreateAzureRuntimeReq,
-          jobUUID
+          defaultCreateAzureRuntimeReq
         )
       azureCloudContext <- wsmDao.getWorkspace(workspaceId, dummyAuth).map(_.get.azureContext)
       clusterOpt <- clusterQuery
@@ -667,7 +628,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       labels = Map("bam" -> "yes", "vcf" -> "no", "foo" -> "bar")
     )
     defaultAzureService
-      .createRuntime(userInfo, clusterName1, workspaceId, req, wsmJobId1)
+      .createRuntime(userInfo, clusterName1, workspaceId, req)
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val setupControlledResource1 = for {
@@ -708,9 +669,7 @@ class RuntimeServiceV2InterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         clusterName2,
         workspaceId,
         req.copy(labels = Map("a" -> "b", "foo" -> "bar"),
-                 azureDiskConfig = req.azureDiskConfig.copy(name = AzureDiskName("disk2"))
-        ),
-        wsmJobId2
+                 azureDiskConfig = req.azureDiskConfig.copy(name = AzureDiskName("disk2")))
       )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 

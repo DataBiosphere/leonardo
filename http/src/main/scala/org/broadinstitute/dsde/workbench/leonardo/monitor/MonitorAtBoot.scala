@@ -7,6 +7,7 @@ import cats.mtl.Ask
 import cats.syntax.all._
 import fs2.Stream
 import org.broadinstitute.dsde.workbench.google2.{GoogleComputeService, ZoneName}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{SamDAO, WsmDao}
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -17,8 +18,11 @@ import org.typelevel.log4cats.Logger
 
 import scala.concurrent.ExecutionContext
 
-class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeService: GoogleComputeService[F])(implicit
-  F: Async[F],
+class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage],
+                          computeService: GoogleComputeService[F],
+                          samDAO: SamDAO[F],
+                          wsmDao: WsmDao[F])(
+  implicit F: Async[F],
   dbRef: DbReference[F],
   logger: Logger[F],
   ec: ExecutionContext,
@@ -67,7 +71,12 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
   private def handleRuntime(runtimeToMonitor: RuntimeToMonitor)(implicit ev: Ask[F, TraceId]): F[Unit] = {
     val res = for {
       traceId <- ev.ask[TraceId]
-      msg <- runtimeStatusToMessage(runtimeToMonitor, traceId)
+      msg <- runtimeToMonitor.cloudContext match {
+        case CloudContext.Gcp(_) =>
+          runtimeStatusToMessageGCP(runtimeToMonitor, traceId)
+        case CloudContext.Azure(_) =>
+          runtimeStatusToMessageAzure(runtimeToMonitor, traceId)
+      }
       _ <- publisherQueue.offer(msg)
     } yield ()
     res.handleErrorWith(e => logger.error(e)(s"MonitorAtBoot: Error monitoring runtime ${runtimeToMonitor.id}"))
@@ -194,7 +203,7 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
       }
     )
 
-  private def runtimeStatusToMessage(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
+  private def runtimeStatusToMessageGCP(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
     runtime.status match {
       case RuntimeStatus.Stopping =>
         F.pure(LeoPubsubMessage.StopRuntimeMessage(runtime.id, Some(traceId)))
@@ -244,8 +253,10 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
               LeoLenses.runtimeConfigPrism.getOption(runtime.runtimeConfig).get: RuntimeConfigInCreateRuntimeMessage
             )
           case _: RuntimeConfig.AzureConfig =>
-            "Azure are not yet handled with existing monitor at boot code".asLeft[RuntimeConfigInCreateRuntimeMessage]
+            "Azure runtime should be handled separately. This should not happen"
+              .asLeft[RuntimeConfigInCreateRuntimeMessage]
         }
+
         for {
           rtConfigInMessage <- F.fromEither(message.leftMap(s => MonitorAtBootException(s, traceId)))
           extra <- clusterQuery.getExtraInfo(runtime.id).transaction
@@ -268,10 +279,55 @@ class MonitorAtBoot[F[_]](publisherQueue: Queue[F, LeoPubsubMessage], computeSer
         )
       case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
     }
+
+  private def runtimeStatusToMessageAzure(runtime: RuntimeToMonitor, traceId: TraceId): F[LeoPubsubMessage] =
+    runtime.status match {
+      case RuntimeStatus.Stopping =>
+        F.raiseError(MonitorAtBootException("Stopping Azure runtime is not supported yet", traceId))
+      case RuntimeStatus.Deleting =>
+        for {
+          wid <- F.fromOption(runtime.workspaceId,
+                              MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId))
+          controlledResourceOpt <- controlledResourceQuery
+            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureVm)
+            .transaction
+        } yield LeoPubsubMessage.DeleteAzureRuntimeMessage(
+          runtimeId = runtime.id,
+          None,
+          workspaceId = wid,
+          wsmResourceId = controlledResourceOpt.map(_.resourceId),
+          traceId = Some(traceId)
+        )
+      case RuntimeStatus.Starting =>
+        F.raiseError(MonitorAtBootException("Startting Azure runtime is not supported yet", traceId))
+      case RuntimeStatus.Creating =>
+        for {
+          now <- F.realTimeInstant
+          wid <- F.fromOption(runtime.workspaceId,
+                              MonitorAtBootException(s"no workspaceId found for ${runtime.id.toString}", traceId))
+          leoAuth <- samDAO.getLeoAuthToken
+          azureRuntimeConfig <- runtime.runtimeConfig match {
+            case x: RuntimeConfig.AzureConfig => F.pure(x)
+            case _ =>
+              F.raiseError(MonitorAtBootException("Azure runtime shouldn't have non Azure runtime config", traceId))
+          }
+          implicit0(appContext: Ask[F, AppContext]) <- F.pure(Ask.const(AppContext(traceId, now)))
+          relayNamespaceOpt <- wsmDao.getRelayNamespace(wid, azureRuntimeConfig.region, leoAuth)
+          rns <- F.fromOption(relayNamespaceOpt,
+                              MonitorAtBootException(s"no relay namespace found for ${wid}", traceId))
+        } yield LeoPubsubMessage.CreateAzureRuntimeMessage(
+          runtime.id,
+          wid,
+          rns,
+          Some(traceId)
+        )
+      case x => F.raiseError(MonitorAtBootException(s"Unexpected status for runtime ${runtime.id}: ${x}", traceId))
+    }
 }
 
 final case class RuntimeToMonitor(
   id: Long,
+  workspaceId: Option[WorkspaceId],
   cloudContext: CloudContext,
   runtimeName: RuntimeName,
   status: RuntimeStatus,

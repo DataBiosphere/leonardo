@@ -41,8 +41,4 @@ object ConfigImplicits {
     ConfigReader.stringConfigReader.emap(s =>
       Either.catchNonFatal(Uri.unsafeFromString(s)).leftMap(ExceptionThrown.apply)
     )
-
-  implicit val imageUriReader: ConfigReader[AzureImageUri] =
-    ConfigReader.stringConfigReader.map(s => AzureImageUri(s))
-
 }

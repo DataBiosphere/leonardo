@@ -22,7 +22,6 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       )
       runtime = makeCluster(1)
         .copy(
-          runtimeImages = Set(azureImage),
           cloudContext = CloudContext.Azure(azureCloudContext)
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
@@ -30,14 +29,10 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       _ <- controlledResourceQuery
         .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
         .transaction
-      _ <- controlledResourceQuery
-        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureIp)
-        .transaction
       controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
     } yield {
-      controlledResources.length shouldBe 2
+      controlledResources.length shouldBe 1
       controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureNetwork)
-      controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureIp)
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -52,7 +47,6 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       )
       runtime = makeCluster(1)
         .copy(
-          runtimeImages = Set(azureImage),
           cloudContext = CloudContext.Azure(azureCloudContext)
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
@@ -79,16 +73,12 @@ class RuntimeControlledResourceComponentSpec extends AnyFlatSpecLike with TestCo
       )
       runtime = makeCluster(1)
         .copy(
-          runtimeImages = Set(azureImage),
           cloudContext = CloudContext.Azure(azureCloudContext)
         )
         .saveWithRuntimeConfig(azureRuntimeConfig)
 
       _ <- controlledResourceQuery
         .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
-        .transaction
-      _ <- controlledResourceQuery
-        .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureIp)
         .transaction
       _ <- controlledResourceQuery.deleteAllForRuntime(runtime.id).transaction
       controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction

@@ -4,6 +4,7 @@ package dao
 import java.util.UUID
 import cats.effect.IO
 import cats.mtl.Ask
+import com.azure.core.management.Region
 import org.http4s.headers.Authorization
 
 import java.time.ZonedDateTime
@@ -205,4 +206,8 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
       else None
     )
   )
+
+  override def getRelayNamespace(workspaceId: WorkspaceId, region: Region, authorization: Authorization)(
+    implicit ev: Ask[IO, AppContext]
+  ): IO[Option[RelayNamespace]] = IO.pure(Some(RelayNamespace("fake-relay-ns")))
 }

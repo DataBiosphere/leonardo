@@ -314,9 +314,9 @@ object LeoPubsubMessage {
 
   final case class CreateAzureRuntimeMessage(runtimeId: Long,
                                              workspaceId: WorkspaceId,
-                                             jobId: WsmJobId,
-                                             traceId: Option[TraceId]
-  ) extends LeoPubsubMessage {
+                                             relayNamespace: RelayNamespace,
+                                             traceId: Option[TraceId])
+      extends LeoPubsubMessage {
     val messageType: LeoPubsubMessageType = LeoPubsubMessageType.CreateAzureRuntime
   }
 
@@ -476,7 +476,9 @@ object LeoPubsubCodec {
     Decoder.forProduct4("appId", "appName", "project", "traceId")(StartAppMessage.apply)
 
   implicit val createAzureRuntimeMessageDecoder: Decoder[CreateAzureRuntimeMessage] =
-    Decoder.forProduct4("runtimeId", "workspaceId", "jobId", "traceId")(CreateAzureRuntimeMessage.apply)
+    Decoder.forProduct4("runtimeId", "workspaceId", "relayNamespace", "traceId")(
+      CreateAzureRuntimeMessage.apply
+    )
 
   implicit val deleteAzureRuntimeDecoder: Decoder[DeleteAzureRuntimeMessage] =
     Decoder.forProduct5("runtimeId", "diskId", "workspaceId", "wsmResourceId", "traceId")(
@@ -811,8 +813,8 @@ object LeoPubsubCodec {
     )
 
   implicit val createAzureRuntimeMessageEncoder: Encoder[CreateAzureRuntimeMessage] =
-    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "jobId", "traceId")(x =>
-      (x.messageType, x.runtimeId, x.workspaceId, x.jobId, x.traceId)
+    Encoder.forProduct5("messageType", "runtimeId", "workspaceId", "relayNamespace", "traceId")(x =>
+      (x.messageType, x.runtimeId, x.workspaceId, x.relayNamespace, x.traceId)
     )
 
   implicit val deleteAzureMessageEncoder: Encoder[DeleteAzureRuntimeMessage] =
@@ -852,7 +854,7 @@ object PubsubHandleMessageError {
       s"An error occurred with a kubernetes operation from source ${dbError.source} during action ${dbError.action}. \nOriginal message: ${dbError.errorMessage}"
   }
 
-  final case class ClusterError(clusterId: Long, msg: String) extends PubsubHandleMessageError {
+  final case class ClusterError(clusterId: Long, traceId: TraceId, msg: String) extends PubsubHandleMessageError {
     override def getMessage: String =
       s"${clusterId}: ${msg}"
 
@@ -898,13 +900,10 @@ object PubsubHandleMessageError {
     val isRetryable: Boolean = false
   }
 
-  final case class AzureRuntimeError(runtimeId: Long,
-                                     traceId: TraceId,
-                                     pubsubMsg: Option[LeoPubsubMessage],
-                                     errorMsg: String
-  ) extends PubsubHandleMessageError {
+  final case class AzureRuntimeCreationError(runtimeId: Long, workspaceId: WorkspaceId, errorMsg: String)
+      extends PubsubHandleMessageError {
     override def getMessage: String =
-      s"\n\truntimeId: ${runtimeId}, \n\tpubsubMsg: ${pubsubMsg}, \n\ttraceId: ${traceId} \n\tmsg: ${errorMsg})"
+      s"\n\truntimeId: ${runtimeId}, \n\tmsg: ${errorMsg})"
     val isRetryable: Boolean = false
   }
 }

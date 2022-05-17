@@ -38,7 +38,7 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+        CookieSupport.setTokenCookie(userInfo) {
           pathPrefix("google" / "v1" / "runtimes") {
             pathEndOrSingleSlash {
               parameterMap { params =>
