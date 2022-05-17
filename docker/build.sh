@@ -143,7 +143,7 @@ function make_jar()
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
-                          hseeberger/scala-sbt:eclipse-temurin-17.0.2_1.6.2_2.13.8 \
+                          hseeberger/scala-sbt:graalvm-ce-21.3.0-java17_1.6.2_2.13.8 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db
@@ -180,8 +180,8 @@ function docker_cmd()
                 echo "pushing $GCR_IMAGE docker image..."
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
                 $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
-                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${GIT_BRANCH}
-                $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${GIT_BRANCH}
+                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKERTAG_SAFE_NAME}
+                $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKERTAG_SAFE_NAME}
             fi
 
             # Push tests image no matter what. Currently this is only supported in Dockerhub.

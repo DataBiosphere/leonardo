@@ -18,6 +18,8 @@ import io.circe.parser._
 import WsmDecoders._
 import WsmEncoders._
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
+import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AcrCredential, VMCredential}
 
 import java.time.ZonedDateTime
 
@@ -142,8 +144,21 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         RuntimeName("runtime"),
         Region.US_EAST,
         VirtualMachineSizeTypes.STANDARD_A2, //Standard_A2
-        azureImage,
-        WsmControlledResourceId(fixedUUID),
+        ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
+        CustomScriptExtension(
+          name = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.name,
+          publisher = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.publisher,
+          `type` = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.`type`,
+          version = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.version,
+          minorVersionAutoUpgrade =
+            ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.minorVersionAutoUpgrade,
+          protectedSettings = ProtectedSettings(
+            ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.fileUris,
+            ""
+          )
+        ),
+        AcrCredential("username", "password"),
+        VMCredential("username", "password"),
         WsmControlledResourceId(fixedUUID),
         WsmControlledResourceId(fixedUUID)
       ),
@@ -170,8 +185,29 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |    "name" : "runtime",
          |    "region" : "eastus",
          |    "vmSize": "Standard_A2",
-         |    "vmImageUri": "${azureImage.imageUrl}",
-         |    "ipId": "${fixedUUID.toString}",
+         |    "vmImage": {
+         |      "publisher": "microsoft-dsvm",
+         |      "offer": "ubuntu-2004",
+         |      "sku": "2004-gen2",
+         |      "version": "22.04.27"
+         |    },
+         |    "customScriptExtension": {
+         |      "name": "vm-custom-script-extension",
+         |      "publisher": "Microsoft.Azure.Extensions",
+         |      "type": "CustomScript",
+         |      "version": "2.1",
+         |      "minorVersionAutoUpgrade": true,
+         |      "protectedSettings": [{
+         |          "key": "fileUris",
+         |          "value": ["https://raw.githubusercontent.com/DataBiosphere/leonardo/74c55827dd7fcefe56bbff14de1aefb3622e849e/http/src/main/resources/init-resources/azure_vm_init_script.sh"]
+         |        },
+         |        {
+         |          "key": "commandToExecute",
+         |          "value": ""
+         |        }
+         |      ]
+         |    },
+         |    "vmUser":{"name":"username","password":"password"},
          |    "diskId": "${fixedUUID.toString}",
          |    "networkId": "${fixedUUID.toString}"
          |  },
@@ -208,6 +244,58 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
          |  "azureIp": {
          |    "fillerFieldsThatAreNotDecoded": "filler"
          |  }
+         |}
+         |""".stripMargin.replaceAll("\\s", "")
+    )
+
+    decodedResp shouldBe Right(expected)
+  }
+
+  it should "decode getRelayNamespace response" in {
+    val expected = GetRelayNamespace(
+      List(
+        WsmResource(
+          ResourceAttributes(
+            WsmRelayNamespace(RelayNamespace("qi-relay-ns-5-2-1"),
+                              region = com.azure.core.management.Region.US_WEST_CENTRAL)
+          )
+        )
+      )
+    )
+    val decodedResp = decode[GetRelayNamespace](
+      s"""
+         |{
+         |    "resources":
+         |    [
+         |        {
+         |            "metadata":
+         |            {
+         |                "workspaceId": "bab2beee-bc29-42d0-bc1e-d2b8baa583c3",
+         |                "resourceId": "5f22f3ce-63d7-4790-aa98-fb5b4e5b0430",
+         |                "name": "qi-relay-ns-cname-1",
+         |                "description": "relay-ns",
+         |                "resourceType": "AZURE_RELAY_NAMESPACE",
+         |                "stewardshipType": "CONTROLLED",
+         |                "cloningInstructions": "COPY_NOTHING",
+         |                "controlledResourceMetadata":
+         |                {
+         |                    "accessScope": "SHARED_ACCESS",
+         |                    "managedBy": "USER",
+         |                    "privateResourceUser":
+         |                    {},
+         |                    "privateResourceState": "NOT_APPLICABLE"
+         |                }
+         |            },
+         |            "resourceAttributes":
+         |            {
+         |                "azureRelayNamespace":
+         |                {
+         |                    "namespaceName": "qi-relay-ns-5-2-1",
+         |                    "region": "westcentralus"
+         |                }
+         |            }
+         |        }
+         |    ]
          |}
          |""".stripMargin.replaceAll("\\s", "")
     )

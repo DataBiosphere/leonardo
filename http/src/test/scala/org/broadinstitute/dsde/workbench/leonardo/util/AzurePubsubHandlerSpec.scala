@@ -74,7 +74,6 @@ class AzurePubsubHandlerSpec
                                                        azureRegion)
         runtime = makeCluster(1)
           .copy(
-            runtimeImages = Set(azureImage),
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
@@ -87,7 +86,7 @@ class AzurePubsubHandlerSpec
           getRuntime.status shouldBe RuntimeStatus.Running
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId("job1"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -95,9 +94,12 @@ class AzurePubsubHandlerSpec
         _ <- withInfiniteStream(asyncTaskProcessor.process, assertions)
         controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
       } yield {
-        controlledResources.length shouldBe 1
-        controlledResources.map(_.resourceType) should contain(WsmResourceType.AzureVm)
-        controlledResources.map(_.resourceId) shouldBe List(resourceId)
+        controlledResources.length shouldBe 3
+        val resourceTypes = controlledResources.map(_.resourceType)
+        resourceTypes.contains(WsmResourceType.AzureVm) shouldBe true
+        resourceTypes.contains(WsmResourceType.AzureNetwork) shouldBe true
+        resourceTypes.contains(WsmResourceType.AzureDisk) shouldBe true
+        controlledResources.map(_.resourceId).contains(resourceId) shouldBe true
       }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -116,7 +118,6 @@ class AzurePubsubHandlerSpec
                                                        azureRegion)
         runtime = makeCluster(2)
           .copy(
-            runtimeImages = Set(azureImage),
             status = RuntimeStatus.Running,
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
@@ -131,9 +132,6 @@ class AzurePubsubHandlerSpec
           controlledResources.length shouldBe 0
         }
 
-        _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureIp)
-          .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
           .transaction
@@ -170,7 +168,6 @@ class AzurePubsubHandlerSpec
                                                        azureRegion)
         runtime = makeCluster(1)
           .copy(
-            runtimeImages = Set(azureImage),
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
@@ -185,7 +182,7 @@ class AzurePubsubHandlerSpec
           error.map(_.errorMessage).head should include(exceptionMsg)
         }
 
-        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, WsmJobId("job1"), None)
+        msg = CreateAzureRuntimeMessage(runtime.id, workspaceId, RelayNamespace("relay-ns"), None)
 
         asyncTaskProcessor = AsyncTaskProcessor(AsyncTaskProcessor.Config(10, 10), queue)
         _ <- azureInterp.createAndPollRuntime(msg)
@@ -214,7 +211,6 @@ class AzurePubsubHandlerSpec
                                                        azureRegion)
         runtime = makeCluster(2)
           .copy(
-            runtimeImages = Set(azureImage),
             status = RuntimeStatus.Running,
             cloudContext = CloudContext.Azure(azureCloudContext)
           )
@@ -223,9 +219,6 @@ class AzurePubsubHandlerSpec
         //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
-          .transaction
-        _ <- controlledResourceQuery
-          .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureIp)
           .transaction
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureDisk)
@@ -252,13 +245,14 @@ class AzurePubsubHandlerSpec
   }
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
-                      computeManagerDao: ComputeManagerDao[IO] = new MockComputeManagerDao(),
-                      wsmDAO: MockWsmDAO = new MockWsmDAO): AzureInterpreter[IO] =
-    new AzureInterpreter[IO](
-      ConfigReader.appConfig.azure.monitor,
+                      computeManagerDao: AzureManagerDao[IO] = new MockComputeManagerDao(),
+                      wsmDAO: MockWsmDAO = new MockWsmDAO): AzurePubsubHandlerInterp[IO] =
+    new AzurePubsubHandlerInterp[IO](
+      ConfigReader.appConfig.azure.pubsubHandler,
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),
+      new MockJupyterDAO(),
       computeManagerDao
     )
 
