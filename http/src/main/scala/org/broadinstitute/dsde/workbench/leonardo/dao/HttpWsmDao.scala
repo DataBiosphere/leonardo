@@ -82,7 +82,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
                 )
             ),
           entity = request,
-          headers = Headers(authorization, ctx.traceId, true)
+          headers = headers(authorization, ctx.traceId, true)
         )
       )(onError)
     } yield res
@@ -102,7 +102,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
                 )
             ),
           entity = request,
-          headers = Headers(authorization, ctx.traceId, true)
+          headers = headers(authorization, ctx.traceId, true)
         )
       )(onError)
     } yield res
@@ -120,7 +120,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
               Uri.Path
                 .unsafeFromString(s"/api/workspaces/v1/${workspaceId.value.toString}")
             ),
-          headers = Headers(authorization, ctx.traceId, false)
+          headers = headers(authorization, ctx.traceId, false)
         )
       )(onError)
     } yield res
