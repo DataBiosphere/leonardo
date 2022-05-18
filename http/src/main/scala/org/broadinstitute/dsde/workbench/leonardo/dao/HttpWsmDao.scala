@@ -7,6 +7,7 @@ import cats.mtl.Ask
 import org.broadinstitute.dsde.workbench.leonardo.config.HttpWsmDaoConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmDecoders._
 import org.broadinstitute.dsde.workbench.leonardo.dao.WsmEncoders._
+import org.broadinstitute.dsde.workbench.model.TraceId
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.http4s._
 import org.http4s.circe.CirceEntityDecoder._
@@ -14,6 +15,7 @@ import org.http4s.circe.CirceEntityEncoder._
 import org.http4s.client.Client
 import org.http4s.client.dsl.Http4sClientDsl
 import org.http4s.headers.{`Content-Type`, Authorization}
+import org.typelevel.ci.CIString
 import org.typelevel.log4cats.StructuredLogger
 
 class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
@@ -27,86 +29,101 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
 
   override def createIp(request: CreateIpRequest,
                         authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[CreateIpResponse] =
-    httpClient.expectOr[CreateIpResponse](
-      Request[F](
-        method = Method.POST,
-        uri = config.uri
-          .withPath(
-            Uri.Path
-              .unsafeFromString(
-                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip"
-              )
-          ),
-        entity = request,
-        headers = Headers(authorization, defaultMediaType)
-      )
-    )(onError)
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOr[CreateIpResponse](
+        Request[F](
+          method = Method.POST,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/ip"
+                )
+            ),
+          entity = request,
+          headers = headers(authorization, ctx.traceId, true)
+        )
+      )(onError)
+    } yield res
 
   override def createDisk(request: CreateDiskRequest,
                           authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[CreateDiskResponse] =
-    httpClient.expectOr[CreateDiskResponse](
-      Request[F](
-        method = Method.POST,
-        uri = config.uri
-          .withPath(
-            Uri.Path
-              .unsafeFromString(
-                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks"
-              )
-          ),
-        entity = request,
-        headers = Headers(authorization, defaultMediaType)
-      )
-    )(onError)
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOr[CreateDiskResponse](
+        Request[F](
+          method = Method.POST,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/disks"
+                )
+            ),
+          entity = request,
+          headers = headers(authorization, ctx.traceId, true)
+        )
+      )(onError)
+    } yield res
 
   override def createNetwork(request: CreateNetworkRequest,
                              authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[CreateNetworkResponse] =
-    httpClient.expectOr[CreateNetworkResponse](
-      Request[F](
-        method = Method.POST,
-        uri = config.uri
-          .withPath(
-            Uri.Path
-              .unsafeFromString(
-                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/network"
-              )
-          ),
-        entity = request,
-        headers = Headers(authorization, defaultMediaType)
-      )
-    )(onError)
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOr[CreateNetworkResponse](
+        Request[F](
+          method = Method.POST,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/network"
+                )
+            ),
+          entity = request,
+          headers = headers(authorization, ctx.traceId, true)
+        )
+      )(onError)
+    } yield res
 
   override def createVm(request: CreateVmRequest,
                         authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[CreateVmResult] =
-    httpClient.expectOr[CreateVmResult](
-      Request[F](
-        method = Method.POST,
-        uri = config.uri
-          .withPath(
-            Uri.Path
-              .unsafeFromString(
-                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm"
-              )
-          ),
-        entity = request,
-        headers = Headers(authorization, defaultMediaType)
-      )
-    )(onError)
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOr[CreateVmResult](
+        Request[F](
+          method = Method.POST,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm"
+                )
+            ),
+          entity = request,
+          headers = headers(authorization, ctx.traceId, true)
+        )
+      )(onError)
+    } yield res
 
   override def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]] =
-    httpClient.expectOptionOr[WorkspaceDescription](
-      Request[F](
-        method = Method.GET,
-        uri = config.uri
-          .withPath(
-            Uri.Path
-              .unsafeFromString(s"/api/workspaces/v1/${workspaceId.value.toString}")
-          ),
-        headers = Headers(authorization)
-      )
-    )(onError)
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOptionOr[WorkspaceDescription](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(s"/api/workspaces/v1/${workspaceId.value.toString}")
+            ),
+          headers = headers(authorization, ctx.traceId, false)
+        )
+      )(onError)
+    } yield res
 
   override def deleteVm(request: DeleteWsmResourceRequest,
                         authorization: Authorization)(implicit ev: Ask[F, AppContext]): F[DeleteWsmResourceResult] =
@@ -128,19 +145,22 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
   override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult] =
-    httpClient.expectOr[GetCreateVmJobResult](
-      Request[F](
-        method = Method.GET,
-        uri = config.uri
-          .withPath(
-            Uri.Path
-              .unsafeFromString(
-                s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/create-result/${request.jobId.value}"
-              )
-          ),
-        headers = Headers(authorization)
-      )
-    )(onError)
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOr[GetCreateVmJobResult](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/create-result/${request.jobId.value}"
+                )
+            ),
+          headers = headers(authorization, ctx.traceId, false)
+        )
+      )(onError)
+    } yield res
 
   def getRelayNamespace(workspaceId: WorkspaceId,
                         region: com.azure.core.management.Region,
@@ -148,6 +168,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
     implicit ev: Ask[F, AppContext]
   ): F[Option[RelayNamespace]] =
     for {
+      ctx <- ev.ask
       resp <- httpClient.expectOr[GetRelayNamespace](
         Request[F](
           method = Method.GET,
@@ -159,7 +180,7 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
                 )
             )
             .withMultiValueQueryParams(Map("resource" -> List("AZURE_RELAY_NAMESPACE"))),
-          headers = Headers(authorization)
+          headers = headers(authorization, ctx.traceId, false)
         )
       )(onError)
     } yield resp.resources.collect {
@@ -170,20 +191,23 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
   private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(
     implicit ev: Ask[F, AppContext]
   ): F[DeleteWsmResourceResult] =
-    httpClient.expectOr[DeleteWsmResourceResult](
-      Request[F](
-        method = Method.POST,
-        uri = config.uri
-          .withPath(
-            Uri.Path
-              .unsafeFromString(
-                s"/api/workspaces/v1/${req.workspaceId.value.toString}/resources/controlled/azure/${resource}/${req.resourceId.value.toString}"
-              )
-          ),
-        entity = req.deleteRequest,
-        headers = Headers(authorization, defaultMediaType)
-      )
-    )(onError)
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOr[DeleteWsmResourceResult](
+        Request[F](
+          method = Method.POST,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${req.workspaceId.value.toString}/resources/controlled/azure/${resource}/${req.resourceId.value.toString}"
+                )
+            ),
+          entity = req.deleteRequest,
+          headers = headers(authorization, ctx.traceId, true)
+        )
+      )(onError)
+    } yield res
 
   private def onError(response: Response[F])(implicit ev: Ask[F, AppContext]): F[Throwable] =
     for {
@@ -192,4 +216,12 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(
       _ <- logger.error(context.loggingCtx)(s"WSM call failed: $body")
       _ <- metrics.incrementCounter("wsm/errorResponse")
     } yield WsmException(context.traceId, body)
+
+  def headers(authorization: Authorization, traceId: TraceId, withBody: Boolean): Headers = {
+    val requestId = Header.Raw(CIString("X-Request-ID"), traceId.asString)
+    if (withBody)
+      Headers(authorization, defaultMediaType, requestId)
+    else
+      Headers(authorization, requestId)
+  }
 }
