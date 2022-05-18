@@ -66,7 +66,7 @@ docker run -it --rm -v "$SOURCE_DIR":/gce-custom-images \
   /gce-custom-images/gce_image.wf.json
 
 gcloud beta compute images add-iam-policy-binding \
-    projects/$GOOGLE_PROJECT/global/images/${OUTPUT_IMAGE_NAME} \
+    projects/$PROJECT/global/images/${OUTPUT_IMAGE_NAME} \
     --member='allAuthenticatedUsers' \
     --role='roles/compute.imageUser'
 
