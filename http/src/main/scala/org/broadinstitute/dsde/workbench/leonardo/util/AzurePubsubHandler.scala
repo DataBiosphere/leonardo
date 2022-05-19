@@ -299,7 +299,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                                                                       e.getMessage),
                                             ctx.now)
           ),
-          ctx.now
+          ctx.now,
+          "createAzureRuntime"
         )
       )
     } yield ()
@@ -440,7 +441,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               )
               .void
           ),
-          ctx.now
+          ctx.now,
+          "deleteAzureRuntime"
         )
       )
     } yield ()
