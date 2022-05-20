@@ -188,7 +188,7 @@ class LeoPubsubMessageSubscriber[F[_]](
                                 3.5 minutes,
                                 4 minutes,
                                 4.5 minutes)
-      metricsName = s"pubsub/${event.msg.messageType.asString}"
+      metricsName = s"pubsub/ack/${event.msg.messageType.asString}"
       _ <- metrics.recordDuration(metricsName, duration, distributionBucket)
     } yield ()
 
@@ -226,7 +226,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           ctx.traceId,
           taskToRun,
           Some(createRuntimeErrorHandler(msg.runtimeId, ctx.now)),
-          ctx.now
+          ctx.now,
+          "createRuntime"
         )
       )
     } yield ()
@@ -306,7 +307,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           ctx.traceId,
           fa,
           Some(handleRuntimeMessageError(runtime.id, ctx.now, s"deleting runtime ${runtime.projectNameString} failed")),
-          ctx.now
+          ctx.now,
+          "deleteRuntime"
         )
       )
     } yield ()
@@ -351,7 +353,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           Some(
             handleRuntimeMessageError(msg.runtimeId, ctx.now, s"stopping runtime ${runtime.projectNameString} failed")
           ),
-          ctx.now
+          ctx.now,
+          "stopRuntime"
         )
       )
     } yield ()
@@ -385,7 +388,8 @@ class LeoPubsubMessageSubscriber[F[_]](
           Some(
             handleRuntimeMessageError(msg.runtimeId, ctx.now, s"starting runtime ${runtime.projectNameString} failed")
           ),
-          ctx.now
+          ctx.now,
+          "startRuntime"
         )
       )
     } yield ()
@@ -473,43 +477,54 @@ class LeoPubsubMessageSubscriber[F[_]](
             ctxStopping = Ask.const[F, AppContext](
               AppContext(ctx.traceId, timeToStop)
             )
-            _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(msg.runtimeId, RuntimeStatus.Stopping, ctx.now))
-            operation <- runtimeConfig.cloudService.interpreter
-              .stopRuntime(
-                StopRuntimeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), ctx.now, false)
-              )(
-                ctxStopping
-              )
-            task = for {
-              _ <- operation match {
-                case Some(op) =>
-                  val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
-                  for {
-                    operation <- F.blocking(op.get())
-                    _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
-                      runtimeConfig.cloudService
-                        .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
-                    )
-                  } yield ()
-                case None =>
-                  runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
-              }
-              now <- nowInstant
-              ctxStarting = Ask.const[F, AppContext](
-                AppContext(ctx.traceId, now)
-              )
-              _ <- startAndUpdateRuntime(runtime, runtimeConfig, msg.newMachineType)(ctxStarting)
-            } yield ()
-            _ <- asyncTasks.offer(
-              Task(ctx.traceId,
-                   task,
-                   Some(
-                     handleRuntimeMessageError(msg.runtimeId,
-                                               ctx.now,
-                                               s"updating runtime ${runtime.projectNameString} failed"
-                     )
-                   ),
-                   ctx.now
+          task = for {
+            _ <- operation match {
+              case Some(op) =>
+                val monitorContext = MonitorContext(ctx.now, runtime.id, ctx.traceId, RuntimeStatus.Stopping)
+                for {
+                  operation <- F.blocking(op.get())
+                  _ <- F.whenA(isSuccess(operation.getHttpErrorStatusCode))(
+                    runtimeConfig.cloudService
+                      .handlePollCheckCompletion(monitorContext, RuntimeAndRuntimeConfig(runtime, runtimeConfig))
+                  )
+                } yield ()
+              case None =>
+                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Stopping).compile.drain
+            }
+            now <- nowInstant
+            ctxStarting = Ask.const[F, AppContext](
+              AppContext(ctx.traceId, now)
+            )
+            _ <- startAndUpdateRuntime(runtime, runtimeConfig, msg.newMachineType)(ctxStarting)
+          } yield ()
+          _ <- asyncTasks.offer(
+            Task(
+              ctx.traceId,
+              task,
+              Some(
+                handleRuntimeMessageError(msg.runtimeId,
+                                          ctx.now,
+                                          s"updating runtime ${runtime.projectNameString} failed")
+              ),
+              ctx.now,
+              "stopAndUpdateRuntime"
+            )
+          )
+        } yield ()
+      } else {
+        for {
+          _ <- msg.newMachineType.traverse_(m =>
+            runtimeConfig.cloudService.interpreter
+              .updateMachineType(UpdateMachineTypeParams(RuntimeAndRuntimeConfig(runtime, runtimeConfig), m, ctx.now))
+          )
+          _ <- if (hasResizedCluster) {
+            asyncTasks.offer(
+              Task(
+                ctx.traceId,
+                runtimeConfig.cloudService.process(runtime.id, RuntimeStatus.Updating).compile.drain,
+                Some(handleRuntimeMessageError(runtime.id, ctx.now, "updating runtime")),
+                ctx.now,
+                "updateRuntime"
               )
             )
           } yield ()
@@ -610,8 +625,8 @@ class LeoPubsubMessageSubscriber[F[_]](
               Task(ctx.traceId,
                    task,
                    Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Creating Disk")),
-                   ctx.now
-              )
+                   ctx.now,
+                   "createDisk")
             )
           }
       }
@@ -707,8 +722,8 @@ class LeoPubsubMessageSubscriber[F[_]](
               Task(ctx.traceId,
                    task,
                    Some(logError(s"${ctx.traceId.asString} | ${diskId.value}", "Deleting Disk")),
-                   ctx.now
-              )
+                   ctx.now,
+                   "deleteDisk")
             )
           }
       }
@@ -766,8 +781,8 @@ class LeoPubsubMessageSubscriber[F[_]](
         Task(ctx.traceId,
              task,
              Some(logError(s"${ctx.traceId.asString} | ${msg.diskId.value}", "Updating Disk")),
-             ctx.now
-        )
+             ctx.now,
+             "updateDisk")
       )
     } yield ()
 
@@ -932,7 +947,7 @@ class LeoPubsubMessageSubscriber[F[_]](
       } yield ()
 
       _ <- asyncTasks.offer(
-        Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
+        Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "createApp")
       )
     } yield ()
 
@@ -1092,12 +1107,11 @@ class LeoPubsubMessageSubscriber[F[_]](
           else F.unit
       } yield ()
 
-      _ <-
-        if (sync) task
-        else
-          asyncTasks.offer(
-            Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now)
-          )
+      _ <- if (sync) task
+      else
+        asyncTasks.offer(
+          Task(ctx.traceId, task, Some(handleKubernetesError), ctx.now, "deleteApp")
+        )
     } yield ()
 
   private def getDiskDetachStatus(originalDetachTimestampOpt: Option[String],
@@ -1171,7 +1185,7 @@ class LeoPubsubMessageSubscriber[F[_]](
             None
           )
         }
-      _ <- asyncTasks.offer(Task(ctx.traceId, stopApp, Some(handleKubernetesError), ctx.now))
+      _ <- asyncTasks.offer(Task(ctx.traceId, stopApp, Some(handleKubernetesError), ctx.now, "stopApp"))
     } yield ()
 
   private[monitor] def handleStartAppMessage(
@@ -1191,7 +1205,7 @@ class LeoPubsubMessageSubscriber[F[_]](
           )
         }
 
-      _ <- asyncTasks.offer(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now))
+      _ <- asyncTasks.offer(Task(ctx.traceId, startApp, Some(handleKubernetesError), ctx.now, "startApp"))
     } yield ()
 
   private def handleKubernetesError(e: Throwable)(implicit ev: Ask[F, AppContext]): F[Unit] = ev.ask.flatMap { ctx =>

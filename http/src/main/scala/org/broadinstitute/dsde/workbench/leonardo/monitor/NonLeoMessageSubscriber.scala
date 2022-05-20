@@ -194,8 +194,8 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
         Task(ctx.traceId,
              task,
              Some(logError(s"${msg.nodepoolId}/${msg.googleProject}", DeleteNodepool.toString)),
-             ctx.now
-        )
+             ctx.now,
+             "deleteNodepool")
       )
     } yield ()
 
