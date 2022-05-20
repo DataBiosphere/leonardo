@@ -40,7 +40,7 @@ class AsyncTaskProcessorSpec extends AnyFlatSpec with Matchers with LeonardoTest
       val tasks = Stream
         .emits(1 to 10)
         .covary[IO]
-        .map(x => Task(traceId, io(x), None, Instant.now()))
+        .map(x => Task(traceId, io(x), None, Instant.now(), "test"))
 
       val stream = tasks.through(in => in.evalMap(queue.offer(_))) ++ asyncTaskProcessor.process
       stream.interruptWhen(signalToStop.get.attempt.map(_.map(_ => ())))
