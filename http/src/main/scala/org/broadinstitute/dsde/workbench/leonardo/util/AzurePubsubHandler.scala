@@ -21,7 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
-  AzureRuntimeDeletioinError,
+  AzureRuntimeDeletionError,
   ClusterError
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
@@ -432,15 +432,15 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
             } yield ()
           case WsmJobStatus.Failed =>
             F.raiseError[Unit](
-              AzureRuntimeDeletioinError(
+              AzureRuntimeDeletionError(
                 msg.runtimeId,
                 msg.workspaceId,
-                s"WSM delete VM job failed due due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                s"WSM delete VM job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
               )
             )
           case WsmJobStatus.Running =>
             F.raiseError[Unit](
-              AzureRuntimeDeletioinError(
+              AzureRuntimeDeletionError(
                 msg.runtimeId,
                 msg.workspaceId,
                 s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"

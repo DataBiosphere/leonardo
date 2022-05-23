@@ -129,7 +129,7 @@ class AzurePubsubHandlerSpec
           controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Deleted
-          (controlledResources.length > 0) shouldBe (true)
+          controlledResources.length shouldBe (2)
         }
 
         _ <- controlledResourceQuery
