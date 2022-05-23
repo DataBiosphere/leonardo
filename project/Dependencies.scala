@@ -7,8 +7,8 @@ object Dependencies {
   val akkaHttpV = "10.2.7"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
-  val scalaLoggingV = "3.9.4"
-  val scalaTestV = "3.2.12"
+  val scalaLoggingV = "3.9.5"
+  val scalaTestV = "3.2.11"
   val slickV = "3.3.3"
   val http4sVersion = "1.0.0-M32"
   val guavaV = "31.0.1-jre"
@@ -146,7 +146,7 @@ object Dependencies {
     workbenchOpenTelemetryTest,
     helmScalaSdk,
     helmScalaSdkTest,
-    "net.logstash.logback" % "logstash-logback-encoder" % "7.0.1", // for structured logging in logback
+    "net.logstash.logback" % "logstash-logback-encoder" % "7.2", // for structured logging in logback
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
@@ -185,7 +185,7 @@ object Dependencies {
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
     "com.auth0" % "java-jwt" % "3.19.1",
-
+    "com.azure.resourcemanager" % "azure-resourcemanager-relay" % "1.0.0-beta.1",
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito

@@ -753,7 +753,7 @@ class HttpRoutesSpec
       runtimeService,
       MockDiskServiceInterp,
       MockAppService,
-      azureService,
+      runtimev2Service,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -767,7 +767,7 @@ class HttpRoutesSpec
       runtimeService,
       MockDiskServiceInterp,
       kubernetesService,
-      azureService,
+      runtimev2Service,
       timedUserInfoDirectives,
       contentSecurityPolicy,
       refererConfig

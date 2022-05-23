@@ -65,8 +65,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                       extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
                         get {
                           val cookieDirective = userInfoOpt match {
-                            case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
-                            case None           => CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName)
+                            case Some(userInfo) => CookieSupport.setTokenCookie(userInfo)
+                            case None           => CookieSupport.unsetTokenCookie()
                           }
                           cookieDirective {
                             complete {
@@ -101,7 +101,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                   path("invalidateToken") {
                     get {
                       extractUserInfoOptWithUserEnabledCheck(implicitly) { userInfoOpt =>
-                        CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName) {
+                        CookieSupport.unsetTokenCookie() {
                           complete {
                             invalidateTokenHandler(userInfoOpt)
                           }
@@ -113,8 +113,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                     extractUserInfoFromHeaderWithUserEnabledCheck(implicitly) { userInfoOpt =>
                       get {
                         val cookieDirective = userInfoOpt match {
-                          case Some(userInfo) => CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName)
-                          case None           => CookieSupport.unsetTokenCookie(CookieSupport.tokenCookieName)
+                          case Some(userInfo) => CookieSupport.setTokenCookie(userInfo)
+                          case None           => CookieSupport.unsetTokenCookie()
                         }
                         cookieDirective {
                           complete {

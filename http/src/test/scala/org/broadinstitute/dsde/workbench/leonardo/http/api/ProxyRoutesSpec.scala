@@ -478,7 +478,7 @@ class ProxyRoutesSpec
       runtimeService,
       MockDiskServiceInterp,
       leoKubernetesService,
-      azureService,
+      runtimev2Service,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
@@ -581,7 +581,7 @@ class ProxyRoutesSpec
       runtimeService,
       MockDiskServiceInterp,
       leoKubernetesService,
-      azureService,
+      runtimev2Service,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig

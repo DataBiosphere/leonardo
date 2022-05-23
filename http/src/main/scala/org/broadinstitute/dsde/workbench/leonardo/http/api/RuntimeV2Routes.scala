@@ -32,7 +32,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+        CookieSupport.setTokenCookie(userInfo) {
           pathPrefix("v2" / "runtimes") {
             pathEndOrSingleSlash {
               parameterMap { params =>
@@ -144,8 +144,7 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
     for {
       ctx <- ev.ask[AppContext]
 
-      jobUUID = WsmJobId(s"create-${runtimeName.asString}")
-      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, req, jobUUID)
+      apiCall = runtimeV2Service.createRuntime(userInfo, runtimeName, workspaceId, req)
       _ <- metrics.incrementCounter("createRuntimeV2")
       _ <- ctx.span.fold(apiCall)(span =>
         spanResource[IO](span, "createRuntimeV2")
@@ -219,17 +218,11 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
       labels <- c.downField("labels").as[LabelMap]
       region <- c.downField("region").as[Region]
       machineSize <- c.downField("machineSize").as[VirtualMachineSizeTypes]
-      imageUri <- c.downField("imageUri").as[Option[AzureImageUri]]
       customEnvVars <- c
         .downField("customEnvironmentVariables")
         .as[Option[Map[String, String]]]
       azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
-    } yield CreateAzureRuntimeRequest(labels,
-                                      region,
-                                      machineSize,
-                                      imageUri,
-                                      customEnvVars.getOrElse(Map.empty),
-                                      azureDiskReq)
+    } yield CreateAzureRuntimeRequest(labels, region, machineSize, customEnvVars.getOrElse(Map.empty), azureDiskReq)
   }
 
   implicit val updateAzureRuntimeRequestDecoder: Decoder[UpdateAzureRuntimeRequest] =
