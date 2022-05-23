@@ -30,7 +30,7 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
       now <- F.realTimeInstant
       latency = (now.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
       tags = Map("taskName" -> task.taskName)
-      _ <- recordLatency(latency, tags)
+      _ <- recordLatency("asyncTaskLatency", latency, tags)
       _ <- logger.info(Map("traceId" -> task.traceId.asString))(
         s"Executing task with latency of ${latency.toSeconds} seconds"
       )
@@ -40,6 +40,9 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
             s"Error when executing async task"
           )
       }
+      end <- F.realTimeInstant
+      timeToFinishTask = (end.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
+      _ <- recordLatency("asyncTaskDuration", timeToFinishTask, tags)
     } yield ()
 
   private def recordCurrentNumOfTasks: Stream[F, Unit] = {
@@ -52,8 +55,8 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
   }
 
   // record the latency between message being enqueued and task gets executed
-  private def recordLatency(latency: FiniteDuration, tags: Map[String, String]): F[Unit] =
-    metrics.recordDuration("asyncTaskLatency",
+  private def recordLatency(metricsName: String, latency: FiniteDuration, tags: Map[String, String]): F[Unit] =
+    metrics.recordDuration(metricsName,
                            latency,
                            List(
                              10 seconds,
