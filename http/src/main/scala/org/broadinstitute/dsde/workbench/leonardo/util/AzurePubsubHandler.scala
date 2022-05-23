@@ -429,7 +429,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               _ <- msg.diskId.traverse(diskId =>
                 dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
               )
-              - <- dbRef.inTransaction(controlledResourceQuery.deleteAllForRuntime(runtime.id))
             } yield ()
           case WsmJobStatus.Failed =>
             F.raiseError[Unit](
