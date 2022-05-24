@@ -222,7 +222,13 @@ class RuntimeV2Routes(saturnIframeExtentionHostConfig: RefererConfig,
         .downField("customEnvironmentVariables")
         .as[Option[Map[String, String]]]
       azureDiskReq <- c.downField("disk").as[CreateAzureDiskRequest]
-    } yield CreateAzureRuntimeRequest(labels, region, machineSize, customEnvVars.getOrElse(Map.empty), azureDiskReq)
+      apt <- c.downField("autopauseThreshold").as[Option[Int]]
+    } yield CreateAzureRuntimeRequest(labels,
+                                      region,
+                                      machineSize,
+                                      customEnvVars.getOrElse(Map.empty),
+                                      azureDiskReq,
+                                      apt)
   }
 
   implicit val updateAzureRuntimeRequestDecoder: Decoder[UpdateAzureRuntimeRequest] =
