@@ -6,7 +6,11 @@ import cats.effect.std.Dispatcher
 import cats.effect.unsafe.implicits.global
 import com.github.benmanes.caffeine.cache.Caffeine
 import io.circe.parser._
+import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WorkspaceResourceSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import org.broadinstitute.dsde.workbench.leonardo.config.Config.httpSamDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDAO.listResourceResponseDecoder
+import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.model.WorkbenchEmail
 import org.broadinstitute.dsde.workbench.util.health.Subsystems.{GoogleGroups, GoogleIam, GooglePubSub, OpenDJ}
@@ -19,10 +23,9 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
 import org.typelevel.log4cats.slf4j.Slf4jLogger
 import scalacache.caffeine.CaffeineCache
-import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
-import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 import java.nio.file.Paths
+import java.util.UUID
 import scala.concurrent.duration._
 import scala.util.control.NoStackTrace
 
@@ -133,6 +136,55 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
     res.unsafeRunSync
 
+  }
+
+  it should "decode ListResourceResponse properly" in {
+    val response =
+      """
+        |{
+        |    "authDomainGroups":
+        |    [],
+        |    "direct":
+        |    {
+        |        "actions":
+        |        [],
+        |        "roles":
+        |        [
+        |            "project-owner",
+        |            "owner"
+        |        ]
+        |    },
+        |    "inherited":
+        |    {
+        |        "actions":
+        |        [],
+        |        "roles":
+        |        []
+        |    },
+        |    "missingAuthDomainGroups":
+        |    [],
+        |    "public":
+        |    {
+        |        "actions":
+        |        [],
+        |        "roles":
+        |        []
+        |    },
+        |    "resourceId": "cea587e9-9a8e-45b6-b985-9e3803754020"
+        |}
+        |""".stripMargin
+
+    import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.workspaceSamResourceIdDecoder
+    val decodedResp = decode[ListResourceResponse[WorkspaceResourceSamResourceId]](response)
+    val expected = ListResourceResponse(
+      WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString("cea587e9-9a8e-45b6-b985-9e3803754020"))),
+      Set(
+        SamPolicyName.Owner,
+        SamPolicyName.Other("project-owner")
+      )
+    )
+
+    decodedResp shouldBe Right(expected)
   }
 
   it should "throws exception once client times out" in {

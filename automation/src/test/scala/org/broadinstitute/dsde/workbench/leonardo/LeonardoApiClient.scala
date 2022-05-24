@@ -128,7 +128,8 @@ object LeonardoApiClient {
       AzureDiskName(UUID.randomUUID().toString.substring(0, 8)),
       None,
       None
-    )
+    ),
+    Some(0)
   )
 
   def createRuntime(

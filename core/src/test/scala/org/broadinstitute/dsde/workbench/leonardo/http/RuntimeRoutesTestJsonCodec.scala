@@ -81,8 +81,8 @@ object RuntimeRoutesTestJsonCodec {
   implicit val azureDiskConfigEncoder: Encoder[CreateAzureDiskRequest] =
     Encoder.forProduct4("labels", "name", "size", "diskType")(x => CreateAzureDiskRequest.unapply(x).get)
   implicit val createAzureRuntimeRequestEncoder: Encoder[CreateAzureRuntimeRequest] =
-    Encoder.forProduct5("labels", "region", "machineSize", "customEnvironmentVariables", "disk")(x =>
-      CreateAzureRuntimeRequest.unapply(x).get
+    Encoder.forProduct6("labels", "region", "machineSize", "customEnvironmentVariables", "disk", "autopauseThreshold")(
+      x => CreateAzureRuntimeRequest.unapply(x).get
     )
 
   implicit val createRuntime2RequestEncoder: Encoder[CreateRuntime2Request] = Encoder.forProduct12(

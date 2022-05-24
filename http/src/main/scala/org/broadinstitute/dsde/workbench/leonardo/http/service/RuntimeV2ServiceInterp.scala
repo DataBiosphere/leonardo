@@ -418,7 +418,7 @@ class RuntimeV2ServiceInterp[F[_]: Parallel](config: RuntimeServiceConfig,
       startUserScriptUri = None,
       errors = List.empty,
       userJupyterExtensionConfig = None,
-      autopauseThreshold = 30,
+      autopauseThreshold = request.autoPauseThreshold.getOrElse(0), //TODO: default to 30 once we start supporting autopause
       defaultClientId = None,
       allowStop = false,
       runtimeImages = runtimeImages,
