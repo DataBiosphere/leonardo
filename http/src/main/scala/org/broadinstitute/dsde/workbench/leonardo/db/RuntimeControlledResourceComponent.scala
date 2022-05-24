@@ -26,11 +26,6 @@ class RuntimeControlledResourceTable(tag: Tag)
 }
 
 object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceTable(_)) {
-  def deleteAllForRuntime(runtimeId: Long): DBIO[Int] =
-    controlledResourceQuery
-      .filter(_.runtimeId === runtimeId)
-      .delete
-
   def save(runtimeId: Long, resourceId: WsmControlledResourceId, resourceType: WsmResourceType): DBIO[Int] =
     controlledResourceQuery += RuntimeControlledResourceRecord(runtimeId, resourceId, resourceType)
 

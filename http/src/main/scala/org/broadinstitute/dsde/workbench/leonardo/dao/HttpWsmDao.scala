@@ -165,6 +165,26 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
+  override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[GetDeleteJobResult] =
+    for {
+      ctx <- ev.ask
+      res <- httpClient.expectOr[GetDeleteJobResult](
+        Request[F](
+          method = Method.GET,
+          uri = config.uri
+            .withPath(
+              Uri.Path
+                .unsafeFromString(
+                  s"/api/workspaces/v1/${request.workspaceId.value.toString}/resources/controlled/azure/vm/delete-result/${request.jobId.value}"
+                )
+            ),
+          headers = headers(authorization, ctx.traceId, false)
+        )
+      )(onError)
+    } yield res
+
   def getRelayNamespace(workspaceId: WorkspaceId,
                         region: com.azure.core.management.Region,
                         authorization: Authorization)(

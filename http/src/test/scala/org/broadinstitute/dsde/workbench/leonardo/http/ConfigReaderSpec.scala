@@ -34,7 +34,7 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
         AzurePubsubHandlerConfig(
           Uri.unsafeFromString("https://sam.test.org:443"),
           PollMonitorConfig(1 seconds, 120, 1 seconds),
-          PollMonitorConfig(1 seconds, 120, 1 seconds),
+          PollMonitorConfig(1 seconds, 20, 1 seconds),
           AzureRuntimeDefaults(
             "Azure Ip",
             "ip",
