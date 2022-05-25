@@ -512,7 +512,8 @@ object CommonTestData {
       AzureDiskName("diskName1"),
       Some(DiskSize(100)),
       None
-    )
+    ),
+    Some(0)
   )
 
   def modifyInstance(instance: DataprocInstance): DataprocInstance =

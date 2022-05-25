@@ -406,7 +406,7 @@ object RuntimeRoutes {
     } yield r
   }
 
-  implicit val createRuntimeRequestDecoder: Decoder[CreateRuntime2Request] = Decoder.instance { c =>
+  implicit val createRuntime2RequestDecoder: Decoder[CreateRuntime2Request] = Decoder.instance { c =>
     for {
       l <- c.downField("labels").as[Option[LabelMap]]
       _ <- l.fold(().asRight[DecodingFailure]) { labelMap =>
