@@ -20,7 +20,6 @@ import org.broadinstitute.dsde.workbench.google2.{
   RegionName,
   SubnetworkName
 }
-import org.broadinstitute.dsde.workbench.leonardo.AppType.Cromwell
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, WorkbenchEmail}
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
@@ -378,9 +377,11 @@ final case class App(id: AppId,
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"
-      // Holding fix until BW-620. For Cromwell only, a trailing '/' is appended:
-      val url = if (appType == Cromwell) s"${proxyUrlBase}${proxyPath}/" else s"${proxyUrlBase}${proxyPath}"
-      (service.config.name, new URL(url))
+      val servicePath = service.config.path match {
+        case Some(path) => path.value.replace("{proxyPath}", proxyPath)
+        case None       => ""
+      }
+      (service.config.name, new URL(s"${proxyUrlBase}${proxyPath}${servicePath}"))
     }.toMap
 }
 
@@ -456,8 +457,9 @@ object AppStatus {
 
 final case class KubernetesService(id: ServiceId, config: ServiceConfig)
 final case class ServiceId(id: Long) extends AnyVal
-final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName)
+final case class ServiceConfig(name: ServiceName, kind: KubernetesServiceKindName, path: Option[ServicePath] = None)
 final case class KubernetesServiceKindName(value: String) extends AnyVal
+final case class ServicePath(value: String) extends AnyVal
 
 final case class KubernetesRuntimeConfig(numNodes: NumNodes, machineType: MachineTypeName, autoscalingEnabled: Boolean)
 final case class NumNodepools(value: Int) extends AnyVal
