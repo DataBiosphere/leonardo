@@ -645,7 +645,8 @@ object Config {
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
-      config.as[KubernetesServiceKindName]("kind")
+      config.as[KubernetesServiceKindName]("kind"),
+      config.as[Option[ServicePath]]("path")
     )
   }
 
@@ -662,6 +663,8 @@ object Config {
     stringValueReader.map(KubernetesServiceKindName)
   implicit private val kubernetesClusterVersionReader: ValueReader[KubernetesClusterVersion] =
     stringValueReader.map(KubernetesClusterVersion)
+  implicit private val servicePathReader: ValueReader[ServicePath] =
+    stringValueReader.map(ServicePath)
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")
