@@ -359,7 +359,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => F.pure(x.value)
       }
       _ <- relayNamespaceOpt.traverse(ns =>
-        azureManager.createRelayHybridConnection(
+        azureManager.deleteRelayHybridConnection(
           ns,
           RelayHybridConnectionName(runtime.runtimeName.asString),
           cloudContext
