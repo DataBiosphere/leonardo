@@ -327,7 +327,9 @@ object Config {
         config.getOrElse("notebookAuthCacheEnabled", true),
         config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000),
         config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes),
-        config.getAs[GroupName]("SamAuthProviderConfig").getOrElse(GroupName("custom_app_user"))
+        config
+          .getAs[GroupName]("customAppCreationAllowedGroup")
+          .getOrElse(throw new Exception("No customAppCreationAllowedGroup key found"))
       )
   }
 
