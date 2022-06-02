@@ -103,7 +103,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
 
   it should "fail request if user is not in custom_app_users group" in {
     val authProvider = new BaseMockAuthProvider {
-      override def isAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
         IO.pure(false)
     }
     val interp = new LeoAppServiceInterp[IO](authProvider,

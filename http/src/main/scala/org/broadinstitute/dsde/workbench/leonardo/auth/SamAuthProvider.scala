@@ -231,7 +231,7 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
         )
     } yield samUserInfo.userEmail
 
-  override def isAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
+  override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
     samDao.isGroupMembersOrAdmin(config.customAppCreationAllowedGroup, userEmail)
 
 }

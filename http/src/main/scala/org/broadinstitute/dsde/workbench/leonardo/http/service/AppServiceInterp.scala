@@ -65,7 +65,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
                                                   userInfo)
       _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
       isUserAllowed <- req.appType match {
-        case AppType.Custom => authProvider.isAllowed(userInfo.userEmail)
+        case AppType.Custom => authProvider.isCustomAppAllowed(userInfo.userEmail)
         case _              => F.pure(true)
       }
 

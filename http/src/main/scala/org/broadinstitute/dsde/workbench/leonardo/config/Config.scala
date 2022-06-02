@@ -328,8 +328,8 @@ object Config {
         config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000),
         config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes),
         config
-          .getAs[GroupName]("customAppCreationAllowedGroup")
-          .getOrElse(throw new Exception("No customAppCreationAllowedGroup key found"))
+          .getOrElse[GroupName]("customAppCreationAllowedGroup",
+                                throw new Exception("No customAppCreationAllowedGroup key found"))
       )
   }
 

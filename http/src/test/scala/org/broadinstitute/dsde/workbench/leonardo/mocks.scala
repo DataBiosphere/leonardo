@@ -141,7 +141,7 @@ class BaseMockAuthProvider extends LeoAuthProvider[IO] {
     implicit ev: Ask[IO, TraceId]
   ): IO[WorkbenchEmail] = ???
 
-  override def isAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
+  override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
 
 object MockAuthProvider extends BaseMockAuthProvider
