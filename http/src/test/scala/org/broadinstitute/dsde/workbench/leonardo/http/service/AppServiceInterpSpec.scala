@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   persistentDiskQuery,
   _
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
@@ -32,8 +32,8 @@ import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import java.time.Instant
 
+import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -99,6 +99,23 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       error1 shouldBe (Left(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId))))
       error2 shouldBe (Left(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId))))
     }
+  }
+
+  it should "fail request if user is not in custom_app_users group" in {
+    val authProvider = new BaseMockAuthProvider {
+      override def isAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(false)
+    }
+    val interp = new LeoAppServiceInterp[IO](authProvider,
+                                             serviceAccountProvider,
+                                             leoKubernetesConfig,
+                                             QueueFactory.makePublisherQueue(),
+                                             FakeGoogleComputeService)
+    val res = interp
+      .createApp(userInfo, project, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe (Left(ForbiddenError(userInfo.userEmail)))
   }
 
   it should "determine patch version bump correctly" in isolatedDbTest {

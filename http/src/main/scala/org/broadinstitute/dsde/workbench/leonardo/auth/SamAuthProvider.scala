@@ -9,7 +9,7 @@ import cats.syntax.all._
 import io.circe.{Decoder, Encoder}
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
-import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthProviderException, SamDAO}
+import org.broadinstitute.dsde.workbench.leonardo.dao.{AuthProviderException, GroupName, SamDAO}
 import org.broadinstitute.dsde.workbench.leonardo.model._
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo, WorkbenchEmail}
@@ -230,11 +230,16 @@ class SamAuthProvider[F[_]: OpenTelemetryMetrics](
           )
         )
     } yield samUserInfo.userEmail
+
+  override def isAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
+    samDao.isGroupMembersOrAdmin(config.customAppCreationAllowedGroup, userEmail)
+
 }
 
 final case class SamAuthProviderConfig(authCacheEnabled: Boolean,
                                        authCacheMaxSize: Int = 1000,
-                                       authCacheExpiryTime: FiniteDuration = 15 minutes)
+                                       authCacheExpiryTime: FiniteDuration = 15 minutes,
+                                       customAppCreationAllowedGroup: GroupName)
 
 private[leonardo] case class AuthCacheKey(samResourceType: SamResourceType,
                                           samResource: String,

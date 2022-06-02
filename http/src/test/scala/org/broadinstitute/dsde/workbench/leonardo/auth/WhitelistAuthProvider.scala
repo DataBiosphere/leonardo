@@ -118,4 +118,6 @@ class WhitelistAuthProvider(config: Config, saProvider: ServiceAccountProvider[I
     case serviceAccountEmail.value => IO(userEmail)
     case _                         => IO(petOrUserInfo.userEmail)
   }
+
+  override def isAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
