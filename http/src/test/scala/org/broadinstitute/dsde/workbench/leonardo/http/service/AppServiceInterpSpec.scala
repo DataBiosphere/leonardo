@@ -134,7 +134,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .createApp(userInfo, project, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    res.isRight shouldBe true
+    res.swap.toOption.get.isInstanceOf[ForbiddenError] shouldBe false
   }
 
   it should "determine patch version bump correctly" in isolatedDbTest {
