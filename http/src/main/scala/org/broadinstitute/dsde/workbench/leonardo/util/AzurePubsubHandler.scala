@@ -359,7 +359,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case x: CloudContext.Azure => F.pure(x.value)
       }
       _ <- relayNamespaceOpt.traverse(ns =>
-        azureManager.createRelayHybridConnection(
+        azureManager.deleteRelayHybridConnection(
           ns,
           RelayHybridConnectionName(runtime.runtimeName.asString),
           cloudContext
@@ -429,6 +429,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               _ <- msg.diskId.traverse(diskId =>
                 dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
               )
+              _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
             } yield ()
           case WsmJobStatus.Failed =>
             F.raiseError[Unit](

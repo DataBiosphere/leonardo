@@ -109,6 +109,37 @@ class RuntimeCreationDiskSpec
     res.unsafeRunSync()
   }
 
+  "create runtime with Balanced disk" in { googleProject =>
+    val runtimeName = randomClusterName
+    val createRuntimeRequest = defaultCreateRuntime2Request.copy(
+      runtimeConfig = Some(
+        RuntimeConfigRequest.GceWithPdConfig(
+          None,
+          PersistentDiskRequest(
+            DiskName("balanced-disk"),
+            None,
+            Some(DiskType.Balanced),
+            Map.empty
+          ),
+          None,
+          None
+        )
+      )
+    )
+
+    // validate disk still exists after runtime is deleted
+    val res = dependencies.use { dep =>
+      implicit val client = dep.httpClient
+      for {
+        getRuntimeResponse <- LeonardoApiClient.createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
+        _ <- LeonardoApiClient.deleteRuntimeWithWait(googleProject, runtimeName)
+      } yield {
+        getRuntimeResponse.diskConfig.map(_.diskType) shouldBe Some(DiskType.Balanced)
+      }
+    }
+    res.unsafeRunSync()
+  }
+
   "create runtime and attach a persistent disk" in { googleProject =>
     val diskName = genDiskName.sample.get
     val diskSize = genDiskSize.sample.get

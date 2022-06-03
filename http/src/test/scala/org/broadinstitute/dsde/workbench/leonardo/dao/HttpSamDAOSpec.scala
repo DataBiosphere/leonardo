@@ -125,17 +125,13 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val res = Dispatcher[IO].use { d =>
-      val samDao = new HttpSamDAO(okSam, config, petTokenCache)
-      val expectedResponse =
-        StatusCheckResponse(false,
-                            Map(GoogleIam -> SubsystemStatus(true, None),
-                                OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))
-                            )
-        )
+    val samDao = new HttpSamDAO(okSam, config, petTokenCache)
+    val expectedResponse =
+      StatusCheckResponse(false,
+                          Map(GoogleIam -> SubsystemStatus(true, None),
+                              OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
 
-      samDao.getStatus.map(s => s shouldBe expectedResponse)
-    }
+    val res = samDao.getStatus.map(s => s shouldBe expectedResponse)
 
     res.unsafeRunSync
 

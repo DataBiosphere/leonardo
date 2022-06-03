@@ -46,19 +46,19 @@ trait WsmDao[F[_]] {
 
   def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  ): F[Option[DeleteWsmResourceResult]]
 
-  def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]]
 
   def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  ): F[Option[DeleteWsmResourceResult]]
 
   def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  ): F[Option[DeleteWsmResourceResult]]
 
   def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]

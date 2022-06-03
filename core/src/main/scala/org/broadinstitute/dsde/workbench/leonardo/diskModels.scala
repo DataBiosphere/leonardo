@@ -95,6 +95,11 @@ object DiskType extends Enum[DiskType] {
     def googleString(googleProject: GoogleProject, zoneName: ZoneName): String =
       s"projects/${googleProject.value}/zones/${zoneName.value}/diskTypes/pd-ssd"
   }
+  final case object Balanced extends DiskType {
+    override def asString: String = "pd-balanced"
+    def googleString(googleProject: GoogleProject, zoneName: ZoneName): String =
+      s"projects/${googleProject.value}/zones/${zoneName.value}/diskTypes/pd-balanced"
+  }
 }
 
 sealed trait FormattedBy extends EnumEntry with Product with Serializable {

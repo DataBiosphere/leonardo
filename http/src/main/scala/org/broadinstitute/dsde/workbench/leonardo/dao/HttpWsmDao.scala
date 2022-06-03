@@ -125,24 +125,24 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
       )(onError)
     } yield res
 
-  override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult] =
+  override def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "vm")
 
-  override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult] =
+  override def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "disks")
 
-  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult] =
+  override def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "ip")
 
-  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(implicit
-    ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult] =
+  override def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]] =
     deleteHelper(request, authorization, "network")
 
   override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
@@ -213,10 +213,10 @@ class HttpWsmDao[F[_]](httpClient: Client[F], config: HttpWsmDaoConfig)(implicit
 
   private def deleteHelper(req: DeleteWsmResourceRequest, authorization: Authorization, resource: String)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult] =
+  ): F[Option[DeleteWsmResourceResult]] =
     for {
       ctx <- ev.ask
-      res <- httpClient.expectOr[DeleteWsmResourceResult](
+      res <- httpClient.expectOptionOr[DeleteWsmResourceResult](
         Request[F](
           method = Method.POST,
           uri = config.uri
