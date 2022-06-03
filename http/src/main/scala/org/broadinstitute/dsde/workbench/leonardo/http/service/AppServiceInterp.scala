@@ -63,7 +63,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateApp,
                                                   userInfo)
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+      _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
+      isUserAllowed <- req.appType match {
+        case AppType.Custom => authProvider.isCustomAppAllowed(userInfo.userEmail)
+        case _              => F.pure(true)
+      }
+
+      _ <- F.raiseWhen(!isUserAllowed)(ForbiddenError(userInfo.userEmail))
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
       _ <- appOpt.fold(F.unit)(c =>

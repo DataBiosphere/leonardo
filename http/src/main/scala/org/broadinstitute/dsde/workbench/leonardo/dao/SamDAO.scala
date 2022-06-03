@@ -75,6 +75,11 @@ trait SamDAO[F[_]] {
   def getSamUserInfo(token: String)(implicit ev: Ask[F, TraceId]): F[Option[SamUserInfo]]
 
   def getLeoAuthToken: F[Authorization]
+
+  def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(
+    implicit ev: Ask[F, TraceId]
+  ): F[Boolean]
 }
 
 final case class UserSubjectId(asString: String) extends AnyVal
+final case class GroupName(asString: String) extends AnyVal
