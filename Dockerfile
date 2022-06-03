@@ -65,7 +65,7 @@ RUN cd /leonardo && \
 # Install https://github.com/apangin/jattach to get access to JDK tools
 RUN apt-get update && \
     apt-get install jattach
-    
+
 # Copy Terra-docker-versions-candidate.json from bucket into docker root
 RUN curl -fsSL -o /terra-docker-versions-candidate.json \
     https://storage.googleapis.com/terra-docker-image-documentation/terra-docker-versions-candidate.json
