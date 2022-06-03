@@ -26,6 +26,7 @@ import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
 import org.broadinstitute.dsde.workbench.leonardo.dao.{GroupName, HttpSamDaoConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
@@ -702,6 +703,10 @@ object Config {
     gkeCustomAppConfig
   )
 
+  val appServiceConfig = AppServiceConfig(
+    config.getBoolean("app-service.enable-custom-app-group-permission-check"),
+    leoKubernetesConfig
+  )
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
 
