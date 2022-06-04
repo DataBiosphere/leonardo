@@ -18,7 +18,7 @@ import org.broadinstitute.dsde.workbench.leonardo.db.{
   persistentDiskQuery,
   _
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
@@ -32,25 +32,26 @@ import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import java.time.Instant
 
+import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
 final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+  val appServiceConfig = Config.appServiceConfig
 
   //used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
-    new LeoAppServiceInterp[IO](whitelistAuthProvider,
+    new LeoAppServiceInterp[IO](appServiceConfig,
+                                whitelistAuthProvider,
                                 serviceAccountProvider,
-                                leoKubernetesConfig,
                                 queue,
-                                FakeGoogleComputeService
-    )
-  val appServiceInterp = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                FakeGoogleComputeService)
+  val appServiceInterp = new LeoAppServiceInterp[IO](appServiceConfig,
+                                                     whitelistAuthProvider,
                                                      serviceAccountProvider,
-                                                     leoKubernetesConfig,
                                                      QueueFactory.makePublisherQueue(),
                                                      FakeGoogleComputeService
   )
@@ -76,21 +77,19 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
         IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(6 * 1024).setGuestCpus(2).build()))
     }
 
-    val passAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+    val passAppService = new LeoAppServiceInterp[IO](appServiceConfig,
+                                                     whitelistAuthProvider,
                                                      serviceAccountProvider,
-                                                     leoKubernetesConfig,
                                                      QueueFactory.makePublisherQueue(),
-                                                     passComputeService
-    )
-    val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                     passComputeService)
+    val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](appServiceConfig,
+                                                                whitelistAuthProvider,
                                                                 serviceAccountProvider,
-                                                                leoKubernetesConfig,
                                                                 QueueFactory.makePublisherQueue(),
-                                                                notEnoughMemoryComputeService
-    )
-    val notEnoughCpuAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                                notEnoughMemoryComputeService)
+    val notEnoughCpuAppService = new LeoAppServiceInterp[IO](appServiceConfig,
+                                                             whitelistAuthProvider,
                                                              serviceAccountProvider,
-                                                             leoKubernetesConfig,
                                                              QueueFactory.makePublisherQueue(),
                                                              notEnoughCpuComputeService
     )
@@ -104,6 +103,40 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       error1 shouldBe (Left(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId))))
       error2 shouldBe (Left(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId))))
     }
+  }
+
+  it should "fail request if user is not in custom_app_users group" in {
+    val authProvider = new BaseMockAuthProvider {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(false)
+    }
+    val interp = new LeoAppServiceInterp[IO](appServiceConfig,
+                                             authProvider,
+                                             serviceAccountProvider,
+                                             QueueFactory.makePublisherQueue(),
+                                             FakeGoogleComputeService)
+    val res = interp
+      .createApp(userInfo, project, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe (Left(ForbiddenError(userInfo.userEmail)))
+  }
+
+  it should "not fail customApp request if group check is not enabled" in {
+    val authProvider = new BaseMockAuthProvider {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(false)
+    }
+    val interp = new LeoAppServiceInterp[IO](AppServiceConfig(false, leoKubernetesConfig),
+                                             authProvider,
+                                             serviceAccountProvider,
+                                             QueueFactory.makePublisherQueue(),
+                                             FakeGoogleComputeService)
+    val res = interp
+      .createApp(userInfo, project, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res.swap.toOption.get.isInstanceOf[ForbiddenError] shouldBe false
   }
 
   it should "determine patch version bump correctly" in isolatedDbTest {

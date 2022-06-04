@@ -105,9 +105,9 @@ trait TestLeoRoutes {
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
+    Config.appServiceConfig,
     whitelistAuthProvider,
     serviceAccountProvider,
-    Config.leoKubernetesConfig,
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService
   )

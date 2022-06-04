@@ -81,13 +81,13 @@ object NoDeleteGoogleStorage extends BaseFakeGoogleStorage {
     throw new Exception("this shouldn't get called")
 }
 
-object MockAuthProvider extends LeoAuthProvider[IO] {
+class BaseMockAuthProvider extends LeoAuthProvider[IO] {
   override def serviceAccountProvider: ServiceAccountProvider[IO] = ???
 
   override def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
     ev: Ask[IO, TraceId]
-  ): IO[Boolean] = ???
+  ): IO[Boolean] = IO.pure(true)
 
   override def hasPermissionWithProjectFallback[R, A](
     samResource: R,
@@ -95,7 +95,7 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
     projectAction: ProjectAction,
     userInfo: UserInfo,
     googleProject: GoogleProject
-  )(implicit sr: SamResourceAction[R, A], ev: Ask[IO, TraceId]): IO[Boolean] = ???
+  )(implicit sr: SamResourceAction[R, A], ev: Ask[IO, TraceId]): IO[Boolean] = IO.pure(true)
 
   override def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
     sr: SamResourceAction[R, A],
@@ -146,7 +146,11 @@ object MockAuthProvider extends LeoAuthProvider[IO] {
   override def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit
     ev: Ask[IO, TraceId]
   ): IO[WorkbenchEmail] = ???
+
+  override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] = ???
 }
+
+object MockAuthProvider extends BaseMockAuthProvider
 
 class FakeGoogleSubcriber[A] extends GoogleSubscriber[IO, A] {
   def messages: Stream[IO, Event[A]] = Stream.empty

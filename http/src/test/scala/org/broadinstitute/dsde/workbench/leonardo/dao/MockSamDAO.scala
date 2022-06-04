@@ -297,6 +297,10 @@ class MockSamDAO extends SamDAO[IO] {
 
   def getSamUserInfo(token: String)(implicit ev: Ask[IO, TraceId]): IO[Option[SamUserInfo]] =
     IO.pure(Some(SamUserInfo(UserSubjectId("test"), WorkbenchEmail("test@gmail.com"), enabled = true)))
+
+  override def isGroupMembersOrAdmin(groupName: GroupName, workbenchEmail: WorkbenchEmail)(
+    implicit ev: Ask[IO, TraceId]
+  ): IO[Boolean] = IO.pure(true)
 }
 
 object MockSamDAO {

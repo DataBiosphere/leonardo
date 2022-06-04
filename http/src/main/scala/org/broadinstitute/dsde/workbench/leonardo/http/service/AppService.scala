@@ -2,6 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo.http
 package service
 
 import cats.mtl.Ask
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.{AppContext, AppName}
 import org.broadinstitute.dsde.workbench.model.UserInfo
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
@@ -38,3 +39,6 @@ trait AppService[F[_]] {
     as: Ask[F, AppContext]
   ): F[Unit]
 }
+
+final case class AppServiceConfig(enableCustomAppGroupPermissionCheck: Boolean,
+                                  leoKubernetesConfig: LeoKubernetesConfig)

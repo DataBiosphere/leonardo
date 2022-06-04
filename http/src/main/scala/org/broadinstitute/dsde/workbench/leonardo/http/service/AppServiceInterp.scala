@@ -19,10 +19,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec._
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId._
 import org.broadinstitute.dsde.workbench.leonardo.config._
 import org.broadinstitute.dsde.workbench.leonardo.db._
-import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{
-  isPatchVersionDifference,
-  LeoKubernetesConfig
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.{isPatchVersionDifference}
 import org.broadinstitute.dsde.workbench.leonardo.model.SamResourceAction._
 import org.broadinstitute.dsde.workbench.leonardo.model.{LeoAuthProvider, ServiceAccountProviderConfig, _}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage._
@@ -37,14 +34,12 @@ import java.util.UUID
 
 import scala.concurrent.ExecutionContext
 
-final class LeoAppServiceInterp[F[_]: Parallel](
-  protected val authProvider: LeoAuthProvider[F],
-  protected val serviceAccountProvider: ServiceAccountProvider[F],
-  protected val leoKubernetesConfig: LeoKubernetesConfig,
-  protected val publisherQueue: Queue[F, LeoPubsubMessage],
-  computeService: GoogleComputeService[F]
-)(implicit
-  F: Async[F],
+final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
+                                                authProvider: LeoAuthProvider[F],
+                                                serviceAccountProvider: ServiceAccountProvider[F],
+                                                publisherQueue: Queue[F, LeoPubsubMessage],
+                                                computeService: GoogleComputeService[F])(
+  implicit F: Async[F],
   log: StructuredLogger[F],
   dbReference: DbReference[F],
   ec: ExecutionContext
@@ -62,9 +57,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       ctx <- as.ask
       hasPermission <- authProvider.hasPermission(ProjectSamResourceId(googleProject),
                                                   ProjectAction.CreateApp,
-                                                  userInfo
-      )
-      _ <- if (hasPermission) F.unit else F.raiseError[Unit](ForbiddenError(userInfo.userEmail))
+                                                  userInfo)
+      _ <- F.raiseWhen(!hasPermission)(ForbiddenError(userInfo.userEmail))
+
+      _ <- checkIfUserAllowed(req.appType, userInfo.userEmail)
 
       appOpt <- KubernetesServiceDbQueries.getActiveFullAppByName(googleProject, appName).transaction
       _ <- appOpt.fold(F.unit)(c =>
@@ -100,9 +96,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
       machineConfig = req.kubernetesRuntimeConfig.getOrElse(
         KubernetesRuntimeConfig(
-          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
-          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-          leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
+          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
+          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
+          config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
         )
       )
 
@@ -146,13 +142,13 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       diskResultOpt <- req.diskConfig.traverse(diskReq =>
         RuntimeServiceInterp.processPersistentDiskRequest(
           diskReq,
-          leoKubernetesConfig.diskConfig.defaultZone, //this need to be updated if we support non-default zone for k8s apps
+          config.leoKubernetesConfig.diskConfig.defaultZone, //this need to be updated if we support non-default zone for k8s apps
           googleProject,
           userInfo,
           petSA,
           appTypeToFormattedByType(req.appType),
           authProvider,
-          leoKubernetesConfig.diskConfig
+          config.leoKubernetesConfig.diskConfig
         )
       )
 
@@ -461,20 +457,20 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       nodepoolName,
       status = NodepoolStatus.Precreating,
       auditInfo,
-      machineType = leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
+      machineType = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.machineType,
       numNodes = numNodepools
         .map(n =>
           NumNodes(
             math
               .ceil(
                 n.value.toDouble /
-                  leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.maxNodepoolsPerDefaultNode.value.toDouble
+                  config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.maxNodepoolsPerDefaultNode.value.toDouble
               )
               .toInt
           )
         )
-        .getOrElse(leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes),
-      autoscalingEnabled = leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.autoscalingEnabled,
+        .getOrElse(config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.numNodes),
+      autoscalingEnabled = config.leoKubernetesConfig.nodepoolConfig.defaultNodepoolConfig.autoscalingEnabled,
       autoscalingConfig = None
     )
 
@@ -484,14 +480,26 @@ final class LeoAppServiceInterp[F[_]: Parallel](
     } yield SaveKubernetesCluster(
       googleProject = googleProject,
       clusterName = clusterName.getOrElse(defaultClusterName),
-      location = leoKubernetesConfig.clusterConfig.location,
-      region = leoKubernetesConfig.clusterConfig.region,
+      location = config.leoKubernetesConfig.clusterConfig.location,
+      region = config.leoKubernetesConfig.clusterConfig.region,
       status = KubernetesClusterStatus.Precreating,
-      ingressChart = leoKubernetesConfig.ingressConfig.chart,
+      ingressChart = config.leoKubernetesConfig.ingressConfig.chart,
       auditInfo = auditInfo,
       defaultNodepool = nodepool
     )
   }
+
+  private def checkIfUserAllowed(appType: AppType, userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Unit] =
+    if (config.enableCustomAppGroupPermissionCheck)
+      for {
+        isUserAllowed <- appType match {
+          case AppType.Custom => authProvider.isCustomAppAllowed(userEmail)
+          case _              => F.pure(true)
+        }
+
+        _ <- F.raiseWhen(!isUserAllowed)(ForbiddenError(userEmail))
+      } yield ()
+    else F.unit
 
   private[service] def getUserNodepool(clusterId: KubernetesClusterLeoId,
                                        userEmail: WorkbenchEmail,
@@ -502,9 +510,9 @@ final class LeoAppServiceInterp[F[_]: Parallel](
 
     val machineConfig = runtimeConfig.getOrElse(
       KubernetesRuntimeConfig(
-        leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
-        leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
-        leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
+        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.numNodes,
+        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.machineType,
+        config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingEnabled
       )
     )
 
@@ -519,7 +527,7 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       machineType = machineConfig.machineType,
       numNodes = machineConfig.numNodes,
       autoscalingEnabled = machineConfig.autoscalingEnabled,
-      autoscalingConfig = Some(leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingConfig),
+      autoscalingConfig = Some(config.leoKubernetesConfig.nodepoolConfig.galaxyNodepoolConfig.autoscalingConfig),
       List.empty,
       false
     )
@@ -535,10 +543,10 @@ final class LeoAppServiceInterp[F[_]: Parallel](
       ctx <- as.ask
       _ <- diskSize
         .traverse_ { size =>
-          if (size.gb < leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB.gb) {
+          if (size.gb < config.leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB.gb) {
             F.raiseError[Unit](
               BadRequestException(
-                s"Galaxy disk must be at least ${leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB}",
+                s"Galaxy disk must be at least ${config.leoKubernetesConfig.galaxyDiskConfig.nfsMinimumDiskSizeGB}",
                 Some(ctx.traceId)
               )
             )
@@ -556,12 +564,11 @@ final class LeoAppServiceInterp[F[_]: Parallel](
           )
         )
       memoryInGb = machineType.getMemoryMb / 1024
-      machineType <-
-        if (memoryInGb < leoKubernetesConfig.galaxyAppConfig.minMemoryGb)
-          F.raiseError(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId)))
-        else if (machineType.getGuestCpus < leoKubernetesConfig.galaxyAppConfig.minNumOfCpus)
-          F.raiseError(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId)))
-        else F.pure(AppMachineType(memoryInGb, machineType.getGuestCpus))
+      machineType <- if (memoryInGb < config.leoKubernetesConfig.galaxyAppConfig.minMemoryGb)
+        F.raiseError(BadRequestException("Galaxy needs more memory configuration", Some(ctx.traceId)))
+      else if (machineType.getGuestCpus < config.leoKubernetesConfig.galaxyAppConfig.minNumOfCpus)
+        F.raiseError(BadRequestException("Galaxy needs more CPU configuration", Some(ctx.traceId)))
+      else F.pure(AppMachineType(memoryInGb, machineType.getGuestCpus))
     } yield machineType
 
   private[service] def getSavableApp(googleProject: GoogleProject,
@@ -578,16 +585,17 @@ final class LeoAppServiceInterp[F[_]: Parallel](
     val now = ctx.now
     val auditInfo = AuditInfo(userEmail, now, None, now)
     val gkeAppConfig: GkeAppConfig = req.appType match {
-      case Galaxy   => leoKubernetesConfig.galaxyAppConfig
-      case Cromwell => leoKubernetesConfig.cromwellAppConfig
-      case Custom   => leoKubernetesConfig.customAppConfig
+      case Galaxy   => config.leoKubernetesConfig.galaxyAppConfig
+      case Cromwell => config.leoKubernetesConfig.cromwellAppConfig
+      case Custom   => config.leoKubernetesConfig.customAppConfig
     }
 
     val allLabels =
-      DefaultKubernetesLabels(googleProject,
-                              appName,
-                              userEmail,
-                              leoKubernetesConfig.serviceAccountConfig.leoServiceAccountEmail
+      DefaultKubernetesLabels(
+        googleProject,
+        appName,
+        userEmail,
+        config.leoKubernetesConfig.serviceAccountConfig.leoServiceAccountEmail
       ).toMap ++ req.labels
     for {
       // check the labels do not contain forbidden keys
