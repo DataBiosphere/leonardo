@@ -2,25 +2,29 @@ package org.broadinstitute.dsde.workbench.leonardo
 package dao
 
 import java.util.UUID
-
 import ca.mrvisser.sealerate
 import cats.mtl.Ask
 import com.azure.resourcemanager.compute.models.VirtualMachineSizeTypes
 import _root_.io.circe._
+import _root_.io.circe.syntax._
 import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
+  azureImageEncoder,
   azureMachineTypeEncoder,
+  azureRegionDecoder,
   azureRegionEncoder,
   googleProjectDecoder,
+  relayNamespaceDecoder,
   runtimeNameEncoder,
   workspaceIdDecoder,
   wsmControlledResourceIdEncoder,
   wsmJobIdDecoder,
   wsmJobIdEncoder
 }
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AcrCredential, VMCredential}
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.http4s.headers.Authorization
-import java.time.ZonedDateTime
 
+import java.time.ZonedDateTime
 import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait WsmDao[F[_]] {
@@ -40,26 +44,40 @@ trait WsmDao[F[_]] {
     implicit ev: Ask[F, AppContext]
   ): F[CreateVmResult]
 
+  def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]]
+
+  def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]]
+
+  def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]]
+
+  def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[DeleteWsmResourceResult]]
+
   def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
 
-  def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
+  def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  ): F[GetDeleteJobResult]
 
-  def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
-  def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
-  def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
-    implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
   ): F[Option[WorkspaceDescription]]
+
+  //TODO: if workspace is fixed to a given Region, we probably shouldn't need to pass Region
+  def getRelayNamespace(workspaceId: WorkspaceId,
+                        region: com.azure.core.management.Region,
+                        authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[Option[RelayNamespace]]
 }
 
 final case class WorkspaceDescription(id: WorkspaceId,
@@ -73,11 +91,20 @@ final case class CreateVmRequest(workspaceId: WorkspaceId,
                                  vmData: CreateVmRequestData,
                                  jobControl: WsmJobControl)
 
+final case class ProtectedSettings(fileUris: List[String], commandToExecute: String)
+final case class CustomScriptExtension(name: String,
+                                       publisher: String,
+                                       `type`: String,
+                                       version: String,
+                                       minorVersionAutoUpgrade: Boolean,
+                                       protectedSettings: ProtectedSettings)
 final case class CreateVmRequestData(name: RuntimeName,
                                      region: com.azure.core.management.Region,
                                      vmSize: VirtualMachineSizeTypes,
-                                     vmImageUri: RuntimeImage,
-                                     ipId: WsmControlledResourceId,
+                                     vmImage: AzureImage,
+                                     customScriptExtension: CustomScriptExtension,
+                                     acrCredential: AcrCredential,
+                                     vmUserCredential: VMCredential,
                                      diskId: WsmControlledResourceId,
                                      networkId: WsmControlledResourceId)
 
@@ -90,6 +117,11 @@ final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
 
 final case class CreateVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class GetCreateVmJobResult(vm: Option[WsmVm], jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
+final case class GetDeleteJobResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
+final case class WsmRelayNamespace(namespaceName: RelayNamespace, region: com.azure.core.management.Region)
+final case class ResourceAttributes(relayNamespace: WsmRelayNamespace)
+final case class WsmResource(resourceAttributes: ResourceAttributes)
+final case class GetRelayNamespace(resources: List[WsmResource])
 
 final case class GetJobResultRequest(workspaceId: WorkspaceId, jobId: WsmJobId)
 
@@ -136,7 +168,8 @@ final case class ControlledResourceCommonFields(name: ControlledResourceName,
                                                 cloningInstructions: CloningInstructions,
                                                 accessScope: AccessScope,
                                                 managedBy: ManagedBy,
-                                                privateResourceUser: Option[PrivateResourceUser])
+                                                privateResourceUser: Option[PrivateResourceUser],
+                                                resourceId: Option[WsmControlledResourceId])
 
 final case class ControlledResourceName(value: String) extends AnyVal
 final case class ControlledResourceDescription(value: String) extends AnyVal
@@ -326,8 +359,19 @@ object WsmDecoders {
   implicit val createVmResultDecoder: Decoder[CreateVmResult] =
     Decoder.forProduct2("jobReport", "errorReport")(CreateVmResult.apply)
 
+  implicit val wsmRelayNamespaceDecoder: Decoder[WsmRelayNamespace] =
+    Decoder.forProduct2("namespaceName", "region")(WsmRelayNamespace.apply)
+  implicit val resourceAttributesDecoder: Decoder[ResourceAttributes] =
+    Decoder.forProduct1("azureRelayNamespace")(ResourceAttributes.apply)
+  implicit val wsmResourceeDecoder: Decoder[WsmResource] =
+    Decoder.forProduct1("resourceAttributes")(WsmResource.apply)
+  implicit val getRelayNamespaceDecoder: Decoder[GetRelayNamespace] =
+    Decoder.forProduct1("resources")(GetRelayNamespace.apply)
+
   implicit val getCreateVmResultDecoder: Decoder[GetCreateVmJobResult] =
     Decoder.forProduct3("azureVm", "jobReport", "errorReport")(GetCreateVmJobResult.apply)
+  implicit val getDeleteVmResultDecoder: Decoder[GetDeleteJobResult] =
+    Decoder.forProduct2("jobReport", "errorReport")(GetDeleteJobResult.apply)
 }
 
 object WsmEncoders {
@@ -336,18 +380,20 @@ object WsmEncoders {
   implicit val privateResourceUserEncoder: Encoder[PrivateResourceUser] =
     Encoder.forProduct2("userName", "privateResourceIamRoles")(x => (x.userName.value, x.privateResourceIamRoles))
   implicit val wsmCommonFieldsEncoder: Encoder[ControlledResourceCommonFields] =
-    Encoder.forProduct6("name",
+    Encoder.forProduct7("name",
                         "description",
                         "cloningInstructions",
                         "accessScope",
                         "managedBy",
-                        "privateResourceUser")(x =>
+                        "privateResourceUser",
+                        "resourceId")(x =>
       (x.name.value,
        x.description.value,
        x.cloningInstructions.toString,
        x.accessScope.toString,
        x.managedBy.toString,
-       x.privateResourceUser)
+       x.privateResourceUser,
+       x.resourceId)
     )
 
   implicit val ipRequestDataEncoder: Encoder[CreateIpRequestData] =
@@ -366,10 +412,37 @@ object WsmEncoders {
     )
   implicit val createNetworkRequestEncoder: Encoder[CreateNetworkRequest] =
     Encoder.forProduct2("common", "azureNetwork")(x => (x.common, x.networkData))
+  implicit val protectedSettingsEncoder: Encoder[ProtectedSettings] = Encoder.instance { x =>
+    val fileUrisMap = Map(
+      "key" -> "fileUris".asJson,
+      "value" -> x.fileUris.asJson
+    )
+    val cmdToExecuteMap = Map(
+      "key" -> "commandToExecute".asJson,
+      "value" -> x.commandToExecute.asJson
+    )
+    List(
+      fileUrisMap,
+      cmdToExecuteMap
+    ).asJson
+  }
+  implicit val customScriptExtensionEncoder: Encoder[CustomScriptExtension] =
+    Encoder.forProduct6("name", "publisher", "type", "version", "minorVersionAutoUpgrade", "protectedSettings")(x =>
+      (x.name, x.publisher, x.`type`, x.version, x.minorVersionAutoUpgrade, x.protectedSettings)
+    )
+  implicit val vmCrendentialnEncoder: Encoder[VMCredential] =
+    Encoder.forProduct2("name", "password")(x => (x.username, x.password))
 
   implicit val vmRequestDataEncoder: Encoder[CreateVmRequestData] =
-    Encoder.forProduct7("name", "region", "vmSize", "vmImageUri", "ipId", "diskId", "networkId")(x =>
-      (x.name, x.region, x.vmSize, x.vmImageUri.imageUrl, x.ipId, x.diskId, x.networkId)
+    Encoder.forProduct8("name",
+                        "region",
+                        "vmSize",
+                        "vmImage",
+                        "customScriptExtension",
+                        "vmUser",
+                        "diskId",
+                        "networkId")(x =>
+      (x.name, x.region, x.vmSize, x.vmImage, x.customScriptExtension, x.vmUserCredential, x.diskId, x.networkId)
     )
   implicit val wsmJobControlEncoder: Encoder[WsmJobControl] = Encoder.forProduct1("id")(x => x.id)
 

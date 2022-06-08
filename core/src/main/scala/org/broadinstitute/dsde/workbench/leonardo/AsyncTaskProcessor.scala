@@ -28,8 +28,9 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
   private def handler(task: Task[F]): F[Unit] =
     for {
       now <- F.realTimeInstant
-      latency = (now.toEpochMilli - task.enqueuedTime.toEpochMilli).millis
-      _ <- recordLatency(latency)
+      latency = (now.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
+      tags = Map("taskName" -> task.taskName)
+      _ <- recordLatency("asyncTaskLatency", latency, tags)
       _ <- logger.info(Map("traceId" -> task.traceId.asString))(
         s"Executing task with latency of ${latency.toSeconds} seconds"
       )
@@ -39,6 +40,9 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
             s"Error when executing async task"
           )
       }
+      end <- F.realTimeInstant
+      timeToFinishTask = (end.toEpochMilli - task.metricsStartTime.toEpochMilli).millis
+      _ <- recordLatency("asyncTaskDuration", timeToFinishTask, tags)
     } yield ()
 
   private def recordCurrentNumOfTasks: Stream[F, Unit] = {
@@ -51,8 +55,8 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
   }
 
   // record the latency between message being enqueued and task gets executed
-  private def recordLatency(latency: FiniteDuration): F[Unit] =
-    metrics.recordDuration("asyncTaskLatency",
+  private def recordLatency(metricsName: String, latency: FiniteDuration, tags: Map[String, String]): F[Unit] =
+    metrics.recordDuration(metricsName,
                            latency,
                            List(
                              10 seconds,
@@ -62,7 +66,8 @@ final class AsyncTaskProcessor[F[_]](config: AsyncTaskProcessor.Config, asyncTas
                              8 minutes,
                              16 minutes,
                              32 minutes
-                           ))
+                           ),
+                           tags)
 }
 
 object AsyncTaskProcessor {
@@ -75,6 +80,7 @@ object AsyncTaskProcessor {
   final case class Task[F[_]](traceId: TraceId,
                               op: F[Unit],
                               errorHandler: Option[Throwable => F[Unit]] = None,
-                              enqueuedTime: Instant)
+                              metricsStartTime: Instant,
+                              taskName: String)
   final case class Config(queueBound: Int, maxConcurrentTasks: Int)
 }

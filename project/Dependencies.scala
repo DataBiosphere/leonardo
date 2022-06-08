@@ -7,7 +7,7 @@ object Dependencies {
   val akkaHttpV = "10.2.9"
   val googleV = "1.23.0"
   val automationGoogleV = "1.30.5"
-  val scalaLoggingV = "3.9.4"
+  val scalaLoggingV = "3.9.5"
   val scalaTestV = "3.2.11"
   val slickV = "3.3.3"
   val http4sVersion = "1.0.0-M32"
@@ -15,13 +15,13 @@ object Dependencies {
   val monocleV = "2.1.0"
   val opencensusV = "0.29.0"
 
-  private val workbenchLibsHash = "a78f6e9"
+  private val workbenchLibsHash = "1962b9a"
   val serviceTestV = s"2.0-$workbenchLibsHash"
   val workbenchModelV = s"0.15-$workbenchLibsHash"
   val workbenchGoogleV = s"0.21-$workbenchLibsHash"
   val workbenchGoogle2V = s"0.24-$workbenchLibsHash"
   val workbenchOpenTelemetryV = s"0.3-$workbenchLibsHash"
-  val workbenchOauth2V = s"0.1-$workbenchLibsHash"
+  val workbenchOauth2V = s"0.2-$workbenchLibsHash"
 
   val helmScalaSdkV = "0.0.4"
 
@@ -112,15 +112,15 @@ object Dependencies {
     excludeBouncyCastlePkix)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
-  val wsmClient: ModuleID = "bio.terra" % "workspace-manager-client" % "0.254.192-SNAPSHOT"
+  val wsmClient: ModuleID = "bio.terra" % "workspace-manager-client" % "0.254.273-SNAPSHOT"
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
   val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
-  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.28"
-  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.9.1"
+  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.29"
+  val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.11.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.20" % Test // brought in for FakeStorageInterpreter
 
@@ -130,8 +130,8 @@ object Dependencies {
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
-  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.13.0"
-  val azureIdentity =  "com.azure" % "azure-identity" % "1.4.6"
+  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.15.0"
+  val azureIdentity =  "com.azure" % "azure-identity" % "1.5.2"
 
   val coreDependencies = List(
     workbenchOauth2,
@@ -146,7 +146,7 @@ object Dependencies {
     workbenchOpenTelemetryTest,
     helmScalaSdk,
     helmScalaSdkTest,
-    "net.logstash.logback" % "logstash-logback-encoder" % "7.0.1", // for structured logging in logback
+    "net.logstash.logback" % "logstash-logback-encoder" % "7.2", // for structured logging in logback
     "com.github.julien-truffaut" %%  "monocle-core"  % monocleV,
     "com.github.julien-truffaut" %%  "monocle-macro" % monocleV,
     // using provided because `http` depends on `core`, and `http`'s `opencensus-exporter-trace-stackdriver`
@@ -184,7 +184,8 @@ object Dependencies {
     mysql,
     liquibase,
     "com.github.sebruck" %% "opencensus-scala-akka-http" % "0.7.2",
-
+    "com.auth0" % "java-jwt" % "3.19.1",
+    "com.azure.resourcemanager" % "azure-resourcemanager-relay" % "1.0.0-beta.1",
     http4sBlazeServer % Test,
     scalaTestSelenium,
     scalaTestMockito
@@ -193,7 +194,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.1" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.3" % "test",
     logbackClassic % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,

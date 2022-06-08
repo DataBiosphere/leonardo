@@ -22,11 +22,6 @@ class RuntimeControlledResourceTable(tag: Tag)
 }
 
 object controlledResourceQuery extends TableQuery(new RuntimeControlledResourceTable(_)) {
-  def deleteAllForRuntime(runtimeId: Long): DBIO[Int] =
-    controlledResourceQuery
-      .filter(_.runtimeId === runtimeId)
-      .delete
-
   def save(runtimeId: Long, resourceId: WsmControlledResourceId, resourceType: WsmResourceType): DBIO[Int] =
     controlledResourceQuery += RuntimeControlledResourceRecord(runtimeId, resourceId, resourceType)
 
@@ -50,10 +45,6 @@ sealed abstract class WsmResourceType
 object WsmResourceType {
   case object AzureVm extends WsmResourceType {
     override def toString: String = "AZURE_VM"
-  }
-
-  case object AzureIp extends WsmResourceType {
-    override def toString: String = "AZURE_IP"
   }
 
   case object AzureNetwork extends WsmResourceType {

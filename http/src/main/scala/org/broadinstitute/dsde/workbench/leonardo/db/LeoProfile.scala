@@ -256,6 +256,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       MappedColumnType.base[ServiceName, String](_.value, ServiceName.apply)
     implicit val serviceKindColumnType: BaseColumnType[KubernetesServiceKindName] =
       MappedColumnType.base[KubernetesServiceKindName, String](_.value, KubernetesServiceKindName.apply)
+    implicit val servicePathColumnType: BaseColumnType[ServicePath] =
+      MappedColumnType.base[ServicePath, String](_.value, ServicePath.apply)
 
     implicit val uriColumnType: BaseColumnType[Uri] =
       MappedColumnType.base[Uri, String](
