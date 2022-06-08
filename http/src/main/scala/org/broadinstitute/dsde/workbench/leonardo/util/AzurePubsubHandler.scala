@@ -21,6 +21,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PubsubHandleMessageError.{
   AzureRuntimeCreationError,
+  AzureRuntimeDeletionError,
   ClusterError
 }
 import org.broadinstitute.dsde.workbench.model.{IP, WorkbenchEmail}
@@ -40,6 +41,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   azureManager: AzureManagerDao[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
+  implicit val wsmDeleteVmDoneCheckable: DoneCheckable[GetDeleteJobResult] = (v: GetDeleteJobResult) =>
+    v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
 
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -316,6 +319,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       runtime <- F.fromOption(runtimeOpt, PubsubHandleMessageError.ClusterNotFound(msg.runtimeId, msg))
       auth <- samDAO.getLeoAuthToken
 
+      deleteJobId = WsmJobId(s"delete-vm-${ctx.traceId.asString.take(10)}")
       _ <- msg.wsmResourceId.fold(
         logger
           .info(ctx.loggingCtx)(s"No wsmResourceId found for delete azure runtime msg $msg. No-op for wsmDao.deleteVm.")
@@ -326,7 +330,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               msg.workspaceId,
               wsmResourceId,
               DeleteControlledAzureResourceRequest(
-                WsmJobControl(WsmJobId(s"delete-vm-${ctx.traceId.asString.take(10)}"))
+                WsmJobControl(deleteJobId)
               )
             ),
             auth
@@ -334,98 +338,116 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           .void
       }
 
-      diskResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
-        .transaction
-      _ <- logger
-        .info(ctx.loggingCtx)(s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk.")
-        .whenA(diskResourceOpt.isEmpty)
-      deleteDisk = diskResourceOpt.traverse { disk =>
-        wsmDao.deleteDisk(
-          DeleteWsmResourceRequest(
-            msg.workspaceId,
-            disk.resourceId,
-            DeleteControlledAzureResourceRequest(
-              WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
-            )
-          ),
-          auth
-        )
-      }.void
-
-      networkResourceOpt <- controlledResourceQuery
-        .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureNetwork)
-        .transaction
-      _ <- logger
-        .info(ctx.loggingCtx)(
-          s"No network resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteNetworks."
-        )
-        .whenA(networkResourceOpt.isEmpty)
-      deleteNetworks = networkResourceOpt.traverse { network =>
-        wsmDao.deleteNetworks(
-          DeleteWsmResourceRequest(
-            msg.workspaceId,
-            network.resourceId,
-            DeleteControlledAzureResourceRequest(
-              WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
-            )
-          ),
-          auth
-        )
-      }.void
-
-      deleteHybridConnection = for {
-        leoAuth <- samDAO.getLeoAuthToken
-        runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
-        azureRuntimeConfig <- runtimeConfig match {
-          case x: RuntimeConfig.AzureConfig => F.pure(x)
-          case _ =>
-            F.raiseError(ClusterError(msg.runtimeId, ctx.traceId, s"Runtime should have Azure config, but it doesn't"))
-        }
-        relayNamespaceOpt <- wsmDao.getRelayNamespace(msg.workspaceId, azureRuntimeConfig.region, leoAuth)
-        cloudContext <- runtime.cloudContext match {
-          case _: CloudContext.Gcp =>
-            F.raiseError[AzureCloudContext](
-              PubsubHandleMessageError.ClusterError(msg.runtimeId,
-                                                    ctx.traceId,
-                                                    "Azure runtime should not have GCP cloud context")
-            )
-          case x: CloudContext.Azure => F.pure(x.value)
-        }
-        _ <- relayNamespaceOpt.traverse(ns =>
-          azureManager.createRelayHybridConnection(
-            ns,
-            RelayHybridConnectionName(runtime.runtimeName.asString),
-            cloudContext
+      // Delete hybrid connection for this VM
+      leoAuth <- samDAO.getLeoAuthToken
+      runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
+      azureRuntimeConfig <- runtimeConfig match {
+        case x: RuntimeConfig.AzureConfig => F.pure(x)
+        case _ =>
+          F.raiseError(
+            ClusterError(msg.runtimeId, ctx.traceId, s"Runtime should have Azure config, but it doesn't")
           )
-        )
-      } yield ()
-
-      _ <- List(deleteDisk, deleteNetworks, deleteHybridConnection).parSequence
+      }
+      relayNamespaceOpt <- wsmDao.getRelayNamespace(msg.workspaceId, azureRuntimeConfig.region, leoAuth)
       cloudContext <- runtime.cloudContext match {
         case _: CloudContext.Gcp =>
           F.raiseError[AzureCloudContext](
-            PubsubHandleMessageError.ClusterError(runtime.id,
+            PubsubHandleMessageError.ClusterError(msg.runtimeId,
                                                   ctx.traceId,
                                                   "Azure runtime should not have GCP cloud context")
           )
         case x: CloudContext.Azure => F.pure(x.value)
       }
+      _ <- relayNamespaceOpt.traverse(ns =>
+        azureManager.deleteRelayHybridConnection(
+          ns,
+          RelayHybridConnectionName(runtime.runtimeName.asString),
+          cloudContext
+        )
+      )
 
-      getDeleteResult = azureManager.getAzureVm(runtime.runtimeName, cloudContext)
+      getDeleteJobResult = wsmDao.getDeleteVmJobResult(
+        GetJobResultRequest(msg.workspaceId, deleteJobId),
+        auth
+      )
 
       taskToRun = for {
-        _ <- streamUntilDoneOrTimeout(
-          getDeleteResult,
+        // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk, and networks
+        resp <- streamFUntilDone(
+          getDeleteJobResult,
           config.deleteVmPollConfig.maxAttempts,
-          config.deleteVmPollConfig.interval,
-          s"Azure vm still exists after ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
-        )
-        _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-        _ <- msg.diskId.traverse(diskId =>
-          dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
-        )
-        - <- dbRef.inTransaction(controlledResourceQuery.deleteAllForRuntime(runtime.id))
+          config.deleteVmPollConfig.interval
+        ).compile.lastOrError
+
+        _ <- resp.jobReport.status match {
+          case WsmJobStatus.Succeeded =>
+            for {
+              diskResourceOpt <- controlledResourceQuery
+                .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
+                .transaction
+              _ <- logger
+                .info(ctx.loggingCtx)(
+                  s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk."
+                )
+                .whenA(diskResourceOpt.isEmpty)
+              deleteDisk = diskResourceOpt.traverse { disk =>
+                wsmDao.deleteDisk(
+                  DeleteWsmResourceRequest(
+                    msg.workspaceId,
+                    disk.resourceId,
+                    DeleteControlledAzureResourceRequest(
+                      WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                    )
+                  ),
+                  auth
+                )
+              }.void
+
+              networkResourceOpt <- controlledResourceQuery
+                .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureNetwork)
+                .transaction
+              _ <- logger
+                .info(ctx.loggingCtx)(
+                  s"No network resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteNetworks."
+                )
+                .whenA(networkResourceOpt.isEmpty)
+              deleteNetworks = networkResourceOpt.traverse { network =>
+                wsmDao.deleteNetworks(
+                  DeleteWsmResourceRequest(
+                    msg.workspaceId,
+                    network.resourceId,
+                    DeleteControlledAzureResourceRequest(
+                      WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
+                    )
+                  ),
+                  auth
+                )
+              }.void
+
+              _ <- List(deleteDisk, deleteNetworks).parSequence
+              _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+              _ <- msg.diskId.traverse(diskId =>
+                dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
+              )
+              _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
+            } yield ()
+          case WsmJobStatus.Failed =>
+            F.raiseError[Unit](
+              AzureRuntimeDeletionError(
+                msg.runtimeId,
+                msg.workspaceId,
+                s"WSM delete VM job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+              )
+            )
+          case WsmJobStatus.Running =>
+            F.raiseError[Unit](
+              AzureRuntimeDeletionError(
+                msg.runtimeId,
+                msg.workspaceId,
+                s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
+              )
+            )
+        }
       } yield ()
 
       _ <- asyncTasks.offer(

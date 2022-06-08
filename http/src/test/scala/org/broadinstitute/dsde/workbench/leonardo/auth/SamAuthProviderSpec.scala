@@ -24,11 +24,13 @@ import org.broadinstitute.dsde.workbench.leonardo.http.ctxConversion
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 
 class SamAuthProviderSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAfter {
-  val samAuthProviderConfigWithoutCache: SamAuthProviderConfig = SamAuthProviderConfig(false)
+  val samAuthProviderConfigWithoutCache: SamAuthProviderConfig =
+    SamAuthProviderConfig(false, customAppCreationAllowedGroup = GroupName("custom_app_users"))
   val samAuthProviderConfigWithCache: SamAuthProviderConfig = SamAuthProviderConfig(
     true,
     10,
-    1.minutes
+    1.minutes,
+    customAppCreationAllowedGroup = GroupName("custom_app_users")
   )
 
   val userInfo =

@@ -138,9 +138,9 @@ object Boot extends IOApp {
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
-        new LeoAppServiceInterp(appDependencies.authProvider,
+        new LeoAppServiceInterp(appServiceConfig,
+                                appDependencies.authProvider,
                                 appDependencies.serviceAccountProvider,
-                                leoKubernetesConfig,
                                 appDependencies.publisherQueue,
                                 appDependencies.googleDependencies.googleComputeService)
 

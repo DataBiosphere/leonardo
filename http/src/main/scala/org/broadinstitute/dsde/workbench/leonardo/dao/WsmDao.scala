@@ -46,23 +46,27 @@ trait WsmDao[F[_]] {
 
   def deleteVm(request: DeleteWsmResourceRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  ): F[Option[DeleteWsmResourceResult]]
 
   def deleteDisk(request: DeleteWsmResourceRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  ): F[Option[DeleteWsmResourceResult]]
 
   def deleteIp(request: DeleteWsmResourceRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  ): F[Option[DeleteWsmResourceResult]]
 
   def deleteNetworks(request: DeleteWsmResourceRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
-  ): F[DeleteWsmResourceResult]
+  ): F[Option[DeleteWsmResourceResult]]
 
   def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
   ): F[GetCreateVmJobResult]
+
+  def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
+    implicit ev: Ask[F, AppContext]
+  ): F[GetDeleteJobResult]
 
   def getWorkspace(workspaceId: WorkspaceId, authorization: Authorization)(
     implicit ev: Ask[F, AppContext]
@@ -113,6 +117,7 @@ final case class DeleteWsmResourceRequest(workspaceId: WorkspaceId,
 
 final case class CreateVmResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class GetCreateVmJobResult(vm: Option[WsmVm], jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
+final case class GetDeleteJobResult(jobReport: WsmJobReport, errorReport: Option[WsmErrorReport])
 final case class WsmRelayNamespace(namespaceName: RelayNamespace, region: com.azure.core.management.Region)
 final case class ResourceAttributes(relayNamespace: WsmRelayNamespace)
 final case class WsmResource(resourceAttributes: ResourceAttributes)
@@ -365,6 +370,8 @@ object WsmDecoders {
 
   implicit val getCreateVmResultDecoder: Decoder[GetCreateVmJobResult] =
     Decoder.forProduct3("azureVm", "jobReport", "errorReport")(GetCreateVmJobResult.apply)
+  implicit val getDeleteVmResultDecoder: Decoder[GetDeleteJobResult] =
+    Decoder.forProduct2("jobReport", "errorReport")(GetDeleteJobResult.apply)
 }
 
 object WsmEncoders {
