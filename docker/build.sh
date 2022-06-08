@@ -46,6 +46,9 @@ DOCKER_TAG=""
 DOCKER_TAG_TESTS=""
 ENV=${ENV:-""}  # if env is not set, push an image with branch name
 SERVICE_ACCOUNT_KEY_FILE=""  # default to no service account
+REGEX_TO_REPLACE_ILLEGAL_CHARACTERS_WITH_DASHES="s/[^a-zA-Z0-9_.\-]/-/g"
+REGEX_TO_REMOVE_DASHES_AND_PERIODS_FROM_BEGINNING="s/^[.\-]*//g"
+DOCKERTAG_SAFE_NAME=$(echo $BRANCH | sed -e $REGEX_TO_REPLACE_ILLEGAL_CHARACTERS_WITH_DASHES -e $REGEX_TO_REMOVE_DASHES_AND_PERIODS_FROM_BEGINNING | cut -c 1-127) # https://docs.docker.com/engine/reference/commandline/tag/#:~:text=A%20tag%20name%20must%20be,a%20maximum%20of%20128%20characters.
 
 MAKE_JAR=false
 RUN_DOCKER=false
@@ -140,7 +143,7 @@ function make_jar()
                           -v $PWD:/working \
                           -v jar-cache:/root/.ivy \
                           -v jar-cache:/root/.ivy2 \
-                          hseeberger/scala-sbt:eclipse-temurin-17.0.2_1.6.2_2.13.8 \
+                          hseeberger/scala-sbt:graalvm-ce-21.3.0-java17_1.6.2_2.13.8 \
                           /working/docker/install.sh /working || EXIT_CODE=$?
 
     # stop test db
@@ -157,7 +160,7 @@ function docker_cmd()
 {
     if [ $DOCKER_CMD = "build" ] || [ $DOCKER_CMD = "push" ]; then
         echo "building $TARGET docker image..."
-        GIT_SHA=$(git rev-parse ${REMOTE}/${GIT_BRANCH})
+        GIT_SHA=$(git rev-parse origin/${GIT_BRANCH})
         echo GIT_SHA=$GIT_SHA > env.properties
 
         if [ -n "$DOCKER_TAG" ]; then
@@ -177,15 +180,15 @@ function docker_cmd()
                 echo "pushing $GCR_IMAGE docker image..."
                 $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKER_TAG}
                 $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKER_TAG}
-                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${GIT_BRANCH}
-                $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${GIT_BRANCH}
+                $DOCKER_REMOTES_BINARY tag $DEFAULT_IMAGE:${DOCKER_TAG} ${GCR_IMAGE}:${DOCKERTAG_SAFE_NAME}
+                $GCR_REMOTES_BINARY push ${GCR_IMAGE}:${DOCKERTAG_SAFE_NAME}
             fi
 
             # Push tests image no matter what. Currently this is only supported in Dockerhub.
             echo "pushing $TESTS_IMAGE docker image..."
             $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKER_TAG_TESTS}
-            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${DOCKER_TAG_TESTS} $TESTS_IMAGE:${GIT_BRANCH}
-            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${GIT_BRANCH}
+            $DOCKER_REMOTES_BINARY tag $TESTS_IMAGE:${DOCKER_TAG_TESTS} $TESTS_IMAGE:${DOCKERTAG_SAFE_NAME}
+            $DOCKER_REMOTES_BINARY push $TESTS_IMAGE:${DOCKERTAG_SAFE_NAME}
         fi
     else
         echo "Not a valid docker option!  Choose either build or push (which includes build)"

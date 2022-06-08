@@ -121,15 +121,15 @@ object LeonardoApiClient {
   val defaultCreateAzureRuntimeRequest = CreateAzureRuntimeRequest(
     Map.empty,
     Region.US_WEST_CENTRAL,
-    VirtualMachineSizeTypes.STANDARD_D1_V2,
-    None,
+    VirtualMachineSizeTypes.STANDARD_DS1_V2,
     Map.empty,
     CreateAzureDiskRequest(
       Map.empty,
       AzureDiskName(UUID.randomUUID().toString.substring(0, 8)),
       None,
       None
-    )
+    ),
+    Some(0)
   )
 
   def createRuntime(

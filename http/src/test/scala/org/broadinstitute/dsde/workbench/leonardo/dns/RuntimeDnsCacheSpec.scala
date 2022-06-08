@@ -8,7 +8,7 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.clusterEq
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus
 import org.broadinstitute.dsde.workbench.leonardo.dao.HostStatus.{HostNotReady, HostPaused, HostReady}
 import org.broadinstitute.dsde.workbench.leonardo.db.TestComponent
-import org.broadinstitute.dsde.workbench.leonardo.{Runtime, RuntimeConfigId, RuntimeStatus}
+import org.broadinstitute.dsde.workbench.leonardo.{CloudProvider, Runtime, RuntimeConfigId, RuntimeStatus}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.concurrent.{Eventually, ScalaFutures}
 import org.scalatest.flatspec.AnyFlatSpecLike
@@ -41,13 +41,13 @@ class RuntimeDnsCacheSpec
   val cacheKeyForStoppedCluster = RuntimeDnsCacheKey(stoppedCluster.cloudContext, stoppedCluster.runtimeName)
 
   val runningClusterHost = Host(
-    s"${runningCluster.asyncRuntimeFields.map(_.proxyHostName).get.value.toString}.jupyter.firecloud.org"
+    s"${runningCluster.asyncRuntimeFields.map(_.proxyHostName).get.value}.jupyter.firecloud.org"
   )
   val clusterBeingCreatedHost = Host(
-    s"${clusterBeingCreated.asyncRuntimeFields.map(_.proxyHostName).get.value.toString}.jupyter.firecloud.org"
+    s"${clusterBeingCreated.asyncRuntimeFields.map(_.proxyHostName).get.value}.jupyter.firecloud.org"
   )
   val stoppedClusterHost = Host(
-    s"${stoppedCluster.asyncRuntimeFields.map(_.proxyHostName).get.value.toString}.jupyter.firecloud.org"
+    s"${stoppedCluster.asyncRuntimeFields.map(_.proxyHostName).get.value}.jupyter.firecloud.org"
   )
   val underlyingRuntimeDnsCache =
     Caffeine.newBuilder().maximumSize(10000L).recordStats().build[RuntimeDnsCacheKey, scalacache.Entry[HostStatus]]()
@@ -73,7 +73,11 @@ class RuntimeDnsCacheSpec
     eventually {
       runtimeDnsCache
         .getHostStatus(cacheKeyForRunningCluster)
-        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostReady(runningClusterHost)
+        .unsafeRunSync()(cats.effect.unsafe.IORuntime.global) shouldEqual HostReady(
+        runningClusterHost,
+        s"${cloudContext.asString}/${runningCluster.runtimeName.asString}",
+        CloudProvider.Gcp
+      )
     }
     eventually(
       runtimeDnsCache

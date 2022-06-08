@@ -151,8 +151,12 @@ object JsonCodec {
       else none[VirtualMachineSizeTypes]
     machineSizeOpt.toRight(s"Invalid azure virtualMachineSizeType ${s}")
   }
-
-  implicit val azureImageUriDecoder: Decoder[AzureImageUri] = Decoder.decodeString.map(AzureImageUri)
+  implicit val azureImageUriDecoder: Decoder[AzureImage] = Decoder.forProduct4(
+    "publisher",
+    "offer",
+    "sku",
+    "version"
+  )((x, y, z, v) => AzureImage(x, y, z, v))
   implicit val azureDiskNameDecoder: Decoder[AzureDiskName] = Decoder.decodeString.map(AzureDiskName)
 
   implicit val userJupyterExtensionConfigEncoder: Encoder[UserJupyterExtensionConfig] = Encoder.forProduct4(
@@ -558,18 +562,14 @@ object JsonCodec {
     )
 
   implicit val workspaceIdDecoder: Decoder[WorkspaceId] =
-    Decoder.decodeString.emap(x =>
+    Decoder.decodeString.emap { x =>
       Either
         .catchNonFatal(WorkspaceId(UUID.fromString(x)))
         .leftMap(_.getMessage)
-    )
+    }
 
   implicit val workspaceSamResourceIdDecoder: Decoder[WorkspaceResourceSamResourceId] =
-    Decoder.decodeString.emap(x =>
-      Either
-        .catchNonFatal(WorkspaceResourceSamResourceId(WorkspaceId(UUID.fromString(x))))
-        .leftMap(_.getMessage)
-    )
+    workspaceIdDecoder.map(WorkspaceResourceSamResourceId.apply)
 
   implicit val errorSourceDecoder: Decoder[ErrorSource] =
     Decoder.decodeString.emap(s => ErrorSource.stringToObject.get(s).toRight(s"Invalid error source ${s}"))
@@ -609,6 +609,7 @@ object JsonCodec {
     Decoder.decodeString.emap(s => AppStatus.stringToObject.get(s).toRight(s"Invalid app status ${s}"))
   implicit val appTypeDecoder: Decoder[AppType] =
     Decoder.decodeString.emap(s => AppType.stringToObject.get(s).toRight(s"Invalid app type ${s}"))
+  implicit val relayNamespaceDecoder: Decoder[RelayNamespace] = Decoder.decodeString.map(RelayNamespace)
 
   implicit val apiServerIpDecoder: Decoder[KubernetesApiServerIp] = Decoder.decodeString.map(KubernetesApiServerIp)
   implicit val networkNameDecoder: Decoder[NetworkName] = Decoder.decodeString.map(NetworkName)
@@ -673,7 +674,13 @@ object JsonCodec {
     )
 
   implicit val azureMachineTypeEncoder: Encoder[VirtualMachineSizeTypes] = Encoder.encodeString.contramap(_.toString)
-  implicit val azureImageUriEncoder: Encoder[AzureImageUri] = Encoder.encodeString.contramap(_.value)
   implicit val azureDiskNameEncoder: Encoder[AzureDiskName] = Encoder.encodeString.contramap(_.value)
+  implicit val relayNamespaceEncoder: Encoder[RelayNamespace] = Encoder.encodeString.contramap(_.value)
 
+  implicit val azureImageEncoder: Encoder[AzureImage] = Encoder.forProduct4(
+    "publisher",
+    "offer",
+    "sku",
+    "version"
+  )(x => (x.publisher, x.offer, x.sku, x.version))
 }

@@ -2,12 +2,12 @@ package org.broadinstitute.dsde.workbench.leonardo
 package http
 package api
 
-import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import akka.http.scaladsl.model.Uri
+import org.broadinstitute.dsde.workbench.leonardo.http.service.ProxyService._
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-class ProxyServiceSpec extends AnyFlatSpec with Matchers with LeonardoTestSuite {
+class ProxyServiceSpec extends AnyFlatSpec with Matchers {
   "ProxyService" should "be able to rewrite Jupyter path correctly" in {
     val pathBeforeRewrite1 = Uri.Path("/notebooks/project1/cluster1/jupyter")
     val expectedPath1 = Uri.Path("/notebooks/project1/cluster1/")

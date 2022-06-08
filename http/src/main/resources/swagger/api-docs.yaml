@@ -27,6 +27,10 @@ security:
       - openid
       - email
       - profile
+  - oidc:
+      - openid
+      - email
+      - profile
 
 ##########################################################################################
 ## PATHS
@@ -2309,6 +2313,16 @@ components:
             openid: open id authorization
             email: email authorization
             profile: profile authorization
+    oidc:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: /oauth2/authorize
+          tokenUrl: /oauth2/token
+          scopes:
+            openid: open id authorization
+            email: email authorization
+            profile: profile authorization
   schemas:
     AppType:
       type: string
@@ -2330,6 +2344,7 @@ components:
       enum:
         - pd-standard
         - pd-ssd
+        - pd-balanced
     ClusterStatus:
       type: string
       enum:

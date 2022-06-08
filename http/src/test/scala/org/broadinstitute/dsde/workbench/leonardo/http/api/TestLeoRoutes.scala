@@ -102,9 +102,9 @@ trait TestLeoRoutes {
   val runtimeInstances = new RuntimeInstances[IO](dataprocInterp, gceInterp)
 
   val leoKubernetesService: LeoAppServiceInterp[IO] = new LeoAppServiceInterp[IO](
+    Config.appServiceConfig,
     whitelistAuthProvider,
     serviceAccountProvider,
-    Config.leoKubernetesConfig,
     QueueFactory.makePublisherQueue(),
     FakeGoogleComputeService
   )
@@ -115,16 +115,14 @@ trait TestLeoRoutes {
     autoFreezeConfig,
     dataprocConfig,
     Config.gceConfig,
-    azureServiceConfig,
-    ConfigReader.appConfig.azure.runtimeDefaults
+    azureServiceConfig
   )
 
-  val azureService =
+  val runtimev2Service =
     new RuntimeV2ServiceInterp[IO](serviceConfig,
                                    whitelistAuthProvider,
                                    new MockWsmDAO,
                                    new MockSamDAO,
-                                   QueueFactory.asyncTaskQueue,
                                    QueueFactory.makePublisherQueue())
 
   val underlyingRuntimeDnsCache =
@@ -184,26 +182,26 @@ trait TestLeoRoutes {
 
   val httpRoutes =
     new HttpRoutes(
-      swaggerConfig,
+      openIdConnectionConfiguration,
       statusService,
       proxyService,
       runtimeService,
       MockDiskServiceInterp,
       leoKubernetesService,
-      azureService,
+      runtimev2Service,
       userInfoDirectives,
       contentSecurityPolicy,
       refererConfig
     )
 
   val timedHttpRoutes =
-    new HttpRoutes(swaggerConfig,
+    new HttpRoutes(openIdConnectionConfiguration,
                    statusService,
                    proxyService,
                    runtimeService,
                    MockDiskServiceInterp,
                    leoKubernetesService,
-                   azureService,
+                   runtimev2Service,
                    timedUserInfoDirectives,
                    contentSecurityPolicy,
                    refererConfig)

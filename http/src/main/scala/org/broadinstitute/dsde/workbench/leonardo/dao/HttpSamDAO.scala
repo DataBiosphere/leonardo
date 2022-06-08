@@ -383,6 +383,31 @@ class HttpSamDAO[F[_]](httpClient: Client[F],
       )(onError)
     } yield resp
   }
+
+  override def isGroupMembersOrAdmin(groupName: GroupName,
+                                     workbenchEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean] =
+    for {
+      leoAuth <- getLeoAuthToken
+      members <- httpClient.expectOr[List[WorkbenchEmail]](
+        Request[F](
+          method = Method.GET,
+          uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/groups/v1/${groupName.asString}/member")),
+          headers = Headers(leoAuth)
+        )
+      )(onError)
+      res <- if (members.contains(workbenchEmail))
+        F.pure(true)
+      else
+        for {
+          admins <- httpClient.expectOr[List[WorkbenchEmail]](
+            Request[F](
+              method = Method.GET,
+              uri = config.samUri.withPath(Uri.Path.unsafeFromString(s"/api/groups/v1/${groupName.asString}/admin")),
+              headers = Headers(leoAuth)
+            )
+          )(onError)
+        } yield admins.contains(workbenchEmail)
+    } yield res
 }
 
 object HttpSamDAO {

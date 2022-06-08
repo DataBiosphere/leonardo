@@ -50,6 +50,7 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.NonLeoMessageSubscribe
 import org.broadinstitute.dsde.workbench.leonardo.monitor._
 import org.broadinstitute.dsde.workbench.leonardo.util._
 import org.broadinstitute.dsde.workbench.model.{IP, TraceId, UserInfo}
+import org.broadinstitute.dsde.workbench.oauth2.OpenIDConnectConfiguration
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 import org.broadinstitute.dsp.HelmInterpreter
 import org.http4s.Request
@@ -116,9 +117,8 @@ object Boot extends IOApp {
         AzureServiceConfig(
           //For now azure disks share same defaults as normal disks
           ConfigReader.appConfig.persistentDisk,
-          ConfigReader.appConfig.azure.service
-        ),
-        ConfigReader.appConfig.azure.runtimeDefaults
+          ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image
+        )
       )
       val runtimeService = RuntimeService(
         runtimeServiceConfig,
@@ -138,9 +138,9 @@ object Boot extends IOApp {
       )
 
       val leoKubernetesService: LeoAppServiceInterp[IO] =
-        new LeoAppServiceInterp(appDependencies.authProvider,
+        new LeoAppServiceInterp(appServiceConfig,
+                                appDependencies.authProvider,
                                 appDependencies.serviceAccountProvider,
-                                leoKubernetesConfig,
                                 appDependencies.publisherQueue,
                                 appDependencies.googleDependencies.googleComputeService)
 
@@ -149,12 +149,11 @@ object Boot extends IOApp {
         appDependencies.authProvider,
         appDependencies.wsmDAO,
         appDependencies.samDAO,
-        appDependencies.asyncTasksQueue,
         appDependencies.publisherQueue
       )
 
       val httpRoutes = new HttpRoutes(
-        swaggerConfig,
+        appDependencies.openIDConnectConfiguration,
         statusService,
         proxyService,
         runtimeService,
@@ -197,7 +196,10 @@ object Boot extends IOApp {
 
         val backLeoOnlyProcesses = {
           val monitorAtBoot =
-            new MonitorAtBoot[IO](appDependencies.publisherQueue, googleDependencies.googleComputeService)
+            new MonitorAtBoot[IO](appDependencies.publisherQueue,
+                                  googleDependencies.googleComputeService,
+                                  appDependencies.samDAO,
+                                  appDependencies.wsmDAO)
 
           val autopauseMonitor = AutopauseMonitor(
             autoFreezeConfig,
@@ -303,7 +305,7 @@ object Boot extends IOApp {
         HttpSamDAO[F](client, httpSamDaoConfig, petTokenCache)
       )
       jupyterDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_jupyter_client"), false).map(
-        client => new HttpJupyterDAO[F](runtimeDnsCache, client)
+        client => new HttpJupyterDAO[F](runtimeDnsCache, client, samDao)
       )
       welderDao <- buildHttpClient(sslContext, proxyResolver.resolveHttp4s, Some("leo_welder_client"), false).map(
         client => new HttpWelderDAO[F](runtimeDnsCache, client)
@@ -324,7 +326,7 @@ object Boot extends IOApp {
         new HttpWsmDao[F](client, ConfigReader.appConfig.azure.wsm)
       )
 
-      computeManagerDao = new HttpComputerManagerDao[F](ConfigReader.appConfig.azure.appRegistration)
+      computeManagerDao = new AzureManagerDaoInterp[F](ConfigReader.appConfig.azure.appRegistration)
 
       // Set up identity providers
       serviceAccountProvider = new PetClusterServiceAccountProvider(samDao)
@@ -445,6 +447,16 @@ object Boot extends IOApp {
         F.delay(CaffeineCache[F, Long, OperationFuture[Operation, Operation]](underlyingOperationFutureCache))
       )(_.close)
 
+      oidcConfig <- Resource.eval(
+        OpenIDConnectConfiguration[F](
+          ConfigReader.appConfig.oidc.authorityEndpoint.renderString,
+          ConfigReader.appConfig.oidc.clientId,
+          oidcClientSecret = ConfigReader.appConfig.oidc.clientSecret,
+          extraGoogleClientId = Some(ConfigReader.appConfig.oidc.legacyGoogleClientId),
+          extraAuthParams = Some("prompt=login")
+        )
+      )
+
       recordMetricsProcesses = List(
         CacheMetrics("authCache").processWithUnderlyingCache(underlyingAuthCache),
         CacheMetrics("petTokenCache")
@@ -525,11 +537,12 @@ object Boot extends IOApp {
         googleDependencies.googleResourceService
       )
 
-      val azureAlg = new AzureInterpreter[F](ConfigReader.appConfig.azure.monitor,
-                                             asyncTasksQueue,
-                                             wsmDao,
-                                             samDao,
-                                             computeManagerDao)
+      val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
+                                                     asyncTasksQueue,
+                                                     wsmDao,
+                                                     samDao,
+                                                     jupyterDao,
+                                                     computeManagerDao)
 
       implicit val clusterToolToToolDao = ToolDAO.clusterToolToToolDao(jupyterDao, welderDao, rstudioDAO)
       val gceRuntimeMonitor = new GceRuntimeMonitor[F](
@@ -588,7 +601,8 @@ object Boot extends IOApp {
         samResourceCache,
         pubsubSubscriber,
         gkeAlg,
-        dataprocInterp
+        dataprocInterp,
+        oidcConfig
       )
     }
 
@@ -683,5 +697,6 @@ final case class AppDependencies[F[_]](
   samResourceCache: scalacache.Cache[F, SamResourceCacheKey, Option[String]],
   pubsubSubscriber: LeoPubsubMessageSubscriber[F],
   gkeAlg: GKEAlgebra[F],
-  dataprocInterp: DataprocInterpreter[F]
+  dataprocInterp: DataprocInterpreter[F],
+  openIDConnectConfiguration: OpenIDConnectConfiguration
 )

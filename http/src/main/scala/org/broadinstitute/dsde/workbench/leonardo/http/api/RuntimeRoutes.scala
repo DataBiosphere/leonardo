@@ -37,7 +37,7 @@ class RuntimeRoutes(saturnIframeExtentionHostConfig: RefererConfig,
   val routes: server.Route = traceRequestForService(serviceData) { span =>
     extractAppContext(Some(span)) { implicit ctx =>
       userInfoDirectives.requireUserInfo { userInfo =>
-        CookieSupport.setTokenCookie(userInfo, CookieSupport.tokenCookieName) {
+        CookieSupport.setTokenCookie(userInfo) {
           pathPrefix("google" / "v1" / "runtimes") {
             pathEndOrSingleSlash {
               parameterMap { params =>
@@ -398,7 +398,7 @@ object RuntimeRoutes {
     } yield r
   }
 
-  implicit val createRuntimeRequestDecoder: Decoder[CreateRuntime2Request] = Decoder.instance { c =>
+  implicit val createRuntime2RequestDecoder: Decoder[CreateRuntime2Request] = Decoder.instance { c =>
     for {
       l <- c.downField("labels").as[Option[LabelMap]]
       _ <- l.fold(().asRight[DecodingFailure]) { labelMap =>

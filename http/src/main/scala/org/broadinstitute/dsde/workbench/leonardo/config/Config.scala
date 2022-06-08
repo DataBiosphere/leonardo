@@ -24,8 +24,9 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.{GroupName, HttpSamDaoConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
@@ -46,8 +47,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
-import java.nio.file.{Path, Paths}
 
+import java.nio.file.{Path, Paths}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -55,6 +56,7 @@ object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
+  implicit private val groupNameReader: ValueReader[GroupName] = stringValueReader.map(GroupName)
 
   implicit private val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
     ApplicationConfig(
@@ -191,8 +193,7 @@ object Config {
       config.as[Path]("proxyServerCrt"),
       config.as[Path]("proxyServerKey"),
       config.as[Path]("proxyRootCaPem"),
-      config.as[Path]("proxyRootCaKey"),
-      config.as[Path]("rstudioLicenseFile")
+      config.as[Path]("proxyRootCaKey")
     )
   }
 
@@ -249,13 +250,6 @@ object Config {
         config.as[Boolean]("enabled")
       )
     }
-
-  implicit private val swaggerReader: ValueReader[SwaggerConfig] = ValueReader.relative { config =>
-    SwaggerConfig(
-      config.getString("googleClientId"),
-      config.getString("realm")
-    )
-  }
 
   implicit private val leoPubsubConfigReader: ValueReader[PubsubConfig] = ValueReader.relative { config =>
     PubsubConfig(
@@ -333,7 +327,10 @@ object Config {
       SamAuthProviderConfig(
         config.getOrElse("notebookAuthCacheEnabled", true),
         config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000),
-        config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
+        config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes),
+        config
+          .getOrElse[GroupName]("customAppCreationAllowedGroup",
+                                throw new Exception("No customAppCreationAllowedGroup key found"))
       )
   }
 
@@ -386,7 +383,6 @@ object Config {
   implicit private val firewallAllowInternalLabelKeyReader: ValueReader[FirewallAllowInternalLabelKey] =
     stringValueReader.map(FirewallAllowInternalLabelKey)
   implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
-  // TODO(wnojopra): Make these more FP-friendly
   implicit private val subnetworkRegionIpRangeMapReader: ValueReader[Map[RegionName, IpRange]] =
     mapValueReader[IpRange].map(mp => mp.map { case (k, v) => (RegionName(k) -> v) })
 
@@ -455,7 +451,6 @@ object Config {
   val imageConfig = config.as[ImageConfig]("image")
   val prometheusConfig = config.as[PrometheusConfig]("prometheus")
   val proxyConfig = config.as[ProxyConfig]("proxy")
-  val swaggerConfig = config.as[SwaggerConfig]("swagger")
   val securityFilesConfig = config.as[SecurityFilesConfig]("clusterFiles")
   val gceClusterResourcesConfig = config.as[ClusterResourcesConfig]("gceClusterResources")
   val clusterResourcesConfig = config.as[ClusterResourcesConfig]("clusterResources")
@@ -655,7 +650,8 @@ object Config {
   implicit private val serviceReader: ValueReader[ServiceConfig] = ValueReader.relative { config =>
     ServiceConfig(
       config.as[ServiceName]("name"),
-      config.as[KubernetesServiceKindName]("kind")
+      config.as[KubernetesServiceKindName]("kind"),
+      config.as[Option[ServicePath]]("path")
     )
   }
 
@@ -672,6 +668,8 @@ object Config {
     stringValueReader.map(KubernetesServiceKindName)
   implicit private val kubernetesClusterVersionReader: ValueReader[KubernetesClusterVersion] =
     stringValueReader.map(KubernetesClusterVersion)
+  implicit private val servicePathReader: ValueReader[ServicePath] =
+    stringValueReader.map(ServicePath)
 
   val gkeClusterConfig = config.as[KubernetesClusterConfig]("gke.cluster")
   val gkeDefaultNodepoolConfig = config.as[DefaultNodepoolConfig]("gke.defaultNodepool")
@@ -705,6 +703,10 @@ object Config {
     gkeCustomAppConfig
   )
 
+  val appServiceConfig = AppServiceConfig(
+    config.getBoolean("app-service.enable-custom-app-group-permission-check"),
+    leoKubernetesConfig
+  )
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
 
