@@ -313,9 +313,19 @@ class GceInterpreter[F[_]](
         .createInstance(googleProject, zoneParam, instance)
 
       hostname <- F.delay(UUID.randomUUID().getLeastSignificantBits.toHexString)
-      res = operation.map(o =>
+
+//       When there's already an on-ging create request, `.getName` will error with `Conflict`
+      opName <- operation.flatTraverse { op =>
+        F.delay(op.getName.some)
+          .recoverWith {
+            case e: java.util.concurrent.ExecutionException if (e.getMessage.contains("Conflict")) =>
+              F.pure(none[String])
+          }
+      }
+
+      res = opName.map(name =>
         CreateGoogleRuntimeResponse(
-          AsyncRuntimeFields(ProxyHostName(hostname), OperationName(o.getName), stagingBucketName, None),
+          AsyncRuntimeFields(ProxyHostName(hostname), OperationName(name), stagingBucketName, None),
           initBucketName,
           BootSource.VmImage(config.gceConfig.sourceImage)
         )

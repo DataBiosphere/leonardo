@@ -112,14 +112,14 @@ object Dependencies {
     excludeBouncyCastlePkix)
   val workbenchOpenTelemetryTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-opentelemetry" % workbenchOpenTelemetryV % Test classifier "tests" excludeAll (excludeGuava)
 
-  val wsmClient: ModuleID = "bio.terra" % "workspace-manager-client" % "0.254.266-SNAPSHOT"
+  val wsmClient: ModuleID = "bio.terra" % "workspace-manager-client" % "0.254.273-SNAPSHOT"
 
   val helmScalaSdk: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV
   val helmScalaSdkTest: ModuleID = "org.broadinstitute.dsp" %% "helm-scala-sdk" % helmScalaSdkV % Test classifier "tests"
 
   val slick: ModuleID =           "com.typesafe.slick"  %% "slick"                % slickV excludeAll (excludeTypesafeConfig, excludeReactiveStream)
   val hikariCP: ModuleID =        "com.typesafe.slick"  %% "slick-hikaricp"       % slickV excludeAll (excludeSlf4j)
-  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.28"
+  val mysql: ModuleID =           "mysql"               % "mysql-connector-java"  % "8.0.29"
   val liquibase: ModuleID =       "org.liquibase"       % "liquibase-core"        % "4.11.0"
   val sealerate: ModuleID =       "ca.mrvisser"         %% "sealerate"            % "0.0.6"
   val googleCloudNio: ModuleID =  "com.google.cloud"    % "google-cloud-nio"      % "0.123.20" % Test // brought in for FakeStorageInterpreter
@@ -130,8 +130,8 @@ object Dependencies {
   val http4sDsl =         "org.http4s"        %% "http4s-dsl"           % http4sVersion
   val guava: ModuleID =   "com.google.guava"  % "guava"                 % guavaV
 
-  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.13.0"
-  val azureIdentity =  "com.azure" % "azure-identity" % "1.4.6"
+  val azureResourceManager = "com.azure.resourcemanager" % "azure-resourcemanager" % "2.15.0"
+  val azureIdentity =  "com.azure" % "azure-identity" % "1.5.2"
 
   val coreDependencies = List(
     workbenchOauth2,
@@ -194,7 +194,7 @@ object Dependencies {
   val workbenchServiceTest: ModuleID = "org.broadinstitute.dsde.workbench" %% "workbench-service-test" % serviceTestV % "test" classifier "tests" excludeAll (excludeGuava, excludeStatsD)
 
   val automationDependencies = List(
-    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.1" % "test",
+    "com.fasterxml.jackson.module" %% "jackson-module-scala"   % "2.13.3" % "test",
     logbackClassic % "test",
 
     "com.typesafe.akka" %% "akka-http-core" % akkaHttpV,
