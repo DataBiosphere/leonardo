@@ -71,7 +71,7 @@ class HttpRoutes(
     DebuggingDirectives.logRequestResult(LoggingMagnet(myLoggingFunction))
   }
 
-  implicit val myExceptionHandler = {
+  implicit val myExceptionHandler =
     ExceptionHandler {
       case leoException: LeoException =>
         logger.error(leoException)(s"request failed due to: ${leoException.getMessage}").unsafeToFuture()
@@ -84,17 +84,16 @@ class HttpRoutes(
                                                          Seq(),
                                                          Seq(),
                                                          Some(e.getClass),
-                                                         None)
+                                                         None
+          )
         )
     }
-  }
 
   implicit val myRejectionHandler =
     RejectionHandler
       .newBuilder()
-      .handle {
-        case ValidationRejection(msg, cause) =>
-          complete(HttpResponse(StatusCodes.BadRequest, entity = s"${cause.map(_.getMessage).getOrElse(msg)}"))
+      .handle { case ValidationRejection(msg, cause) =>
+        complete(HttpResponse(StatusCodes.BadRequest, entity = s"${cause.map(_.getMessage).getOrElse(msg)}"))
       }
       .handleNotFound(
         complete(
@@ -103,7 +102,7 @@ class HttpRoutes(
       )
       .result()
 
-  val route: Route = {
+  val route: Route =
     logRequestResult {
       Route.seal(
         oidcConfig
@@ -113,7 +112,6 @@ class HttpRoutes(
           }
       )
     }
-  }
 }
 
 object HttpRoutes {

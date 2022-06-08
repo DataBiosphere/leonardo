@@ -48,8 +48,9 @@ sealed trait SamResourceCacheKey extends Product with Serializable {
 }
 object SamResourceCacheKey {
   final case class RuntimeCacheKey(cloudContext: CloudContext, name: RuntimeName) extends SamResourceCacheKey {
-    override val googleProject
-      : GoogleProject = GoogleProject(cloudContext.asString) //TODO: remove this once AppCacheKey is also moved to use cloudContext
+    override val googleProject: GoogleProject = GoogleProject(
+      cloudContext.asString
+    ) // TODO: remove this once AppCacheKey is also moved to use cloudContext
   }
   final case class AppCacheKey(googleProject: GoogleProject, name: AppName) extends SamResourceCacheKey
 }
@@ -74,12 +75,14 @@ case class ProxyHostNotFoundException(context: HostContext, traceId: TraceId)
 final case class ProxyException(context: HostContext, traceId: TraceId)
     extends LeoException(s"Unable to proxy connection to tool on ${context.description}",
                          StatusCodes.InternalServerError,
-                         traceId = Some(traceId))
+                         traceId = Some(traceId)
+    )
 
 final case object AccessTokenExpiredException
     extends LeoException(s"Your access token is expired. Try logging in again",
                          StatusCodes.Unauthorized,
-                         traceId = None)
+                         traceId = None
+    )
 
 class ProxyService(
   sslContext: SSLContext,
@@ -94,12 +97,13 @@ class ProxyService(
   samDAO: SamDAO[IO],
   googleTokenCache: Cache[IO, String, (UserInfo, Instant)],
   samResourceCache: Cache[IO, SamResourceCacheKey, Option[String]]
-)(implicit val system: ActorSystem,
+)(implicit
+  val system: ActorSystem,
   executionContext: ExecutionContext,
   dbRef: DbReference[IO],
   loggerIO: StructuredLogger[IO],
-  metrics: OpenTelemetryMetrics[IO])
-    extends LazyLogging {
+  metrics: OpenTelemetryMetrics[IO]
+) extends LazyLogging {
   val httpsConnectionContext = ConnectionContext.httpsClient(sslContext)
   val clientConnectionSettings =
     ClientConnectionSettings(system).withTransport(ClientTransport.withCustomResolver(proxyResolver.resolveAkka))
@@ -107,18 +111,19 @@ class ProxyService(
   final val requestTimeout = toScalaDuration(system.settings.config.getDuration("akka.http.server.request-timeout"))
   logger.info(s"Leo proxy request timeout is $requestTimeout")
 
-  private[leonardo] def getUserInfo(token: String, now: Instant, checkUserEnabled: Boolean)(
-    implicit ev: Ask[IO, TraceId]
+  private[leonardo] def getUserInfo(token: String, now: Instant, checkUserEnabled: Boolean)(implicit
+    ev: Ask[IO, TraceId]
   ): IO[(UserInfo, Instant)] =
     decodeB2cToken(token, now) match {
       case Left(_: JWTDecodeException) =>
         for {
           userInfo <- googleOauth2Service.getUserInfoFromToken(token)
-          _ <- if (checkUserEnabled) for {
-            samUserInfo <- samDAO.getSamUserInfo(token)
-            _ <- IO.fromOption(samUserInfo)(AuthenticationError(Some(userInfo.userEmail)))
-          } yield ()
-          else IO.unit
+          _ <-
+            if (checkUserEnabled) for {
+              samUserInfo <- samDAO.getSamUserInfo(token)
+              _ <- IO.fromOption(samUserInfo)(AuthenticationError(Some(userInfo.userEmail)))
+            } yield ()
+            else IO.unit
         } yield (userInfo, now.plusSeconds(userInfo.tokenExpiresIn.toInt))
       case Left(e) =>
         IO.raiseError(e)
@@ -127,8 +132,9 @@ class ProxyService(
     }
 
   /* Ask the cache for the corresponding user info given a token */
-  def getCachedUserInfoFromToken(token: String,
-                                 checkUserEnabled: Boolean)(implicit ev: Ask[IO, TraceId]): IO[UserInfo] =
+  def getCachedUserInfoFromToken(token: String, checkUserEnabled: Boolean)(implicit
+    ev: Ask[IO, TraceId]
+  ): IO[UserInfo] =
     for {
       ctx <- ev.ask[TraceId]
       now <- IO.realTimeInstant
@@ -161,8 +167,8 @@ class ProxyService(
           .transaction
     }
 
-  def getCachedRuntimeSamResource(key: RuntimeCacheKey)(
-    implicit ev: Ask[IO, AppContext]
+  def getCachedRuntimeSamResource(key: RuntimeCacheKey)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[RuntimeSamResourceId] =
     for {
       ctx <- ev.ask[AppContext]
@@ -183,8 +189,8 @@ class ProxyService(
       }
     } yield res
 
-  def getCachedAppSamResource(key: AppCacheKey)(
-    implicit ev: Ask[IO, AppContext]
+  def getCachedAppSamResource(key: AppCacheKey)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[AppSamResourceId] =
     for {
       ctx <- ev.ask[AppContext]
@@ -218,13 +224,15 @@ class ProxyService(
       samResource <- getCachedRuntimeSamResource(RuntimeCacheKey(cloudContext, runtimeName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, RuntimeAction.GetRuntimeStatus, userInfo)
-      _ <- if (!hasViewPermission) {
-        IO.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, ctx.traceId.asString))
-      } else IO.unit
+      _ <-
+        if (!hasViewPermission) {
+          IO.raiseError(RuntimeNotFoundException(cloudContext, runtimeName, ctx.traceId.asString))
+        } else IO.unit
       hasConnectPermission <- authProvider.hasPermission(samResource, RuntimeAction.ConnectToRuntime, userInfo)
-      _ <- if (!hasConnectPermission) {
-        IO.raiseError(ForbiddenError(userInfo.userEmail))
-      } else IO.unit
+      _ <-
+        if (!hasConnectPermission) {
+          IO.raiseError(ForbiddenError(userInfo.userEmail))
+        } else IO.unit
       hostStatus <- getRuntimeTargetHost(cloudContext, runtimeName)
       _ <- hostStatus match {
         case HostReady(_, _, _) =>
@@ -250,13 +258,15 @@ class ProxyService(
                    googleProject: GoogleProject,
                    runtimeName: RuntimeName,
                    terminalName: TerminalName,
-                   request: HttpRequest)(implicit ev: Ask[IO, AppContext]): IO[HttpResponse] =
+                   request: HttpRequest
+  )(implicit ev: Ask[IO, AppContext]): IO[HttpResponse] =
     for {
       terminalExists <- jupyterDAO.terminalExists(googleProject, runtimeName, terminalName)
-      _ <- if (terminalExists)
-        IO.unit
-      else
-        jupyterDAO.createTerminal(googleProject, runtimeName)
+      _ <-
+        if (terminalExists)
+          IO.unit
+        else
+          jupyterDAO.createTerminal(googleProject, runtimeName)
       r <- proxyRequest(userInfo, CloudContext.Gcp(googleProject), runtimeName, request)
       result = if (r.status.isSuccess()) "success" else "failure"
 
@@ -275,21 +285,24 @@ class ProxyService(
                       googleProject: GoogleProject,
                       appName: AppName,
                       serviceName: ServiceName,
-                      request: HttpRequest)(
-    implicit ev: Ask[IO, AppContext]
+                      request: HttpRequest
+  )(implicit
+    ev: Ask[IO, AppContext]
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
       samResource <- getCachedAppSamResource(AppCacheKey(googleProject, appName))
       // Note both these Sam actions are cached so it should be okay to call hasPermission twice
       hasViewPermission <- authProvider.hasPermission(samResource, AppAction.GetAppStatus, userInfo)
-      _ <- if (!hasViewPermission) {
-        IO.raiseError(AppNotFoundException(googleProject, appName, ctx.traceId))
-      } else IO.unit
+      _ <-
+        if (!hasViewPermission) {
+          IO.raiseError(AppNotFoundException(googleProject, appName, ctx.traceId))
+        } else IO.unit
       hasConnectPermission <- authProvider.hasPermission(samResource, AppAction.ConnectToApp, userInfo)
-      _ <- if (!hasConnectPermission) {
-        IO.raiseError(ForbiddenError(userInfo.userEmail))
-      } else IO.unit
+      _ <-
+        if (!hasConnectPermission) {
+          IO.raiseError(ForbiddenError(userInfo.userEmail))
+        } else IO.unit
       hostStatus <- getAppTargetHost(googleProject, appName)
       hostContext = HostContext(hostStatus, s"${googleProject.value}/${appName.value}/${serviceName.value}")
       r <- proxyInternal(hostContext, request)
@@ -307,8 +320,8 @@ class ProxyService(
   private[service] def getAppTargetHost(googleProject: GoogleProject, appName: AppName): IO[HostStatus] =
     Proxy.getAppTargetHost[IO](kubernetesDnsCache, googleProject, appName)
 
-  private def proxyInternal(hostContext: HostContext, request: HttpRequest)(
-    implicit ev: Ask[IO, AppContext]
+  private def proxyInternal(hostContext: HostContext, request: HttpRequest)(implicit
+    ev: Ask[IO, AppContext]
   ): IO[HttpResponse] =
     for {
       ctx <- ev.ask[AppContext]
@@ -324,21 +337,21 @@ class ProxyService(
               case None =>
                 IO.fromFuture(IO(handleHttpRequest(targetHost, request)))
             }
-            r <- if (response.status.isFailure())
-              loggerIO
-                .info(ctx.loggingCtx)(
-                  s"Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
-                    .to[String]}"
-                )
-                .as(response)
-            else IO.pure(response)
+            r <-
+              if (response.status.isFailure())
+                loggerIO
+                  .info(ctx.loggingCtx)(
+                    s"Error response for proxied request ${request.uri}: ${response.status}, ${Unmarshal(response.entity.withSizeLimit(1024))
+                        .to[String]}"
+                  )
+                  .as(response)
+              else IO.pure(response)
           } yield r
 
-          res.recoverWith {
-            case e =>
-              loggerIO.error(ctx.loggingCtx, e)(s"Error occurred in proxy") >> IO.raiseError[HttpResponse](
-                ProxyException(hostContext, ctx.traceId)
-              )
+          res.recoverWith { case e =>
+            loggerIO.error(ctx.loggingCtx, e)(s"Error occurred in proxy") >> IO.raiseError[HttpResponse](
+              ProxyException(hostContext, ctx.traceId)
+            )
           }
         case HostNotReady =>
           loggerIO.warn(ctx.loggingCtx)(s"proxy host not ready for ${hostContext.description}") >> IO.raiseError(
@@ -410,27 +423,27 @@ class ProxyService(
   // Should not affect any other responses.
   private def fixContentDisposition(httpResponse: HttpResponse): HttpResponse =
     httpResponse.header[`Content-Disposition`] match {
-      case Some(header) => {
+      case Some(header) =>
         val keyName = "filename"
         header.params.get(keyName) match {
-          case Some(fileName) => {
-            val newFileName = fileName.replace("utf-8''", "") // a filename that doesn't have utf-8'' shouldn't be affected
+          case Some(fileName) =>
+            val newFileName =
+              fileName.replace("utf-8''", "") // a filename that doesn't have utf-8'' shouldn't be affected
             val newParams = header.params + (keyName -> newFileName)
             val newHeader = `Content-Disposition`(header.dispositionType, newParams)
             val newHeaders = httpResponse.headers.filter(header => header.isNot("content-disposition")) ++ Seq(
               newHeader
             )
             httpResponse.withHeaders(headers = newHeaders)
-          }
           case None => httpResponse
         }
-      }
       case None => httpResponse
     }
 
   private def handleWebSocketRequest(targetHost: Host,
                                      request: HttpRequest,
-                                     upgrade: WebSocketUpgrade): Future[HttpResponse] = {
+                                     upgrade: WebSocketUpgrade
+  ): Future[HttpResponse] = {
     logger.info(s"Opening websocket connection to ${targetHost.address}")
 
     // This is a similar idea to handleHttpRequest(), we're just using WebSocket APIs instead of HTTP ones.
@@ -450,7 +463,8 @@ class ProxyService(
       WebSocketRequest(
         request.uri.copy(path = rewriteJupyterPath(request.uri.path),
                          authority = request.uri.authority.copy(host = targetHost, port = proxyConfig.proxyPort),
-                         scheme = "wss"),
+                         scheme = "wss"
+        ),
         extraHeaders = filterHeaders(request.headers),
         upgrade.requestedProtocols.headOption
       ),
@@ -507,12 +521,10 @@ object ProxyService {
   // paths in related areas like jupyter_notebook_config.py
   def rewriteJupyterPath(path: Uri.Path): Uri.Path =
     path.toString match {
-      case proxyPattern(project, cluster, path) => {
+      case proxyPattern(project, cluster, path) =>
         Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
-      }
-      case notebooksPattern(project, cluster, path) => {
+      case notebooksPattern(project, cluster, path) =>
         Uri.Path("/notebooks/" + project + "/" + cluster + "/" + path)
-      }
       case _ => path
     }
 
@@ -521,16 +533,19 @@ object ProxyService {
       decoded <- Either.catchNonFatal(JWT.decode(token))
       nonNullDecoded <- Either.fromOption(Option(decoded), AuthenticationError(extraMessage = "get null decoded token"))
       email <- Either.fromOption(Option(nonNullDecoded.getClaim("email")),
-                                 AuthenticationError(extraMessage = "no email claim found"))
+                                 AuthenticationError(extraMessage = "no email claim found")
+      )
       subjectId = Option(nonNullDecoded.getClaim("google_id"))
         .orElse(Option(nonNullDecoded.getClaim("sub")))
         .map(x => x.asString())
       userId <- Either.fromOption(subjectId, AuthenticationError(extraMessage = "no google_id nor sub claim found"))
       expiresAt = nonNullDecoded.getExpiresAt.toInstant
-      expiresIn <- if (expiresAt.isAfter(now))
-        (expiresAt.getEpochSecond - now.getEpochSecond).asRight[Exception]
-      else
-        AccessTokenExpiredException.asLeft[Long]
+      expiresIn <-
+        if (expiresAt.isAfter(now))
+          (expiresAt.getEpochSecond - now.getEpochSecond).asRight[Exception]
+        else
+          AccessTokenExpiredException.asLeft[Long]
     } yield (UserInfo(OAuth2BearerToken(token), WorkbenchUserId(userId), WorkbenchEmail(email.asString()), expiresIn),
-             expiresAt)
+             expiresAt
+    )
 }

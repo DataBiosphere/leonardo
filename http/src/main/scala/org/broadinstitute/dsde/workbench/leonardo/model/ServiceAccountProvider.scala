@@ -23,8 +23,8 @@ abstract class ServiceAccountProvider[F[_]] {
    * @param googleProject the Google project the cluster is created in
    * @return service account email
    */
-  def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
   /**
@@ -39,8 +39,8 @@ abstract class ServiceAccountProvider[F[_]] {
    * @param googleProject the Google project the cluster is created in
    * @return service account email
    */
-  def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]]
 
   /**
@@ -48,8 +48,8 @@ abstract class ServiceAccountProvider[F[_]] {
    * @param userEmail the user email for which we need to get a list of groups that will have access to the staging bucket
    * @return list of groups that will have reader access to a staging bucket
    */
-  def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(
-    implicit ev: Ask[F, TraceId]
+  def listGroupsStagingBucketReaders(userEmail: WorkbenchEmail)(implicit
+    ev: Ask[F, TraceId]
   ): F[List[WorkbenchEmail]]
 
   /**
@@ -59,8 +59,8 @@ abstract class ServiceAccountProvider[F[_]] {
    */
   def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): F[List[WorkbenchEmail]]
 
-  def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[String]]
 }
 

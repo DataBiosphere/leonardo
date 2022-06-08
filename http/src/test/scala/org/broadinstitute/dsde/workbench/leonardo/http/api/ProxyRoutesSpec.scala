@@ -195,7 +195,8 @@ class ProxyRoutesSpec
                            googleTokenCache,
                            samResourceCache,
                            MockGoogleOAuth2Service,
-                           queue = Some(queue))
+                           queue = Some(queue)
+      )
     samResourceCache.put(
       RuntimeCacheKey(CloudContext.Gcp(GoogleProject(googleProject)), RuntimeName(clusterName))
     )(Some(runtimeSamResource.resourceId), None)
@@ -284,11 +285,12 @@ class ProxyRoutesSpec
     val webSocketFlow = Http()
       .webSocketClientFlow(
         WebSocketRequest(Uri(s"ws://localhost:9000/proxy/$googleProject/$clusterName/websocket"),
-                         immutable.Seq(Cookie(tokenCookie)))
+                         immutable.Seq(Cookie(tokenCookie))
+        )
       )
       .map {
         case m: TextMessage.Strict => m.text
-        case _                     => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
+        case _ => throw new IllegalArgumentException("ProxyRoutesSpec only supports strict messages")
       }
 
     // Glue together the source, sink, and flow. This materializes the Flow and actually initiates the HTTP request.
@@ -326,7 +328,8 @@ class ProxyRoutesSpec
       status shouldEqual StatusCodes.OK
       verify(jupyterDAO, times(1)).terminalExists(GoogleProject(googleProject),
                                                   RuntimeName(clusterName),
-                                                  TerminalName("1"))
+                                                  TerminalName("1")
+      )
       verify(jupyterDAO, times(1)).createTerminal(GoogleProject(googleProject), RuntimeName(clusterName))
     }
   }
@@ -470,7 +473,8 @@ class ProxyRoutesSpec
                            googleTokenCache,
                            samResourceCache,
                            MockGoogleOAuth2Service,
-                           samDAO = Some(samDao))
+                           samDAO = Some(samDao)
+      )
     val httpRoutes = new HttpRoutes(
       openIdConnectionConfiguration,
       statusService,
@@ -572,7 +576,8 @@ class ProxyRoutesSpec
                            kubernetesDnsCache,
                            googleTokenCache,
                            samResourceCache,
-                           MockGoogleOAuth2Service)
+                           MockGoogleOAuth2Service
+      )
 
     new HttpRoutes(
       openIdConnectionConfiguration,
@@ -594,11 +599,10 @@ class ProxyRoutesSpec
    */
   def withWebsocketProxy[T](testCode: => T): T = {
     val bindingFuture = Http().bindAndHandle(httpRoutes.route, "0.0.0.0", 9000)
-    try {
+    try
       testCode
-    } finally {
+    finally
       bindingFuture.flatMap(_.unbind())
-    }
   }
 
   private def validateCors(origin: Option[String] = None, optionsRequest: Boolean = false): Unit = {

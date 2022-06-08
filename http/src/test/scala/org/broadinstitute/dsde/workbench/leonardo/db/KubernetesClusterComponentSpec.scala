@@ -37,7 +37,7 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
       kubernetesClusterQuery.getMinimalActiveClusterByName(savedCluster2.googleProject)
     ) shouldEqual Some(savedCluster2)
 
-    //should delete the cluster and initial nodepool, hence '2' records updated
+    // should delete the cluster and initial nodepool, hence '2' records updated
     val now = Instant.now().truncatedTo(ChronoUnit.MICROS)
     dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster1.id, now)) shouldBe 2
     dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster2.id, now)) shouldBe 2
@@ -68,10 +68,11 @@ class KubernetesClusterComponentSpec extends AnyFlatSpecLike with TestComponent 
     getCluster.map(c => c.copy(nodepools = c.nodepools.sortBy(_.nodepoolName.value))) shouldEqual Some(
       savedCluster1
         .copy(namespaces = namespaces,
-              nodepools = (savedCluster1.nodepools ++ List(savedNodepool1)).sortBy(_.nodepoolName.value))
+              nodepools = (savedCluster1.nodepools ++ List(savedNodepool1)).sortBy(_.nodepoolName.value)
+        )
     )
 
-    //we expect 3 records to be affected by the delete: 2 nodepools, 1 cluster
+    // we expect 3 records to be affected by the delete: 2 nodepools, 1 cluster
     dbFutureValue(kubernetesClusterQuery.markAsDeleted(savedCluster1.id, Instant.now())) shouldBe 3
   }
 

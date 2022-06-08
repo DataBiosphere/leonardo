@@ -24,11 +24,13 @@ class AutopauseMonitor[F[_]](
   config: AutoFreezeConfig,
   jupyterDAO: JupyterDAO[F],
   publisherQueue: Queue[F, LeoPubsubMessage]
-)(implicit F: Async[F],
+)(implicit
+  F: Async[F],
   metrics: OpenTelemetryMetrics[F],
   logger: StructuredLogger[F],
   dbRef: DbReference[F],
-  ec: ExecutionContext) {
+  ec: ExecutionContext
+) {
 
   val process: Stream[F, Unit] =
     (Stream.sleep[F](config.autoFreezeCheckInterval) ++ Stream.eval(
@@ -89,7 +91,8 @@ class AutopauseMonitor[F[_]](
 
 object AutopauseMonitor {
   def apply[F[_]](config: AutoFreezeConfig, jupyterDAO: JupyterDAO[F], publisherQueue: Queue[F, LeoPubsubMessage])(
-    implicit F: Async[F],
+    implicit
+    F: Async[F],
     metrics: OpenTelemetryMetrics[F],
     logger: StructuredLogger[F],
     dbRef: DbReference[F],
@@ -101,6 +104,7 @@ object AutopauseMonitor {
 final case class RuntimeToAutoPause(id: Long,
                                     runtimeName: RuntimeName,
                                     cloudContext: CloudContext,
-                                    kernelFoundBusyDate: Option[Instant]) {
+                                    kernelFoundBusyDate: Option[Instant]
+) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${runtimeName.asString}"
 }

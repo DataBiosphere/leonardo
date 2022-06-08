@@ -51,12 +51,11 @@ package object service {
     // 2) includeDeleted - Boolean which determines if we include deleted resources in the response
     // 3) includeLabels - List of label keys which represent the labels (key, value pairs) that will be returned in response
     (params.get(includeDeletedKey), params.get(includeLabelsKey)) match {
-      case (Some(includeDeletedValue), Some(includeLabelsValue)) => {
+      case (Some(includeDeletedValue), Some(includeLabelsValue)) =>
         for {
           labelMap <- processLabelMap(params - includeDeletedKey - includeLabelsKey)
           labelsToReturn <- processLabelsToReturn(includeLabelsValue)
         } yield (labelMap, includeDeletedValue.toBoolean, labelsToReturn)
-      }
       case (Some(includeDeletedValue), None) =>
         for {
           labelMap <- processLabelMap(params - includeDeletedKey)

@@ -13,8 +13,8 @@ import scala.util.control.NoStackTrace
 class LeoException(val message: String = null,
                    val statusCode: StatusCode = StatusCodes.InternalServerError,
                    val cause: Throwable = null,
-                   traceId: Option[TraceId])
-    extends WorkbenchException(message, cause) {
+                   traceId: Option[TraceId]
+) extends WorkbenchException(message, cause) {
   override def getMessage: String = if (message != null) message else super.getMessage
 
   def toErrorReport: ErrorReport =
@@ -50,8 +50,8 @@ final case class LeoInternalServerError(msg: String, traceId: Option[TraceId])
 case class RuntimeNotFoundException(cloudContext: CloudContext,
                                     runtimeName: RuntimeName,
                                     msg: String,
-                                    traceId: Option[TraceId] = None)
-    extends LeoException(
+                                    traceId: Option[TraceId] = None
+) extends LeoException(
       s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} not found. Details: ${msg}",
       StatusCodes.NotFound,
       traceId = traceId
@@ -69,8 +69,8 @@ case class RuntimeAlreadyExistsException(cloudContext: CloudContext, runtimeName
 
 case class RuntimeCannotBeStoppedException(googleProject: GoogleProject,
                                            runtimeName: RuntimeName,
-                                           status: RuntimeStatus)
-    extends LeoException(
+                                           status: RuntimeStatus
+) extends LeoException(
       s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be stopped in ${status.toString} status",
       StatusCodes.Conflict,
       traceId = None
@@ -78,8 +78,8 @@ case class RuntimeCannotBeStoppedException(googleProject: GoogleProject,
 
 case class RuntimeCannotBeDeletedException(cloudContext: CloudContext,
                                            runtimeName: RuntimeName,
-                                           status: RuntimeStatus = RuntimeStatus.Creating)
-    extends LeoException(
+                                           status: RuntimeStatus = RuntimeStatus.Creating
+) extends LeoException(
       s"Runtime ${cloudContext.asStringWithProvider}/${runtimeName.asString} cannot be deleted in ${status} status",
       StatusCodes.Conflict,
       traceId = None
@@ -87,8 +87,8 @@ case class RuntimeCannotBeDeletedException(cloudContext: CloudContext,
 
 case class RuntimeCannotBeStartedException(googleProject: GoogleProject,
                                            runtimeName: RuntimeName,
-                                           status: RuntimeStatus)
-    extends LeoException(
+                                           status: RuntimeStatus
+) extends LeoException(
       s"Runtime ${googleProject.value}/${runtimeName.asString} cannot be started in ${status.toString} status",
       StatusCodes.Conflict,
       traceId = None
@@ -106,7 +106,8 @@ case class RuntimeOutOfDateException()
 case class RuntimeCannotBeUpdatedException(projectNameString: String, status: RuntimeStatus, userHint: String = "")
     extends LeoException(s"Runtime ${projectNameString} cannot be updated in ${status} status. ${userHint}",
                          StatusCodes.Conflict,
-                         traceId = None)
+                         traceId = None
+    )
 
 case class RuntimeMachineTypeCannotBeChangedException(projectNameString: String, status: RuntimeStatus)
     extends LeoException(
@@ -125,7 +126,8 @@ case class RuntimeDiskSizeCannotBeChangedException(projectNameString: String)
 case class RuntimeDiskSizeCannotBeDecreasedException(projectNameString: String)
     extends LeoException(s"Runtime ${projectNameString}: decreasing master disk size is not allowed",
                          StatusCodes.PreconditionFailed,
-                         traceId = None)
+                         traceId = None
+    )
 
 case class BucketObjectException(gcsUri: String, msg: String)
     extends LeoException(s"${gcsUri} is invalid GCS URI due to ${msg}", StatusCodes.BadRequest, traceId = None)
@@ -133,7 +135,8 @@ case class BucketObjectException(gcsUri: String, msg: String)
 case class BucketObjectAccessException(userEmail: WorkbenchEmail, gcsUri: GcsPath)
     extends LeoException(s"${userEmail.value} does not have access to ${gcsUri.toUri}",
                          StatusCodes.Forbidden,
-                         traceId = None)
+                         traceId = None
+    )
 
 case class ParseLabelsException(msg: String) extends LeoException(msg, StatusCodes.BadRequest, traceId = None)
 

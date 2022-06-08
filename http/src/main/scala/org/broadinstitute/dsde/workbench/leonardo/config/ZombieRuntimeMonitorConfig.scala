@@ -7,4 +7,5 @@ case class ZombieRuntimeMonitorConfig(enableZombieRuntimeDetection: Boolean,
                                       zombieCheckPeriod: FiniteDuration,
                                       deletionConfirmationLabelKey: String,
                                       creationHangTolerance: FiniteDuration,
-                                      concurrency: Int)
+                                      concurrency: Int
+)

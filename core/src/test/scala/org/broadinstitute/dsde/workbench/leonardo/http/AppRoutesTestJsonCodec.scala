@@ -43,7 +43,8 @@ object AppRoutesTestJsonCodec {
                         "diskName",
                         "customEnvironmentVariables",
                         "auditInfo",
-                        "appType")(GetAppResponse.apply)
+                        "appType"
+    )(GetAppResponse.apply)
 
   implicit val listAppResponseDecoder: Decoder[ListAppResponse] =
     Decoder.forProduct10("googleProject",
@@ -55,5 +56,6 @@ object AppRoutesTestJsonCodec {
                          "appType",
                          "diskName",
                          "auditInfo",
-                         "labels")(ListAppResponse.apply)
+                         "labels"
+    )(ListAppResponse.apply)
 }

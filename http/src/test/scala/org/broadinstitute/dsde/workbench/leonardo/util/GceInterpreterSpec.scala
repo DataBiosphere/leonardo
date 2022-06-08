@@ -53,7 +53,8 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
                            vpcInterp,
                            computeService,
                            MockGoogleDiskService,
-                           MockWelderDAO)
+                           MockWelderDAO
+    )
 
   it should "not error if create runtime has conflict" in isolatedDbTest {
     val response = new FakeComputeOperationFuture {
@@ -61,8 +62,8 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
         throw new java.util.concurrent.ExecutionException("Conflict", new Exception("bad"))
     }
     val computeService = new FakeGoogleComputeService {
-      override def createInstance(project: GoogleProject, zone: ZoneName, instance: Instance)(
-        implicit ev: Ask[IO, TraceId]
+      override def createInstance(project: GoogleProject, zone: ZoneName, instance: Instance)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[OperationFuture[Operation, Operation]]] = IO.pure(Some(response))
 
     }
@@ -99,7 +100,7 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           runtimeConfig
         )
       )
-    } yield (res shouldBe (None))
+    } yield (res shouldBe None)
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
@@ -130,7 +131,7 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       updatedRuntme <- IO(dbFutureValue(clusterQuery.getClusterById(runtime.id)))
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(updatedRuntme.get, CommonTestData.defaultGceRuntimeConfig)
       res <- gce.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None))
-    } yield (res shouldBe (None))
+    } yield (res shouldBe None)
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 }

@@ -55,9 +55,7 @@ class KeyLockSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike {
           )
           .timeout(1 second)
           .attempt
-      } yield {
-        timeoutErr.isLeft shouldBe true
-      }
+      } yield timeoutErr.isLeft shouldBe true
 
     res.timeout(5 seconds).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

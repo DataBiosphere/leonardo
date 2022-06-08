@@ -16,8 +16,8 @@ import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 
-class NotebookPage(override val url: String)(
-  implicit override val webDriver: WebDriver,
+class NotebookPage(override val url: String)(implicit
+  override val webDriver: WebDriver,
   override val authToken: AuthToken
 ) extends JupyterPage
     with Eventually {
@@ -29,45 +29,40 @@ class NotebookPage(override val url: String)(
 
   // menu elements
 
-  lazy val fileMenu: Element = {
+  lazy val fileMenu: Element =
     findAll(menus)
       .filter(e => e.text == "File")
       .toList
       .head
-  }
 
-  lazy val cellMenu: Element = {
+  lazy val cellMenu: Element =
     findAll(menus)
       .filter(e => e.text == "Cell")
       .toList
       .head
-  }
 
-  lazy val kernelMenu: Element = {
+  lazy val kernelMenu: Element =
     findAll(menus)
       .filter(e => e.text == "Kernel")
       .toList
       .head
-  }
 
   // selects all submenus which appear in dropdowns after clicking a main menu header
   lazy val submenus: Query = cssSelector("[class='menu_focus_highlight dropdown-submenu']")
 
   // File -> Download as
-  lazy val downloadSubMenu: Element = {
+  lazy val downloadSubMenu: Element =
     findAll(submenus)
       .filter(e => e.text == "Download as")
       .toList
       .head
-  }
 
   // Cell -> Cell type
-  lazy val cellTypeSubMenu: Element = {
+  lazy val cellTypeSubMenu: Element =
     findAll(submenus)
       .filter(e => e.text == "Cell Type")
       .toList
       .head
-  }
   // File -> Download as -> ipynb
   lazy val downloadSelectionAsIpynb: Query = cssSelector("[id='download_ipynb']")
 
@@ -125,7 +120,7 @@ class NotebookPage(override val url: String)(
     "[class='btn btn-default btn-sm btn-primary']"
   )
 
-  //intentionally misspelled
+  // intentionally misspelled
   val saveButtonId = "save-notbook"
 
   val modalId = "leoUserModal"
@@ -202,11 +197,12 @@ class NotebookPage(override val url: String)(
     NonEmptyList.fromList(outputs.asScala.map(_.getText).toList).map(CellOutput)
   }
 
-  //TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
-  //It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
+  // TODO: This function is buggy because the cell numbers are kernel specific not notebook specific
+  // It is possible to have a notebook with two cells, numbered 1,1 or even 1, 9
   def executeCell(code: String,
                   timeout: FiniteDuration = 1 minute,
-                  cellNumberOpt: Option[Int] = None): Option[String] = {
+                  cellNumberOpt: Option[Int] = None
+  ): Option[String] = {
     dismissNotebookChanged()
     await enabled cells
     val cell = lastCell
@@ -223,7 +219,8 @@ class NotebookPage(override val url: String)(
 
   def executeCellWithCellOutput(code: String,
                                 timeout: FiniteDuration = 1 minute,
-                                cellNumberOpt: Option[Int] = None): Option[CellOutput] = {
+                                cellNumberOpt: Option[Int] = None
+  ): Option[CellOutput] = {
     dismissNotebookChanged()
     await enabled cells
     val cell = lastCell
@@ -236,7 +233,7 @@ class NotebookPage(override val url: String)(
     cellOutput(cell)
   }
 
-  //TODO: this function is duplicative of the above but does not have the bug
+  // TODO: this function is duplicative of the above but does not have the bug
   def addCodeAndExecute(code: String, wait: Boolean = true, timeout: FiniteDuration = 1 minute): Unit = {
     dismissNotebookChanged()
     await enabled cells
@@ -272,7 +269,7 @@ class NotebookPage(override val url: String)(
     dismissNotebookChanged()
     awaitReadyKernel(
       1.minutes
-    ) //can cause failures with fast tests as it is called in clean-up, and it will timeout if it is called before the kernel is active
+    ) // can cause failures with fast tests as it is called in clean-up, and it will timeout if it is called before the kernel is active
     click on kernelMenu
     click on (await enabled shutdownKernelSelection)
     click on (await enabled shutdownKernelConfirmationSelection)
@@ -306,7 +303,7 @@ class NotebookPage(override val url: String)(
       val t0 = System.nanoTime()
 
       eventually(time, pollInterval) {
-        val ready = (!cellsAreRunning && isKernelReady && kernelNotificationText == "none")
+        val ready = !cellsAreRunning && isKernelReady && kernelNotificationText == "none"
         ready shouldBe true
       }
 
@@ -361,13 +358,13 @@ class NotebookPage(override val url: String)(
     executeJavaScript(s"$$('#${saveButtonId}').${functionToRun}")
   }
 
-  //checks if elements have the style "display: none;"
+  // checks if elements have the style "display: none;"
   def areElementsHidden(elementIds: List[String]): Boolean =
     elementIds
       .map(elementId => find(id(elementId)).exists(_.underlying.getAttribute("style") == "display: none;"))
       .forall(identity)
 
-  //checks if IDs are present in DOM and the elements with those IDs are displayed. Not the negation of the above, because javascript has many ways to hide elements
+  // checks if IDs are present in DOM and the elements with those IDs are displayed. Not the negation of the above, because javascript has many ways to hide elements
   def areElementsPresent(elementIds: List[String]): Boolean =
     elementIds
       .map(elementId =>
@@ -383,13 +380,13 @@ class NotebookPage(override val url: String)(
       click on findOverwriteButton.get
     }
 
-  //will cause an exception if no modal exists - check existence of below ID before calling
+  // will cause an exception if no modal exists - check existence of below ID before calling
   def makeACopyFromSyncIssue(): Unit =
     if (find(syncCopyButton).size > 0) {
       click on getSelectorFrom(syncCopyButton)
     }
 
-  //will cause an exception if expected modal does not exist - check existence of below ID before calling
+  // will cause an exception if expected modal does not exist - check existence of below ID before calling
   def goToPlaygroundModeFromLockIssue(): Unit =
     click on getSelectorFrom(lockPlaygroundButton)
 

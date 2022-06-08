@@ -46,7 +46,9 @@ class StatusRoutesSpec
       Get("/status") ~> statusRoutes.route ~> check {
         responseAs[StatusCheckResponse] shouldEqual StatusCheckResponse(true,
                                                                         Map(Database -> HealthMonitor.OkStatus,
-                                                                            Sam -> HealthMonitor.OkStatus))
+                                                                            Sam -> HealthMonitor.OkStatus
+                                                                        )
+        )
         status shouldEqual StatusCodes.OK
       }
     }

@@ -30,7 +30,8 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
         makeCluster(1)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = RuntimeStatus.Running,
-                autopauseThreshold = 1)
+                autopauseThreshold = 1
+          )
           .save()
       )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
@@ -57,7 +58,8 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
         makeCluster(1)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(45, ChronoUnit.SECONDS)),
                 status = RuntimeStatus.Running,
-                autopauseThreshold = 1)
+                autopauseThreshold = 1
+          )
           .save()
       )
       _ <- monitor(jupyterDAO, queue)(3 seconds)
@@ -65,7 +67,7 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
       event <- queue.tryTake
     } yield {
       status.get shouldBe (RuntimeStatus.Running)
-      event shouldBe (None)
+      event shouldBe None
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -84,7 +86,8 @@ class AutopauseMonitorSpec extends AnyFlatSpec with LeonardoTestSuite with TestC
         makeCluster(1)
           .copy(auditInfo = auditInfo.copy(dateAccessed = now.minus(5, ChronoUnit.MINUTES)),
                 status = RuntimeStatus.Running,
-                autopauseThreshold = 1)
+                autopauseThreshold = 1
+          )
           .save()
       )
       _ <- monitor(jupyterDAO, queue)(3 seconds)

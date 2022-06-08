@@ -61,9 +61,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Stopping).save())
       _ <- monitorAtBoot.process.take(1).compile.drain
       msg <- queue.tryTake
-    } yield {
-      (msg eqv Some(LeoPubsubMessage.StopRuntimeMessage(runtime.id, None))) shouldBe (true)
-    }
+    } yield (msg eqv Some(LeoPubsubMessage.StopRuntimeMessage(runtime.id, None))) shouldBe true
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -74,9 +72,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Deleting).save())
       _ <- monitorAtBoot.process.take(1).compile.drain
       msg <- queue.tryTake
-    } yield {
-      (msg eqv Some(LeoPubsubMessage.DeleteRuntimeMessage(runtime.id, None, None))) shouldBe (true)
-    }
+    } yield (msg eqv Some(LeoPubsubMessage.DeleteRuntimeMessage(runtime.id, None, None))) shouldBe true
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -87,9 +83,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Starting).save())
       _ <- monitorAtBoot.process.take(1).compile.drain
       msg <- queue.tryTake
-    } yield {
-      (msg eqv Some(LeoPubsubMessage.StartRuntimeMessage(runtime.id, None))) shouldBe (true)
-    }
+    } yield (msg eqv Some(LeoPubsubMessage.StartRuntimeMessage(runtime.id, None))) shouldBe true
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -109,7 +103,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       )
       (msg eqv Some(
         expectedMessage
-      )) shouldBe (true)
+      )) shouldBe true
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -242,9 +236,7 @@ class MonitorAtBootSpec extends AnyFlatSpec with TestComponent with LeonardoTest
       _ <- IO(appWithDisk.save())
       _ <- monitorAtBoot.process.take(1).compile.drain
       msg <- queue.tryTake
-    } yield {
-      msg shouldBe None
-    }
+    } yield msg shouldBe None
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

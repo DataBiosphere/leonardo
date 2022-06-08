@@ -27,18 +27,19 @@ trait AppService[F[_]] {
     params: Map[String, String]
   )(implicit as: Ask[F, AppContext]): F[Vector[ListAppResponse]]
 
-  def deleteApp(request: DeleteAppRequest)(
-    implicit as: Ask[F, AppContext]
+  def deleteApp(request: DeleteAppRequest)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
-  def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit as: Ask[F, AppContext]
+  def stopApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
-  def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(
-    implicit as: Ask[F, AppContext]
+  def startApp(userInfo: UserInfo, googleProject: GoogleProject, appName: AppName)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 }
 
 final case class AppServiceConfig(enableCustomAppGroupPermissionCheck: Boolean,
-                                  leoKubernetesConfig: LeoKubernetesConfig)
+                                  leoKubernetesConfig: LeoKubernetesConfig
+)

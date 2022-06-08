@@ -30,7 +30,7 @@ object DiskRoutesTestJsonCodec {
       id <- x.downField("id").as[DiskId]
       _ <- x
         .downField("googleProject")
-        .as[GoogleProject] //this is only here for backwards-compatibility test. Once the API move away from googleProject, we can remove this as well
+        .as[GoogleProject] // this is only here for backwards-compatibility test. Once the API move away from googleProject, we can remove this as well
       cloudContext <- x.downField("cloudContext").as[CloudContext]
       zone <- x.downField("zone").as[ZoneName]
       name <- x.downField("name").as[DiskName]
@@ -53,7 +53,8 @@ object DiskRoutesTestJsonCodec {
                                       size,
                                       diskType,
                                       blockSize,
-                                      labels)
+                                      labels
+    )
   }
 
   implicit val listDiskResponseDecoder: Decoder[ListPersistentDiskResponse] = Decoder.instance { x =>
@@ -61,7 +62,7 @@ object DiskRoutesTestJsonCodec {
       id <- x.downField("id").as[DiskId]
       _ <- x
         .downField("googleProject")
-        .as[GoogleProject] //this is only here for backwards-compatibility test. Once the API move away from googleProject, we can remove this as well
+        .as[GoogleProject] // this is only here for backwards-compatibility test. Once the API move away from googleProject, we can remove this as well
       cloudContext <- x.downField("cloudContext").as[CloudContext]
       zone <- x.downField("zone").as[ZoneName]
       name <- x.downField("name").as[DiskName]

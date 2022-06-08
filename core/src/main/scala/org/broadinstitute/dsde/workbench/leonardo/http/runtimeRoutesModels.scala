@@ -36,17 +36,17 @@ object RuntimeConfigRequest {
 
   final case class DataprocConfig(numberOfWorkers: Option[Int],
                                   masterMachineType: Option[MachineTypeName],
-                                  masterDiskSize: Option[DiskSize], //min 10
+                                  masterDiskSize: Option[DiskSize], // min 10
                                   // worker settings are None when numberOfWorkers is 0
                                   workerMachineType: Option[MachineTypeName] = None,
-                                  workerDiskSize: Option[DiskSize] = None, //min 10
-                                  numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                                  workerDiskSize: Option[DiskSize] = None, // min 10
+                                  numberOfWorkerLocalSSDs: Option[Int] = None, // min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
                                   properties: Map[String, String],
                                   region: Option[RegionName],
                                   componentGatewayEnabled: Boolean,
-                                  workerPrivateAccess: Boolean)
-      extends RuntimeConfigRequest {
+                                  workerPrivateAccess: Boolean
+  ) extends RuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }
 }
@@ -77,8 +77,8 @@ object UpdateRuntimeConfigRequest {
   final case class DataprocConfig(updatedMasterMachineType: Option[MachineTypeName],
                                   updatedMasterDiskSize: Option[DiskSize],
                                   updatedNumberOfWorkers: Option[Int],
-                                  updatedNumberOfPreemptibleWorkers: Option[Int])
-      extends UpdateRuntimeConfigRequest {
+                                  updatedNumberOfPreemptibleWorkers: Option[Int]
+  ) extends UpdateRuntimeConfigRequest {
     val cloudService: CloudService = CloudService.Dataproc
   }
 }
@@ -88,7 +88,8 @@ final case class UpdateRuntimeRequest(updatedRuntimeConfig: Option[UpdateRuntime
                                       updateAutopauseEnabled: Option[Boolean],
                                       updateAutopauseThreshold: Option[FiniteDuration],
                                       labelsToUpsert: LabelMap,
-                                      labelsToDelete: Set[String])
+                                      labelsToDelete: Set[String]
+)
 
 final case class GetRuntimeResponse(id: Long,
                                     samResource: RuntimeSamResourceId,
@@ -113,7 +114,8 @@ final case class GetRuntimeResponse(id: Long,
                                     welderEnabled: Boolean,
                                     patchInProgress: Boolean,
                                     customClusterEnvironmentVariables: Map[String, String],
-                                    diskConfig: Option[DiskConfig])
+                                    diskConfig: Option[DiskConfig]
+)
 
 object GetRuntimeResponse {
   def fromRuntime(runtime: Runtime, runtimeConfig: RuntimeConfig, diskConfig: Option[DiskConfig]) = GetRuntimeResponse(
@@ -154,7 +156,8 @@ final case class ListRuntimeResponse2(id: Long,
                                       proxyUrl: URL,
                                       status: RuntimeStatus,
                                       labels: LabelMap,
-                                      patchInProgress: Boolean)
+                                      patchInProgress: Boolean
+)
 
 object RuntimeRoutesCodec {
   implicit val listRuntimeResponseEncoder: Encoder[ListRuntimeResponse2] = Encoder.forProduct11(

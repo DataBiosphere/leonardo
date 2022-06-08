@@ -33,7 +33,7 @@ trait BillingProjectFixtureSpec extends FixtureAnyFreeSpecLike with Retries with
     }
 
     sys.props.get(googleProjectKey) match {
-      case None                                                         => throw new RuntimeException("leonardo.googleProject system property is not set")
+      case None => throw new RuntimeException("leonardo.googleProject system property is not set")
       case Some(msg) if msg.startsWith(createBillingProjectErrorPrefix) => throw new RuntimeException(msg)
       case Some(googleProjectId) =>
         if (isRetryable(test))
@@ -178,11 +178,12 @@ trait NewBillingProjectAndWorkspaceBeforeAndAfterAll extends BillingProjectUtils
       workspaceNamespaceProp <- IO(sys.props.get(workspaceNamespaceKey))
       workspaceNameProp <- IO(sys.props.get(workspaceNameKey))
       project = projectProp.filterNot(_.startsWith(createBillingProjectErrorPrefix)).map(GoogleProject)
-      _ <- if (!shouldUnclaimProp.contains("false")) {
-        (project, workspaceNamespaceProp, workspaceNameProp).traverseN {
-          case (p, n, w) => deleteInitialRuntime(p) >> deleteWorkspaceAndBillingProject(WorkspaceName(n, w))
-        }
-      } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
+      _ <-
+        if (!shouldUnclaimProp.contains("false")) {
+          (project, workspaceNamespaceProp, workspaceNameProp).traverseN { case (p, n, w) =>
+            deleteInitialRuntime(p) >> deleteWorkspaceAndBillingProject(WorkspaceName(n, w))
+          }
+        } else loggerIO.info(s"Not going to release project: ${workspaceNamespaceProp} due to error happened")
       _ <- IO(sys.props.subtractAll(List(googleProjectKey, workspaceNamespaceKey, workspaceNameKey)))
       _ <- ProxyRedirectClient.stopServer(sys.props.get(proxyRedirectServerPortKey).get.toInt)
       _ <- loggerIO.info(s"Stopped proxy redirect server")

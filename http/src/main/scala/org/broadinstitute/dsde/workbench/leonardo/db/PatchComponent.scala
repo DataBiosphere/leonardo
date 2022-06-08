@@ -10,7 +10,8 @@ import org.broadinstitute.dsde.workbench.leonardo.monitor.RuntimePatchDetails
 case class PatchRecord(clusterId: Long,
                        status: RuntimeStatus,
                        masterMachineType: Option[MachineTypeName],
-                       inProgress: Boolean)
+                       inProgress: Boolean
+)
 
 class PatchTable(tag: Tag) extends Table[PatchRecord](tag, "CLUSTER_PATCH") {
   def clusterId = column[Long]("clusterId", O.PrimaryKey)

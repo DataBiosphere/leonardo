@@ -9,7 +9,7 @@ import java.time.Instant
 
 package object leonardo {
   type LabelMap = Map[String, String]
-  //this value is the default for autopause, if none is specified. An autopauseThreshold of 0 indicates no autopause
+  // this value is the default for autopause, if none is specified. An autopauseThreshold of 0 indicates no autopause
   val autoPauseOffValue = 0
   val traceIdHeaderString = ci"X-Cloud-Trace-Context"
 

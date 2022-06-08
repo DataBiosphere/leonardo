@@ -18,8 +18,9 @@ trait LabTestUtils extends LeonardoTestUtils {
 
   implicit val ec: ExecutionContextExecutor = ExecutionContext.global
 
-  def withLabLauncherPage[T](cluster: ClusterCopy)(testCode: LabLauncherPage => T)(implicit webDriver: WebDriver,
-                                                                                   token: AuthToken): T = {
+  def withLabLauncherPage[T](
+    cluster: ClusterCopy
+  )(testCode: LabLauncherPage => T)(implicit webDriver: WebDriver, token: AuthToken): T = {
     val labLauncherPage = Lab.get(cluster.googleProject, cluster.clusterName)
     testCode(labLauncherPage.open)
   }

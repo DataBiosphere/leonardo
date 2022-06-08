@@ -76,7 +76,8 @@ class DataprocInterpreterSpec
     new VPCInterpreter[IO](Config.vpcInterpreterConfig, mockGoogleResourceService, FakeGoogleComputeService)
 
   def dataprocInterp(computeService: GoogleComputeService[IO] = MockGoogleComputeService,
-                     dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService) =
+                     dataprocCluster: GoogleDataprocService[IO] = MockGoogleDataprocService
+  ) =
     new DataprocInterpreter[IO](Config.dataprocInterpreterConfig,
                                 bucketHelper,
                                 vpcInterp,
@@ -86,7 +87,8 @@ class DataprocInterpreterSpec
                                 mockGoogleDirectoryDAO,
                                 mockGoogleIamDAO,
                                 mockGoogleResourceService,
-                                MockWelderDAO)
+                                MockWelderDAO
+    )
 
   override def beforeAll(): Unit =
     // Set up the mock directoryDAO to have the Google group used to grant permission to users to pull the custom dataproc image
@@ -106,7 +108,8 @@ class DataprocInterpreterSpec
             .fromCreateRuntimeMessage(
               CreateRuntimeMessage.fromRuntime(testCluster,
                                                LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
-                                               None)
+                                               None
+              )
             )
         )
         .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
@@ -138,7 +141,8 @@ class DataprocInterpreterSpec
                                                             mockGoogleDirectoryDAO,
                                                             erroredIamDAO,
                                                             MockGoogleResourceService,
-                                                            MockWelderDAO)
+                                                            MockWelderDAO
+    )
 
     val exception =
       erroredDataprocInterp
@@ -147,7 +151,8 @@ class DataprocInterpreterSpec
             .fromCreateRuntimeMessage(
               CreateRuntimeMessage.fromRuntime(testCluster,
                                                LeoLenses.runtimeConfigPrism.getOption(defaultDataprocRuntimeConfig).get,
-                                               None)
+                                               None
+              )
             )
         )
         .unsafeToFuture()(cats.effect.unsafe.IORuntime.global)
@@ -169,11 +174,13 @@ class DataprocInterpreterSpec
                                                      Map.empty[String, String],
                                                      RegionName("us-central1"),
                                                      true,
-                                                     false)
+                                                     false
+    )
     val resourceConstraints = dataprocInterp()
       .getClusterResourceContraints(testClusterClusterProjectAndName,
                                     runtimeConfig.machineType,
-                                    RegionName("us-central1"))
+                                    RegionName("us-central1")
+      )
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     // 7680m (in mock compute dao) - 6g (dataproc allocated) - 768m (welder allocated) = 768m
@@ -207,7 +214,7 @@ class DataprocInterpreterSpec
       updatedRuntme <- IO(dbFutureValue(clusterQuery.getClusterById(runtime.id)))
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(updatedRuntme.get, CommonTestData.defaultDataprocRuntimeConfig)
       res <- dataproc.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None))
-    } yield (res shouldBe (None))
+    } yield (res shouldBe None)
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
@@ -223,8 +230,8 @@ class DataprocInterpreterSpec
         IO.pure(None)
     }
     val dataprocService = new BaseFakeGoogleDataprocService {
-      override def deleteCluster(project: GoogleProject, region: RegionName, clusterName: DataprocClusterName)(
-        implicit ev: Ask[IO, TraceId]
+      override def deleteCluster(project: GoogleProject, region: RegionName, clusterName: DataprocClusterName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[OperationFuture[Empty, ClusterOperationMetadata]]] = IO.raiseError(new NotImplementedError)
     }
 
@@ -246,11 +253,10 @@ class DataprocInterpreterSpec
       res <- dataproc
         .deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, Some(CommonTestData.masterInstance)))
         .attempt
-    } yield {
-      // this is really hacky way of verifying deleteCluster is being called once. But I tried a few different ways to mock out `GoogleDataprocService[IO]`
-      // and for some reason it didn't work
-      res.swap.toOption.get.isInstanceOf[NotImplementedError] shouldBe (true)
-    }
+    } yield
+    // this is really hacky way of verifying deleteCluster is being called once. But I tried a few different ways to mock out `GoogleDataprocService[IO]`
+    // and for some reason it didn't work
+    res.swap.toOption.get.isInstanceOf[NotImplementedError] shouldBe true
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -260,7 +266,8 @@ class DataprocInterpreterSpec
                              userEmail: WorkbenchEmail,
                              memberType: MemberType,
                              rolesToAdd: Set[String],
-                             retryIfGroupDoesNotExist: Boolean): Future[Boolean] = {
+                             retryIfGroupDoesNotExist: Boolean
+    ): Future[Boolean] = {
       invocationCount += 1
       val jsonFactory = new MockJsonFactory
       val testException =
@@ -289,8 +296,7 @@ class DataprocInterpreterSpec
   }
 
   private object MockGoogleComputeService extends FakeGoogleComputeService {
-    override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-      implicit
+    override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
       ev: Ask[IO, TraceId]
     ): IO[Option[Instance]] = IO.pure(Some(Instance.newBuilder().setFingerprint("abcd").build()))
   }

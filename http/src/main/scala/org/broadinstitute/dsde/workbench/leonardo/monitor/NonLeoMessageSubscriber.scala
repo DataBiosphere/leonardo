@@ -49,8 +49,9 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
                                     samDao: SamDAO[F],
                                     subscriber: GoogleSubscriber[F, NonLeoMessage],
                                     publisher: GooglePublisher[F],
-                                    asyncTasks: Queue[F, Task[F]])(
-  implicit logger: StructuredLogger[F],
+                                    asyncTasks: Queue[F, Task[F]]
+)(implicit
+  logger: StructuredLogger[F],
   F: Async[F],
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F]
@@ -84,8 +85,8 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
     case m: NonLeoMessage.CryptoMiningScc                => handleCryptoMiningMessageScc(m)
   }
 
-  private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(
-    implicit ev: Ask[F, AppContext]
+  private[monitor] def handleDeleteKubernetesClusterMessage(msg: DeleteKubernetesClusterMessage)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       ctx <- ev.ask
@@ -95,18 +96,17 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
       )
       _ <- kubernetesClusterQuery.markPendingDeletion(clusterId).transaction
       _ <- gkeAlg
-      // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
+        // TODO: Should we retry failures and with what RetryConfig? If all retries fail, send an alert?
         .deleteAndPollCluster(DeleteClusterParams(msg.clusterId, msg.project))
-        .onError {
-          case e =>
-            for {
-              _ <- logger.error(ctx.loggingCtx, e)(
-                s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}."
-              )
-              _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
-              // TODO: Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
-              // TODO: Need mark the nodepool(s) as Error'ed too?
-            } yield ()
+        .onError { case e =>
+          for {
+            _ <- logger.error(ctx.loggingCtx, e)(
+              s"An error occurred during clean-up of cluster ${clusterId} in project ${msg.project}."
+            )
+            _ <- kubernetesClusterQuery.updateStatus(clusterId, KubernetesClusterStatus.Error).transaction
+            // TODO: Create a KUBERNETES_CLUSTER_ERROR table to log the error message?
+            // TODO: Need mark the nodepool(s) as Error'ed too?
+          } yield ()
         }
     } yield ()
 
@@ -119,24 +119,29 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
     msg: NonLeoMessage.CryptoMining
   )(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
-      _ <- if (!msg.textPayload.contains(
-                 "CRYPTOMINING_DETECTED"
-               )) // needs to match https://github.com/broadinstitute/terra-cryptomining-security-alerts/blob/master/v2/main.go#L24
-        F.unit
-      else
-        for {
-          runtimeFromGoogle <- computeService.getInstance(msg.googleProject,
-                                                          msg.resource.labels.zone,
-                                                          InstanceName(msg.resource.labels.instanceId.toString))
-          // We mark the runtime as Deleted, and delete the instance.
-          // If instance deletion fails for some reason, it will be cleaned up by resource-validator
-          _ <- runtimeFromGoogle.traverse { instance =>
-            deleteCryptominingRuntime(msg.googleProject,
-                                      RuntimeName(instance.getName),
-                                      msg.resource.labels.zone,
-                                      "custom detector")
-          }
-        } yield ()
+      _ <-
+        if (
+          !msg.textPayload.contains(
+            "CRYPTOMINING_DETECTED"
+          )
+        ) // needs to match https://github.com/broadinstitute/terra-cryptomining-security-alerts/blob/master/v2/main.go#L24
+          F.unit
+        else
+          for {
+            runtimeFromGoogle <- computeService.getInstance(msg.googleProject,
+                                                            msg.resource.labels.zone,
+                                                            InstanceName(msg.resource.labels.instanceId.toString)
+            )
+            // We mark the runtime as Deleted, and delete the instance.
+            // If instance deletion fails for some reason, it will be cleaned up by resource-validator
+            _ <- runtimeFromGoogle.traverse { instance =>
+              deleteCryptominingRuntime(msg.googleProject,
+                                        RuntimeName(instance.getName),
+                                        msg.resource.labels.zone,
+                                        "custom detector"
+              )
+            }
+          } yield ()
     } yield ()
 
   private[monitor] def deleteCryptominingRuntime(
@@ -190,7 +195,8 @@ class NonLeoMessageSubscriber[F[_]](gkeAlg: GKEAlgebra[F],
              task,
              Some(logError(s"${msg.nodepoolId}/${msg.googleProject}", DeleteNodepool.toString)),
              ctx.now,
-             "deleteNodepool")
+             "deleteNodepool"
+        )
       )
     } yield ()
 
@@ -231,7 +237,7 @@ object NonLeoMessageSubscriber {
       serviceType <- c.downField("type").as[String]
       cloudService <- serviceType match {
         case "google.compute.Instance" => CloudService.GCE.asRight[DecodingFailure]
-        case s                         => DecodingFailure(s"unsupported cryptomining-scc type ${s}", List.empty).asLeft[CloudService]
+        case s => DecodingFailure(s"unsupported cryptomining-scc type ${s}", List.empty).asLeft[CloudService]
       }
       runtimeName <- c.downField("displayName").as[RuntimeName]
       // name field looks like `//compute.googleapis.com/projects/terra-2d61a51b/zones/us-central1-a/instances/5289438569693667937`
@@ -240,12 +246,14 @@ object NonLeoMessageSubscriber {
         .catchNonFatal(zonePatternInName.findFirstMatchIn(name).map(_.group(1)))
         .leftMap(t =>
           DecodingFailure(s"Can't find zone name in cryptomining message from SCC in ${zonePatternInName} due to ${t}",
-                          List.empty)
+                          List.empty
+          )
         )
         .flatMap(s =>
           s.fold(
             DecodingFailure(s"Can't find zone name in cryptomining message from SCC in ${zonePatternInName}",
-                            List.empty).asLeft[ZoneName]
+                            List.empty
+            ).asLeft[ZoneName]
           )(ss => ZoneName(ss).asRight[DecodingFailure])
         )
     } yield CryptoMiningSccResource(googleProject, cloudService, runtimeName, zone)
@@ -288,8 +296,8 @@ object NonLeoMessage {
   }
   final case class DeleteNodepoolMessage(nodepoolId: NodepoolLeoId,
                                          googleProject: GoogleProject,
-                                         traceId: Option[TraceId])
-      extends NonLeoMessage {
+                                         traceId: Option[TraceId]
+  ) extends NonLeoMessage {
     val messageType: String = "deleteNodepool"
   }
 }
@@ -304,7 +312,7 @@ object SccCategory {
     case "Execution: Cryptocurrency Mining Combined Detection" => SccCategory(s).asRight[String]
     case "Execution: Cryptocurrency Mining YARA Rule"          => SccCategory(s).asRight[String]
     case "Execution: Cryptocurrency Mining Hash Match"         => SccCategory(s).asRight[String]
-    case s                                                     => (s"Unsupported SCC category ${s}").asLeft[SccCategory]
+    case s                                                     => s"Unsupported SCC category ${s}".asLeft[SccCategory]
   }
 }
 

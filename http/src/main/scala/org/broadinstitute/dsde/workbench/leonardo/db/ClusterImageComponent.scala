@@ -13,7 +13,8 @@ case class ClusterImageRecord(clusterId: Long,
                               imageType: RuntimeImageType,
                               imageUrl: String,
                               homeDirectory: Option[Path],
-                              timestamp: Instant)
+                              timestamp: Instant
+)
 
 class ClusterImageTable(tag: Tag) extends Table[ClusterImageRecord](tag, "CLUSTER_IMAGE") {
   def clusterId = column[Long]("clusterId")
@@ -30,7 +31,12 @@ class ClusterImageTable(tag: Tag) extends Table[ClusterImageRecord](tag, "CLUSTE
   def uniqueKey = index("IDX_CLUSTER_IMAGE_UNIQUE", (clusterId, imageType), unique = true)
 
   def * : ProvenShape[ClusterImageRecord] =
-    (clusterId, imageType, imageUrl, homeDirectory, timestamp) <> (ClusterImageRecord.tupled, ClusterImageRecord.unapply)
+    (clusterId,
+     imageType,
+     imageUrl,
+     homeDirectory,
+     timestamp
+    ) <> (ClusterImageRecord.tupled, ClusterImageRecord.unapply)
 
   def pk = primaryKey("cluster_image_pk", (clusterId, imageType))
 }
@@ -40,8 +46,9 @@ object clusterImageQuery extends TableQuery(new ClusterImageTable(_)) {
   def save(clusterId: Long, clusterImage: RuntimeImage)(implicit ec: ExecutionContext): DBIO[Int] =
     for {
       exists <- getRecord(clusterId, clusterImage.imageType)
-      res <- if (exists.headOption.isDefined) DBIO.successful(0)
-      else clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
+      res <-
+        if (exists.headOption.isDefined) DBIO.successful(0)
+        else clusterImageQuery += marshallClusterImage(clusterId, clusterImage)
     } yield res
 
   def saveAllForCluster(clusterId: Long, clusterImages: Seq[RuntimeImage]): DBIO[Option[Int]] =

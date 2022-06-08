@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
-import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
+import com.typesafe.config.{Config => TypeSafeConfig, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
@@ -330,7 +330,8 @@ object Config {
         config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes),
         config
           .getOrElse[GroupName]("customAppCreationAllowedGroup",
-                                throw new Exception("No customAppCreationAllowedGroup key found"))
+                                throw new Exception("No customAppCreationAllowedGroup key found")
+          )
       )
   }
 
@@ -725,13 +726,15 @@ object Config {
     topic,
     Some(
       ProjectSubscriptionName.of(applicationConfig.leoGoogleProject.value,
-                                 config.as[String]("pubsub.non-leo-message-subscriber.subscription-name"))
+                                 config.as[String]("pubsub.non-leo-message-subscriber.subscription-name")
+      )
     ),
     config.as[FiniteDuration]("pubsub.ackDeadLine"),
     Some(
       SubscriberDeadLetterPolicy(
         TopicName.of(applicationConfig.leoGoogleProject.value,
-                     config.as[String]("pubsub.non-leo-message-subscriber.dead-letter-topic")),
+                     config.as[String]("pubsub.non-leo-message-subscriber.dead-letter-topic")
+        ),
         MaxRetries(5)
       )
     ),
@@ -773,7 +776,8 @@ object Config {
     gceClusterResourcesConfig,
     securityFilesConfig,
     gceMonitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating,
-                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
+                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating")
+    )
   )
   val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 

@@ -115,7 +115,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
                                 isRecursive: Boolean,
                                 bucketSourceOptions: List[Storage.BucketSourceOption],
                                 traceId: Option[TraceId],
-                                retryConfig: RetryConfig): Stream[IO, Boolean] =
+                                retryConfig: RetryConfig
+      ): Stream[IO, Boolean] =
         Stream.raiseError[IO](
           new com.google.cloud.storage.StorageException(404, "The specified bucket does not exist.")
         )
@@ -125,7 +126,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     val res = for {
       runtime <- IO(makeCluster(0).copy(status = RuntimeStatus.Creating).save())
       _ <- runtimeMonitor.deleteInitBucket(runtime.cloudContext.asInstanceOf[CloudContext.Gcp].value,
-                                           runtime.runtimeName)
+                                           runtime.runtimeName
+      )
     } yield succeed
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -138,7 +140,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
                                 isRecursive: Boolean,
                                 bucketSourceOptions: List[Storage.BucketSourceOption],
                                 traceId: Option[TraceId],
-                                retryConfig: RetryConfig): Stream[IO, Boolean] =
+                                retryConfig: RetryConfig
+      ): Stream[IO, Boolean] =
         Stream.raiseError[IO](
           new com.google.cloud.storage.StorageException(404, "The specified bucket does not exist.")
         )
@@ -187,7 +190,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
 
   class MockRuntimeMonitor(isWelderReady: Boolean,
                            timeouts: Map[RuntimeStatus, FiniteDuration],
-                           googleStorageService: GoogleStorageService[IO] = FakeGoogleStorageService)(
+                           googleStorageService: GoogleStorageService[IO] = FakeGoogleStorageService
+  )(
     implicit override val F: Async[IO],
     implicit override val parallel: Parallel[IO]
   ) extends BaseCloudServiceRuntimeMonitor[IO] {
@@ -196,12 +200,11 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
     implicit override def ec: ExecutionContext = scala.concurrent.ExecutionContext.global
 
     implicit override def runtimeToolToToolDao
-      : RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = x => {
+      : RuntimeContainerServiceType => ToolDAO[IO, RuntimeContainerServiceType] = x =>
       x match {
         case RuntimeContainerServiceType.WelderService => MockToolDAO(isWelderReady)
         case _                                         => MockToolDAO(true)
       }
-    }
 
     implicit override def openTelemetry: OpenTelemetryMetrics[IO] = metrics
 
@@ -220,8 +223,8 @@ class BaseCloudServiceRuntimeMonitorSpec extends AnyFlatSpec with Matchers with 
       Config.imageConfig
     )
 
-    override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-      implicit ev: Ask[IO, AppContext]
+    override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+      ev: Ask[IO, AppContext]
     ): IO[(Unit, Option[MonitorState])] = ???
   }
 

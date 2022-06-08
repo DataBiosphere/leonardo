@@ -6,4 +6,5 @@ import org.broadinstitute.dsde.workbench.leonardo.{AutoscalingConfig, NumNodes}
 case class GalaxyNodepoolConfig(machineType: MachineTypeName,
                                 numNodes: NumNodes,
                                 autoscalingEnabled: Boolean,
-                                autoscalingConfig: AutoscalingConfig)
+                                autoscalingConfig: AutoscalingConfig
+)

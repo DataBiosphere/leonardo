@@ -14,9 +14,9 @@ import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
 import scala.concurrent.ExecutionContext.global
 
 class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll with LeonardoTestSuite {
-  //NOTE: If this is not a valid link, tests will fail
+  // NOTE: If this is not a valid link, tests will fail
   val appYamlURI: Uri = Uri.uri("https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/rstudio/app.yaml")
-  //NOTE: no tests here actually use the http response from this URI
+  // NOTE: no tests here actually use the http response from this URI
   val dummyRequestURI: Uri =
     Uri.uri("https://raw.githubusercontent.com/DataBiosphere/terra-app/main/apps/rstudio/app.yaml")
   val rstudioRespYaml =
@@ -44,7 +44,8 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
   "HttpAppDescriptorDAO" should "properly parse an app.yaml with a stubbed client response" in {
 
     withStubbedAppDescriptorDAO(
-      rstudioRespYaml, { dao =>
+      rstudioRespYaml,
+      { dao =>
         val descriptor = dao.getDescriptor(dummyRequestURI).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
         descriptor.author shouldBe "workbench-interactive-analysis@broadinstitute.org"
         descriptor.description should include("RStudio")
@@ -71,7 +72,7 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
     )
   }
 
-  //allows you to specify the response of requests
+  // allows you to specify the response of requests
   def withStubbedAppDescriptorDAO(response: String, testCode: HttpAppDescriptorDAO[IO] => Any): Unit = {
     val fixedRespClient = Client.fromHttpApp[IO](
       HttpApp(_ => IO(Response(status = Status.Ok).withEntity(response)))
@@ -83,7 +84,7 @@ class HTTPAppDescriptorDAOSpec extends AnyFlatSpec with Matchers with BeforeAndA
     IO(testCode(appDAOResource)).unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  //allows http retrieval
+  // allows http retrieval
   def withAppDescriptorDAO(testCode: HttpAppDescriptorDAO[IO] => Any): Unit = {
     val daoResource = for {
       client <- BlazeClientBuilder[IO](global).resource

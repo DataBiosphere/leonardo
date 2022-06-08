@@ -8,7 +8,8 @@ final case class KubernetesIngressConfig(namespace: NamespaceName,
                                          chartName: ChartName,
                                          chartVersion: ChartVersion,
                                          loadBalancerService: ServiceName,
-                                         values: List[ValueConfig]) {
+                                         values: List[ValueConfig]
+) {
 
   def chart: Chart = Chart(chartName, chartVersion)
 }

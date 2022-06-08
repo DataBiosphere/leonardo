@@ -56,18 +56,19 @@ object extensionQuery extends TableQuery(new ExtensionTable(_)) {
     }
 
   def marshallExtensions(clusterId: Long,
-                         userJupyterExtensionConfig: UserJupyterExtensionConfig): List[ExtensionRecord] =
-    ((userJupyterExtensionConfig.nbExtensions map {
-      case (key, value) => ExtensionRecord(clusterId, ExtensionType.NBExtension.toString, key, value)
+                         userJupyterExtensionConfig: UserJupyterExtensionConfig
+  ): List[ExtensionRecord] =
+    ((userJupyterExtensionConfig.nbExtensions map { case (key, value) =>
+      ExtensionRecord(clusterId, ExtensionType.NBExtension.toString, key, value)
     }) ++
-      (userJupyterExtensionConfig.serverExtensions map {
-        case (key, value) => ExtensionRecord(clusterId, ExtensionType.ServerExtension.toString, key, value)
+      (userJupyterExtensionConfig.serverExtensions map { case (key, value) =>
+        ExtensionRecord(clusterId, ExtensionType.ServerExtension.toString, key, value)
       }) ++
-      (userJupyterExtensionConfig.combinedExtensions map {
-        case (key, value) => ExtensionRecord(clusterId, ExtensionType.CombinedExtension.toString, key, value)
+      (userJupyterExtensionConfig.combinedExtensions map { case (key, value) =>
+        ExtensionRecord(clusterId, ExtensionType.CombinedExtension.toString, key, value)
       }) ++
-      (userJupyterExtensionConfig.labExtensions map {
-        case (key, value) => ExtensionRecord(clusterId, ExtensionType.LabExtension.toString, key, value)
+      (userJupyterExtensionConfig.labExtensions map { case (key, value) =>
+        ExtensionRecord(clusterId, ExtensionType.LabExtension.toString, key, value)
       })).toList
 
   def unmarshallExtensions(extList: List[ExtensionRecord]): Option[UserJupyterExtensionConfig] =

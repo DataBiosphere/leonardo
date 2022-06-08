@@ -7,4 +7,5 @@ final case class MaxNodepoolsPerDefaultNode(value: Int) extends AnyVal
 case class DefaultNodepoolConfig(machineType: MachineTypeName,
                                  numNodes: NumNodes,
                                  autoscalingEnabled: Boolean,
-                                 maxNodepoolsPerDefaultNode: MaxNodepoolsPerDefaultNode)
+                                 maxNodepoolsPerDefaultNode: MaxNodepoolsPerDefaultNode
+)

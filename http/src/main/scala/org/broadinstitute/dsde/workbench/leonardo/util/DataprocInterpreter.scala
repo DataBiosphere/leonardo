@@ -54,7 +54,8 @@ final case class ClusterIamSetupException(googleProject: GoogleProject)
 final case class GoogleGroupCreationException(googleGroup: WorkbenchEmail, msg: String)
     extends LeoException(s"Failed to create the Google group '${googleGroup}': $msg",
                          StatusCodes.InternalServerError,
-                         traceId = None)
+                         traceId = None
+    )
 
 final case class GoogleProjectNotFoundException(project: GoogleProject)
     extends LeoException(s"Google did not have any record of project: $project.", StatusCodes.NotFound, traceId = None)
@@ -64,8 +65,8 @@ final case object ImageProjectNotFoundException
 
 final case class ClusterResourceConstraintsException(clusterProjectAndName: RuntimeProjectAndName,
                                                      machineType: MachineTypeName,
-                                                     region: RegionName)
-    extends LeoException(
+                                                     region: RegionName
+) extends LeoException(
       s"Unable to calculate memory constraints for cluster ${clusterProjectAndName.cloudContext}/${clusterProjectAndName.runtimeName} with master machine type ${machineType} in region ${region}",
       traceId = None
     )
@@ -73,12 +74,14 @@ final case class ClusterResourceConstraintsException(clusterProjectAndName: Runt
 final case class RegionNotSupportedException(region: RegionName, traceId: TraceId)
     extends LeoException(s"Region ${region.value} not supported for Dataproc cluster creation",
                          StatusCodes.Conflict,
-                         traceId = Some(traceId))
+                         traceId = Some(traceId)
+    )
 
 final case class GoogleGroupMembershipException(googleGroup: WorkbenchEmail, traceId: TraceId)
     extends LeoException(s"Google group ${googleGroup} failed to update in a timely manner",
                          StatusCodes.Conflict,
-                         traceId = Some(traceId))
+                         traceId = Some(traceId)
+    )
 
 class DataprocInterpreter[F[_]: Parallel](
   config: DataprocInterpreterConfig,
@@ -91,12 +94,13 @@ class DataprocInterpreter[F[_]: Parallel](
   googleIamDAO: GoogleIamDAO,
   googleResourceService: GoogleResourceService[F],
   welderDao: WelderDAO[F]
-)(implicit val F: Async[F],
+)(implicit
+  val F: Async[F],
   executionContext: ExecutionContext,
   metrics: OpenTelemetryMetrics[F],
   logger: StructuredLogger[F],
-  dbRef: DbReference[F])
-    extends BaseRuntimeInterpreter[F](config, welderDao, bucketHelper)
+  dbRef: DbReference[F]
+) extends BaseRuntimeInterpreter[F](config, welderDao, bucketHelper)
     with RuntimeAlgebra[F]
     with LazyLogging {
 
@@ -149,7 +153,8 @@ class DataprocInterpreter[F[_]: Parallel](
 
         resourceConstraints <- getClusterResourceContraints(params.runtimeProjectAndName,
                                                             machineConfig.masterMachineType,
-                                                            machineConfig.region)
+                                                            machineConfig.region
+        )
 
         templateParams = RuntimeTemplateValuesConfig.fromCreateRuntimeParams(
           params,
@@ -171,7 +176,8 @@ class DataprocInterpreter[F[_]: Parallel](
                                    templateValues,
                                    params.customEnvironmentVariables,
                                    config.clusterResourcesConfig,
-                                   None)
+                                   None
+          )
           .compile
           .drain
 
@@ -185,11 +191,12 @@ class DataprocInterpreter[F[_]: Parallel](
         // If the cluster is configured with worker private access, then specify the
         // `leonardo-private` network tag. This tag will be removed from the master node
         // once the cluster is running.
-        tags = if (machineConfig.workerPrivateAccess) {
-          List(config.vpcConfig.networkTag.value, config.vpcConfig.privateAccessNetworkTag.value)
-        } else {
-          List(config.vpcConfig.networkTag.value)
-        }
+        tags =
+          if (machineConfig.workerPrivateAccess) {
+            List(config.vpcConfig.networkTag.value, config.vpcConfig.privateAccessNetworkTag.value)
+          } else {
+            List(config.vpcConfig.networkTag.value)
+          }
 
         gceClusterConfig = {
           val bldr = GceClusterConfig
@@ -222,13 +229,14 @@ class DataprocInterpreter[F[_]: Parallel](
           .setImageUri(dataprocImage.asString)
           .build()
 
-        (workerConfig, secondaryWorkerConfig) = if (machineConfig.numberOfWorkers > 0) {
-          (machineConfig.workerMachineType,
-           machineConfig.workerDiskSize,
-           machineConfig.numberOfWorkerLocalSSDs,
-           machineConfig.numberOfPreemptibleWorkers)
-            .mapN {
-              case (machineType, diskSize, numLocalSSDs, numPreemptibles) =>
+        (workerConfig, secondaryWorkerConfig) =
+          if (machineConfig.numberOfWorkers > 0) {
+            (machineConfig.workerMachineType,
+             machineConfig.workerDiskSize,
+             machineConfig.numberOfWorkerLocalSSDs,
+             machineConfig.numberOfPreemptibleWorkers
+            )
+              .mapN { case (machineType, diskSize, numLocalSSDs, numPreemptibles) =>
                 val workerConfig = InstanceGroupConfig
                   .newBuilder()
                   .setNumInstances(machineConfig.numberOfWorkers)
@@ -252,9 +260,9 @@ class DataprocInterpreter[F[_]: Parallel](
                   else None
 
                 (Some(workerConfig), secondaryWorkerConfig)
-            }
-            .getOrElse((None, None))
-        } else (None, None)
+              }
+              .getOrElse((None, None))
+          } else (None, None)
 
         softwareConfig = getSoftwareConfig(googleProject, params.runtimeProjectAndName.runtimeName, machineConfig)
 
@@ -297,22 +305,22 @@ class DataprocInterpreter[F[_]: Parallel](
         //
         // We intentionally do this here instead of DataprocRuntimeMonitor to more quickly remove
         // the tag because the init script may depend on public Internet access.
-        _ <- if (machineConfig.workerPrivateAccess) {
-          val op = for {
-            dataprocInstances <- googleDataprocService
-              .getClusterInstances(
-                googleProject,
-                machineConfig.region,
-                DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString)
-              )
-            masterComputeInstanceAndZone <- dataprocInstances.find(_._1.role == DataprocRole.Master).flatTraverse {
-              case (DataprocRoleZonePreemptibility(_, z, _), instances) =>
-                instances.headOption
-                  .flatTraverse(i => googleComputeService.getInstance(googleProject, z, i))
-                  .map(_.map(i => (i, z)))
-            }
-            op <- masterComputeInstanceAndZone.traverse {
-              case (instance, zone) =>
+        _ <-
+          if (machineConfig.workerPrivateAccess) {
+            val op = for {
+              dataprocInstances <- googleDataprocService
+                .getClusterInstances(
+                  googleProject,
+                  machineConfig.region,
+                  DataprocClusterName(params.runtimeProjectAndName.runtimeName.asString)
+                )
+              masterComputeInstanceAndZone <- dataprocInstances.find(_._1.role == DataprocRole.Master).flatTraverse {
+                case (DataprocRoleZonePreemptibility(_, z, _), instances) =>
+                  instances.headOption
+                    .flatTraverse(i => googleComputeService.getInstance(googleProject, z, i))
+                    .map(_.map(i => (i, z)))
+              }
+              op <- masterComputeInstanceAndZone.traverse { case (instance, zone) =>
                 googleComputeService.setInstanceTags(
                   googleProject,
                   zone,
@@ -323,11 +331,11 @@ class DataprocInterpreter[F[_]: Parallel](
                     .setFingerprint(instance.getTags.getFingerprint)
                     .build()
                 )
-            }
-          } yield op
+              }
+            } yield op
 
-          streamUntilDoneOrTimeout(op, 60, 1 second, "Could not retrieve Dataproc master instance after 1 minute")
-        } else F.unit
+            streamUntilDoneOrTimeout(op, 60, 1 second, "Could not retrieve Dataproc master instance after 1 minute")
+          } else F.unit
       } yield asyncRuntimeFields.map(s =>
         CreateGoogleRuntimeResponse(s, initBucketName, BootSource.VmImage(dataprocImage))
       )
@@ -346,10 +354,10 @@ class DataprocInterpreter[F[_]: Parallel](
 
   override def deleteRuntime(
     params: DeleteRuntimeParams
-  )(
-    implicit ev: Ask[F, AppContext]
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]] =
-    if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) { //check if runtime has been created
+    if (params.runtimeAndRuntimeConfig.runtime.asyncRuntimeFields.isDefined) { // check if runtime has been created
       for {
         ctx <- ev.ask
         region <- F.fromOption(
@@ -410,8 +418,8 @@ class DataprocInterpreter[F[_]: Parallel](
       _ <- updateDataprocImageGroupMembership(googleProject, createCluster = false)
     } yield ()
 
-  override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
-    implicit ev: Ask[F, AppContext]
+  override protected def stopGoogleRuntime(params: StopGoogleRuntime)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       region <- F.fromOption(
@@ -432,8 +440,8 @@ class DataprocInterpreter[F[_]: Parallel](
       )
     } yield None
 
-  override protected def startGoogleRuntime(params: StartGoogleRuntime)(
-    implicit ev: Ask[F, AppContext]
+  override protected def startGoogleRuntime(params: StartGoogleRuntime)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       dataprocConfig <- F.fromOption(
@@ -446,7 +454,8 @@ class DataprocInterpreter[F[_]: Parallel](
       )
       resourceConstraints <- getClusterResourceContraints(
         RuntimeProjectAndName(params.runtimeAndRuntimeConfig.runtime.cloudContext,
-                              params.runtimeAndRuntimeConfig.runtime.runtimeName),
+                              params.runtimeAndRuntimeConfig.runtime.runtimeName
+        ),
         params.runtimeAndRuntimeConfig.runtimeConfig.machineType,
         dataprocConfig.region
       )
@@ -454,7 +463,8 @@ class DataprocInterpreter[F[_]: Parallel](
                                    params.welderAction,
                                    params.initBucket,
                                    resourceConstraints,
-                                   false)
+                                   false
+      )
 
       _ <- googleDataprocService.startCluster(
         googleProject,
@@ -488,31 +498,30 @@ class DataprocInterpreter[F[_]: Parallel](
         params.numWorkers,
         params.numPreemptibles
       )
-    } yield ()) recoverWith {
-      case e: ApiException =>
-        // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
-        // resize the cluster we need to revoke it manually here
-        for {
-          ctx <- ev.ask
-          googleProject <- F.fromOption(
-            LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
-            new RuntimeException(
-              "this should never happen. Dataproc runtime's cloud context should be a google project"
-            )
+    } yield ()) recoverWith { case e: ApiException =>
+      // Typically we will revoke this role in the monitor after everything is complete, but if Google fails to
+      // resize the cluster we need to revoke it manually here
+      for {
+        ctx <- ev.ask
+        googleProject <- F.fromOption(
+          LeoLenses.cloudContextToGoogleProject.get(params.runtimeAndRuntimeConfig.runtime.cloudContext),
+          new RuntimeException(
+            "this should never happen. Dataproc runtime's cloud context should be a google project"
           )
-          _ <- removeClusterIamRoles(googleProject, params.runtimeAndRuntimeConfig.runtime.serviceAccount)
-          // Remove member from the Google Group that has the IAM role to pull the Dataproc image
-          _ <- updateDataprocImageGroupMembership(googleProject, createCluster = false)
-          _ <- logger.error(ctx.loggingCtx, e)(
-            s"Could not successfully update cluster ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
-          )
-          _ <- F.raiseError[Unit](InvalidDataprocMachineConfigException(e.getMessage))
-        } yield ()
+        )
+        _ <- removeClusterIamRoles(googleProject, params.runtimeAndRuntimeConfig.runtime.serviceAccount)
+        // Remove member from the Google Group that has the IAM role to pull the Dataproc image
+        _ <- updateDataprocImageGroupMembership(googleProject, createCluster = false)
+        _ <- logger.error(ctx.loggingCtx, e)(
+          s"Could not successfully update cluster ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
+        )
+        _ <- F.raiseError[Unit](InvalidDataprocMachineConfigException(e.getMessage))
+      } yield ()
     }
 
-  //updates machine type in gdDAO
-  override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
-    implicit ev: Ask[F, AppContext]
+  // updates machine type in gdDAO
+  override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     params.masterInstance
       .traverse_(instance =>
@@ -534,7 +543,8 @@ class DataprocInterpreter[F[_]: Parallel](
           .resizeDisk(p.masterDataprocInstance.key.project,
                       p.masterDataprocInstance.key.zone,
                       DiskName(p.masterDataprocInstance.key.name.value),
-                      p.diskSize.gb)
+                      p.diskSize.gb
+          )
       }
 
   def createClusterIamRoles(googleProject: GoogleProject, serviceAccountInfo: WorkbenchEmail): F[Unit] =
@@ -559,22 +569,21 @@ class DataprocInterpreter[F[_]: Parallel](
       _ <- groupOpt match {
         case None =>
           F.fromFuture(
-              F.delay(
-                googleDirectoryDAO
-                  .createGroup(
-                    config.groupsConfig.dataprocImageProjectGroupName,
-                    config.groupsConfig.dataprocImageProjectGroupEmail,
-                    Option(googleDirectoryDAO.lockedDownGroupSettings)
-                  )
-              )
-            )
-            .handleErrorWith {
-              case t if when409(t) => F.unit
-              case t =>
-                F.raiseError(
-                  GoogleGroupCreationException(config.groupsConfig.dataprocImageProjectGroupEmail, t.getMessage)
+            F.delay(
+              googleDirectoryDAO
+                .createGroup(
+                  config.groupsConfig.dataprocImageProjectGroupName,
+                  config.groupsConfig.dataprocImageProjectGroupEmail,
+                  Option(googleDirectoryDAO.lockedDownGroupSettings)
                 )
-            }
+            )
+          ).handleErrorWith {
+            case t if when409(t) => F.unit
+            case t =>
+              F.raiseError(
+                GoogleGroupCreationException(config.groupsConfig.dataprocImageProjectGroupEmail, t.getMessage)
+              )
+          }
         case Some(group) =>
           logger.info(ctx.loggingCtx)(
             s"Dataproc image user Google group '${config.groupsConfig.dataprocImageProjectGroupEmail}' already exists: $group \n Won't attempt to create it."
@@ -582,7 +591,8 @@ class DataprocInterpreter[F[_]: Parallel](
       }
       // Add compute.imageUser role to the group in the custom image's project
       imageProject <- F.fromOption(parseImageProject(config.dataprocConfig.customDataprocImage),
-                                   ImageProjectNotFoundException)
+                                   ImageProjectNotFoundException
+      )
       _ <- logger.info(ctx.loggingCtx)(
         s"Attempting to grant 'compute.imageUser' permissions to '${config.groupsConfig.dataprocImageProjectGroupEmail}' on project '$imageProject' ..."
       )
@@ -592,7 +602,8 @@ class DataprocInterpreter[F[_]: Parallel](
             googleIamDAO.addIamRoles(imageProject,
                                      config.groupsConfig.dataprocImageProjectGroupEmail,
                                      MemberType.Group,
-                                     Set("roles/compute.imageUser"))
+                                     Set("roles/compute.imageUser")
+            )
           )
         ),
         when409
@@ -604,41 +615,45 @@ class DataprocInterpreter[F[_]: Parallel](
    * This group has compute.imageUser role on the custom Dataproc image project,
    * which allows the user's cluster to pull the image.
    */
-  def updateDataprocImageGroupMembership(googleProject: GoogleProject,
-                                         createCluster: Boolean)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  def updateDataprocImageGroupMembership(googleProject: GoogleProject, createCluster: Boolean)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
     parseImageProject(config.dataprocConfig.customDataprocImage).traverse_ { imageProject =>
       for {
         count <- inTransaction(clusterQuery.countActiveByProject(CloudContext.Gcp(googleProject)))
         // Note: Don't remove the account if there are existing active clusters in the same project,
         // because it could potentially break other clusters. We only check this for the 'remove' case.
-        _ <- if (count > 0 && !createCluster) {
-          F.unit
-        } else {
-          for {
-            projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
+        _ <-
+          if (count > 0 && !createCluster) {
+            F.unit
+          } else {
+            for {
+              projectNumberOpt <- googleResourceService.getProjectNumber(googleProject)
 
-            projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
-            // Note that the Dataproc service account is used to retrieve the image, and not the user's
-            // pet service account. There is one Dataproc service account per Google project. For more details:
-            // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
+              projectNumber <- F.fromEither(projectNumberOpt.toRight(GoogleProjectNotFoundException(googleProject)))
+              // Note that the Dataproc service account is used to retrieve the image, and not the user's
+              // pet service account. There is one Dataproc service account per Google project. For more details:
+              // https://cloud.google.com/dataproc/docs/concepts/iam/iam#service_accounts
 
-            // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
-            // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
-            // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
-            dataprocServiceAccountEmail = WorkbenchEmail(
-              s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
-            )
-            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
-                                       dataprocServiceAccountEmail,
-                                       createCluster)
-            apiServiceAccountEmail = WorkbenchEmail(
-              s"${projectNumber}@cloudservices.gserviceaccount.com"
-            )
-            _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
-                                       apiServiceAccountEmail,
-                                       createCluster)
-          } yield ()
-        }
+              // Note we add both service-[project-number]@dataproc-accounts.iam.gserviceaccount.com and
+              // [project-number]@cloudservices.gserviceaccount.com to the group because both seem to be
+              // used in different circumstances (the latter seems to be used for adding preemptibles, for example).
+              dataprocServiceAccountEmail = WorkbenchEmail(
+                s"service-${projectNumber}@dataproc-accounts.iam.gserviceaccount.com"
+              )
+              _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                         dataprocServiceAccountEmail,
+                                         createCluster
+              )
+              apiServiceAccountEmail = WorkbenchEmail(
+                s"${projectNumber}@cloudservices.gserviceaccount.com"
+              )
+              _ <- updateGroupMembership(config.groupsConfig.dataprocImageProjectGroupEmail,
+                                         apiServiceAccountEmail,
+                                         createCluster
+              )
+            } yield ()
+          }
       } yield ()
     }
 
@@ -696,8 +711,9 @@ class DataprocInterpreter[F[_]: Parallel](
 
   private[leonardo] def getClusterResourceContraints(runtimeProjectAndName: RuntimeProjectAndName,
                                                      machineType: MachineTypeName,
-                                                     region: RegionName)(
-    implicit ev: Ask[F, AppContext]
+                                                     region: RegionName
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[RuntimeResourceConstraints] =
     for {
       ctx <- ev.ask
@@ -708,7 +724,8 @@ class DataprocInterpreter[F[_]: Parallel](
       // Find an arbitrary zone in the configured region in which to query the machine type
       zones <- googleComputeService.getZones(googleProject, region)
       zoneUri <- F.fromOption(zones.headOption.map(z => ZoneName(z.getName)),
-                              ClusterResourceConstraintsException(runtimeProjectAndName, machineType, region))
+                              ClusterResourceConstraintsException(runtimeProjectAndName, machineType, region)
+      )
       _ <- logger.debug(ctx.loggingCtx)(s"Using zone ${zoneUri} to resolve machine type")
 
       // Resolve the master machine type in Google to get the total memory.
@@ -734,7 +751,8 @@ class DataprocInterpreter[F[_]: Parallel](
    */
   private def updateClusterIamRoles(googleProject: GoogleProject,
                                     serviceAccountInfo: WorkbenchEmail,
-                                    createCluster: Boolean): F[Unit] = {
+                                    createCluster: Boolean
+  ): F[Unit] = {
     def retryIam(project: GoogleProject, email: WorkbenchEmail, roles: Set[String]): F[Unit] = {
       val action = if (createCluster) {
 
@@ -806,7 +824,8 @@ class DataprocInterpreter[F[_]: Parallel](
 
   private def getSoftwareConfig(googleProject: GoogleProject,
                                 runtimeName: RuntimeName,
-                                machineConfig: RuntimeConfig.DataprocConfig): SoftwareConfig = {
+                                machineConfig: RuntimeConfig.DataprocConfig
+  ): SoftwareConfig = {
     val dataprocProps = if (machineConfig.numberOfWorkers == 0) {
       // Set a SoftwareConfig property that makes the cluster have only one node
       Map("dataproc:dataproc.allow.zero.workers" -> "true")

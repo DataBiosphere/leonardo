@@ -7,8 +7,8 @@ import org.openqa.selenium.{Keys, WebDriver}
 
 import scala.util.Try
 
-class RStudioPage(override val url: String)(
-  implicit val webDriver: WebDriver,
+class RStudioPage(override val url: String)(implicit
+  val webDriver: WebDriver,
   override val authToken: AuthToken
 ) extends ProxyRedirectPage[RStudioPage] {
 

@@ -12,15 +12,15 @@ import org.http4s.headers.Authorization
 import org.http4s.{AuthScheme, Credentials}
 
 class PetClusterServiceAccountProvider[F[_]: Monad](sam: SamDAO[F]) extends ServiceAccountProvider[F] {
-  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  override def getClusterServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] = {
     val authHeader = Authorization(Credentials.Token(AuthScheme.Bearer, userInfo.accessToken.token))
     sam.getPetServiceAccount(authHeader, googleProject)
   }
 
-  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  override def getNotebookServiceAccount(userInfo: UserInfo, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[WorkbenchEmail]] = Monad[F].pure(None)
 
   override def listGroupsStagingBucketReaders(
@@ -31,7 +31,7 @@ class PetClusterServiceAccountProvider[F[_]: Monad](sam: SamDAO[F]) extends Serv
   override def listUsersStagingBucketReaders(userEmail: WorkbenchEmail): F[List[WorkbenchEmail]] =
     Monad[F].pure(List.empty)
 
-  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit ev: Ask[F, TraceId]
+  override def getAccessToken(userEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    ev: Ask[F, TraceId]
   ): F[Option[String]] = sam.getCachedPetAccessToken(userEmail, googleProject)
 }

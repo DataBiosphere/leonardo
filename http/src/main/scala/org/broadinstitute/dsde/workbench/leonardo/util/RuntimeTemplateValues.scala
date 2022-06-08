@@ -60,13 +60,14 @@ case class RuntimeTemplateValues private (googleProject: String,
                                           proxyServerHostName: String,
                                           isGceFormatted: String,
                                           useGceStartupScript: String,
-                                          shouldDeleteJupyterDir: String) {
+                                          shouldDeleteJupyterDir: String
+) {
 
   def toMap: Map[String, String] =
     this.productElementNames
       .zip(this.productIterator)
-      .map {
-        case (k, v) => (k, v.toString)
+      .map { case (k, v) =>
+        (k, v.toString)
       }
       .toMap
 
@@ -94,7 +95,8 @@ case class RuntimeTemplateValuesConfig private (runtimeProjectAndName: RuntimePr
                                                 runtimeOperation: RuntimeOperation,
                                                 welderAction: Option[WelderAction],
                                                 isGceFormatted: Boolean,
-                                                useGceStartupScript: Boolean)
+                                                useGceStartupScript: Boolean
+)
 object RuntimeTemplateValuesConfig {
   def fromCreateRuntimeParams(
     params: CreateRuntimeParams,
@@ -150,7 +152,8 @@ object RuntimeTemplateValuesConfig {
                   clusterResourceConstraints: Option[RuntimeResourceConstraints],
                   runtimeOperation: RuntimeOperation,
                   welderAction: Option[WelderAction],
-                  useGceStartupScript: Boolean): RuntimeTemplateValuesConfig = {
+                  useGceStartupScript: Boolean
+  ): RuntimeTemplateValuesConfig = {
     val runtime = runtimeAndRuntimeConfig.runtime
     RuntimeTemplateValuesConfig(
       RuntimeProjectAndName(runtime.cloudContext, runtime.runtimeName),
@@ -191,7 +194,8 @@ object RuntimeTemplateValues {
 
   def apply(config: RuntimeTemplateValuesConfig,
             now: Option[Instant],
-            shouldDeleteJupyterDir: Boolean): RuntimeTemplateValues = {
+            shouldDeleteJupyterDir: Boolean
+  ): RuntimeTemplateValues = {
     val jupyterUserhome =
       config.runtimeImages
         .find(_.imageType == Jupyter)
@@ -247,7 +251,7 @@ object RuntimeTemplateValues {
       config.startUserScriptUri.map(_.asString).getOrElse(""),
       config.stagingBucketName
         .map(n => userStartScriptOutputUriPath(n, now.getOrElse(Instant.now)).toUri)
-        .getOrElse(""), //TODO: remove this complication
+        .getOrElse(""), // TODO: remove this complication
       (for {
         _ <- config.serviceAccountKey
         n <- config.initBucketName
