@@ -20,7 +20,7 @@ import org.broadinstitute.dsde.workbench.leonardo.JsonCodec.{
   wsmJobIdDecoder,
   wsmJobIdEncoder
 }
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AcrCredential, VMCredential}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.VMCredential
 import org.broadinstitute.dsde.workbench.model.{TraceId, WorkbenchEmail}
 import org.http4s.headers.Authorization
 
@@ -107,7 +107,6 @@ final case class CreateVmRequestData(name: RuntimeName,
                                      vmSize: VirtualMachineSizeTypes,
                                      vmImage: AzureImage,
                                      customScriptExtension: CustomScriptExtension,
-                                     acrCredential: AcrCredential,
                                      vmUserCredential: VMCredential,
                                      diskId: WsmControlledResourceId,
                                      networkId: WsmControlledResourceId

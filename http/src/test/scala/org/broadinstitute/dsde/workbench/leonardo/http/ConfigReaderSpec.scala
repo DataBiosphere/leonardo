@@ -3,12 +3,7 @@ package http
 
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AcrCredential,
-  AzureRuntimeDefaults,
-  CustomScriptExtensionConfig,
-  VMCredential
-}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeDefaults, CustomScriptExtensionConfig, VMCredential}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
@@ -62,7 +57,6 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               )
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:a91c0e4",
-            AcrCredential(username = "username", password = "password"),
             VMCredential(username = "username", password = "password")
           )
         ),
