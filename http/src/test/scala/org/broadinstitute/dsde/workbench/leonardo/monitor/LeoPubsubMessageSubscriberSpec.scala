@@ -610,7 +610,7 @@ class LeoPubsubMessageSubscriberSpec
         _ <- leoSubscriber.messageResponder(UpdateDiskMessage(disk.id, DiskSize(550), Some(tr)))
         updatedDisk <- persistentDiskQuery.getById(disk.id)(scala.concurrent.ExecutionContext.global).transaction
       } yield updatedDisk shouldBe defined
-      // TODO: fix tests
+    // TODO: fix tests
 //      updatedDisk.get.size shouldBe DiskSize(550)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

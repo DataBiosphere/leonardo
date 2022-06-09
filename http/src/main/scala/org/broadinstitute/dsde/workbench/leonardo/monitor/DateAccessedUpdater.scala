@@ -67,10 +67,12 @@ object DateAccessedUpdater {
 
   // group all messages by cloudContext and runtimeName, and discard all older messages for the same runtime
   def messagesToUpdate(messages: Chain[UpdateDateAccessMessage]): List[UpdateDateAccessMessage] =
-    messages.groupBy(m => s"${m.runtimeName.asString}/${m.cloudContext.asStringWithProvider}").toList.traverse {
-      case (_, messages) =>
+    messages
+      .groupBy(m => s"${m.runtimeName.asString}/${m.cloudContext.asStringWithProvider}")
+      .toList
+      .traverse { case (_, messages) =>
         messages.toChain.toList.sorted.lastOption
-    }
+      }
       .getOrElse(List.empty)
 }
 
