@@ -3,7 +3,11 @@ package http
 
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
-import org.broadinstitute.dsde.workbench.leonardo.http.service.{AzureRuntimeDefaults, CustomScriptExtensionConfig, VMCredential}
+import org.broadinstitute.dsde.workbench.leonardo.http.service.{
+  AzureRuntimeDefaults,
+  CustomScriptExtensionConfig,
+  VMCredential
+}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.PollMonitorConfig
 import org.broadinstitute.dsde.workbench.leonardo.util.{AzurePubsubHandlerConfig, TerraAppSetupChartConfig}
 import org.broadinstitute.dsp.{ChartName, ChartVersion}
