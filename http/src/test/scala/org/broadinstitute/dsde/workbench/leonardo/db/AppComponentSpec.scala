@@ -74,7 +74,7 @@ class AppComponentSpec extends AnyFlatSpecLike with TestComponent {
     val savedCluster1 = makeKubeCluster(1).save()
 
     val appName = AppName("test")
-    //this is important because we short-circuit the saveApp function with this instead of letting the DB throw it
+    // this is important because we short-circuit the saveApp function with this instead of letting the DB throw it
     val caught = the[SQLIntegrityConstraintViolationException] thrownBy {
       makeApp(1, NodepoolLeoId(1)).copy(appName = appName).save()
     }

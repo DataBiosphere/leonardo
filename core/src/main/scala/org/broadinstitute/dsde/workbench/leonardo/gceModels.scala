@@ -24,7 +24,7 @@ object GceInstanceStatus extends Enum[GceInstanceStatus] {
   } // The instance is booting up or running. You can connect to the instance shortly after it enters this state.
   case object Stopping extends GceInstanceStatus {
     override def instanceStatus: Status = Status.STOPPING
-  } //The instance is being stopped. This can be because a user has made a request to stop the instance or there was a failure. This is a temporary status and the instance will move to TERMINATED once the instance has stopped.
+  } // The instance is being stopped. This can be because a user has made a request to stop the instance or there was a failure. This is a temporary status and the instance will move to TERMINATED once the instance has stopped.
   case object Stopped extends GceInstanceStatus {
     override def instanceStatus: Status = Status.STOPPED
   }

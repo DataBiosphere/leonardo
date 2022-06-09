@@ -26,6 +26,8 @@ class ExtensionComponentSpec extends AnyFlatSpecLike with TestComponent with Gcs
     dbFutureValue(extensionQuery.saveAllForCluster(savedCluster1.id, Some(userExtConfig)))
     dbFutureValue(extensionQuery.getAllForCluster(savedCluster1.id)) shouldEqual Some(userExtConfig)
 
-    dbFutureValue(extensionQuery.save(savedCluster2.id, ExtensionType.NBExtension.toString, "extName", "extValue")) shouldBe 1
+    dbFutureValue(
+      extensionQuery.save(savedCluster2.id, ExtensionType.NBExtension.toString, "extName", "extValue")
+    ) shouldBe 1
   }
 }

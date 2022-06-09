@@ -33,7 +33,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             notebookPage.executeCell(getPythonVersion).get should include("3.7")
             notebookPage.executeCell(getBxPython).get should include("Copyright (c)")
             notebookPage.executeCell(getPandasLocation).get should include("/opt/conda/lib/python3.7/site-packages")
-            notebookPage.executeCell("! pwd").get shouldBe ("/home/jupyter")
+            notebookPage.executeCell("! pwd").get shouldBe "/home/jupyter"
           }
         }
     }
@@ -85,8 +85,8 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       val contentSecurityHeader = headers.find(_.name == "Content-Security-Policy")
       contentSecurityHeader shouldBe defined
       contentSecurityHeader.get.value should include("https://bvdp-saturn-dev.appspot.com")
-      contentSecurityHeader.get.value should not include ("https://bvdp-saturn-prod.appspot.com")
-      contentSecurityHeader.get.value should not include ("*.terra.bio")
+      contentSecurityHeader.get.value should not include "https://bvdp-saturn-prod.appspot.com"
+      contentSecurityHeader.get.value should not include "*.terra.bio"
     }
 
     "should allow BigQuerying via the command line" in { runtimeFixture =>
@@ -136,7 +136,7 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
         withNewNotebook(runtimeFixture.runtime) { _ =>
           val firstApiCall =
             Leonardo.cluster.getRuntime(runtimeFixture.runtime.googleProject, runtimeFixture.runtime.clusterName)
-          //Sleeping for 90s to simulate idle notebook
+          // Sleeping for 90s to simulate idle notebook
           logger.info("Sleeping for 120s to simulate idle notebook")
           Thread.sleep(120000)
           val secondApiCall =
@@ -146,15 +146,15 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
       }
     }
 
-    //TODO: uncomment this
+    // TODO: uncomment this
 
     Seq(Python3).foreach { kernel =>
       s"should preinstall google cloud subpackages for ${kernel.string}" in { runtimeFixture =>
         withWebDriver { implicit driver =>
           withNewNotebook(runtimeFixture.runtime, kernel) { notebookPage =>
-            //we can no longer test for the version explicitly for packages because we will always have the newest versions
+            // we can no longer test for the version explicitly for packages because we will always have the newest versions
             // as they become available. see https://github.com/DataBiosphere/terra-docker/pull/207
-            //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+            // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
             notebookPage
               .executeCell(
                 "import warnings; warnings.simplefilter('ignore')\nfrom google.cloud import bigquery\nprint(bigquery.__version__)"
@@ -197,11 +197,10 @@ class NotebookPyKernelSpec extends RuntimeFixtureSpec with NotebookTestUtils {
             )
         withNewNotebook(runtimeFixture.runtime, Python3) { notebookPage =>
           notebookPage.executeCell("import os")
-          expectedEVs.foreach {
-            case (k, v) =>
-              val res = notebookPage.executeCell(s"os.getenv('$k')")
-              res shouldBe defined
-              res.get shouldBe s"'$v'"
+          expectedEVs.foreach { case (k, v) =>
+            val res = notebookPage.executeCell(s"os.getenv('$k')")
+            res shouldBe defined
+            res.get shouldBe s"'$v'"
           }
         }
       }

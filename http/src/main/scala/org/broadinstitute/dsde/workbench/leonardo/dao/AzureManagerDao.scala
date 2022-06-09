@@ -20,15 +20,18 @@ trait AzureManagerDao[F[_]] {
   def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): F[Option[VirtualMachine]]
   def createRelayHybridConnection(relayNamespace: RelayNamespace,
                                   hybridConnectionName: RelayHybridConnectionName,
-                                  cloudContext: AzureCloudContext): F[PrimaryKey]
+                                  cloudContext: AzureCloudContext
+  ): F[PrimaryKey]
   def deleteRelayHybridConnection(relayNamespace: RelayNamespace,
                                   hybridConnectionName: RelayHybridConnectionName,
-                                  cloudContext: AzureCloudContext): F[Unit]
+                                  cloudContext: AzureCloudContext
+  ): F[Unit]
 }
 
-class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(implicit val F: Async[F],
-                                                                           logger: StructuredLogger[F])
-    extends AzureManagerDao[F] {
+class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(implicit
+  val F: Async[F],
+  logger: StructuredLogger[F]
+) extends AzureManagerDao[F] {
 
   def getAzureVm(name: RuntimeName, cloudContext: AzureCloudContext): F[Option[VirtualMachine]] =
     for {
@@ -42,13 +45,14 @@ class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(impli
         .map(Option(_))
         .handleErrorWith {
           case e: ManagementException if e.getValue.getCode().equals("ResourceNotFound") => F.pure(none[VirtualMachine])
-          case e                                                                         => F.raiseError[Option[VirtualMachine]](e)
+          case e => F.raiseError[Option[VirtualMachine]](e)
         }
     } yield vmOpt
 
   override def createRelayHybridConnection(relayNamespace: RelayNamespace,
                                            hybridConnectionName: RelayHybridConnectionName,
-                                           cloudContext: AzureCloudContext): F[PrimaryKey] =
+                                           cloudContext: AzureCloudContext
+  ): F[PrimaryKey] =
     for {
       manager <- buildRelayManager(cloudContext)
       _ <- F
@@ -85,14 +89,16 @@ class AzureManagerDaoInterp[F[_]](azureConfig: AzureAppRegistrationConfig)(impli
             .listKeys(cloudContext.managedResourceGroupName.value,
                       relayNamespace.value,
                       hybridConnectionName.value,
-                      "listener")
+                      "listener"
+            )
             .primaryKey()
         )
     } yield PrimaryKey(key)
 
   override def deleteRelayHybridConnection(relayNamespace: RelayNamespace,
                                            hybridConnectionName: RelayHybridConnectionName,
-                                           cloudContext: AzureCloudContext): F[Unit] =
+                                           cloudContext: AzureCloudContext
+  ): F[Unit] =
     for {
       manager <- buildRelayManager(cloudContext)
       _ <- F

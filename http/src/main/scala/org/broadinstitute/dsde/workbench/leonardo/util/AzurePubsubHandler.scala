@@ -52,15 +52,17 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       runtimeConfig <- RuntimeConfigQueries.getRuntimeConfig(runtime.runtimeConfigId).transaction
       azureConfig <- runtimeConfig match {
         case x: RuntimeConfig.AzureConfig => F.pure(x)
-        case x                            => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
+        case x => F.raiseError(new RuntimeException(s"this runtime doesn't have proper azure config ${x}"))
       }
       createVmJobId = WsmJobId(s"create-vm-${ctx.traceId.asString.take(10)}")
       _ <- createRuntime(CreateAzureRuntimeParams(msg.workspaceId,
                                                   runtime,
                                                   msg.relayNamespace,
                                                   azureConfig,
-                                                  config.runtimeDefaults.image),
-                         WsmJobControl(createVmJobId))
+                                                  config.runtimeDefaults.image
+                         ),
+                         WsmJobControl(createVmJobId)
+      )
       _ <- monitorCreateRuntime(
         PollRuntimeParams(msg.workspaceId, runtime, createVmJobId, msg.relayNamespace)
       )
@@ -69,8 +71,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   /** Creates an Azure VM but doesn't wait for its completion.
    * This includes creation of all child Azure resources (disk, network, ip), and assumes these are created synchronously
    * */
-  private def createRuntime(params: CreateAzureRuntimeParams,
-                            jobControl: WsmJobControl)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  private def createRuntime(params: CreateAzureRuntimeParams, jobControl: WsmJobControl)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
     for {
       ctx <- ev.ask
       auth <- samDAO.getLeoAuthToken
@@ -80,7 +83,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           F.raiseError[AzureCloudContext](
             PubsubHandleMessageError.ClusterError(params.runtime.id,
                                                   ctx.traceId,
-                                                  "Azure runtime should not have GCP cloud context")
+                                                  "Azure runtime should not have GCP cloud context"
+            )
           )
         case x: CloudContext.Azure => F.pure(x.value)
       }
@@ -141,8 +145,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       _ <- wsmDao.createVm(createVmRequest, auth)
     } yield ()
 
-  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(
-    implicit ev: Ask[F, AppContext]
+  private def createDisk(params: CreateAzureRuntimeParams, leoAuth: Authorization)(implicit
+    ev: Ask[F, AppContext]
   ): F[CreateDiskResponse] =
     for {
       ctx <- ev.ask
@@ -151,12 +155,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       common = getCommonFields(ControlledResourceName(disk.name.value),
                                config.runtimeDefaults.diskControlledResourceDesc,
                                params.runtime.auditInfo.creator,
-                               None)
+                               None
+      )
       request: CreateDiskRequest = CreateDiskRequest(
         params.workspaceId,
         common,
         CreateDiskRequestData(
-          //TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
+          // TODO: AzureDiskName should go away once DiskName is no longer coupled to google2 disk service
           AzureDiskName(disk.name.value),
           disk.size,
           params.runtimeConfig.region
@@ -177,7 +182,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     val common = getCommonFields(ControlledResourceName(s"network-${nameSuffix}"),
                                  config.runtimeDefaults.networkControlledResourceDesc,
                                  params.runtime.auditInfo.creator,
-                                 None)
+                                 None
+    )
     val request: CreateNetworkRequest = CreateNetworkRequest(
       params.workspaceId,
       common,
@@ -200,7 +206,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   private def getCommonFields(name: ControlledResourceName,
                               resourceDesc: String,
                               userEmail: WorkbenchEmail,
-                              resourceId: Option[WsmControlledResourceId]) =
+                              resourceId: Option[WsmControlledResourceId]
+  ) =
     ControlledResourceCommonFields(
       name,
       ControlledResourceDescription(resourceDesc),
@@ -230,7 +237,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         case _: CloudContext.Gcp =>
           throw PubsubHandleMessageError.ClusterError(params.runtime.id,
                                                       ctx.traceId,
-                                                      "Azure runtime should not have GCP cloud context")
+                                                      "Azure runtime should not have GCP cloud context"
+          )
         case x: CloudContext.Azure => x
       }
 
@@ -240,7 +248,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
       taskToRun = for {
         _ <- F.sleep(
           config.createVmPollConfig.initialDelay
-        ) //it takes a while to create Azure VM. Hence sleep sometime before we start polling WSM
+        ) // it takes a while to create Azure VM. Hence sleep sometime before we start polling WSM
         // first poll the WSM createVm job for completion
         resp <- streamFUntilDone(
           getWsmJobResult,
@@ -297,10 +305,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           ctx.traceId,
           taskToRun,
           Some(e =>
-            handleAzureRuntimeCreationError(AzureRuntimeCreationError(params.runtime.id,
-                                                                      params.workspaceId,
-                                                                      e.getMessage),
-                                            ctx.now)
+            handleAzureRuntimeCreationError(
+              AzureRuntimeCreationError(params.runtime.id, params.workspaceId, e.getMessage),
+              ctx.now
+            )
           ),
           ctx.now,
           "createAzureRuntime"
@@ -354,12 +362,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           F.raiseError[AzureCloudContext](
             PubsubHandleMessageError.ClusterError(msg.runtimeId,
                                                   ctx.traceId,
-                                                  "Azure runtime should not have GCP cloud context")
+                                                  "Azure runtime should not have GCP cloud context"
+            )
           )
         case x: CloudContext.Azure => F.pure(x.value)
       }
       _ <- relayNamespaceOpt.traverse(ns =>
-        azureManager.createRelayHybridConnection(
+        azureManager.deleteRelayHybridConnection(
           ns,
           RelayHybridConnectionName(runtime.runtimeName.asString),
           cloudContext
@@ -429,6 +438,7 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
               _ <- msg.diskId.traverse(diskId =>
                 dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
               )
+              _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
             } yield ()
           case WsmJobStatus.Failed =>
             F.raiseError[Unit](
@@ -469,8 +479,9 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
     } yield ()
   }
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError,
-                                      now: Instant)(implicit ev: Ask[F, AppContext]): F[Unit] =
+  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, now: Instant)(implicit
+    ev: Ask[F, AppContext]
+  ): F[Unit] =
     for {
       ctx <- ev.ask
       _ <- logger.error(ctx.loggingCtx, e)(s"Failed to create Azure VM ${e.runtimeId}")

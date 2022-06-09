@@ -32,20 +32,22 @@ class GceRuntimeMonitor[F[_]: Parallel](
   googleStorageService: GoogleStorageService[F],
   publisherQueue: Queue[F, LeoPubsubMessage],
   override val runtimeAlg: RuntimeAlgebra[F]
-)(implicit override val dbRef: DbReference[F],
+)(implicit
+  override val dbRef: DbReference[F],
   override val runtimeToolToToolDao: RuntimeContainerServiceType => ToolDAO[F, RuntimeContainerServiceType],
   override val F: Async[F],
   override val parallel: Parallel[F],
   override val logger: StructuredLogger[F],
   override val ec: ExecutionContext,
-  override val openTelemetry: OpenTelemetryMetrics[F])
-    extends BaseCloudServiceRuntimeMonitor[F] {
+  override val openTelemetry: OpenTelemetryMetrics[F]
+) extends BaseCloudServiceRuntimeMonitor[F] {
 
   override val googleStorage: GoogleStorageService[F] = googleStorageService
   override val monitorConfig: MonitorConfig = config
 
   def handlePollCheckCompletion(monitorContext: MonitorContext,
-                                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
+                                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
+  ): F[Unit] =
     for {
       timeAfterPoll <- nowInstant
       implicit0(ctx: Ask[F, AppContext]) = Ask.const[F, AppContext](
@@ -78,7 +80,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
     } yield ()
 
   def handlePollCheckWhenInterrupted(monitorContext: MonitorContext,
-                                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
+                                     runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
+  ): F[Unit] =
     for {
       newStatus <- clusterQuery.getClusterStatus(runtimeAndRuntimeConfig.runtime.id).transaction
       timeWhenInterrupted <- nowInstant
@@ -89,7 +92,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
             .transaction >> publisherQueue
             .offer(
               DeleteRuntimeMessage(runtimeAndRuntimeConfig.runtime.id, None, Some(monitorContext.traceId))
-              //Known limitation, we set deleteDisk is falsehere; but in reality, it could be `true`
+              // Known limitation, we set deleteDisk is falsehere; but in reality, it could be `true`
             )
         case _ =>
           F.unit
@@ -105,8 +108,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
    * Queries Google for the cluster status and takes appropriate action depending on the result.
    * @return ClusterMonitorMessage
    */
-  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: Ask[F, AppContext]
+  override def handleCheck(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+    ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       zoneParam <- F.fromOption(
@@ -176,7 +179,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
         context <- ev.ask
         gceStatus <- F.fromOption(GceInstanceStatus
                                     .withNameInsensitiveOption(i.getStatus),
-                                  new SQLDataException(s"Unknown GCE instance status ${i.getStatus}"))
+                                  new SQLDataException(s"Unknown GCE instance status ${i.getStatus}")
+        )
         r <- gceStatus match {
           case GceInstanceStatus.Provisioning | GceInstanceStatus.Staging =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(s"Instance is still in ${gceStatus}"))
@@ -270,17 +274,19 @@ class GceRuntimeMonitor[F[_]: Parallel](
                   checkAgain(monitorContext,
                              runtimeAndRuntimeConfig,
                              None,
-                             Some(s"Instance is still in ${GceInstanceStatus.Terminated}"))
+                             Some(s"Instance is still in ${GceInstanceStatus.Terminated}")
+                  )
               }
 
-          case s if (startableStatuses.contains(s)) =>
+          case s if startableStatuses.contains(s) =>
             checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(s"Instance is still in ${gceStatus}"))
           case GceInstanceStatus.Running =>
             val userStartupScript = getUserScript(i)
 
             for {
               validationResult <- validateUserStartupScript(userStartupScript,
-                                                            runtimeAndRuntimeConfig.runtime.startUserScriptUri)
+                                                            runtimeAndRuntimeConfig.runtime.startUserScriptUri
+              )
               r <- validationResult match {
                 case UserScriptsValidationResult.CheckAgain(msg) =>
                   checkAgain(monitorContext, runtimeAndRuntimeConfig, None, Some(msg))
@@ -292,7 +298,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
                                   shortMessage = Some("user_startup_script")
                                 ),
                                 None,
-                                false)
+                                false
+                  )
                 case UserScriptsValidationResult.Success =>
                   getInstanceIP(i) match {
                     case Some(ip) =>
@@ -328,7 +335,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
           .error(monitorContext.loggingContext)(
             s"Can't stop an instance that hasn't been initialized yet or doesn't exist"
           )
-          .as(((), None)) //TODO: Ideally we should have sentry report this case
+          .as(((), None)) // TODO: Ideally we should have sentry report this case
       case Some(s) =>
         s match {
           case Stopped | Terminated =>
@@ -345,8 +352,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
     }
   }
 
-  private def deletedRuntime(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(
-    implicit ev: Ask[F, AppContext]
+  private def deletedRuntime(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig)(implicit
+    ev: Ask[F, AppContext]
   ): F[CheckResult] =
     for {
       ctx <- ev.ask
@@ -361,7 +368,8 @@ class GceRuntimeMonitor[F[_]: Parallel](
 
       // set the staging bucket to be deleted in ten days so that logs are still accessible until then
       _ <- setStagingBucketLifecycle(runtimeAndRuntimeConfig.runtime,
-                                     config.runtimeBucketConfig.stagingBucketExpiration)
+                                     config.runtimeBucketConfig.stagingBucketExpiration
+      )
 
       _ <- dbRef.inTransaction {
         clusterQuery.completeDeletion(runtimeAndRuntimeConfig.runtime.id, ctx.now)
@@ -371,7 +379,7 @@ class GceRuntimeMonitor[F[_]: Parallel](
         s"Runtime ${runtimeAndRuntimeConfig.runtime.projectNameString} has been deleted after ${duration.toSeconds} seconds."
       )
 
-      //TODO: this call is only needed for non-WSM resources
+      // TODO: this call is only needed for non-WSM resources
       _ <- authProvider
         .notifyResourceDeleted(
           runtimeAndRuntimeConfig.runtime.samResource,

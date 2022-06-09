@@ -48,7 +48,8 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
 
               val localContent: NotebookContentItem = Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
                                                                                runtimeFixture.runtime.clusterName,
-                                                                               Welder.getLocalPath(gcsPath, isEditMode))
+                                                                               Welder.getLocalPath(gcsPath, isEditMode)
+              )
               logger.info(s"[edit mode] local content is ${localContent}")
               val localContentSize: Int = localContent.size
 
@@ -99,7 +100,8 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               val originalLocalContent: NotebookContentItem =
                 Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
                                          runtimeFixture.runtime.clusterName,
-                                         Welder.getLocalPath(gcsPath, isEditMode))
+                                         Welder.getLocalPath(gcsPath, isEditMode)
+                )
               logger.info(s"[playground mode] original local content is ${originalLocalContent}")
               val originalLocalContentSize: Int = originalLocalContent.size
 
@@ -110,8 +112,8 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               notebookPage.addCodeAndExecute("1+1")
               notebookPage.saveNotebook()
 
-              //sleep 4 minutes. We do this to ensure the assertions are true after a certain about of time.
-              //eventually is not applicable as we want to ensure its true after the time period, not at some point until timeout
+              // sleep 4 minutes. We do this to ensure the assertions are true after a certain about of time.
+              // eventually is not applicable as we want to ensure its true after the time period, not at some point until timeout
               logger.info("Waiting 4 minutes as lock takes time to be reflected in metadata")
               Thread.sleep(240000)
 
@@ -119,7 +121,8 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                 val newLocalContent: NotebookContentItem =
                   Notebook.getNotebookItem(runtimeFixture.runtime.googleProject,
                                            runtimeFixture.runtime.clusterName,
-                                           Welder.getLocalPath(gcsPath, isEditMode))
+                                           Welder.getLocalPath(gcsPath, isEditMode)
+                  )
                 val newLocalContentSize: Int = newLocalContent.size
                 logger.info(s"[playground mode] new local content is ${newLocalContent}")
                 val newRemoteContentSize = getObjectSize(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value))
@@ -130,7 +133,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                 originalRemoteContentSize shouldBe newRemoteContentSize
               }
 
-              //some selectors are omitted to simplify the test with the assumption that if the majority are hidden, they all are
+              // some selectors are omitted to simplify the test with the assumption that if the majority are hidden, they all are
               val uiElementIds: List[String] = List("save-notbook",
                                                     "new_notebook",
                                                     "open_notebook",
@@ -138,7 +141,8 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
                                                     "save_notebook_as",
                                                     "save_checkpoint",
                                                     "restore_checkpoint",
-                                                    "notification_notebook")
+                                                    "notification_notebook"
+              )
               val areElementsHidden: Boolean = notebookPage.areElementsHidden(uiElementIds)
 
               areElementsHidden shouldBe true
@@ -157,7 +161,7 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
     }
 
     "Sync issues and make a copy handled transition correctly" in { runtimeFixture =>
-      val fileName = "gcsFile3" //we store this portion separately as the name of the copy is computed off it
+      val fileName = "gcsFile3" // we store this portion separately as the name of the copy is computed off it
       val sampleNotebook = ResourceFile(s"bucket-tests/${fileName}.ipynb")
       val isEditMode = true
 
@@ -170,21 +174,22 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
               setObjectContents(runtimeFixture.runtime.googleProject,
                                 gcsPath.bucketName,
                                 GcsBlobName(gcsPath.objectName.value),
-                                contents).unsafeRunSync
+                                contents
+              ).unsafeRunSync
 
               val syncIssueElements =
                 List(notebookPage.syncCopyButton, notebookPage.syncReloadButton, notebookPage.modalId)
 
               notebookPage.addCodeAndExecute("%autosave 0")
 
-              eventually(timeout(Span(2, Minutes)), interval(Span(30, Seconds))) { //wait for checkMeta tick
-                notebookPage areElementsPresent (syncIssueElements) shouldBe true
-                notebookPage executeJavaScript ("window.onbeforeunload = null;") //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
+              eventually(timeout(Span(2, Minutes)), interval(Span(30, Seconds))) { // wait for checkMeta tick
+                notebookPage areElementsPresent syncIssueElements shouldBe true
+                notebookPage executeJavaScript "window.onbeforeunload = null;" // disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
 
                 notebookPage makeACopyFromSyncIssue
               }
 
-              eventually(timeout(Span(30, Seconds))) { //wait for the page to reload
+              eventually(timeout(Span(30, Seconds))) { // wait for the page to reload
                 driver.getCurrentUrl should include(fileName + "-Copy")
               }
             }
@@ -198,15 +203,16 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
       val isEditMode = true
 
       withResourceFileInBucket(runtimeFixture.runtime.googleProject, sampleNotebook, "text/plain") { gcsPath =>
-        //we set the lock before the notebook is open to cause a conflict
+        // we set the lock before the notebook is open to cause a conflict
         val newMeta = Map("lockExpiresAt" -> Instant.now().plusMillis(20.minutes.toMillis).toEpochMilli.toString,
-                          "lastLockedBy" -> "NotMe")
+                          "lastLockedBy" -> "NotMe"
+        )
         setObjectMetadata(gcsPath.bucketName, GcsBlobName(gcsPath.objectName.value), newMeta).unsafeRunSync
 
         withWelderInitialized(runtimeFixture.runtime, gcsPath, isEditMode) { localizedFile =>
           withWebDriver { implicit driver =>
             withOpenNotebook(runtimeFixture.runtime, localizedFile, 5.minutes) { notebookPage =>
-              eventually(timeout(Span(2, Minutes))) { //wait for checkMeta tick
+              eventually(timeout(Span(2, Minutes))) { // wait for checkMeta tick
                 val lockIssueElements =
                   List(notebookPage.lockPlaygroundButton, notebookPage.lockCopyButton, notebookPage.modalId)
 
@@ -214,11 +220,11 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
 
                 notebookPage.executeJavaScript(
                   "window.onbeforeunload = null;"
-                ) //disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
+                ) // disables pesky chrome modal to confirm navigation. we are not testing chrome's implementation and confirming the modal proves problematic
                 notebookPage.goToPlaygroundModeFromLockIssue
               }
 
-              eventually(timeout(Span(30, Seconds))) { //wait for the page to reload
+              eventually(timeout(Span(30, Seconds))) { // wait for the page to reload
                 driver.getCurrentUrl should include(Welder.localSafeModeBaseDirectory)
                 notebookPage.getMode shouldBe NotebookMode.SafeMode
               }
@@ -228,13 +234,14 @@ class NotebookGCEDataSyncingSpec extends RuntimeFixtureSpec with NotebookTestUti
       }
     }
 
-    //this test is important to make sure all components exit gracefully when their functionality is not needed
+    // this test is important to make sure all components exit gracefully when their functionality is not needed
     "User should be able to create files outside of playground and safe mode" in { runtimeFixture =>
       val fileName = "mockUserFile.ipynb"
 
       val mockUserFile: File = Notebook.createFileAtJupyterRoot(runtimeFixture.runtime.googleProject,
                                                                 runtimeFixture.runtime.clusterName,
-                                                                fileName)
+                                                                fileName
+      )
 
       withWebDriver { implicit driver =>
         withOpenNotebook(runtimeFixture.runtime, mockUserFile, 5.minutes) { notebookPage =>

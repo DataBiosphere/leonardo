@@ -34,7 +34,8 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
                                 false,
                                 1 seconds,
                                 10,
-                                ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test")))
+                                ServiceAccountProviderConfig(Paths.get("test"), WorkbenchEmail("test"))
+  )
   implicit def unsafeLogger = Slf4jLogger.getLogger[IO]
   val underlyingPetTokenCache = Caffeine
     .newBuilder()
@@ -124,15 +125,15 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
       HttpApp(_ => IO.fromEither(parse(response)).flatMap(r => IO(Response(status = Status.Ok).withEntity(r))))
     )
 
-    val res = Dispatcher[IO].use { d =>
-      val samDao = new HttpSamDAO(okSam, config, petTokenCache)
-      val expectedResponse =
-        StatusCheckResponse(false,
-                            Map(GoogleIam -> SubsystemStatus(true, None),
-                                OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))))
+    val samDao = new HttpSamDAO(okSam, config, petTokenCache)
+    val expectedResponse =
+      StatusCheckResponse(false,
+                          Map(GoogleIam -> SubsystemStatus(true, None),
+                              OpenDJ -> SubsystemStatus(false, Some(List("OpenDJ is down. Panic!")))
+                          )
+      )
 
-      samDao.getStatus.map(s => s shouldBe expectedResponse)
-    }
+    val res = samDao.getStatus.map(s => s shouldBe expectedResponse)
 
     res.unsafeRunSync
 
@@ -202,9 +203,7 @@ class HttpSamDAOSpec extends AnyFlatSpec with LeonardoTestSuite with BeforeAndAf
 
       for {
         result <- samDao.getStatus.attempt
-      } yield {
-        result shouldBe Left(FakeException("retried 5 times"))
-      }
+      } yield result shouldBe Left(FakeException("retried 5 times"))
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

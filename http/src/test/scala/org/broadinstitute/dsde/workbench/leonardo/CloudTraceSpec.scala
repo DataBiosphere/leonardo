@@ -43,6 +43,6 @@ class CloudTraceSpec
       }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    1 shouldBe (1)
+    1 shouldBe 1
   }
 }

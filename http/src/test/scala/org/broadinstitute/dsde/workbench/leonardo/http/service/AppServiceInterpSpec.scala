@@ -11,14 +11,14 @@ import org.broadinstitute.dsde.workbench.google2.{DiskName, MachineTypeName, Zon
 import org.broadinstitute.dsde.workbench.leonardo.CommonTestData._
 import org.broadinstitute.dsde.workbench.leonardo.KubernetesTestData._
 import org.broadinstitute.dsde.workbench.leonardo.db.{
-  KubernetesServiceDbQueries,
-  TestComponent,
   appQuery,
   kubernetesClusterQuery,
   persistentDiskQuery,
+  KubernetesServiceDbQueries,
+  TestComponent,
   _
 }
-import org.broadinstitute.dsde.workbench.leonardo.model.BadRequestException
+import org.broadinstitute.dsde.workbench.leonardo.model.{BadRequestException, ForbiddenError}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubMessage.{CreateAppMessage, DeleteAppMessage}
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{
   ClusterNodepoolAction,
@@ -32,63 +32,70 @@ import org.broadinstitute.dsp.ChartVersion
 import org.scalatest.Assertion
 import org.scalatest.flatspec.AnyFlatSpec
 import org.broadinstitute.dsde.workbench.leonardo.TestUtils.appContext
-import java.time.Instant
 
+import java.time.Instant
 import org.broadinstitute.dsde.workbench.leonardo.AppRestore.{CromwellRestore, GalaxyRestore}
+import org.broadinstitute.dsde.workbench.leonardo.config.Config
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
 final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with TestComponent {
+  val appServiceConfig = Config.appServiceConfig
 
-  //used when we care about queue state
+  // used when we care about queue state
   def makeInterp(queue: Queue[IO, LeoPubsubMessage]) =
-    new LeoAppServiceInterp[IO](whitelistAuthProvider,
+    new LeoAppServiceInterp[IO](appServiceConfig,
+                                whitelistAuthProvider,
                                 serviceAccountProvider,
-                                leoKubernetesConfig,
                                 queue,
-                                FakeGoogleComputeService)
-  val appServiceInterp = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                FakeGoogleComputeService
+    )
+  val appServiceInterp = new LeoAppServiceInterp[IO](appServiceConfig,
+                                                     whitelistAuthProvider,
                                                      serviceAccountProvider,
-                                                     leoKubernetesConfig,
                                                      QueueFactory.makePublisherQueue(),
-                                                     FakeGoogleComputeService)
+                                                     FakeGoogleComputeService
+  )
 
   it should "validate galaxy runtime requirements correctly" in ioAssertion {
     val project = GoogleProject("project1")
     val passComputeService = new FakeGoogleComputeService {
-      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[MachineType]] =
         IO.pure(Some(MachineType.newBuilder().setName("pass").setMemoryMb(6 * 1024).setGuestCpus(4).build()))
     }
     val notEnoughMemoryComputeService = new FakeGoogleComputeService {
-      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[MachineType]] =
         IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(3 * 1024).setGuestCpus(4).build()))
     }
     val notEnoughCpuComputeService = new FakeGoogleComputeService {
-      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(
-        implicit ev: Ask[IO, TraceId]
+      override def getMachineType(project: GoogleProject, zone: ZoneName, machineTypeName: MachineTypeName)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[MachineType]] =
         IO.pure(Some(MachineType.newBuilder().setName("notEnoughMemory").setMemoryMb(6 * 1024).setGuestCpus(2).build()))
     }
 
-    val passAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+    val passAppService = new LeoAppServiceInterp[IO](appServiceConfig,
+                                                     whitelistAuthProvider,
                                                      serviceAccountProvider,
-                                                     leoKubernetesConfig,
                                                      QueueFactory.makePublisherQueue(),
-                                                     passComputeService)
-    val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                     passComputeService
+    )
+    val notEnoughMemoryAppService = new LeoAppServiceInterp[IO](appServiceConfig,
+                                                                whitelistAuthProvider,
                                                                 serviceAccountProvider,
-                                                                leoKubernetesConfig,
                                                                 QueueFactory.makePublisherQueue(),
-                                                                notEnoughMemoryComputeService)
-    val notEnoughCpuAppService = new LeoAppServiceInterp[IO](whitelistAuthProvider,
+                                                                notEnoughMemoryComputeService
+    )
+    val notEnoughCpuAppService = new LeoAppServiceInterp[IO](appServiceConfig,
+                                                             whitelistAuthProvider,
                                                              serviceAccountProvider,
-                                                             leoKubernetesConfig,
                                                              QueueFactory.makePublisherQueue(),
-                                                             notEnoughCpuComputeService)
+                                                             notEnoughCpuComputeService
+    )
 
     for {
       ctx <- appContext.ask[AppContext]
@@ -101,10 +108,46 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     }
   }
 
+  it should "fail request if user is not in custom_app_users group" in {
+    val authProvider = new BaseMockAuthProvider {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(false)
+    }
+    val interp = new LeoAppServiceInterp[IO](appServiceConfig,
+                                             authProvider,
+                                             serviceAccountProvider,
+                                             QueueFactory.makePublisherQueue(),
+                                             FakeGoogleComputeService
+    )
+    val res = interp
+      .createApp(userInfo, project, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res shouldBe (Left(ForbiddenError(userInfo.userEmail)))
+  }
+
+  it should "not fail customApp request if group check is not enabled" in {
+    val authProvider = new BaseMockAuthProvider {
+      override def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[IO, TraceId]): IO[Boolean] =
+        IO.pure(false)
+    }
+    val interp = new LeoAppServiceInterp[IO](AppServiceConfig(false, leoKubernetesConfig),
+                                             authProvider,
+                                             serviceAccountProvider,
+                                             QueueFactory.makePublisherQueue(),
+                                             FakeGoogleComputeService
+    )
+    val res = interp
+      .createApp(userInfo, project, AppName("foo"), createAppRequest.copy(appType = AppType.Custom))
+      .attempt
+      .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
+    res.swap.toOption.get.isInstanceOf[ForbiddenError] shouldBe false
+  }
+
   it should "determine patch version bump correctly" in isolatedDbTest {
     val first = ChartVersion("0.8.0")
     val second = ChartVersion("0.8.2")
-    LeoAppServiceInterp.isPatchVersionDifference(first, second) shouldBe (true)
+    LeoAppServiceInterp.isPatchVersionDifference(first, second) shouldBe true
   }
 
   it should "create an app and a new disk" in isolatedDbTest {
@@ -207,14 +250,17 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val defaultAppReq =
       createAppRequest.copy(kubernetesRuntimeConfig = Some(defaultNodepoolConfig),
                             diskConfig = Some(diskConfig1),
-                            customEnvironmentVariables = customEnvVars)
+                            customEnvironmentVariables = customEnvVars
+      )
     val appReqWithMoreNodes =
       defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithMoreNodes), diskConfig = Some(diskConfig2))
     val appReqWithMoreCpuAndMem = defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithMoreCpuAndMem),
-                                                     diskConfig = Some(diskConfig3))
+                                                     diskConfig = Some(diskConfig3)
+    )
     val appReqWithAutoscalingDisabled =
       defaultAppReq.copy(kubernetesRuntimeConfig = Some(nodepoolConfigWithAutoscalingDisabled),
-                         diskConfig = Some(diskConfig4))
+                         diskConfig = Some(diskConfig4)
+      )
 
     appServiceInterp
       .createApp(userInfo, project, appName1, defaultAppReq)
@@ -306,7 +352,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe ("Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app")
+    res.swap.toOption.get.getMessage shouldBe "Disk is not formatted yet. Only disks previously used by galaxy app can be re-used to create a new galaxy app"
   }
 
   it should "error creating an app with an existing used disk when WORKSPACE_NAME is not specified" in isolatedDbTest {
@@ -316,7 +362,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Galaxy),
-                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id))
+    )
       .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -324,7 +371,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName = AppName("app1")
     val createDiskConfig = PersistentDiskRequest(disk.name, None, None, Map.empty)
     val appReq = createAppRequest.copy(diskConfig = Some(createDiskConfig),
-                                       customEnvironmentVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws2"))
+                                       customEnvironmentVariables = Map(WORKSPACE_NAME_KEY -> "fake_ws2")
+    )
 
     val publisherQueue = QueueFactory.makePublisherQueue()
     val kubeServiceInterp = makeInterp(publisherQueue)
@@ -332,7 +380,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .createApp(userInfo, project, appName, appReq)
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
-    res.swap.toOption.get.getMessage shouldBe ("workspace name has to be the same as last used app in order to restore data from existing disk")
+    res.swap.toOption.get.getMessage shouldBe "workspace name has to be the same as last used app in order to restore data from existing disk"
   }
 
   it should "create an app with an existing used disk" in isolatedDbTest {
@@ -342,7 +390,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
                                   appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)),
-                                  formattedBy = Some(FormattedBy.Galaxy))
+                                  formattedBy = Some(FormattedBy.Galaxy)
+    )
       .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -484,7 +533,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe ("Existing disk found, but no restore info found in DB")
+    res.swap.toOption.get.getMessage shouldBe "Existing disk found, but no restore info found in DB"
   }
 
   it should "error on creation of a galaxy app without a disk" in isolatedDbTest {
@@ -515,7 +564,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe ("Existing disk found, but no restore info found in DB")
+    res.swap.toOption.get.getMessage shouldBe "Existing disk found, but no restore info found in DB"
   }
 
   it should "error creating Galaxy app with an existing disk that was formatted by Cromwell" in isolatedDbTest {
@@ -524,7 +573,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val cromwellApp = makeApp(1, nodepool.id).save()
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Cromwell),
-                                  appRestore = Some(CromwellRestore(cromwellApp.id)))
+                                  appRestore = Some(CromwellRestore(cromwellApp.id))
+    )
       .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -540,7 +590,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       .attempt
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
-    res.swap.toOption.get.getMessage shouldBe ("Persistent disk dsp-leo-test/disk is already formatted by CROMWELL")
+    res.swap.toOption.get.getMessage shouldBe "Persistent disk dsp-leo-test/disk is already formatted by CROMWELL"
   }
 
   it should "error on creation of Cromwell app without a disk" in isolatedDbTest {
@@ -561,7 +611,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val app = makeApp(1, nodepool.id, customEnvVariables).save()
     val disk = makePersistentDisk(None,
                                   formattedBy = Some(FormattedBy.Galaxy),
-                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id)))
+                                  appRestore = Some(GalaxyRestore(PvcId("pv-id"), PvcId("pv-id2"), app.id))
+    )
       .copy(cloudContext = cloudContext)
       .save()
       .unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -580,7 +631,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     appResult.flatMap(_.app.appResources.disk.map(_.name)) shouldEqual Some(disk.name)
     appResult.map(_.app.appName) shouldEqual Some(appName1)
 
-    //we need to update status from creating because we don't allow creation of apps while cluster is creating
+    // we need to update status from creating because we don't allow creation of apps while cluster is creating
     dbFutureValue(kubernetesClusterQuery.updateStatus(appResult.get.cluster.id, KubernetesClusterStatus.Running))
 
     a[DiskAlreadyAttachedException] should be thrownBy {
@@ -629,7 +680,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
     }
 
-    //we can't delete while its creating, so set it to Running
+    // we can't delete while its creating, so set it to Running
     dbFutureValue(appQuery.updateStatus(appResultPreStatusUpdate.get.app.id, AppStatus.Running))
     dbFutureValue(nodepoolQuery.updateStatus(appResultPreStatusUpdate.get.nodepool.id, NodepoolStatus.Running))
 
@@ -651,7 +702,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val app = nodepool.apps.head
     app.status shouldEqual AppStatus.Predeleting
 
-    //throw away create message
+    // throw away create message
     publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
 
     val message = publisherQueue.take.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -673,7 +724,7 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       KubernetesServiceDbQueries.getActiveFullAppByName(project, appName)
     }
 
-    //TODO: update this once create publishes pubsub message
+    // TODO: update this once create publishes pubsub message
     appResultPreDelete.get.app.status shouldEqual AppStatus.Precreating
     appResultPreDelete.get.app.auditInfo.destroyedDate shouldBe None
 
@@ -744,7 +795,8 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
     val appName3 = AppName("app3")
     val createDiskConfig1 = PersistentDiskRequest(diskName, None, None, Map.empty)
     val appReq1 = createAppRequest.copy(labels = Map("key1" -> "val1", "key2" -> "val2", "key3" -> "val3"),
-                                        diskConfig = Some(createDiskConfig1))
+                                        diskConfig = Some(createDiskConfig1)
+    )
     val diskName2 = DiskName("newDiskName")
     val createDiskConfig2 = PersistentDiskRequest(diskName2, None, None, Map.empty)
     val appReq2 = createAppRequest.copy(diskConfig = Some(createDiskConfig2))
@@ -861,11 +913,10 @@ final class AppServiceInterpSpec extends AnyFlatSpec with LeonardoTestSuite with
       _ <- IO(app2.save())
 
       listResponse <- appServiceInterp.listApp(userInfo, None, Map.empty)
-    } yield {
-      // Since the calling user is whitelisted in the auth provider, it should return
-      // the apps belonging to other users.
-      listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName)
-    }
+    } yield
+    // Since the calling user is whitelisted in the auth provider, it should return
+    // the apps belonging to other users.
+    listResponse.map(_.appName).toSet shouldBe Set(app1.appName, app2.appName)
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

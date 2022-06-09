@@ -11,30 +11,33 @@ trait RuntimeV2Service[F[_]] {
   def createRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
-                    req: CreateAzureRuntimeRequest)(
-    implicit as: Ask[F, AppContext]
+                    req: CreateAzureRuntimeRequest
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
-  def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[GetRuntimeResponse]
 
   def updateRuntime(userInfo: UserInfo,
                     runtimeName: RuntimeName,
                     workspaceId: WorkspaceId,
-                    req: UpdateAzureRuntimeRequest)(
-    implicit as: Ask[F, AppContext]
+                    req: UpdateAzureRuntimeRequest
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
-  def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[F, AppContext]
+  def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[F, AppContext]
   ): F[Unit]
 
   def listRuntimes(userInfo: UserInfo,
                    workspaceId: Option[WorkspaceId],
                    cloudProvider: Option[CloudProvider],
-                   params: Map[String, String])(
-    implicit as: Ask[F, AppContext]
+                   params: Map[String, String]
+  )(implicit
+    as: Ask[F, AppContext]
   ): F[Vector[ListRuntimeResponse2]]
 }
 
@@ -43,7 +46,8 @@ final case class CustomScriptExtensionConfig(name: String,
                                              `type`: String,
                                              version: String,
                                              minorVersionAutoUpgrade: Boolean,
-                                             fileUris: List[String])
+                                             fileUris: List[String]
+)
 final case class AzureServiceConfig(diskConfig: PersistentDiskConfig, image: AzureImage)
 final case class AcrCredential(username: String, password: String)
 final case class VMCredential(username: String, password: String)
@@ -61,4 +65,5 @@ final case class AzureRuntimeDefaults(ipControlledResourceDesc: String,
                                       customScriptExtension: CustomScriptExtensionConfig,
                                       listenerImage: String,
                                       acrCredential: AcrCredential,
-                                      vmCredential: VMCredential)
+                                      vmCredential: VMCredential
+)

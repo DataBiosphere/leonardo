@@ -13,8 +13,8 @@ object MockDiskServiceInterp extends DiskService[IO] {
     implicit as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
-  def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(
-    implicit as: Ask[IO, AppContext]
+  def getDisk(userInfo: UserInfo, cloudContext: CloudContext, diskName: DiskName)(implicit
+    as: Ask[IO, AppContext]
   ): IO[GetPersistentDiskResponse] =
     IO.pure(
       GetPersistentDiskResponse(
@@ -33,8 +33,8 @@ object MockDiskServiceInterp extends DiskService[IO] {
       )
     )
 
-  def listDisks(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(
-    implicit as: Ask[IO, AppContext]
+  def listDisks(userInfo: UserInfo, cloudContext: Option[CloudContext], params: Map[String, String])(implicit
+    as: Ask[IO, AppContext]
   ): IO[Vector[ListPersistentDiskResponse]] =
     IO.pure(
       Vector(
@@ -53,11 +53,11 @@ object MockDiskServiceInterp extends DiskService[IO] {
       )
     )
 
-  def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(
-    implicit as: Ask[IO, AppContext]
+  def deleteDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName)(implicit
+    as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 
-  def updateDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName, req: UpdateDiskRequest)(
-    implicit as: Ask[IO, AppContext]
+  def updateDisk(userInfo: UserInfo, googleProject: GoogleProject, diskName: DiskName, req: UpdateDiskRequest)(implicit
+    as: Ask[IO, AppContext]
   ): IO[Unit] = IO.unit
 }

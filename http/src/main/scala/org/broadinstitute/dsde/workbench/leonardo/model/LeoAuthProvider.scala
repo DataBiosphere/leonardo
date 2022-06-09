@@ -46,12 +46,12 @@ object SamResource {
   }
   class WorkspaceResource extends SamResource[WorkspaceResourceSamResourceId] {
     val resourceType = SamResourceType.Workspace
-    val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Owner) //TODO: is this policy name correct?
+    val policyNames = Set(SamPolicyName.Creator, SamPolicyName.Owner) // TODO: is this policy name correct?
     def resourceIdAsString(r: WorkspaceResourceSamResourceId): String = r.resourceId
   }
   class WsmResource extends SamResource[WsmResourceSamResourceId] {
     val resourceType = SamResourceType.WsmResource
-    val policyNames = Set(SamPolicyName.Creator) //TODO: is this policy name correct?
+    val policyNames = Set(SamPolicyName.Creator) // TODO: is this policy name correct?
     def resourceIdAsString(r: WsmResourceSamResourceId): String = r.resourceId
   }
 
@@ -132,8 +132,8 @@ object SamResourceAction {
 trait LeoAuthProvider[F[_]] {
   def serviceAccountProvider: ServiceAccountProvider[F]
 
-  def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def hasPermission[R, A](samResource: R, action: A, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[Boolean]
 
@@ -145,18 +145,18 @@ trait LeoAuthProvider[F[_]] {
     googleProject: GoogleProject
   )(implicit sr: SamResourceAction[R, A], ev: Ask[F, TraceId]): F[Boolean]
 
-  def getActions[R, A](samResource: R, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def getActions[R, A](samResource: R, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[List[sr.ActionCategory]]
 
-  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(
-    implicit sr: SamResourceAction[R, A],
+  def getActionsWithProjectFallback[R, A](samResource: R, googleProject: GoogleProject, userInfo: UserInfo)(implicit
+    sr: SamResourceAction[R, A],
     ev: Ask[F, TraceId]
   ): F[(List[sr.ActionCategory], List[ProjectAction])]
 
-  def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(
-    implicit sr: SamResource[R],
+  def filterUserVisible[R](resources: NonEmptyList[R], userInfo: UserInfo)(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[R]]
@@ -164,8 +164,8 @@ trait LeoAuthProvider[F[_]] {
   def filterUserVisibleWithProjectFallback[R](
     resources: NonEmptyList[(GoogleProject, R)],
     userInfo: UserInfo
-  )(
-    implicit sr: SamResource[R],
+  )(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(GoogleProject, R)]]
@@ -173,15 +173,15 @@ trait LeoAuthProvider[F[_]] {
   def filterUserVisibleWithWorkspaceFallback[R](
     resources: NonEmptyList[(WorkspaceId, R)],
     userInfo: UserInfo
-  )(
-    implicit sr: SamResource[R],
+  )(implicit
+    sr: SamResource[R],
     decoder: Decoder[R],
     ev: Ask[F, TraceId]
   ): F[List[(WorkspaceId, R)]]
 
   // Creates a resource in Sam
-  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(
-    implicit sr: SamResource[R],
+  def notifyResourceCreated[R](samResource: R, creatorEmail: WorkbenchEmail, googleProject: GoogleProject)(implicit
+    sr: SamResource[R],
     encoder: Encoder[R],
     ev: Ask[F, TraceId]
   ): F[Unit]
@@ -201,4 +201,6 @@ trait LeoAuthProvider[F[_]] {
 
   // Get user info from Sam. If petOrUserInfo is a pet SA, Sam will return it's associated user account info
   def lookupOriginatingUserEmail[R](petOrUserInfo: UserInfo)(implicit ev: Ask[F, TraceId]): F[WorkbenchEmail]
+
+  def isCustomAppAllowed(userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Boolean]
 }

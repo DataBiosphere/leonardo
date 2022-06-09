@@ -12,10 +12,10 @@ trait JupyterPage extends ProxyRedirectPage[JupyterPage] {
     this
   }
 
-  //Useful utility to print client-side information.
-  //Will be located in the driver window's session storage.
-  //To view messages stored in this fashion, enter `window.sessionStorage` into the browser console
-  //Currently, the user is responsible for ensuring their strings are valid javascript strings
+  // Useful utility to print client-side information.
+  // Will be located in the driver window's session storage.
+  // To view messages stored in this fashion, enter `window.sessionStorage` into the browser console
+  // Currently, the user is responsible for ensuring their strings are valid javascript strings
   def storeInBrowser(messages: Map[String, String]): Unit =
     messages.foreach { pair =>
       val q = "\""
@@ -23,7 +23,7 @@ trait JupyterPage extends ProxyRedirectPage[JupyterPage] {
       executeJavaScript(script)
     }
 
-  //executes arbitrary javascript client-side
+  // executes arbitrary javascript client-side
   def executeJavaScript(script: String): Unit = {
     val executor: JavascriptExecutor = webDriver.asInstanceOf[JavascriptExecutor]
     executor.executeScript(script)

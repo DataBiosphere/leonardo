@@ -30,7 +30,8 @@ final case class PersistentDiskRecord(id: DiskId,
                                       diskType: DiskType,
                                       blockSize: BlockSize,
                                       formattedBy: Option[FormattedBy],
-                                      appRestore: Option[AppRestore])
+                                      appRestore: Option[AppRestore]
+)
 
 class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PERSISTENT_DISK") {
   def id = column[DiskId]("id", O.PrimaryKey, O.AutoInc)
@@ -69,7 +70,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
      diskType,
      blockSize,
      formattedBy,
-     (galaxyPvcId, cvmfsPvcId, lastUsedBy)) <> ({
+     (galaxyPvcId, cvmfsPvcId, lastUsedBy)
+    ) <> ({
       case (id,
             (cloudProvider, cloudContextDb),
             zone,
@@ -85,7 +87,8 @@ class PersistentDiskTable(tag: Tag) extends Table[PersistentDiskRecord](tag, "PE
             diskType,
             blockSize,
             formattedBy,
-            (galaxyPvcId, cvmfsPvcId, lastUsedBy)) =>
+            (galaxyPvcId, cvmfsPvcId, lastUsedBy)
+          ) =>
         PersistentDiskRecord(
           id,
           cloudProvider match {
@@ -168,9 +171,8 @@ object persistentDiskQuery {
 
   private[db] def joinLabelQuery(baseQuery: Query[PersistentDiskTable, PersistentDiskRecord, Seq]) =
     for {
-      (disk, label) <- baseQuery joinLeft labelQuery on {
-        case (d, lbl) =>
-          lbl.resourceId.mapTo[DiskId] === d.id && lbl.resourceType === LabelResourceType.persistentDisk
+      (disk, label) <- baseQuery joinLeft labelQuery on { case (d, lbl) =>
+        lbl.resourceId.mapTo[DiskId] === d.id && lbl.resourceType === LabelResourceType.persistentDisk
       }
     } yield (disk, label)
 
@@ -207,8 +209,9 @@ object persistentDiskQuery {
   def getPersistentDiskRecord(id: DiskId): DBIO[Option[PersistentDiskRecord]] =
     findByIdQuery(id).result.headOption
 
-  def getActiveByName(cloudContext: CloudContext,
-                      name: DiskName)(implicit ec: ExecutionContext): DBIO[Option[PersistentDisk]] =
+  def getActiveByName(cloudContext: CloudContext, name: DiskName)(implicit
+    ec: ExecutionContext
+  ): DBIO[Option[PersistentDisk]] =
     joinLabelQuery(findActiveByNameQuery(cloudContext, name)).result.map(aggregateLabels).map(_.headOption)
 
   def updateStatus(id: DiskId, newStatus: DiskStatus, dateAccessed: Instant) =
@@ -277,15 +280,13 @@ object persistentDiskQuery {
     recs: Seq[(PersistentDiskRecord, Option[LabelRecord])]
   ): Seq[PersistentDisk] = {
     val pdLabelMap: Map[PersistentDiskRecord, Map[String, String]] =
-      recs.toList.foldMap {
-        case (rec, labelRecOpt) =>
-          val labelMap = labelRecOpt.map(lblRec => Map(lblRec.key -> lblRec.value)).getOrElse(Map.empty)
-          Map(rec -> labelMap)
+      recs.toList.foldMap { case (rec, labelRecOpt) =>
+        val labelMap = labelRecOpt.map(lblRec => Map(lblRec.key -> lblRec.value)).getOrElse(Map.empty)
+        Map(rec -> labelMap)
       }
 
-    pdLabelMap.toList.map {
-      case (rec, labels) =>
-        unmarshalPersistentDisk(rec, labels)
+    pdLabelMap.toList.map { case (rec, labels) =>
+      unmarshalPersistentDisk(rec, labels)
     }
   }
 

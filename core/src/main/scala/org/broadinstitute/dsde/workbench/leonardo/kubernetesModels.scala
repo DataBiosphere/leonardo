@@ -39,7 +39,8 @@ case class KubernetesCluster(id: KubernetesClusterLeoId,
                              auditInfo: AuditInfo,
                              asyncFields: Option[KubernetesClusterAsyncFields],
                              namespaces: List[Namespace],
-                             nodepools: List[Nodepool]) {
+                             nodepools: List[Nodepool]
+) {
 
   // TODO consider renaming this method and the KubernetesClusterId class
   // to disambiguate a bit with KubernetesClusterLeoId which is a Leo-specific ID
@@ -76,7 +77,7 @@ object KubernetesClusterStatus {
     override def toString: String = "RECONCILING"
   }
 
-  //in kubernetes statuses, they label 'deleting' resources as 'stopping'
+  // in kubernetes statuses, they label 'deleting' resources as 'stopping'
   final case object Deleting extends KubernetesClusterStatus {
     override def toString: String = "STOPPING"
   }
@@ -89,7 +90,7 @@ object KubernetesClusterStatus {
     override def toString: String = "DEGRADED"
   }
 
-  //this is a custom status, and will not be returned from google
+  // this is a custom status, and will not be returned from google
   final case object Deleted extends KubernetesClusterStatus {
     override def toString: String = "DELETED"
   }
@@ -130,7 +131,7 @@ object NodepoolStatus {
     override def toString: String = "RECONCILING"
   }
 
-  //in kubernetes statuses, they label "deleting' resources as 'stopping'
+  // in kubernetes statuses, they label "deleting' resources as 'stopping'
   case object Deleting extends NodepoolStatus {
     override def toString: String = "STOPPING"
   }
@@ -139,7 +140,7 @@ object NodepoolStatus {
     override def toString: String = "ERROR"
   }
 
-  //this is a custom status, and will not be returned from google
+  // this is a custom status, and will not be returned from google
   case object Deleted extends NodepoolStatus {
     override def toString: String = "DELETED"
   }
@@ -176,9 +177,10 @@ final case class Nodepool(id: NodepoolLeoId,
                           autoscalingEnabled: Boolean,
                           autoscalingConfig: Option[AutoscalingConfig],
                           apps: List[App],
-                          isDefault: Boolean)
+                          isDefault: Boolean
+)
 object KubernetesNameUtils {
-  //UUID almost works for this use case, but kubernetes names must start with a-z
+  // UUID almost works for this use case, but kubernetes names must start with a-z
   def getUniqueName[A](apply: String => A): Either[Throwable, A] =
     KubernetesName.withValidation(s"k${UUID.randomUUID().toString.toLowerCase.substring(1)}", apply)
 }
@@ -191,7 +193,8 @@ case class DefaultNodepool(id: NodepoolLeoId,
                            machineType: MachineTypeName,
                            numNodes: NumNodes,
                            autoscalingEnabled: Boolean,
-                           autoscalingConfig: Option[AutoscalingConfig]) {
+                           autoscalingConfig: Option[AutoscalingConfig]
+) {
   def toNodepool(): Nodepool =
     Nodepool(id,
              clusterId,
@@ -203,7 +206,8 @@ case class DefaultNodepool(id: NodepoolLeoId,
              autoscalingEnabled,
              autoscalingConfig,
              List.empty,
-             true)
+             true
+    )
 }
 object DefaultNodepool {
   def fromNodepool(n: Nodepool) =
@@ -215,7 +219,8 @@ object DefaultNodepool {
                     n.machineType,
                     n.numNodes,
                     n.autoscalingEnabled,
-                    n.autoscalingConfig)
+                    n.autoscalingConfig
+    )
 }
 
 final case class AutoscalingConfig(autoscalingMin: AutoscalingMin, autoscalingMax: AutoscalingMax)
@@ -228,7 +233,8 @@ final case class AutoscalingMax(amount: Int) extends AnyVal
 final case class DefaultKubernetesLabels(googleProject: GoogleProject,
                                          appName: AppName,
                                          creator: WorkbenchEmail,
-                                         serviceAccount: WorkbenchEmail) {
+                                         serviceAccount: WorkbenchEmail
+) {
   val toMap: LabelMap =
     Map(
       "appName" -> appName.value,
@@ -268,7 +274,8 @@ final case class AppError(errorMessage: String,
                           action: ErrorAction,
                           source: ErrorSource,
                           googleErrorCode: Option[Int],
-                          traceId: Option[TraceId] = None)
+                          traceId: Option[TraceId] = None
+)
 
 final case class KubernetesErrorId(value: Long) extends AnyVal
 
@@ -326,7 +333,8 @@ final case class AppName(value: String) extends AnyVal
 final case class AppResources(namespace: Namespace,
                               disk: Option[PersistentDisk],
                               services: List[KubernetesService],
-                              kubernetesServiceAccountName: Option[ServiceAccountName])
+                              kubernetesServiceAccountName: Option[ServiceAccountName]
+)
 
 final case class Chart(name: ChartName, version: ChartVersion) {
   override def toString: String = s"${name.asString}${Chart.nameVersionSeparator}${version.asString}"
@@ -357,12 +365,13 @@ final case class App(id: AppId,
                      googleServiceAccount: WorkbenchEmail,
                      auditInfo: AuditInfo,
                      labels: LabelMap,
-                     //this is populated async to app creation
+                     // this is populated async to app creation
                      appResources: AppResources,
                      errors: List[AppError],
                      customEnvironmentVariables: Map[String, String],
                      descriptorPath: Option[Uri],
-                     extraArgs: List[String]) {
+                     extraArgs: List[String]
+) {
   def getProxyUrls(project: GoogleProject, proxyUrlBase: String): Map[ServiceName, URL] =
     appResources.services.map { service =>
       val proxyPath = s"google/v1/apps/${project.value}/${appName.value}/${service.config.name.value}"

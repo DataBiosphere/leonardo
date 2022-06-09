@@ -71,7 +71,7 @@ object HttpAppDescriptorDAO {
       command.getOrElse(List.empty),
       args.getOrElse(List.empty),
       pdMountPath.getOrElse("/data"),
-      //Note, reconsider if we ever support different disk modes
+      // Note, reconsider if we ever support different disk modes
       pdAccessMode.getOrElse("ReadWriteOnce"),
       environment.getOrElse(Map.empty)
     )

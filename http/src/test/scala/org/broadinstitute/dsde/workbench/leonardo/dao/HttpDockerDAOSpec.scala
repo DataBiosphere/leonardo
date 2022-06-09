@@ -73,14 +73,13 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     dockerDAOResource.use(dao => IO(testCode(dao))).unsafeRunSync()
   }
 
-  Map(Jupyter -> jupyterImages, RStudio -> rstudioImages).foreach {
-    case (tool, images) =>
-      images.foreach { image =>
-        it should s"detect tool=$tool for image $image" in withDockerDAO { dockerDAO =>
-          val response = IO.realTimeInstant.flatMap(n => dockerDAO.detectTool(image, None, n)).unsafeRunSync()
-          response.imageType shouldBe tool
-        }
+  Map(Jupyter -> jupyterImages, RStudio -> rstudioImages).foreach { case (tool, images) =>
+    images.foreach { image =>
+      it should s"detect tool=$tool for image $image" in withDockerDAO { dockerDAO =>
+        val response = IO.realTimeInstant.flatMap(n => dockerDAO.detectTool(image, None, n)).unsafeRunSync()
+        response.imageType shouldBe tool
       }
+    }
   }
 
   it should s"detect ImageParseException" in withDockerDAO { dockerDAO =>
@@ -88,9 +87,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
     val res = for {
       ctx <- appContext.ask[AppContext]
       response <- dockerDAO.detectTool(image, None, ctx.now).attempt
-    } yield {
-      response shouldBe Left(ImageParseException(ctx.traceId, image))
-    }
+    } yield response shouldBe Left(ImageParseException(ctx.traceId, image))
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -100,9 +97,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       val res = for {
         ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image, None, ctx.now).attempt
-      } yield {
-        response shouldBe Left(InvalidImage(ctx.traceId, image, None))
-      }
+      } yield response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -112,9 +107,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       val res = for {
         ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image, None, ctx.now).attempt
-      } yield {
-        response shouldBe Left(InvalidImage(ctx.traceId, image, None))
-      }
+      } yield response shouldBe Left(InvalidImage(ctx.traceId, image, None))
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
@@ -124,9 +117,7 @@ class HttpDockerDAOSpec extends AnyFlatSpec with Matchers with BeforeAndAfterAll
       val res = for {
         ctx <- appContext.ask[AppContext]
         response <- dockerDAO.detectTool(image, None, ctx.now).attempt
-      } yield {
-        response.isLeft shouldBe true
-      }
+      } yield response.isLeft shouldBe true
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 

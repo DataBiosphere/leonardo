@@ -72,9 +72,8 @@ class StatusService(
         val messages = statusCheckResponse.systems.toList match {
           case Nil => None
           case systems =>
-            systems.flatTraverse[Option, String] {
-              case (subsystem, subSystemStatus) =>
-                subSystemStatus.messages.map(msgs => msgs.map(m => s"${subsystem.value} -> $m"))
+            systems.flatTraverse[Option, String] { case (subsystem, subSystemStatus) =>
+              subSystemStatus.messages.map(msgs => msgs.map(m => s"${subsystem.value} -> $m"))
             }
         }
         SubsystemStatus(statusCheckResponse.ok, messages)

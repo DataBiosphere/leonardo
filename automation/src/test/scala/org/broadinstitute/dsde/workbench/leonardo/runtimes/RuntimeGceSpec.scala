@@ -85,7 +85,9 @@ class RuntimeGceSpec
     val runtimeName = randomClusterName
     val diskName = genDiskName.sample.get
 
-    val toolImage = ContainerImage.fromImageUrl("us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:qi-gpu") // Use the default base image once we migrate to use gpu images by default
+    val toolImage = ContainerImage.fromImageUrl(
+      "us.gcr.io/broad-dsp-gcr-public/terra-jupyter-python:qi-gpu"
+    ) // Use the default base image once we migrate to use gpu images by default
     // In a europe zone
     val createRuntimeRequest = defaultCreateRuntime2Request.copy(
       runtimeConfig = Some(

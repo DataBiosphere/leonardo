@@ -49,8 +49,8 @@ class AzurePubsubHandlerSpec
     val queue = QueueFactory.asyncTaskQueue()
     val resourceId = WsmControlledResourceId(UUID.randomUUID())
     val mockWsmDAO = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[GetCreateVmJobResult] =
         IO.pure(
           GetCreateVmJobResult(
@@ -63,7 +63,8 @@ class AzurePubsubHandlerSpec
     val azureInterp =
       makeAzureInterp(computeManagerDao = new MockComputeManagerDao(Some(vmReturn)),
                       asyncTaskQueue = queue,
-                      wsmDAO = mockWsmDAO)
+                      wsmDAO = mockWsmDAO
+      )
 
     val res =
       for {
@@ -71,7 +72,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(1)
           .copy(
             cloudContext = CloudContext.Azure(azureCloudContext)
@@ -115,7 +117,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(2)
           .copy(
             status = RuntimeStatus.Running,
@@ -129,7 +132,7 @@ class AzurePubsubHandlerSpec
           controlledResources <- controlledResourceQuery.getAllForRuntime(runtime.id).transaction
         } yield {
           getRuntime.status shouldBe RuntimeStatus.Deleted
-          controlledResources.length shouldBe (2)
+          controlledResources.length shouldBe 2
         }
 
         _ <- controlledResourceQuery
@@ -153,8 +156,8 @@ class AzurePubsubHandlerSpec
     val queue = QueueFactory.asyncTaskQueue()
     val exceptionMsg = "test exception"
     val mockWsmDao = new MockWsmDAO {
-      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getCreateVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[GetCreateVmJobResult] = IO.raiseError(new Exception(exceptionMsg))
     }
     val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = mockWsmDao)
@@ -165,7 +168,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(1)
           .copy(
             cloudContext = CloudContext.Azure(azureCloudContext)
@@ -197,8 +201,8 @@ class AzurePubsubHandlerSpec
     val exceptionMsg = "test exception"
     val queue = QueueFactory.asyncTaskQueue()
     val wsm = new MockWsmDAO {
-      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[GetDeleteJobResult] = IO.raiseError(new Exception("test exception"))
     }
     val azureInterp = makeAzureInterp(asyncTaskQueue = queue, wsmDAO = wsm)
@@ -209,7 +213,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(2)
           .copy(
             status = RuntimeStatus.Running,
@@ -217,7 +222,7 @@ class AzurePubsubHandlerSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
+        // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
           .transaction
@@ -249,8 +254,8 @@ class AzurePubsubHandlerSpec
     val exceptionMsg = "WSM delete VM job was not completed within 20 attempts with 1 second delay"
     val queue = QueueFactory.asyncTaskQueue()
     val wsm = new MockWsmDAO {
-      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(
-        implicit ev: Ask[IO, AppContext]
+      override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
+        ev: Ask[IO, AppContext]
       ): IO[GetDeleteJobResult] =
         IO.pure(
           GetDeleteJobResult(
@@ -275,7 +280,8 @@ class AzurePubsubHandlerSpec
 
         azureRuntimeConfig = RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A1.toString),
                                                        disk.id,
-                                                       azureRegion)
+                                                       azureRegion
+        )
         runtime = makeCluster(2)
           .copy(
             status = RuntimeStatus.Running,
@@ -283,7 +289,7 @@ class AzurePubsubHandlerSpec
           )
           .saveWithRuntimeConfig(azureRuntimeConfig)
 
-        //Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
+        // Here we manually save a controlled resource with the runtime because we want too ensure it isn't deleted on error
         _ <- controlledResourceQuery
           .save(runtime.id, WsmControlledResourceId(UUID.randomUUID()), WsmResourceType.AzureNetwork)
           .transaction
@@ -313,7 +319,8 @@ class AzurePubsubHandlerSpec
   // Needs to be made for each test its used in, otherwise queue will overlap
   def makeAzureInterp(asyncTaskQueue: Queue[IO, Task[IO]] = QueueFactory.asyncTaskQueue(),
                       computeManagerDao: AzureManagerDao[IO] = new MockComputeManagerDao(),
-                      wsmDAO: WsmDao[IO] = new MockWsmDAO): AzurePubsubHandlerInterp[IO] =
+                      wsmDAO: WsmDao[IO] = new MockWsmDAO
+  ): AzurePubsubHandlerInterp[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
       asyncTaskQueue,

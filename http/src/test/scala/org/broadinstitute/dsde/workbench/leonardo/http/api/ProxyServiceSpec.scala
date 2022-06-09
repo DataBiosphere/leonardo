@@ -12,12 +12,12 @@ class ProxyServiceSpec extends AnyFlatSpec with Matchers {
     val pathBeforeRewrite1 = Uri.Path("/notebooks/project1/cluster1/jupyter")
     val expectedPath1 = Uri.Path("/notebooks/project1/cluster1/")
     val res1 = rewriteJupyterPath(pathBeforeRewrite1)
-    res1 shouldBe (expectedPath1)
+    res1 shouldBe expectedPath1
 
     val pathBeforeRewrite2 = Uri.Path("/proxy/project2/cluster2/jupyter")
     val expectedPath2 = Uri.Path("/notebooks/project2/cluster2/")
     val res2 = rewriteJupyterPath(pathBeforeRewrite2)
-    res2 shouldBe (expectedPath2)
+    res2 shouldBe expectedPath2
   }
 
   it should "not rewrite Galaxy paths" in {

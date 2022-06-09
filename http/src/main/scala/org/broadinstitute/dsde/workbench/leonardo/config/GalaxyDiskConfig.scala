@@ -6,4 +6,5 @@ final case class GalaxyDiskConfig(nfsPersistenceName: String,
                                   postgresPersistenceName: String,
                                   postgresDiskNameSuffix: String,
                                   postgresDiskSizeGB: DiskSize,
-                                  postgresDiskBlockSize: BlockSize)
+                                  postgresDiskBlockSize: BlockSize
+)

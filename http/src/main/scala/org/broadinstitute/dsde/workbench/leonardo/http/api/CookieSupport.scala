@@ -18,7 +18,7 @@ object CookieSupport {
    * Sets a token cookie in the HTTP response.
    */
   def setTokenCookie(userInfo: UserInfo): Directive0 =
-    //setCookie(buildCookie(userInfo, cookieName))
+    // setCookie(buildCookie(userInfo, cookieName))
     respondWithHeaders(buildRawCookie(userInfo))
 
   /**

@@ -19,7 +19,8 @@ final case class PersistentDisk(id: DiskId,
                                 blockSize: BlockSize,
                                 formattedBy: Option[FormattedBy],
                                 appRestore: Option[AppRestore],
-                                labels: LabelMap) {
+                                labels: LabelMap
+) {
   def projectNameString: String = s"${cloudContext.asStringWithProvider}/${name.value}"
 }
 
@@ -29,11 +30,12 @@ final case class DiskId(value: Long) extends AnyVal
 case class DefaultDiskLabels(diskName: DiskName,
                              cloudContext: CloudContext,
                              creator: WorkbenchEmail,
-                             serviceAccount: WorkbenchEmail) {
+                             serviceAccount: WorkbenchEmail
+) {
   def toMap: LabelMap =
     Map(
       "diskName" -> diskName.value,
-      "googleProject" -> cloudContext.asString, //TODO: remove googleProject in the future.
+      "googleProject" -> cloudContext.asString, // TODO: remove googleProject in the future.
       "cloudContext" -> cloudContext.asString,
       "creator" -> creator.value,
       "serviceAccount" -> serviceAccount.value
@@ -45,7 +47,7 @@ sealed trait DiskStatus extends EnumEntry
 object DiskStatus extends Enum[DiskStatus] {
   val values = findValues
 
-  //TODO: Create Pre statuses once https://github.com/DataBiosphere/leonardo/pull/1395/files#diff-4101c04c4a7015e058bf48267899df0bR92 is merged
+  // TODO: Create Pre statuses once https://github.com/DataBiosphere/leonardo/pull/1395/files#diff-4101c04c4a7015e058bf48267899df0bR92 is merged
   final case object Creating extends DiskStatus
   final case object Restoring extends DiskStatus
   final case object Failed extends DiskStatus

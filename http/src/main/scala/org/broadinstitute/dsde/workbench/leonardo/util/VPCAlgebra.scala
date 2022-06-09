@@ -8,8 +8,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 
 trait VPCAlgebra[F[_]] {
 
-  def setUpProjectNetworkAndFirewalls(params: SetUpProjectNetworkParams)(
-    implicit ev: Ask[F, TraceId]
+  def setUpProjectNetworkAndFirewalls(params: SetUpProjectNetworkParams)(implicit
+    ev: Ask[F, TraceId]
   ): F[(NetworkName, SubnetworkName)]
 
 }
@@ -19,4 +19,5 @@ final case class SetUpProjectNetworkParams(project: GoogleProject, region: Regio
 final case class SetUpProjectFirewallsParams(project: GoogleProject,
                                              networkName: NetworkName,
                                              region: RegionName,
-                                             projectLabels: Map[String, String])
+                                             projectLabels: Map[String, String]
+)

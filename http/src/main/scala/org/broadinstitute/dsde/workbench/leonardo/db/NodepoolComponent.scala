@@ -72,7 +72,8 @@ class NodepoolTable(tag: Tag) extends Table[NodepoolRecord](tag, "NODEPOOL") {
      autoscalingEnabled,
      autoscalingMin,
      autoscalingMax,
-     isDefault) <>
+     isDefault
+    ) <>
       (NodepoolRecord.tupled, NodepoolRecord.unapply)
 
 }

@@ -28,9 +28,11 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
     val test = new VPCInterpreter(Config.vpcInterpreterConfig,
                                   stubResourceService(
                                     Map(vpcConfig.highSecurityProjectNetworkLabel.value -> "my_network",
-                                        vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
+                                        vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet"
+                                    )
                                   ),
-                                  FakeGoogleComputeService)
+                                  FakeGoogleComputeService
+    )
 
     test
       .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
@@ -42,7 +44,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                   stubResourceService(
                                     Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_network")
                                   ),
-                                  FakeGoogleComputeService)
+                                  FakeGoogleComputeService
+    )
 
     test
       .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
@@ -55,7 +58,8 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
                                    stubResourceService(
                                      Map(vpcConfig.highSecurityProjectSubnetworkLabel.value -> "my_subnet")
                                    ),
-                                   FakeGoogleComputeService)
+                                   FakeGoogleComputeService
+    )
 
     test2
       .setUpProjectNetworkAndFirewalls(SetUpProjectNetworkParams(project, RegionName("us-central1")))
@@ -140,33 +144,34 @@ class VPCInterpreterSpec extends AnyFlatSpecLike with LeonardoTestSuite {
 
     test.firewallRulesToAdd(
       Map("leonardo-allow-internal-firewall-name" -> "leonardo-allow-internal",
-          "leonardo-allow-https-firewall-name" -> "leonardo-ssl")
+          "leonardo-allow-https-firewall-name" -> "leonardo-ssl"
+      )
     ) shouldBe List(expectedSshFirewallRules)
   }
 
   private def stubResourceService(labels: Map[String, String]): FakeGoogleResourceService =
     new FakeGoogleResourceService {
-      override def getLabels(project: GoogleProject)(
-        implicit ev: Ask[IO, TraceId]
+      override def getLabels(project: GoogleProject)(implicit
+        ev: Ask[IO, TraceId]
       ): IO[Option[Map[String, String]]] = IO(Some(labels))
     }
 
   class MockGoogleComputeServiceWithFirewalls extends FakeGoogleComputeService {
     val firewallMap = scala.collection.concurrent.TrieMap.empty[FirewallRuleName, Firewall]
 
-    override def addFirewallRule(project: GoogleProject, firewall: Firewall)(
-      implicit ev: Ask[IO, TraceId]
+    override def addFirewallRule(project: GoogleProject, firewall: Firewall)(implicit
+      ev: Ask[IO, TraceId]
     ): IO[OperationFuture[Operation, Operation]] =
       IO(firewallMap.putIfAbsent(FirewallRuleName(firewall.getName), firewall))
         .as(new FakeComputeOperationFuture)
 
-    override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(
-      implicit ev: Ask[IO, TraceId]
+    override def deleteFirewallRule(project: GoogleProject, firewallRuleName: FirewallRuleName)(implicit
+      ev: Ask[IO, TraceId]
     ): IO[Option[OperationFuture[Operation, Operation]]] =
       IO(firewallMap.remove(firewallRuleName)).as(Some(new FakeComputeOperationFuture))
 
-    override def getNetwork(project: GoogleProject, networkName: NetworkName)(
-      implicit ev: Ask[IO, TraceId]
+    override def getNetwork(project: GoogleProject, networkName: NetworkName)(implicit
+      ev: Ask[IO, TraceId]
     ): IO[Option[Network]] =
       if (networkName.value == "default")
         IO.pure(Some(Network.newBuilder().setName("default").build))

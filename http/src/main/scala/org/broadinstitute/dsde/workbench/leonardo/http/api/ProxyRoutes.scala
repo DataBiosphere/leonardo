@@ -25,8 +25,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.model.{TraceId, UserInfo}
 import org.broadinstitute.dsde.workbench.openTelemetry.OpenTelemetryMetrics
 
-class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(
-  implicit materializer: Materializer,
+class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererConfig: RefererConfig)(implicit
+  materializer: Materializer,
   metrics: OpenTelemetryMetrics[IO]
 ) extends LazyLogging {
   val route: Route =
@@ -87,7 +87,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
                           }
                         }
                       } ~
-                      (extractUserInfoWithoutUserEnabledCheck)(implicitly) { userInfo =>
+                      extractUserInfoWithoutUserEnabledCheck(implicitly) { userInfo =>
                         logRequestResultForMetrics(userInfo) {
                           // Proxy logic handled by the ProxyService class
                           // Note ProxyService calls the LeoAuthProvider internally
@@ -172,8 +172,8 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
    * Extracts user info from an Authorization header _only_.
    * Returns None if a token cannot be retrieved.
    */
-  private def extractUserInfoFromHeaderWithUserEnabledCheck(
-    implicit ev: Ask[IO, TraceId]
+  private def extractUserInfoFromHeaderWithUserEnabledCheck(implicit
+    ev: Ask[IO, TraceId]
   ): Directive1[Option[UserInfo]] =
     extractTokenFromHeader flatMap {
       case Some(token) =>
@@ -196,7 +196,7 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
               s"${userInfo.userId} [${DateTime.now.toIsoDateTimeString()}] " +
               s""""${req.method.value} ${req.uri} ${req.protocol.value}" """ +
               s"""${resp.status.intValue} ${resp.entity.contentLengthOption
-                .getOrElse("-")} ${headerMap.getOrElse("Origin", "-")} """ +
+                  .getOrElse("-")} ${headerMap.getOrElse("Origin", "-")} """ +
               s"${headerMap.getOrElse("User-Agent", "unknown")}",
             Logging.InfoLevel
           )
@@ -218,15 +218,14 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService
         .proxyAppRequest(userInfo, googleProject, appName, serviceName, request)
-        .onError {
-          case e =>
-            IO(
-              logger.warn(
-                s"${ctx.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${appName.value} ${serviceName.value}",
-                e
-              )
-            ) <* IO
-              .fromFuture(IO(request.entity.discardBytes().future))
+        .onError { case e =>
+          IO(
+            logger.warn(
+              s"${ctx.traceId} | proxy request failed for ${userInfo.userEmail.value} ${googleProject.value} ${appName.value} ${serviceName.value}",
+              e
+            )
+          ) <* IO
+            .fromFuture(IO(request.entity.discardBytes().future))
         }
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyApp").use(_ => apiCall))
     } yield resp
@@ -254,11 +253,12 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
       ctx <- ev.ask[AppContext]
       apiCall = proxyService.proxyRequest(userInfo, cloudContext, runtimeName, request)
       resp <- ctx.span.fold(apiCall)(span => spanResource[IO](span, "proxyRuntime").use(_ => apiCall))
-      _ <- if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
-        request.entity.contentLengthOption.traverse(size =>
-          metrics.gauge("notebooksSize", size.toDouble, tags = Map("source" -> "proxy"))
-        )
-      } else IO.unit
+      _ <-
+        if (request.uri.toString.endsWith(".ipynb") && request.method == HttpMethods.PUT) {
+          request.entity.contentLengthOption.traverse(size =>
+            metrics.gauge("notebooksSize", size.toDouble, tags = Map("source" -> "proxy"))
+          )
+        } else IO.unit
     } yield resp
 
   private[api] def setCookieHandler(userInfoOpt: Option[UserInfo]): IO[ToResponseMarshallable] =
@@ -289,8 +289,10 @@ class ProxyRoutes(proxyService: ProxyService, corsSupport: CorsSupport, refererC
     optionalHeaderValueByType(Referer) flatMap {
       case Some(referer) =>
         val authority = referer.uri.authority
-        if (refererConfig.validHosts.contains(authority.toString())
-            || refererConfig.validHosts.contains("*")) {
+        if (
+          refererConfig.validHosts.contains(authority.toString())
+          || refererConfig.validHosts.contains("*")
+        ) {
           pass
         } else {
           logger.info(s"Referer ${referer.uri.toString} is not allowed")

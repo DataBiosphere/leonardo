@@ -10,4 +10,5 @@ case class ApplicationConfig(applicationName: String,
                              leoGoogleProject: GoogleProject,
                              leoServiceAccountJsonFile: Path,
                              leoServiceAccountEmail: WorkbenchEmail,
-                             concurrency: Long)
+                             concurrency: Long
+)

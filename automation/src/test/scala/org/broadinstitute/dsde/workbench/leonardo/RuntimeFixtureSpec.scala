@@ -82,24 +82,23 @@ abstract class RuntimeFixtureSpec
           runtimeName,
           getRuntimeRequest(cloudService.getOrElse(CloudService.GCE),
                             toolDockerImage.map(i => ContainerImage(i, ContainerRegistry.GCR)),
-                            welderRegistry)
+                            welderRegistry
+          )
         )
-      } yield {
-        ronCluster = ClusterCopy(
-          runtimeName,
-          billingProject,
-          getRuntimeResponse.serviceAccount,
-          null,
-          null,
-          getRuntimeResponse.auditInfo.creator,
-          null,
-          null,
-          null,
-          null,
-          15,
-          false
-        )
-      }
+      } yield ronCluster = ClusterCopy(
+        runtimeName,
+        billingProject,
+        getRuntimeResponse.serviceAccount,
+        null,
+        null,
+        getRuntimeResponse.auditInfo.creator,
+        null,
+        null,
+        null,
+        null,
+        15,
+        false
+      )
     }
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
@@ -153,7 +152,8 @@ object RuntimeFixtureSpec {
 
   def getRuntimeRequest(cloudService: CloudService,
                         toolDockerImage: Option[ContainerImage],
-                        welderRegistry: Option[ContainerRegistry]): CreateRuntime2Request = {
+                        welderRegistry: Option[ContainerRegistry]
+  ): CreateRuntime2Request = {
     val machineConfig = cloudService match {
       case CloudService.GCE =>
         RuntimeConfigRequest.GceConfig(

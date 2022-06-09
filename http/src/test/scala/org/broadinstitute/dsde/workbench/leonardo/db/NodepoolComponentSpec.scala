@@ -16,7 +16,7 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
 
   it should "save, get, delete" in isolatedDbTest {
     val savedCluster1 = makeKubeCluster(1).save()
-    //we never use this, but we want other nodepools in DB to ensure our queries successfully pull the ones associated with this cluster only
+    // we never use this, but we want other nodepools in DB to ensure our queries successfully pull the ones associated with this cluster only
     makeKubeCluster(2).save()
 
     val nodepool1 = makeNodepool(2, savedCluster1.id)
@@ -40,13 +40,14 @@ class NodepoolComponentSpec extends AnyFlatSpecLike with TestComponent {
       dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id)).map(_.nodepools).get
     nodepoolGetAll2.size shouldBe 2
     nodepoolGetAll2 should contain(savedNodepool1)
-    nodepoolGetAll2 should not contain (savedNodepool2)
+    nodepoolGetAll2 should not contain savedNodepool2
 
     val deletedNodepoolGet =
       dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id, includeDeletedNodepool = true))
     deletedNodepoolGet.get.nodepools should contain
     savedNodepool2.copy(status = NodepoolStatus.Deleted,
-                        auditInfo = savedNodepool2.auditInfo.copy(destroyedDate = Some(now)))
+                        auditInfo = savedNodepool2.auditInfo.copy(destroyedDate = Some(now))
+    )
 
     dbFutureValue(nodepoolQuery.markActiveAsDeletedForCluster(savedCluster1.id, now)) shouldBe 2
     dbFutureValue(kubernetesClusterQuery.getMinimalClusterById(savedCluster1.id)).map(_.nodepools) shouldBe Some(List())

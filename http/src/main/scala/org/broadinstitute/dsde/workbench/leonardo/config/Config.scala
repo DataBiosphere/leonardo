@@ -2,7 +2,7 @@ package org.broadinstitute.dsde.workbench.leonardo
 package config
 
 import com.google.pubsub.v1.{ProjectSubscriptionName, ProjectTopicName, TopicName}
-import com.typesafe.config.{ConfigFactory, Config => TypeSafeConfig}
+import com.typesafe.config.{Config => TypeSafeConfig, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 import net.ceedubs.ficus.readers.ValueReader
 import org.broadinstitute.dsde.workbench.google2.KubernetesSerializableName._
@@ -24,8 +24,9 @@ import org.broadinstitute.dsde.workbench.google2.{
 import org.broadinstitute.dsde.workbench.leonardo.CustomImage.{DataprocCustomImage, GceCustomImage}
 import org.broadinstitute.dsde.workbench.leonardo.auth.SamAuthProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyComponent._
-import org.broadinstitute.dsde.workbench.leonardo.dao.HttpSamDaoConfig
+import org.broadinstitute.dsde.workbench.leonardo.dao.{GroupName, HttpSamDaoConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.ConfigReader
+import org.broadinstitute.dsde.workbench.leonardo.http.service.AppServiceConfig
 import org.broadinstitute.dsde.workbench.leonardo.http.service.LeoAppServiceInterp.LeoKubernetesConfig
 import org.broadinstitute.dsde.workbench.leonardo.model.ServiceAccountProviderConfig
 import org.broadinstitute.dsde.workbench.leonardo.monitor.MonitorConfig.{DataprocMonitorConfig, GceMonitorConfig}
@@ -46,8 +47,8 @@ import org.broadinstitute.dsde.workbench.model.google.GoogleProject
 import org.broadinstitute.dsde.workbench.util.toScalaDuration
 import org.broadinstitute.dsp.{ChartName, ChartVersion, Release}
 import org.http4s.Uri
-import java.nio.file.{Path, Paths}
 
+import java.nio.file.{Path, Paths}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters._
 
@@ -55,6 +56,7 @@ object Config {
   val config = ConfigFactory.parseResources("leonardo.conf").withFallback(ConfigFactory.load()).resolve()
 
   implicit private val deviceNameReader: ValueReader[DeviceName] = stringValueReader.map(DeviceName)
+  implicit private val groupNameReader: ValueReader[GroupName] = stringValueReader.map(GroupName)
 
   implicit private val applicationConfigReader: ValueReader[ApplicationConfig] = ValueReader.relative { config =>
     ApplicationConfig(
@@ -325,7 +327,11 @@ object Config {
       SamAuthProviderConfig(
         config.getOrElse("notebookAuthCacheEnabled", true),
         config.getAs[Int]("notebookAuthCacheMaxSize").getOrElse(1000),
-        config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes)
+        config.getAs[FiniteDuration]("notebookAuthCacheExpiryTime").getOrElse(15 minutes),
+        config
+          .getOrElse[GroupName]("customAppCreationAllowedGroup",
+                                throw new Exception("No customAppCreationAllowedGroup key found")
+          )
       )
   }
 
@@ -698,6 +704,10 @@ object Config {
     gkeCustomAppConfig
   )
 
+  val appServiceConfig = AppServiceConfig(
+    config.getBoolean("app-service.enable-custom-app-group-permission-check"),
+    leoKubernetesConfig
+  )
   val pubsubConfig = config.as[PubsubConfig]("pubsub")
   val topic = ProjectTopicName.of(pubsubConfig.pubsubGoogleProject.value, pubsubConfig.topicName)
 
@@ -716,13 +726,15 @@ object Config {
     topic,
     Some(
       ProjectSubscriptionName.of(applicationConfig.leoGoogleProject.value,
-                                 config.as[String]("pubsub.non-leo-message-subscriber.subscription-name"))
+                                 config.as[String]("pubsub.non-leo-message-subscriber.subscription-name")
+      )
     ),
     config.as[FiniteDuration]("pubsub.ackDeadLine"),
     Some(
       SubscriberDeadLetterPolicy(
         TopicName.of(applicationConfig.leoGoogleProject.value,
-                     config.as[String]("pubsub.non-leo-message-subscriber.dead-letter-topic")),
+                     config.as[String]("pubsub.non-leo-message-subscriber.dead-letter-topic")
+        ),
         MaxRetries(5)
       )
     ),
@@ -764,7 +776,8 @@ object Config {
     gceClusterResourcesConfig,
     securityFilesConfig,
     gceMonitorConfig.monitorStatusTimeouts.getOrElse(RuntimeStatus.Creating,
-                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating"))
+                                                     throw new Exception("Missing gce.monitor.statusTimeouts.creating")
+    )
   )
   val vpcInterpreterConfig = VPCInterpreterConfig(vpcConfig)
 

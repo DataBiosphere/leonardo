@@ -20,18 +20,18 @@ import scala.concurrent.duration.FiniteDuration
  * Currently has interpreters for Dataproc and GCE.
  */
 trait RuntimeAlgebra[F[_]] {
-  def createRuntime(params: CreateRuntimeParams)(
-    implicit ev: Ask[F, AppContext]
+  def createRuntime(params: CreateRuntimeParams)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[CreateGoogleRuntimeResponse]]
-  def deleteRuntime(params: DeleteRuntimeParams)(
-    implicit ev: Ask[F, AppContext]
+  def deleteRuntime(params: DeleteRuntimeParams)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]]
   def finalizeDelete(params: FinalizeDeleteParams)(implicit ev: Ask[F, AppContext]): F[Unit]
-  def stopRuntime(params: StopRuntimeParams)(
-    implicit ev: Ask[F, AppContext]
+  def stopRuntime(params: StopRuntimeParams)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]]
-  def startRuntime(params: StartRuntimeParams)(
-    implicit ev: Ask[F, AppContext]
+  def startRuntime(params: StartRuntimeParams)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]]
   def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
   def updateDiskSize(params: UpdateDiskSizeParams)(implicit ev: Ask[F, AppContext]): F[Unit]
@@ -52,7 +52,8 @@ final case class CreateRuntimeParams(id: Long,
                                      scopes: Set[String],
                                      welderEnabled: Boolean,
                                      customEnvironmentVariables: Map[String, String],
-                                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage)
+                                     runtimeConfig: RuntimeConfigInCreateRuntimeMessage
+)
 object CreateRuntimeParams {
   def fromCreateRuntimeMessage(message: CreateRuntimeMessage): CreateRuntimeParams =
     CreateRuntimeParams(
@@ -83,17 +84,21 @@ object BootSource {
 }
 final case class CreateGoogleRuntimeResponse(asyncRuntimeFields: AsyncRuntimeFields,
                                              initBucket: GcsBucketName,
-                                             bootSource: BootSource)
+                                             bootSource: BootSource
+)
 final case class DeleteRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                                     masterInstance: Option[DataprocInstance])
+                                     masterInstance: Option[DataprocInstance]
+)
 final case class FinalizeDeleteParams(runtime: Runtime)
 final case class StopRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                    now: Instant,
-                                   isDataprocFullStop: Boolean)
+                                   isDataprocFullStop: Boolean
+)
 final case class StartRuntimeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, initBucket: GcsBucketName)
 final case class UpdateMachineTypeParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                          machineType: MachineTypeName,
-                                         now: Instant)
+                                         now: Instant
+)
 
 sealed trait UpdateDiskSizeParams extends Product with Serializable
 object UpdateDiskSizeParams {
@@ -114,7 +119,8 @@ object UpdateDiskSizeParams {
 
 final case class ResizeClusterParams(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                      numWorkers: Option[Int],
-                                     numPreemptibles: Option[Int])
+                                     numPreemptibles: Option[Int]
+)
 
 // Configurations
 sealed trait RuntimeInterpreterConfig {
@@ -134,8 +140,8 @@ object RuntimeInterpreterConfig {
                                              vpcConfig: VPCConfig,
                                              clusterResourcesConfig: ClusterResourcesConfig,
                                              clusterFilesConfig: SecurityFilesConfig,
-                                             runtimeCreationTimeout: FiniteDuration)
-      extends RuntimeInterpreterConfig
+                                             runtimeCreationTimeout: FiniteDuration
+  ) extends RuntimeInterpreterConfig
 
   final case class GceInterpreterConfig(gceConfig: GceConfig,
                                         welderConfig: WelderConfig,
@@ -144,6 +150,6 @@ object RuntimeInterpreterConfig {
                                         vpcConfig: VPCConfig,
                                         clusterResourcesConfig: ClusterResourcesConfig,
                                         clusterFilesConfig: SecurityFilesConfig,
-                                        runtimeCreationTimeout: FiniteDuration)
-      extends RuntimeInterpreterConfig
+                                        runtimeCreationTimeout: FiniteDuration
+  ) extends RuntimeInterpreterConfig
 }

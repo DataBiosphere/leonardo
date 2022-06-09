@@ -33,8 +33,8 @@ object ProxyResolver {
   /**
    * Implementation of ProxyResolver using a Map[Host, IP] stored in a Ref.
    */
-  private class ProxyResolverInterp[F[_]](hostToIpMapping: Ref[F, Map[Host, IP]], dispatcher: Dispatcher[F])(
-    implicit F: Async[F]
+  private class ProxyResolverInterp[F[_]](hostToIpMapping: Ref[F, Map[Host, IP]], dispatcher: Dispatcher[F])(implicit
+    F: Async[F]
   ) extends ProxyResolver[F] {
 
     override def resolveHttp4s(requestKey: RequestKey): Either[Throwable, InetSocketAddress] =
