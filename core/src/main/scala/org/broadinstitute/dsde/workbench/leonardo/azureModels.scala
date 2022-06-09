@@ -10,7 +10,8 @@ final case class ManagedResourceGroupName(value: String) extends AnyVal
 
 final case class AzureCloudContext(tenantId: TenantId,
                                    subscriptionId: SubscriptionId,
-                                   managedResourceGroupName: ManagedResourceGroupName) {
+                                   managedResourceGroupName: ManagedResourceGroupName
+) {
   val asString = s"${tenantId.value}/${subscriptionId.value}/${managedResourceGroupName.value}"
 }
 
@@ -28,7 +29,8 @@ final case class RelayHybridConnectionName(value: String) extends AnyVal
 
 final case class AzureAppRegistrationConfig(clientId: ClientId,
                                             clientSecret: ClientSecret,
-                                            managedAppTenantId: ManagedAppTenantId)
+                                            managedAppTenantId: ManagedAppTenantId
+)
 
 object AzureCloudContext {
   def fromString(s: String): Either[String, AzureCloudContext] = {

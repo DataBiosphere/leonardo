@@ -21,9 +21,9 @@ class PatchComponentSpec extends AnyFlatSpecLike with TestComponent {
       r3 <- patchQuery.save(patchDetails, Some(MachineTypeName("machineType2"))).transaction
       r4 <- patchQuery.getPatchAction(patchDetails.runtimeId).transaction
     } yield {
-      r1 shouldBe (1)
+      r1 shouldBe 1
       r2 shouldBe (Some(MachineTypeName("machineType1")))
-      r3 shouldBe (1)
+      r3 shouldBe 1
       r4 shouldBe (Some(MachineTypeName("machineType2")))
     }
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)

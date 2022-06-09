@@ -42,8 +42,8 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
     extends DockerDAO[F]
     with Http4sClientDsl[F] {
 
-  override def detectTool(image: ContainerImage, petTokenOpt: Option[String], now: Instant)(
-    implicit ev: Ask[F, TraceId]
+  override def detectTool(image: ContainerImage, petTokenOpt: Option[String], now: Instant)(implicit
+    ev: Ask[F, TraceId]
   ): F[RuntimeImage] =
     for {
       traceId <- ev.ask
@@ -56,33 +56,30 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
         case Tag(_) =>
           getManifestConfig(parsed, tokenOpt)
             .map(_.digest)
-            .adaptError {
-              case e: org.http4s.InvalidMessageBodyFailure =>
-                InvalidImage(traceId, image, Some(e))
+            .adaptError { case e: org.http4s.InvalidMessageBodyFailure =>
+              InvalidImage(traceId, image, Some(e))
             }
         case Sha(digest) => F.pure(digest)
       }
 
       containerConfig <- getContainerConfig(parsed, digest, tokenOpt)
-        .adaptError {
-          case e: org.http4s.InvalidMessageBodyFailure =>
-            InvalidImage(traceId, image, Some(e))
+        .adaptError { case e: org.http4s.InvalidMessageBodyFailure =>
+          InvalidImage(traceId, image, Some(e))
         }
 
       envSet = containerConfig.config.env.toSet
       tool = clusterToolEnv
-        .find {
-          case (_, env_var) =>
-            envSet.exists(_.key == env_var)
+        .find { case (_, env_var) =>
+          envSet.exists(_.key == env_var)
         }
         .map(_._1)
-      homeDirectory = envSet.collectFirst { case env if (env.key == "HOME") => Paths.get(env.value) }
+      homeDirectory = envSet.collectFirst { case env if env.key == "HOME" => Paths.get(env.value) }
       res <- F.fromEither(tool.toRight(InvalidImage(traceId, image, None)))
     } yield RuntimeImage(res, image.imageUrl, homeDirectory, now)
 
-  //curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
-  private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(
-    implicit ev: Ask[F, TraceId]
+  // curl -L "https://us.gcr.io/v2/anvil-gcr-public/anvil-rstudio-base/blobs/sha256:aaf072362a3bfa231f444af7a05aa24dd83f6d94ba56b3d6d0b365748deac30a" | jq -r '.container_config'
+  private[dao] def getContainerConfig(parsedImage: ParsedImage, digest: String, tokenOpt: Option[Token])(implicit
+    ev: Ask[F, TraceId]
   ): F[ContainerConfigResponse] =
     FollowRedirect(3)(httpClient).expectOr[ContainerConfigResponse](
       Request[F](
@@ -92,9 +89,9 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       )
     )(onError)
 
-  //curl --header "Accept: application/vnd.docker.distribution.manifest.v2+json" --header "Authorization: Bearer $TOKEN" --header "Accept: application/json" "https://registry-1.docker.io/v2/library/nginx/manifests/latest"
-  private[dao] def getManifestConfig(parsedImage: ParsedImage, tokenOpt: Option[Token])(
-    implicit ev: Ask[F, TraceId]
+  // curl --header "Accept: application/vnd.docker.distribution.manifest.v2+json" --header "Authorization: Bearer $TOKEN" --header "Accept: application/json" "https://registry-1.docker.io/v2/library/nginx/manifests/latest"
+  private[dao] def getManifestConfig(parsedImage: ParsedImage, tokenOpt: Option[Token])(implicit
+    ev: Ask[F, TraceId]
   ): F[ManifestConfig] =
     httpClient.expectOr[ManifestConfig](
       Request[F](
@@ -104,9 +101,10 @@ class HttpDockerDAO[F[_]] private (httpClient: Client[F])(implicit logger: Logge
       )
     )(onError)
 
-  //curl --silent "https://auth.docker.io/token?scope=repository%3Alibrary/nginx%3Apull&service=registry.docker.io" | jq '.token'
-  private[dao] def getToken(parsedImage: ParsedImage,
-                            petTokenOpt: Option[String])(implicit ev: Ask[F, TraceId]): F[Option[Token]] =
+  // curl --silent "https://auth.docker.io/token?scope=repository%3Alibrary/nginx%3Apull&service=registry.docker.io" | jq '.token'
+  private[dao] def getToken(parsedImage: ParsedImage, petTokenOpt: Option[String])(implicit
+    ev: Ask[F, TraceId]
+  ): F[Option[Token]] =
     parsedImage.registry match {
       // If it's a GCR repo, use the pet token
       case ContainerRegistry.GCR => F.pure(petTokenOpt.map(Token))
@@ -240,7 +238,8 @@ object ImageVersion {
 final case class ParsedImage(registry: ContainerRegistry,
                              registryUri: Uri,
                              imageName: String,
-                             imageVersion: ImageVersion) {
+                             imageVersion: ImageVersion
+) {
   def manifestUri: Uri =
     registryUri.withPath(Uri.Path.unsafeFromString(s"/v2/${imageName}/manifests/${imageVersion.toString}"))
   def blobUri(digest: String): Uri =
@@ -260,4 +259,5 @@ final case class DockerImageException(traceId: TraceId, msg: String)
 
 final case class ImageParseException(traceId: TraceId, image: ContainerImage)
     extends LeoException(message = s"Unable to parse ${image.registry} image ${image.imageUrl}",
-                         traceId = Some(traceId))
+                         traceId = Some(traceId)
+    )

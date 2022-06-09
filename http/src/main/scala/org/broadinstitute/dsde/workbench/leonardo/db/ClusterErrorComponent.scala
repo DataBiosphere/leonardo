@@ -13,7 +13,8 @@ case class ClusterErrorRecord(id: Long,
                               errorMessage: String,
                               errorCode: Option[Int],
                               timestamp: Timestamp,
-                              traceId: Option[TraceId])
+                              traceId: Option[TraceId]
+)
 
 class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTER_ERROR") {
   def id = column[Long]("id", O.AutoInc)
@@ -31,7 +32,13 @@ class ClusterErrorTable(tag: Tag) extends Table[ClusterErrorRecord](tag, "CLUSTE
   def traceId = column[Option[TraceId]]("traceId")
 
   def * =
-    (id, clusterId, errorMessage, errorCode, timestamp, traceId) <> (ClusterErrorRecord.tupled, ClusterErrorRecord.unapply)
+    (id,
+     clusterId,
+     errorMessage,
+     errorCode,
+     timestamp,
+     traceId
+    ) <> (ClusterErrorRecord.tupled, ClusterErrorRecord.unapply)
 }
 
 object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
@@ -42,7 +49,8 @@ object clusterErrorQuery extends TableQuery(new ClusterErrorTable(_)) {
                                             clusterError.errorMessage.take(1024),
                                             clusterError.errorCode,
                                             Timestamp.from(clusterError.timestamp),
-                                            clusterError.traceId)
+                                            clusterError.traceId
+    )
 
   def get(clusterId: Long)(implicit ec: ExecutionContext): DBIO[List[RuntimeError]] =
     clusterErrorQuery.filter(_.clusterId === clusterId).result map { recs =>

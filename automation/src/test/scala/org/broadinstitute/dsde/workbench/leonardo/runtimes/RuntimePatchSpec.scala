@@ -34,7 +34,7 @@ class RuntimePatchSpec
     else
       super.withFixture(test)
 
-  //this is an end to end test of the pub/sub infrastructure
+  // this is an end to end test of the pub/sub infrastructure
   "Patch endpoint should perform a stop/start transition for GCE VM" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       // create a new GCE runtime
@@ -52,7 +52,8 @@ class RuntimePatchSpec
                                                       None,
                                                       None,
                                                       Map.empty,
-                                                      Set.empty)
+                                                      Set.empty
+      )
       val createRuntimeRequest = defaultCreateRuntime2Request.copy(
         runtimeConfig = Some(
           RuntimeConfigRequest.GceConfig(
@@ -74,7 +75,7 @@ class RuntimePatchSpec
         for {
           _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
           _ <- updateRuntime(googleProject, runtimeName, updateRuntimeRequest)
-          _ <- IO.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
+          _ <- IO.sleep(30 seconds) // We need this because DB update happens in subscriber for update API.
           ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
           getRuntimeResult <- ioa
           _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
@@ -92,14 +93,14 @@ class RuntimePatchSpec
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(clusterCopy, Python3) { notebookPage =>
-                //all other packages cannot be tested for their versions in this manner
-                //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+                // all other packages cannot be tested for their versions in this manner
+                // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
                 val res = notebookPage
                   .executeCell(
                     "! df -H |grep sdb"
                   )
                   .get
-                res should include("22G") //disk output is always a few more gb than what's specified
+                res should include("22G") // disk output is always a few more gb than what's specified
               }
             }
           )
@@ -114,7 +115,7 @@ class RuntimePatchSpec
       res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
 
-  //this is an end to end test of the pub/sub infrastructure
+  // this is an end to end test of the pub/sub infrastructure
   "Patch endpoint should perform a stop/start transition for GCE VM with PD" taggedAs (Tags.SmokeTest, Retryable) in {
     googleProject =>
       // create a new GCE runtime
@@ -132,7 +133,8 @@ class RuntimePatchSpec
                                                       None,
                                                       None,
                                                       Map.empty,
-                                                      Set.empty)
+                                                      Set.empty
+      )
       val createRuntimeRequest = defaultCreateRuntime2Request.copy(
         runtimeConfig = Some(
           RuntimeConfigRequest.GceWithPdConfig(
@@ -156,7 +158,7 @@ class RuntimePatchSpec
         for {
           _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
           _ <- updateRuntime(googleProject, runtimeName, updateRuntimeRequest)
-          _ <- IO.sleep(70 seconds) //We need this because DB update happens in subscriber for update API.
+          _ <- IO.sleep(70 seconds) // We need this because DB update happens in subscriber for update API.
           ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
           getRuntimeResult <- ioa
           monitoringStartingResult <- IO.sleep(50 seconds) >> streamFUntilDone(ioa, 30, 10 seconds)(
@@ -168,14 +170,14 @@ class RuntimePatchSpec
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(clusterCopy, Python3) { notebookPage =>
-                //all other packages cannot be tested for their versions in this manner
-                //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+                // all other packages cannot be tested for their versions in this manner
+                // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
                 val res = notebookPage
                   .executeCell(
                     "! df -H |grep sdb"
                   )
                   .get
-                res should include("22G") //disk output is always a few more gb than what's specified
+                res should include("22G") // disk output is always a few more gb than what's specified
               }
             }
           )
@@ -205,7 +207,8 @@ class RuntimePatchSpec
                                                       None,
                                                       None,
                                                       Map.empty,
-                                                      Set.empty)
+                                                      Set.empty
+      )
       val runtimeName = randomClusterName
       val createRuntimeRequest = defaultCreateRuntime2Request.copy(
         runtimeConfig = Some(
@@ -234,7 +237,7 @@ class RuntimePatchSpec
         for {
           _ <- createRuntimeWithWait(googleProject, runtimeName, createRuntimeRequest)
           _ <- updateRuntime(googleProject, runtimeName, updateRuntimeRequest)
-          _ <- IO.sleep(30 seconds) //We need this because DB update happens in subscriber for update API.
+          _ <- IO.sleep(30 seconds) // We need this because DB update happens in subscriber for update API.
           ioa = LeonardoApiClient.getRuntime(googleProject, runtimeName)
           getRuntimeResult <- ioa
           _ = getRuntimeResult.status shouldBe ClusterStatus.Stopping
@@ -262,14 +265,14 @@ class RuntimePatchSpec
           _ <- IO(
             withWebDriver { implicit driver =>
               withNewNotebook(clusterCopy, Python3) { notebookPage =>
-                //all other packages cannot be tested for their versions in this manner
-                //warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
+                // all other packages cannot be tested for their versions in this manner
+                // warnings are ignored because they are benign warnings that show up for python2 because of compilation against an older numpy
                 val res = notebookPage
                   .executeCell(
                     "! df -H |grep sda1"
                   )
                   .get
-                res should include("117G") //disk output is always a few more gb than what's specified
+                res should include("117G") // disk output is always a few more gb than what's specified
               }
             }
           )

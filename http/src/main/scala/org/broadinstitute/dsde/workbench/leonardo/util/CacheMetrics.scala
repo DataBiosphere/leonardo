@@ -9,8 +9,10 @@ import org.typelevel.log4cats.Logger
 
 import scala.concurrent.duration._
 
-class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implicit F: Async[F],
-                                                                          metrics: OpenTelemetryMetrics[F]) {
+class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implicit
+  F: Async[F],
+  metrics: OpenTelemetryMetrics[F]
+) {
   def process(sizeF: () => F[Long], statsF: () => F[CacheStats]): Stream[F, Unit] =
     (Stream.sleep[F](interval) ++ Stream.eval(recordMetrics(sizeF, statsF))).repeat
 
@@ -34,6 +36,7 @@ class CacheMetrics[F[_]] private (name: String, interval: FiniteDuration)(implic
 }
 object CacheMetrics {
   def apply[F[_]: Async: OpenTelemetryMetrics: Logger](name: String,
-                                                       interval: FiniteDuration = 1 minute): CacheMetrics[F] =
+                                                       interval: FiniteDuration = 1 minute
+  ): CacheMetrics[F] =
     new CacheMetrics(name, interval)
 }

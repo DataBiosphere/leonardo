@@ -11,7 +11,7 @@ class PackageSpec extends AnyFlatSpec with Matchers {
     processLabelMap(input1) shouldBe (Right(Map("foo" -> "bar", "baz" -> "biz")))
 
     val failureInput = Map("_labels" -> "foo=bar,,baz=biz")
-    processLabelMap(failureInput).isLeft shouldBe (true)
+    processLabelMap(failureInput).isLeft shouldBe true
 
     val duplicateLabel = Map("_labels" -> "foo=bar,foo=biz")
     processLabelMap(duplicateLabel) shouldBe (Right(Map("foo" -> "biz")))

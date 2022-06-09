@@ -22,7 +22,8 @@ case class InstanceRecord(id: Long,
                           status: String,
                           ip: Option[String],
                           dataprocRole: Option[String],
-                          createdDate: Timestamp)
+                          createdDate: Timestamp
+)
 
 class InstanceTable(tag: Tag) extends Table[InstanceRecord](tag, "INSTANCE") {
   def id = column[Long]("id", O.PrimaryKey, O.AutoInc)
@@ -40,7 +41,17 @@ class InstanceTable(tag: Tag) extends Table[InstanceRecord](tag, "INSTANCE") {
   def cluster = foreignKey("FK_INSTANCE_CLUSTER_ID", clusterId, clusterQuery)(_.id)
 
   def * =
-    (id, clusterId, googleProject, zone, name, googleId, status, ip, dataprocRole, createdDate) <> (InstanceRecord.tupled, InstanceRecord.unapply)
+    (id,
+     clusterId,
+     googleProject,
+     zone,
+     name,
+     googleId,
+     status,
+     ip,
+     dataprocRole,
+     createdDate
+    ) <> (InstanceRecord.tupled, InstanceRecord.unapply)
 }
 
 object instanceQuery extends TableQuery(new InstanceTable(_)) {
@@ -61,7 +72,7 @@ object instanceQuery extends TableQuery(new InstanceTable(_)) {
     DBIO.fold(instances map { upsert(clusterId, _) }, 0)(_ + _)
 
   def deleteAllForCluster(clusterId: Long, instances: Seq[DataprocInstance])(implicit ec: ExecutionContext): DBIO[Int] =
-    DBIO.fold(instances map { delete }, 0)(_ + _)
+    DBIO.fold(instances map delete, 0)(_ + _)
 
   def getMasterForCluster(clusterId: Long)(implicit ec: ExecutionContext): DBIO[DataprocInstance] =
     instanceQuery

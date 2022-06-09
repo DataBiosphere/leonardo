@@ -13,28 +13,32 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
   override def createRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
-                             req: CreateAzureRuntimeRequest)(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.unit
+                             req: CreateAzureRuntimeRequest
+  )(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.unit
 
-  override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[IO, AppContext]
+  override def getRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[IO, AppContext]
   ): IO[GetRuntimeResponse] =
     IO.pure(
       GetRuntimeResponse
         .fromRuntime(CommonTestData.testCluster,
                      RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
                                                DiskId(-1),
-                                               azureRegion),
-                     None)
+                                               azureRegion
+                     ),
+                     None
+        )
         .copy(clusterName = RuntimeName("azureruntime1"))
     )
 
   override def updateRuntime(userInfo: UserInfo,
                              runtimeName: RuntimeName,
                              workspaceId: WorkspaceId,
-                             req: UpdateAzureRuntimeRequest)(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.pure()
+                             req: UpdateAzureRuntimeRequest
+  )(implicit as: Ask[IO, AppContext]): IO[Unit] = IO.pure()
 
-  override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(
-    implicit as: Ask[IO, AppContext]
+  override def deleteRuntime(userInfo: UserInfo, runtimeName: RuntimeName, workspaceId: WorkspaceId)(implicit
+    as: Ask[IO, AppContext]
   ): IO[Unit] = IO.pure()
 
   override def listRuntimes(
@@ -54,7 +58,8 @@ class MockRuntimeV2Interp extends RuntimeV2Service[IO] {
           CommonTestData.testCluster.auditInfo,
           RuntimeConfig.AzureConfig(MachineTypeName(VirtualMachineSizeTypes.STANDARD_A0.toString),
                                     DiskId(-1),
-                                    azureRegion),
+                                    azureRegion
+          ),
           CommonTestData.testCluster.proxyUrl,
           CommonTestData.testCluster.status,
           CommonTestData.testCluster.labels,

@@ -39,13 +39,15 @@ object HostStatus {
 object Proxy {
   def getRuntimeTargetHost[F[_]: Async](runtimeDnsCache: RuntimeDnsCache[F],
                                         cloudContext: CloudContext,
-                                        runtimeName: RuntimeName): F[HostStatus] =
+                                        runtimeName: RuntimeName
+  ): F[HostStatus] =
     runtimeDnsCache
       .getHostStatus(RuntimeDnsCacheKey(cloudContext, runtimeName))
       .timeout(5 seconds)
 
   def getAppTargetHost[F[_]: Async](kubernetesDnsCache: KubernetesDnsCache[F],
                                     googleProject: GoogleProject,
-                                    appName: AppName): F[HostStatus] =
+                                    appName: AppName
+  ): F[HostStatus] =
     kubernetesDnsCache.getHostStatus(KubernetesDnsCacheKey(googleProject, appName)).timeout(5 seconds)
 }

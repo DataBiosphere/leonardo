@@ -23,8 +23,9 @@ class CloudServiceRuntimeMonitor[F[_]: Async](
       )
   }
 
-  def handlePollCheckCompletion(a: CloudService)(monitorContext: MonitorContext,
-                                                 runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] = a match {
+  def handlePollCheckCompletion(
+    a: CloudService
+  )(monitorContext: MonitorContext, runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] = a match {
     case CloudService.GCE =>
       gceRuntimeMonitorInterp.handlePollCheckCompletion(monitorContext, runtimeAndRuntimeConfig)
     case CloudService.Dataproc =>

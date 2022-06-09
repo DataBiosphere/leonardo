@@ -22,7 +22,8 @@ case class ClusterCopy(clusterName: RuntimeName,
                        errors: List[RuntimeError],
                        dateAccessed: Instant,
                        autopauseThreshold: Int,
-                       patchInProgress: Boolean) {
+                       patchInProgress: Boolean
+) {
   def projectNameString: String = s"${googleProject.value}/${clusterName.asString}"
 }
 
@@ -59,13 +60,13 @@ object RuntimeConfigRequestCopy {
   final case class DataprocConfig(cloudService: String = CloudService.Dataproc.asString,
                                   numberOfWorkers: Option[Int],
                                   masterMachineType: Option[String],
-                                  masterDiskSize: Option[Int], //min 10
+                                  masterDiskSize: Option[Int], // min 10
                                   workerMachineType: Option[String] = None,
-                                  workerDiskSize: Option[Int] = None, //min 10
-                                  numberOfWorkerLocalSSDs: Option[Int] = None, //min 0 max 8
+                                  workerDiskSize: Option[Int] = None, // min 10
+                                  numberOfWorkerLocalSSDs: Option[Int] = None, // min 0 max 8
                                   numberOfPreemptibleWorkers: Option[Int] = None,
-                                  properties: Map[String, String])
-      extends RuntimeConfigRequestCopy {
+                                  properties: Map[String, String]
+  ) extends RuntimeConfigRequestCopy {
     val typedCloudService: CloudService = CloudService.Dataproc
   }
 }
@@ -85,12 +86,14 @@ case class ClusterRequest(labels: LabelMap = Map(),
                           scopes: Set[String] = Set.empty,
                           enableWelder: Option[Boolean] = None,
                           customClusterEnvironmentVariables: Map[String, String] = Map.empty,
-                          allowStop: Boolean = false)
+                          allowStop: Boolean = false
+)
 
 case class UserJupyterExtensionConfig(nbExtensions: Map[String, String] = Map(),
                                       serverExtensions: Map[String, String] = Map(),
                                       combinedExtensions: Map[String, String] = Map(),
-                                      labExtensions: Map[String, String] = Map())
+                                      labExtensions: Map[String, String] = Map()
+)
 
 case class DefaultLabelsCopy(runtimeName: RuntimeName,
                              googleProject: GoogleProject,
@@ -99,7 +102,8 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
                              notebookUserScript: Option[String],
                              notebookStartUserScript: Option[String],
                              tool: String,
-                             cloudContext: CloudContext) {
+                             cloudContext: CloudContext
+) {
 
   // TODO don't hardcode fields
   def toMap: Map[String, String] = {
@@ -126,7 +130,7 @@ case class DefaultLabelsCopy(runtimeName: RuntimeName,
 
 object ClusterStatus extends Enumeration {
   type ClusterStatus = Value
-  //NOTE: Remember to update the definition of this enum in Swagger when you add new ones
+  // NOTE: Remember to update the definition of this enum in Swagger when you add new ones
   val Unknown, Creating, Running, Updating, Error, Deleting, Deleted, Stopping, Stopped, Starting, PreCreating,
     PreDeleting = Value
   val activeStatuses = Set(Unknown, Creating, Running, Updating)
@@ -161,7 +165,8 @@ final case class GetRuntimeResponseCopy(runtimeName: RuntimeName,
                                         errors: List[RuntimeError],
                                         userJupyterExtensionConfig: Option[UserJupyterExtensionConfig],
                                         autopauseThreshold: Int,
-                                        diskConfig: Option[DiskConfig])
+                                        diskConfig: Option[DiskConfig]
+)
 
 final case class ListRuntimeResponseCopy(id: Long,
                                          runtimeName: RuntimeName,
@@ -171,4 +176,5 @@ final case class ListRuntimeResponseCopy(id: Long,
                                          proxyUrl: URL,
                                          status: ClusterStatus,
                                          labels: LabelMap,
-                                         patchInProgress: Boolean)
+                                         patchInProgress: Boolean
+)

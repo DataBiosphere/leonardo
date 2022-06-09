@@ -44,8 +44,8 @@ private[leonardo] object LeoProfile extends MySQLProfile {
       Some(destroyedDate)
 
   object NewJdbcTypes extends super.JdbcTypes {
-    //overwrite Instant type mapping because slick 3.3.1 converts java.time.Instant to varchar by default
-    //https://scala-slick.org/doc/3.3.1/upgrade.html#support-for-java.time-columns
+    // overwrite Instant type mapping because slick 3.3.1 converts java.time.Instant to varchar by default
+    // https://scala-slick.org/doc/3.3.1/upgrade.html#support-for-java.time-columns
     override val instantType = new InstantJdbcType
   }
 
@@ -55,11 +55,13 @@ private[leonardo] object LeoProfile extends MySQLProfile {
     implicit val userScriptPathMappedColumnType: BaseColumnType[UserScriptPath] =
       MappedColumnType
         .base[UserScriptPath, String](_.asString,
-                                      s => UserScriptPath.stringToUserScriptPath(s).fold(e => throw e, identity))
+                                      s => UserScriptPath.stringToUserScriptPath(s).fold(e => throw e, identity)
+        )
     implicit val gsPathMappedColumnType: BaseColumnType[GcsPath] =
       MappedColumnType
         .base[GcsPath, String](_.toUri,
-                               s => parseGcsPath(s).fold(e => throw ColumnDecodingException(e.toString()), identity))
+                               s => parseGcsPath(s).fold(e => throw ColumnDecodingException(e.toString()), identity)
+        )
 
     implicit val statusMappedColumnType: BaseColumnType[RuntimeStatus] =
       MappedColumnType
@@ -164,7 +166,7 @@ private[leonardo] object LeoProfile extends MySQLProfile {
         s => FormattedBy.withNameInsensitiveOption(s).getOrElse(throw new RuntimeException(s"Unknown formattedBy $s"))
       )
 
-    //Kubernetes column implicits
+    // Kubernetes column implicits
     implicit val kubernetesClusterLeoIdColumnType: BaseColumnType[KubernetesClusterLeoId] =
       MappedColumnType.base[KubernetesClusterLeoId, Long](_.id, KubernetesClusterLeoId.apply)
     implicit val kubernetesStatusColumnType: BaseColumnType[KubernetesClusterStatus] =

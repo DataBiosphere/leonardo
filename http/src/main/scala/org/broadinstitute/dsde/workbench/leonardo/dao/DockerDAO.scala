@@ -8,8 +8,8 @@ import java.time.Instant
 
 trait DockerDAO[F[_]] {
 
-  def detectTool(image: ContainerImage, petTokenOpt: Option[String] = None, now: Instant)(
-    implicit ev: Ask[F, TraceId]
+  def detectTool(image: ContainerImage, petTokenOpt: Option[String] = None, now: Instant)(implicit
+    ev: Ask[F, TraceId]
   ): F[RuntimeImage]
 
 }

@@ -12,4 +12,5 @@ case class GceConfig(sourceImage: GceCustomImage,
                      gceReservedMemory: Option[MemorySize],
                      runtimeConfigDefaults: RuntimeConfig.GceConfig,
                      setMetadataPollDelay: FiniteDuration,
-                     setMetadataPollMaxAttempts: Int)
+                     setMetadataPollMaxAttempts: Int
+)

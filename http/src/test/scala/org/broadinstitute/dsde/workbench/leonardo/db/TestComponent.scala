@@ -61,13 +61,14 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       )
       db <- IO(dbConfig.db)
       // init with liquibase if we haven't done it yet
-      _ <- if (sys.props.get(initWithLiquibaseProp).isEmpty)
-        Resource
-          .make(IO(db.source.createConnection()))(conn => IO(conn.close()))
-          .use(conn => IO(DbReference.initWithLiquibase(conn, liquiBaseConfig))) >> IO(
-          sys.props.put(initWithLiquibaseProp, "done")
-        )
-      else IO.unit
+      _ <-
+        if (sys.props.get(initWithLiquibaseProp).isEmpty)
+          Resource
+            .make(IO(db.source.createConnection()))(conn => IO(conn.close()))
+            .use(conn => IO(DbReference.initWithLiquibase(conn, liquiBaseConfig))) >> IO(
+            sys.props.put(initWithLiquibaseProp, "done")
+          )
+        else IO.unit
     } yield new DbRef[IO](db, concurrentPermits)
 
   def dbFutureValue[T](f: DBIO[T]): T =
@@ -89,9 +90,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
       testCode
     } catch {
       case t: Throwable => t.printStackTrace(); throw t
-    } finally {
+    } finally
       dbFutureValue(testDbRef.dataAccess.truncateAll)
-    }
 
   protected def getClusterId(getClusterIdRequest: GetClusterKey): Long =
     getClusterId(getClusterIdRequest.cloudContext, getClusterIdRequest.clusterName, getClusterIdRequest.destroyedDate)
@@ -116,7 +116,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
 
   def fullClusterQueryByUniqueKey(cloudContext: CloudContext,
                                   clusterName: RuntimeName,
-                                  destroyedDateOpt: Option[Instant]) = {
+                                  destroyedDateOpt: Option[Instant]
+  ) = {
     import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.api._
     import org.broadinstitute.dsde.workbench.leonardo.db.LeoProfile.mappedColumnImplicits._
 
@@ -131,12 +132,14 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
 
   protected def getClusterId(cloudContext: CloudContext,
                              clusterName: RuntimeName,
-                             destroyedDateOpt: Option[Instant]): Long =
+                             destroyedDateOpt: Option[Instant]
+  ): Long =
     dbFutureValue(getIdByUniqueKey(cloudContext, clusterName, destroyedDateOpt)).get
 
   implicit class ClusterExtensions(cluster: Runtime) {
     def save(serviceAccountKeyId: Option[ServiceAccountKeyId] = Some(defaultServiceAccountKeyId),
-             dataprocInstances: List[DataprocInstance] = List.empty): Runtime =
+             dataprocInstances: List[DataprocInstance] = List.empty
+    ): Runtime =
       dbFutureValue {
         for {
           saved <- clusterQuery.save(
@@ -166,7 +169,8 @@ trait TestComponent extends LeonardoTestSuite with ScalaFutures with GcsPathUtil
                         Some(gcsPath("gs://bucket" + cluster.runtimeName.asString.takeRight(1))),
                         serviceAccountKeyId,
                         runtimeConfig,
-                        Instant.now)
+                        Instant.now
+            )
           )
           _ <- instanceQuery
             .saveAllForCluster(saved.id, dataprocInstances)

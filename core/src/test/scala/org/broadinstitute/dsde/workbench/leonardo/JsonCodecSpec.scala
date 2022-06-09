@@ -155,7 +155,8 @@ class JsonCodecSpec extends LeonardoTestSuite with Matchers with AnyFlatSpecLike
                          Some(DiskId(50)),
                          DiskSize(50),
                          ZoneName("us-west2-b"),
-                         Some(GpuConfig(GpuType.NvidiaTeslaT4, 2)))
+                         Some(GpuConfig(GpuType.NvidiaTeslaT4, 2))
+        )
     )
   }
 

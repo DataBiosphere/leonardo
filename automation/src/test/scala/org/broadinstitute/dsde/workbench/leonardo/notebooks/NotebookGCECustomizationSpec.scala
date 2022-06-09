@@ -76,7 +76,7 @@ final class NotebookGCECustomizationSpec
         )
       ) { cluster =>
         withWebDriver { implicit driver =>
-          //With Scopes
+          // With Scopes
           withNewNotebook(cluster) { notebookPage =>
             val query =
               """! bq query --disable_ssl_validation --format=json "SELECT COUNT(*) AS scullion_count FROM publicdata.samples.shakespeare WHERE word='scullion'" """

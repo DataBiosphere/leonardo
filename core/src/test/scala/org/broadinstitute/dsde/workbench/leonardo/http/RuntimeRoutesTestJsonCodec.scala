@@ -51,7 +51,8 @@ object RuntimeRoutesTestJsonCodec {
      x.numberOfPreemptibleWorkers,
      x.region,
      x.componentGatewayEnabled,
-     x.workerPrivateAccess)
+     x.workerPrivateAccess
+    )
   )
   implicit val gceRuntimeConfigRequestEncoder: Encoder[RuntimeConfigRequest.GceConfig] = Encoder.forProduct5(
     "cloudService",
@@ -133,7 +134,8 @@ object RuntimeRoutesTestJsonCodec {
        x.updatedMasterMachineType,
        x.updatedMasterDiskSize,
        x.updatedNumberOfWorkers,
-       x.updatedNumberOfPreemptibleWorkers)
+       x.updatedNumberOfPreemptibleWorkers
+      )
     )
 
   implicit val updateRuntimeConfigRequestEncoder: Encoder[UpdateRuntimeConfigRequest] = Encoder.instance { x =>
@@ -163,7 +165,7 @@ object RuntimeRoutesTestJsonCodec {
       clusterName <- x.downField("runtimeName").as[RuntimeName]
       _ <- x
         .downField("googleProject")
-        .as[GoogleProject] //this is only here for backwards-compatibility test. Once the API move away from googleProject, we can remove this as well
+        .as[GoogleProject] // this is only here for backwards-compatibility test. Once the API move away from googleProject, we can remove this as well
       cloudContext <- x.downField("cloudContext").as[CloudContext]
       serviceAccount <- x.downField("serviceAccount").as[WorkbenchEmail]
       asyncRuntimeFields <- x.downField("asyncRuntimeFields").as[Option[AsyncRuntimeFields]]

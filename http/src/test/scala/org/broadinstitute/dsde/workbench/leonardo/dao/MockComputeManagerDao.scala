@@ -15,9 +15,11 @@ class MockComputeManagerDao(vmReturn: Option[VirtualMachine] = None) extends Azu
 
   override def createRelayHybridConnection(relayNamespace: RelayNamespace,
                                            hybridConnectionName: RelayHybridConnectionName,
-                                           cloudContext: AzureCloudContext): IO[PrimaryKey] = IO.pure(PrimaryKey("key"))
+                                           cloudContext: AzureCloudContext
+  ): IO[PrimaryKey] = IO.pure(PrimaryKey("key"))
 
   override def deleteRelayHybridConnection(relayNamespace: RelayNamespace,
                                            hybridConnectionName: RelayHybridConnectionName,
-                                           cloudContext: AzureCloudContext): IO[Unit] = IO.unit
+                                           cloudContext: AzureCloudContext
+  ): IO[Unit] = IO.unit
 }

@@ -67,7 +67,8 @@ class RuntimeDnsCache[F[_]: Logger: OpenTelemetryMetrics](
 
   private def hostStatusByProjectAndCluster(r: ClusterRecord,
                                             cloudContext: CloudContext.Gcp,
-                                            runtimeName: RuntimeName): F[HostStatus] = {
+                                            runtimeName: RuntimeName
+  ): F[HostStatus] = {
     val hostAndIpOpt = for {
       a <- r.googleId
       h = host(a)

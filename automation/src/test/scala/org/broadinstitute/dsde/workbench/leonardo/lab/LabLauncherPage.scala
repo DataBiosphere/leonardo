@@ -31,15 +31,16 @@ case object RKernel extends LabKernel {
   override def cssSelectorString: String = "[title='R'][data-category='Notebook']"
 }
 
-class LabLauncherPage(override val url: String)(
-  implicit override val authToken: AuthToken,
+class LabLauncherPage(override val url: String)(implicit
+  override val authToken: AuthToken,
   override val webDriver: WebDriver
 ) extends LabPage {
 
   override def open(implicit webDriver: WebDriver): LabLauncherPage = super.open.asInstanceOf[LabLauncherPage]
 
-  def withNewLabNotebook[T](kernel: LabKernel = Python3,
-                            timeout: FiniteDuration = 2.minutes)(testCode: LabNotebookPage => T): T = {
+  def withNewLabNotebook[T](kernel: LabKernel = Python3, timeout: FiniteDuration = 2.minutes)(
+    testCode: LabNotebookPage => T
+  ): T = {
     await notVisible (cssSelector("#main-logo"))
     await visible (cssSelector(kernel.cssSelectorString), timeout.toSeconds)
     click on cssSelector(kernel.cssSelectorString)

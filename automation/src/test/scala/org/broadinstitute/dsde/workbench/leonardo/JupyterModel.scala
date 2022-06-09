@@ -21,7 +21,7 @@ case class NotebookContentItem(
   name: String,
   format: String,
   created: String,
-  content: Any, //this is a complex JSON object that is identical to the notebook contents on disk.
+  content: Any, // this is a complex JSON object that is identical to the notebook contents on disk.
   last_modified: String,
   path: String,
   size: Int

@@ -22,8 +22,8 @@ trait AzurePubsubHandlerAlgebra[F[_]] {
 
   def deleteAndPollRuntime(msg: DeleteAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit]
 
-  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, pubsubMessageSentTime: Instant)(
-    implicit ev: Ask[F, AppContext]
+  def handleAzureRuntimeCreationError(e: AzureRuntimeCreationError, pubsubMessageSentTime: Instant)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit]
 }
 
@@ -31,15 +31,18 @@ final case class CreateAzureRuntimeParams(workspaceId: WorkspaceId,
                                           runtime: Runtime,
                                           relayeNamespace: RelayNamespace,
                                           runtimeConfig: RuntimeConfig.AzureConfig,
-                                          vmImage: AzureImage)
+                                          vmImage: AzureImage
+)
 final case class DeleteAzureRuntimeParams(workspaceId: WorkspaceId, runtime: Runtime)
 
 final case class PollRuntimeParams(workspaceId: WorkspaceId,
                                    runtime: Runtime,
                                    jobId: WsmJobId,
-                                   relayNamespace: RelayNamespace)
+                                   relayNamespace: RelayNamespace
+)
 
 final case class AzurePubsubHandlerConfig(samUrl: Uri,
                                           createVmPollConfig: PollMonitorConfig,
                                           deleteVmPollConfig: PollMonitorConfig,
-                                          runtimeDefaults: AzureRuntimeDefaults)
+                                          runtimeDefaults: AzureRuntimeDefaults
+)

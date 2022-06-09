@@ -237,7 +237,8 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
         |""".stripMargin
     val expectedResult = Left(
       DecodingFailure("Unsupported SCC category Execution: wrong category",
-                      List(CursorOp.DownField("category"), CursorOp.DownField("finding")))
+                      List(CursorOp.DownField("category"), CursorOp.DownField("finding"))
+      )
     )
     decode[NonLeoMessage](jsonString) shouldBe expectedResult
   }
@@ -247,8 +248,8 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       for {
         runtime <- IO(makeCluster(1).save())
         computeService = new FakeGoogleComputeService {
-          override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(
-            implicit ev: Ask[IO, TraceId]
+          override def getInstance(project: GoogleProject, zone: ZoneName, instanceName: InstanceName)(implicit
+            ev: Ask[IO, TraceId]
           ): cats.effect.IO[scala.Option[com.google.cloud.compute.v1.Instance]] =
             IO.pure(Some(Instance.newBuilder().setName(runtime.runtimeName.asString).build()))
         }
@@ -257,13 +258,14 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
           NonLeoMessage
             .CryptoMining("CRYPTOMINING_DETECTED",
                           GoogleResource(GoogleLabels(123L, ZoneName("us-central1-a"))),
-                          GoogleProject(runtime.cloudContext.asString))
+                          GoogleProject(runtime.cloudContext.asString)
+            )
         )
         statusAfterUpdate <- clusterQuery.getClusterStatus(runtime.id).transaction
         deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
       } yield {
         statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
-        deletedFrom.get shouldBe ("cryptomining: custom detector")
+        deletedFrom.get shouldBe "cryptomining: custom detector"
       }
     }
   }
@@ -282,7 +284,8 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
             CryptoMiningSccResource(GoogleProject(runtime.cloudContext.asString),
                                     CloudService.GCE,
                                     runtime.runtimeName,
-                                    CommonTestData.defaultGceRuntimeConfig.zone),
+                                    CommonTestData.defaultGceRuntimeConfig.zone
+            ),
             Finding(SccCategory("Execution: Cryptocurrency Mining Combined Detection"))
           )
         )
@@ -290,7 +293,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
         deletedFrom <- clusterQuery.getDeletedFrom(runtime.id).transaction
       } yield {
         statusAfterUpdate.get shouldBe (RuntimeStatus.Deleted)
-        deletedFrom.get shouldBe ("cryptomining: scc")
+        deletedFrom.get shouldBe "cryptomining: scc"
       }
     }
   }
@@ -306,9 +309,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       )
       _ <- subscriber.handleDeleteKubernetesClusterMessage(msg)
       clusterOpt <- kubernetesClusterQuery.getMinimalClusterById(savedCluster.id).transaction
-    } yield {
-      clusterOpt.get.status shouldBe KubernetesClusterStatus.Deleting
-    }
+    } yield clusterOpt.get.status shouldBe KubernetesClusterStatus.Deleting
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }
@@ -323,9 +324,7 @@ class NonLeoMessageSubscriberSpec extends AnyFlatSpec with LeonardoTestSuite wit
       msg = DeleteNodepoolMessage(savedNodepool.id, savedCluster.googleProject, Some(traceId))
 
       attempt <- subscriber.messageResponder(msg).attempt
-    } yield {
-      attempt shouldBe Right(())
-    }
+    } yield attempt shouldBe Right(())
 
     res.unsafeRunSync()(cats.effect.unsafe.IORuntime.global)
   }

@@ -143,7 +143,7 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
       CreateVmRequestData(
         RuntimeName("runtime"),
         Region.US_EAST,
-        VirtualMachineSizeTypes.STANDARD_A2, //Standard_A2
+        VirtualMachineSizeTypes.STANDARD_A2, // Standard_A2
         ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.image,
         CustomScriptExtension(
           name = ConfigReader.appConfig.azure.pubsubHandler.runtimeDefaults.customScriptExtension.name,
@@ -257,7 +257,8 @@ class WsmCodecSpec extends AnyFlatSpec with Matchers {
         WsmResource(
           ResourceAttributes(
             WsmRelayNamespace(RelayNamespace("qi-relay-ns-5-2-1"),
-                              region = com.azure.core.management.Region.US_WEST_CENTRAL)
+                              region = com.azure.core.management.Region.US_WEST_CENTRAL
+            )
           )
         )
       )

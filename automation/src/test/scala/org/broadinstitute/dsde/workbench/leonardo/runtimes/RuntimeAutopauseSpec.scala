@@ -30,7 +30,7 @@ class RuntimeAutopauseSpec extends BillingProjectFixtureSpec with ParallelTestEx
         .getRuntime(runtime.googleProject, runtime.clusterName)
         .autopauseThreshold shouldBe 1
 
-      //the autopause check interval is 1 minute at the time of creation, but it can be flaky with a tighter window.
+      // the autopause check interval is 1 minute at the time of creation, but it can be flaky with a tighter window.
       eventually(timeout(Span(3, Minutes)), interval(Span(10, Seconds))) {
         val dbCluster = Leonardo.cluster.getRuntime(runtime.googleProject, runtime.clusterName)
         dbCluster.status shouldBe ClusterStatus.Stopping

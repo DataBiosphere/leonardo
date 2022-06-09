@@ -51,12 +51,13 @@ class GceInterpreter[F[_]](
   googleComputeService: GoogleComputeService[F],
   googleDiskService: GoogleDiskService[F],
   welderDao: WelderDAO[F]
-)(implicit val executionContext: ExecutionContext,
+)(implicit
+  val executionContext: ExecutionContext,
   metrics: OpenTelemetryMetrics[F],
   dbRef: DbReference[F],
   F: Async[F],
-  logger: StructuredLogger[F])
-    extends BaseRuntimeInterpreter[F](config, welderDao, bucketHelper)
+  logger: StructuredLogger[F]
+) extends BaseRuntimeInterpreter[F](config, welderDao, bucketHelper)
     with RuntimeAlgebra[F] {
   override def createRuntime(
     params: CreateRuntimeParams
@@ -108,14 +109,15 @@ class GceInterpreter[F[_]](
       initScript = GcsPath(initBucketName, GcsObjectName(config.clusterResourcesConfig.initScript.asString))
       cloudInit <- F
         .fromOption(config.clusterResourcesConfig.cloudInit,
-                    new LeoException("No cloud init file defined for GCE VM.", traceId = Some(ctx.traceId)))
+                    new LeoException("No cloud init file defined for GCE VM.", traceId = Some(ctx.traceId))
+        )
       cloudInitFileContent = scala.io.Source
         .fromResource(s"${ClusterResourcesConfig.basePath}/${cloudInit.asString}")
         .getLines()
         .toList
         .mkString("\n")
 
-      //TODO: update bootDiskSize
+      // TODO: update bootDiskSize
       bootDiskSize <- params.runtimeConfig match {
         case x: RuntimeConfigInCreateRuntimeMessage.GceWithPdConfig => F.pure(x.bootDiskSize)
         case x: RuntimeConfigInCreateRuntimeMessage.GceConfig       => F.pure(x.bootDiskSize)
@@ -221,7 +223,8 @@ class GceInterpreter[F[_]](
                                  templateValues,
                                  params.customEnvironmentVariables,
                                  config.clusterResourcesConfig,
-                                 gpuConfig)
+                                 gpuConfig
+        )
         .compile
         .drain
       instanceBuilder = Instance
@@ -300,7 +303,7 @@ class GceInterpreter[F[_]](
                 .setOnHostMaintenance(com.google.cloud.compute.v1.Scheduling.OnHostMaintenance.TERMINATE.toString)
                 .build()
             )
-            //.setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
+            // .setShieldedInstanceConfig(???)  // investigate shielded VM on Albano's recommendation
             .build()
         case None => instanceBuilder.build()
 
@@ -315,7 +318,7 @@ class GceInterpreter[F[_]](
       opName <- operation.flatTraverse { op =>
         F.delay(op.getName.some)
           .recoverWith {
-            case e: java.util.concurrent.ExecutionException if (e.getMessage.contains("Conflict")) =>
+            case e: java.util.concurrent.ExecutionException if e.getMessage.contains("Conflict") =>
               F.pure(none[String])
           }
       }
@@ -329,8 +332,8 @@ class GceInterpreter[F[_]](
       )
     } yield res
 
-  override protected def stopGoogleRuntime(params: StopGoogleRuntime)(
-    implicit ev: Ask[F, AppContext]
+  override protected def stopGoogleRuntime(params: StopGoogleRuntime)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       zoneParam <- F.fromOption(
@@ -357,8 +360,8 @@ class GceInterpreter[F[_]](
       )
     } yield Some(opFuture)
 
-  override protected def startGoogleRuntime(params: StartGoogleRuntime)(
-    implicit ev: Ask[F, AppContext]
+  override protected def startGoogleRuntime(params: StartGoogleRuntime)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]] =
     for {
       _ <- ev.ask
@@ -374,12 +377,14 @@ class GceInterpreter[F[_]](
       )
       resourceConstraints <- getResourceConstraints(googleProject,
                                                     zoneParam,
-                                                    params.runtimeAndRuntimeConfig.runtimeConfig.machineType)
+                                                    params.runtimeAndRuntimeConfig.runtimeConfig.machineType
+      )
       metadata <- getStartupScript(params.runtimeAndRuntimeConfig,
                                    params.welderAction,
                                    params.initBucket,
                                    resourceConstraints,
-                                   true)
+                                   true
+      )
       // remove the startup-script-url metadata entry if present which is only used at creation time
       opFutureOpt <- googleComputeService.modifyInstanceMetadata(
         googleProject,
@@ -406,8 +411,8 @@ class GceInterpreter[F[_]](
       }
     } yield res.some
 
-  override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
-    implicit ev: Ask[F, AppContext]
+  override protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit] =
     for {
       zoneParam <- F.fromOption(
@@ -470,7 +475,8 @@ class GceInterpreter[F[_]](
                   opFutureOpt <- googleComputeService
                     .deleteInstance(googleProject,
                                     zoneParam,
-                                    InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString))
+                                    InstanceName(params.runtimeAndRuntimeConfig.runtime.runtimeName.asString)
+                    )
                 } yield opFutureOpt
             }
         }
@@ -526,7 +532,8 @@ class GceInterpreter[F[_]](
   private def buildNetworkInterfaces(runtimeProjectAndName: RuntimeProjectAndName,
                                      subnetwork: SubnetworkName,
                                      zone: ZoneName,
-                                     googleProject: GoogleProject): NetworkInterface =
+                                     googleProject: GoogleProject
+  ): NetworkInterface =
     // We get region by removing the last two characters of zone
     NetworkInterface
       .newBuilder()

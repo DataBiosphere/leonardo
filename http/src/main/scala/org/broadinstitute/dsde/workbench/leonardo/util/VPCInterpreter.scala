@@ -32,7 +32,8 @@ final case class InvalidVPCSetupException(project: GoogleProject)
 
 final case class NetworkNotReadyException(project: GoogleProject, network: NetworkName)
     extends LeoException(s"Network ${network.value} in project ${project.value} not ready within the specified time",
-                         traceId = None)
+                         traceId = None
+    )
 
 final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork: SubnetworkName)
     extends LeoException(
@@ -42,7 +43,8 @@ final case class SubnetworkNotReadyException(project: GoogleProject, subnetwork:
 
 final case class FirewallNotReadyException(project: GoogleProject, firewall: FirewallRuleName, traceId: TraceId)
     extends LeoException(s"Firewall ${firewall.value} in project ${project.value} not ready within the specified time",
-                         traceId = Some(traceId))
+                         traceId = Some(traceId)
+    )
 
 final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
   config: VPCInterpreterConfig,
@@ -79,7 +81,8 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
             regionalIpRange <- F.fromOption(
               config.vpcConfig.subnetworkRegionIpRangeMap.get(params.region),
               new LeoException(s"Unable to create subnetwork due to unsupported region ${params.region.value}",
-                               traceId = Some(ctx))
+                               traceId = Some(ctx)
+              )
             )
             // create the network
             _ <- createIfAbsent(
@@ -90,19 +93,21 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
             )
             // If we specify autoCreateSubnetworks, a subnet is automatically created in each region with the same name as the network.
             // See https://cloud.google.com/vpc/docs/vpc#subnet-ranges
-            subnetworkName <- if (config.vpcConfig.autoCreateSubnetworks) {
-              F.pure(SubnetworkName(config.vpcConfig.networkName.value))
-            } else {
-              // create the subnet
-              createIfAbsent(
-                googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName),
-                googleComputeService.createSubnetwork(params.project,
-                                                      params.region,
-                                                      buildSubnetwork(params.project, params.region, regionalIpRange)),
-                SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
-                s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
-              ).as(config.vpcConfig.subnetworkName)
-            }
+            subnetworkName <-
+              if (config.vpcConfig.autoCreateSubnetworks) {
+                F.pure(SubnetworkName(config.vpcConfig.networkName.value))
+              } else {
+                // create the subnet
+                createIfAbsent(
+                  googleComputeService.getSubnetwork(params.project, params.region, config.vpcConfig.subnetworkName),
+                  googleComputeService.createSubnetwork(params.project,
+                                                        params.region,
+                                                        buildSubnetwork(params.project, params.region, regionalIpRange)
+                  ),
+                  SubnetworkNotReadyException(params.project, config.vpcConfig.subnetworkName),
+                  s"get or create subnetwork (${params.project} / ${config.vpcConfig.subnetworkName.value})"
+                ).as(config.vpcConfig.subnetworkName)
+              }
           } yield (config.vpcConfig.networkName, subnetworkName)
         case _ =>
           F.raiseError[(NetworkName, SubnetworkName)](InvalidVPCSetupException(params.project))
@@ -124,7 +129,8 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
           firewallRegionalIprange <- F.fromOption(
             fw.sourceRanges.get(params.region),
             new LeoException(s"Fail to create firewall due to unsupported Region ${params.region.value}",
-                             traceId = Some(ctx))
+                             traceId = Some(ctx)
+            )
           )
           firewallName = buildFirewallName(fw.namePrefix, params.region)
           _ <- createIfAbsent(
@@ -141,10 +147,11 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
       }
       // if the default network exists, remove configured firewalls
       defaultNetwork <- googleComputeService.getNetwork(params.project, defaultNetworkName)
-      _ <- if (defaultNetwork.isDefined) {
-        config.vpcConfig.firewallsToRemove
-          .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
-      } else F.unit
+      _ <-
+        if (defaultNetwork.isDefined) {
+          config.vpcConfig.firewallsToRemove
+            .parTraverse_(fw => googleComputeService.deleteFirewallRule(params.project, fw))
+        } else F.unit
     } yield ()
 
   private[util] def firewallRulesToAdd(projectLabels: Map[String, String]): List[FirewallRuleConfig] = {
@@ -157,34 +164,43 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
   private def createIfAbsent[A](get: F[Option[A]],
                                 create: F[OperationFuture[Operation, Operation]],
                                 fail: Throwable,
-                                msg: String)(
-    implicit ev: Ask[F, TraceId]
+                                msg: String
+  )(implicit
+    ev: Ask[F, TraceId]
   ): F[Unit] = {
     val getAndCreate = for {
       existing <- get
-      _ <- if (existing.isEmpty) {
-        for {
-          opFuture <- create
-          res <- F.blocking(opFuture.get())
-          _ <- if (isSuccess(res.getHttpErrorStatusCode) || res.getHttpErrorStatusCode == 409 && res.getHttpErrorMessage
-                     .contains("already exists"))
-            F.unit
-          else F.raiseError(fail)
-        } yield ()
-      } else F.unit
+      _ <-
+        if (existing.isEmpty) {
+          for {
+            opFuture <- create
+            res <- F.blocking(opFuture.get())
+            _ <-
+              if (
+                isSuccess(res.getHttpErrorStatusCode) || res.getHttpErrorStatusCode == 409 && res.getHttpErrorMessage
+                  .contains("already exists")
+              )
+                F.unit
+              else F.raiseError(fail)
+          } yield ()
+        } else F.unit
     } yield ()
 
     val res = getAndCreate.recoverWith {
       case e: java.util.concurrent.ExecutionException =>
-        if (e.getMessage.contains(
-              "Conflict"
-            ))
+        if (
+          e.getMessage.contains(
+            "Conflict"
+          )
+        )
           F.unit
         else F.raiseError(e)
       case e: com.google.api.gax.rpc.ApiException =>
-        if (e.getStatusCode.getCode == com.google.api.gax.rpc.StatusCode.Code.ABORTED && e.getMessage.contains(
-              "already exists"
-            ))
+        if (
+          e.getStatusCode.getCode == com.google.api.gax.rpc.StatusCode.Code.ABORTED && e.getMessage.contains(
+            "already exists"
+          )
+        )
           F.unit
         else F.raiseError(e)
     }
@@ -202,7 +218,8 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
 
   private[util] def buildSubnetwork(project: GoogleProject,
                                     region: RegionName,
-                                    subnetRegionIpRange: IpRange): Subnetwork =
+                                    subnetRegionIpRange: IpRange
+  ): Subnetwork =
     Subnetwork
       .newBuilder()
       .setName(config.vpcConfig.subnetworkName.value)
@@ -217,7 +234,8 @@ final class VPCInterpreter[F[_]: StructuredLogger: Parallel](
                                   networkName: NetworkName,
                                   firewallRuleName: FirewallRuleName,
                                   fwConfig: FirewallRuleConfig,
-                                  regionalSources: List[IpRange]): Firewall =
+                                  regionalSources: List[IpRange]
+  ): Firewall =
     Firewall
       .newBuilder()
       .setName(s"${firewallRuleName.value}")

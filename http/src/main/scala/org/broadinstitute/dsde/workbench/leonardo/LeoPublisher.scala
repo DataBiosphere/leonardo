@@ -25,11 +25,13 @@ import scala.concurrent.duration._
 final class LeoPublisher[F[_]](
   publisherQueue: Queue[F, LeoPubsubMessage],
   googlePublisher: GooglePublisher[F]
-)(implicit F: Async[F],
+)(implicit
+  F: Async[F],
   dbReference: DbReference[F],
   metrics: OpenTelemetryMetrics[F],
   ec: ExecutionContext,
-  logger: StructuredLogger[F]) {
+  logger: StructuredLogger[F]
+) {
   val process: Stream[F, Unit] = {
     val publishingStream =
       Stream.eval(logger.info(s"Initializing publisher")) ++ Stream.fromQueueUnterminated(publisherQueue).flatMap {

@@ -16,14 +16,16 @@ class MockGoogleOAuth2Service extends GoogleOAuth2Service[IO] {
           UserInfo(OAuth2BearerToken(accessToken),
                    WorkbenchUserId("1234567890"),
                    WorkbenchEmail("expiredUser@example.com"),
-                   -10)
+                   -10
+          )
         )
       case "unauthorized" =>
         IO(
           UserInfo(OAuth2BearerToken(accessToken),
                    WorkbenchUserId("1234567890"),
                    WorkbenchEmail("non_whitelisted@example.com"),
-                   (1 hour).toSeconds)
+                   (1 hour).toSeconds
+          )
         )
       case "" =>
         IO.raiseError(AuthenticationError(extraMessage = "invalid token"))
@@ -32,7 +34,8 @@ class MockGoogleOAuth2Service extends GoogleOAuth2Service[IO] {
           UserInfo(OAuth2BearerToken(accessToken),
                    WorkbenchUserId("1234567890"),
                    WorkbenchEmail("user1@example.com"),
-                   (1 hour).toSeconds)
+                   (1 hour).toSeconds
+          )
         )
     }
 }

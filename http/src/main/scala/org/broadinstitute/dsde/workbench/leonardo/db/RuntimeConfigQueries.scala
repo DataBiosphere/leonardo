@@ -14,7 +14,8 @@ object RuntimeConfigQueries {
   type RuntimeJoinLabelJoinRuntimeConfigJoinPatch =
     Query[(((ClusterTable, Rep[Option[LabelTable]]), RuntimeConfigTable), Rep[Option[PatchTable]]),
           (((ClusterRecord, Option[LabelRecord]), RuntimeConfigRecord), Option[PatchRecord]),
-          Seq]
+          Seq
+    ]
 
   val runtimeConfigs = TableQuery[RuntimeConfigTable]
 
@@ -33,7 +34,8 @@ object RuntimeConfigQueries {
   def insertRuntimeConfig(runtimeConfig: RuntimeConfig, dateAccessed: Instant): DBIO[RuntimeConfigId] =
     runtimeConfigs.returning(runtimeConfigs.map(_.id)) += RuntimeConfigRecord(RuntimeConfigId(0),
                                                                               runtimeConfig,
-                                                                              dateAccessed)
+                                                                              dateAccessed
+    )
 
   def getRuntimeConfig(id: RuntimeConfigId)(implicit ec: ExecutionContext): DBIO[RuntimeConfig] =
     runtimeConfigs.filter(x => x.id === id).result.flatMap { x =>
@@ -51,7 +53,8 @@ object RuntimeConfigQueries {
 
   def updateNumberOfPreemptibleWorkers(id: RuntimeConfigId,
                                        numberOfPreemptibleWorkers: Option[Int],
-                                       dateAccessed: Instant): DBIO[Int] =
+                                       dateAccessed: Instant
+  ): DBIO[Int] =
     runtimeConfigs
       .filter(x => x.id === id)
       .map(c => (c.numberOfPreemptibleWorkers, c.dateAccessed))

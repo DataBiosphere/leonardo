@@ -25,23 +25,24 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
   config: RuntimeInterpreterConfig,
   welderDao: WelderDAO[F],
   bucketHelper: BucketHelper[F]
-)(implicit F: Async[F],
+)(implicit
+  F: Async[F],
   dbRef: DbReference[F],
   metrics: OpenTelemetryMetrics[F],
   logger: StructuredLogger[F],
-  executionContext: ExecutionContext)
-    extends RuntimeAlgebra[F] {
+  executionContext: ExecutionContext
+) extends RuntimeAlgebra[F] {
 
-  protected def stopGoogleRuntime(params: StopGoogleRuntime)(
-    implicit ev: Ask[F, AppContext]
+  protected def stopGoogleRuntime(params: StopGoogleRuntime)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]]
 
-  protected def startGoogleRuntime(params: StartGoogleRuntime)(
-    implicit ev: Ask[F, AppContext]
+  protected def startGoogleRuntime(params: StartGoogleRuntime)(implicit
+    ev: Ask[F, AppContext]
   ): F[Option[OperationFuture[Operation, Operation]]]
 
-  protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(
-    implicit ev: Ask[F, AppContext]
+  protected def setMachineTypeInGoogle(params: SetGoogleMachineType)(implicit
+    ev: Ask[F, AppContext]
   ): F[Unit]
 
   final override def stopRuntime(
@@ -50,16 +51,18 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
     for {
       ctx <- ev.ask
       // Flush the welder cache to disk
-      _ <- if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
-        welderDao
-          .flushCache(params.runtimeAndRuntimeConfig.runtime.cloudContext,
-                      params.runtimeAndRuntimeConfig.runtime.runtimeName)
-          .handleErrorWith(e =>
-            logger.error(ctx.loggingCtx, e)(
-              s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
+      _ <-
+        if (params.runtimeAndRuntimeConfig.runtime.welderEnabled) {
+          welderDao
+            .flushCache(params.runtimeAndRuntimeConfig.runtime.cloudContext,
+                        params.runtimeAndRuntimeConfig.runtime.runtimeName
             )
-          )
-      } else F.unit
+            .handleErrorWith(e =>
+              logger.error(ctx.loggingCtx, e)(
+                s"Failed to flush welder cache for ${params.runtimeAndRuntimeConfig.runtime.projectNameString}"
+              )
+            )
+        } else F.unit
 
       _ <- clusterQuery.updateClusterHostIp(params.runtimeAndRuntimeConfig.runtime.id, None, ctx.now).transaction
 
@@ -92,7 +95,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
       startGoogleRuntimeReq = StartGoogleRuntime(params.runtimeAndRuntimeConfig.copy(runtime = updatedRuntime),
                                                  params.initBucket,
-                                                 welderAction)
+                                                 welderAction
+      )
       // Start the cluster in Google
       res <- startGoogleRuntime(startGoogleRuntimeReq)
     } yield res
@@ -126,8 +130,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       isClusterBeforeCutoffDate = runtime.auditInfo.createdDate.isBefore(date.toInstant)
     } yield isClusterBeforeCutoffDate) getOrElse false
 
-  private def updateWelder(runtime: Runtime, initBukcet: GcsBucketName, now: Instant)(
-    implicit ev: Ask[F, AppContext]
+  private def updateWelder(runtime: Runtime, initBukcet: GcsBucketName, now: Instant)(implicit
+    ev: Ask[F, AppContext]
   ): F[Runtime] =
     for {
       ctx <- ev.ask
@@ -144,7 +148,7 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
               case Some(ContainerRegistry.GCR) | Some(ContainerRegistry.GHCR) =>
                 Right(config.imageConfig.welderGcrImage.imageUrl)
               case Some(ContainerRegistry.DockerHub) => Right(config.imageConfig.welderDockerHubImage.imageUrl)
-              case None                              => Left(new Exception(s"Unable to update Welder: registry for ${x.imageUrl} not parsable"))
+              case None => Left(new Exception(s"Unable to update Welder: registry for ${x.imageUrl} not parsable"))
             }
           )
       )
@@ -155,7 +159,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       }
 
       newRuntime = runtime.copy(runtimeImages = runtime.runtimeImages.filterNot(_.imageType == Welder) + welderImage,
-                                welderEnabled = true)
+                                welderEnabled = true
+      )
     } yield newRuntime
 
   override def updateMachineType(params: UpdateMachineTypeParams)(implicit ev: Ask[F, AppContext]): F[Unit] =
@@ -181,7 +186,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
       _ <- dbRef.inTransaction {
         RuntimeConfigQueries.updateMachineType(params.runtimeAndRuntimeConfig.runtime.runtimeConfigId,
                                                params.machineType,
-                                               params.now)
+                                               params.now
+        )
       }
     } yield ()
 
@@ -190,8 +196,9 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
                                  welderAction: Option[WelderAction],
                                  initBucket: GcsBucketName,
                                  runtimeResourceConstraints: RuntimeResourceConstraints,
-                                 useGceStartupScript: Boolean)(
-    implicit ev: Ask[F, AppContext]
+                                 useGceStartupScript: Boolean
+  )(implicit
+    ev: Ask[F, AppContext]
   ): F[Map[String, String]] = {
     val googleKey = "startup-script" // required; see https://cloud.google.com/compute/docs/startupscript
 
@@ -229,7 +236,8 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
   // Shutdown script to run after the runtime is paused
   protected def getShutdownScript(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
-                                  shouldDeleteJupyterDir: Boolean): F[Map[String, String]] = {
+                                  shouldDeleteJupyterDir: Boolean
+  ): F[Map[String, String]] = {
     val googleKey = "shutdown-script" // required; see https://cloud.google.com/compute/docs/shutdownscript
 
     val templateConfig = RuntimeTemplateValuesConfig.fromRuntime(
@@ -260,10 +268,12 @@ abstract private[util] class BaseRuntimeInterpreter[F[_]](
 
 final case class StartGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                     initBucket: GcsBucketName,
-                                    welderAction: Option[WelderAction])
+                                    welderAction: Option[WelderAction]
+)
 
 final case class StopGoogleRuntime(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig, isDataprocFullStop: Boolean)
 
 final case class SetGoogleMachineType(runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig,
                                       machineType: MachineTypeName,
-                                      masterInstance: Option[DataprocInstance])
+                                      masterInstance: Option[DataprocInstance]
+)

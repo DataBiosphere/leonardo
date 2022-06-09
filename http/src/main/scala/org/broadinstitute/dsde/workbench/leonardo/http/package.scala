@@ -41,8 +41,8 @@ package object http {
   )(x => (x.name, x.version))
   // converts an Ask[F, RuntimeServiceContext] to an  Ask[F, TraceId]
   // (you'd think Ask would have a `map` function)
-  implicit def ctxConversion[F[_]: Applicative](
-    implicit as: Ask[F, AppContext]
+  implicit def ctxConversion[F[_]: Applicative](implicit
+    as: Ask[F, AppContext]
   ): Ask[F, TraceId] =
     new Ask[F, TraceId] {
       override def applicative: Applicative[F] = as.applicative
@@ -104,14 +104,15 @@ package object http {
     genericDataprocRuntimeConfig.from(genericDataprocRuntimeConfigInCreateRuntimeMessage.to(from))
 }
 
-final case class CloudServiceMonitorOps[F[_], A](a: A)(
-  implicit monitor: RuntimeMonitor[F, A]
+final case class CloudServiceMonitorOps[F[_], A](a: A)(implicit
+  monitor: RuntimeMonitor[F, A]
 ) {
   def process(runtimeId: Long, action: RuntimeStatus)(implicit ev: Ask[F, TraceId]): Stream[F, Unit] =
     monitor.process(a)(runtimeId, action)
 
   def handlePollCheckCompletion(monitorContext: MonitorContext,
-                                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig): F[Unit] =
+                                runtimeAndRuntimeConfig: RuntimeAndRuntimeConfig
+  ): F[Unit] =
     monitor.handlePollCheckCompletion(a)(monitorContext, runtimeAndRuntimeConfig)
 }
 
