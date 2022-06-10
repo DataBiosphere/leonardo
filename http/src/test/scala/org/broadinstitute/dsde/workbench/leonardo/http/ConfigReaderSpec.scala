@@ -4,7 +4,6 @@ package http
 import org.broadinstitute.dsde.workbench.google2.ZoneName
 import org.broadinstitute.dsde.workbench.leonardo.config.{HttpWsmDaoConfig, PersistentDiskConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.service.{
-  AcrCredential,
   AzureRuntimeDefaults,
   CustomScriptExtensionConfig,
   VMCredential
@@ -58,11 +57,10 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/74c55827dd7fcefe56bbff14de1aefb3622e849e/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/140d9c5fa6723fd92ce30d75595a6c2f9f5db290/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
             "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:a91c0e4",
-            AcrCredential(username = "username", password = "password"),
             VMCredential(username = "username", password = "password")
           )
         ),
