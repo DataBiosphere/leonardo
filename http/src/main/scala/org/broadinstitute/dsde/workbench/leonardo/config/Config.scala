@@ -459,7 +459,7 @@ object Config {
   val autoFreezeConfig = config.as[AutoFreezeConfig]("autoFreeze")
   val serviceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.providerConfig")
   val kubeServiceAccountProviderConfig = config.as[ServiceAccountProviderConfig]("serviceAccounts.kubeConfig")
-  val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy").asString
+  val contentSecurityPolicy = config.as[ContentSecurityPolicyConfig]("contentSecurityPolicy")
   val refererConfig = config.as[RefererConfig]("refererConfig")
   val vpcConfig = config.as[VPCConfig]("vpc")
 

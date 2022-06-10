@@ -11,6 +11,7 @@ import com.azure.resourcemanager.compute.models.{VirtualMachine, VirtualMachineS
 import org.broadinstitute.dsde.workbench.google2.{streamFUntilDone, streamUntilDoneOrTimeout}
 import org.broadinstitute.dsde.workbench.leonardo.AsyncTaskProcessor.Task
 import org.broadinstitute.dsde.workbench.leonardo.SamResourceId.WsmResourceSamResourceId
+import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 import org.broadinstitute.dsde.workbench.leonardo.dao._
 import org.broadinstitute.dsde.workbench.leonardo.db._
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
@@ -34,6 +35,7 @@ import scala.concurrent.ExecutionContext
 
 class AzurePubsubHandlerInterp[F[_]: Parallel](
   config: AzurePubsubHandlerConfig,
+  contentSecurityPolicyConfig: ContentSecurityPolicyConfig,
   asyncTasks: Queue[F, Task[F]],
   wsmDao: WsmDao[F],
   samDAO: SamDAO[F],
@@ -109,7 +111,8 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           primaryKey.value,
           config.runtimeDefaults.listenerImage,
           config.samUrl.renderString,
-          samResourceId.value.toString
+          samResourceId.value.toString,
+          contentSecurityPolicyConfig.asString
         )
         val cmdToExecute =
           s"bash azure_vm_init_script.sh ${arguments.mkString(" ")}"

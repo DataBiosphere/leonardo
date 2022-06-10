@@ -15,7 +15,7 @@ import cats.effect.unsafe.implicits.global
 import de.heikoseeberger.akkahttpcirce.ErrorAccumulatingCirceSupport._
 import io.circe.Encoder
 import org.broadinstitute.dsde.workbench.google2.JsonCodec.traceIdEncoder
-import org.broadinstitute.dsde.workbench.leonardo.config.RefererConfig
+import org.broadinstitute.dsde.workbench.leonardo.config.{ContentSecurityPolicyConfig, RefererConfig}
 import org.broadinstitute.dsde.workbench.leonardo.http.api.HttpRoutes.errorReportEncoder
 import org.broadinstitute.dsde.workbench.leonardo.http.service._
 import org.broadinstitute.dsde.workbench.leonardo.model.LeoException
@@ -35,7 +35,7 @@ class HttpRoutes(
   kubernetesService: AppService[IO],
   azureService: RuntimeV2Service[IO],
   userInfoDirectives: UserInfoDirectives,
-  contentSecurityPolicy: String,
+  contentSecurityPolicy: ContentSecurityPolicyConfig,
   refererConfig: RefererConfig
 )(implicit ec: ExecutionContext, ac: ActorSystem, metrics: OpenTelemetryMetrics[IO], logger: StructuredLogger[IO]) {
   private val statusRoutes = new StatusRoutes(statusService)

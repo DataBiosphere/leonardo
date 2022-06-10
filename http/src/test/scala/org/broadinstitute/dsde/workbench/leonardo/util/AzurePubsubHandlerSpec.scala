@@ -323,6 +323,7 @@ class AzurePubsubHandlerSpec
   ): AzurePubsubHandlerInterp[IO] =
     new AzurePubsubHandlerInterp[IO](
       ConfigReader.appConfig.azure.pubsubHandler,
+      contentSecurityPolicy,
       asyncTaskQueue,
       wsmDAO,
       new MockSamDAO(),

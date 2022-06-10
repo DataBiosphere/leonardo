@@ -546,6 +546,7 @@ object Boot extends IOApp {
       )
 
       val azureAlg = new AzurePubsubHandlerInterp[F](ConfigReader.appConfig.azure.pubsubHandler,
+                                                     contentSecurityPolicy,
                                                      asyncTasksQueue,
                                                      wsmDao,
                                                      samDao,
