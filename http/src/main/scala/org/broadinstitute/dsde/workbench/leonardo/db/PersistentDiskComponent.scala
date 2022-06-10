@@ -185,9 +185,9 @@ object persistentDiskQuery {
 
   def updateLastUsedBy(id: DiskId, lastUsedBy: AppId): DBIO[Int] =
     findByIdQuery(id)
-      .map(x => (x.lastUsedBy))
+      .map(x => x.lastUsedBy)
       .update(
-        (Some(lastUsedBy))
+        Some(lastUsedBy)
       )
 
   def getAppDiskRestore(id: DiskId)(implicit ec: ExecutionContext): DBIO[Option[AppRestore]] =
@@ -227,7 +227,7 @@ object persistentDiskQuery {
       .map(d => (d.status, d.dateAccessed))
       .update((DiskStatus.Deleting, dateAccessed))
 
-  def nullifyDiskIds = persistentDiskQuery.tableQuery.map(x => (x.lastUsedBy)).update(None)
+  def nullifyDiskIds = persistentDiskQuery.tableQuery.map(x => x.lastUsedBy).update(None)
 
   def delete(id: DiskId, destroyedDate: Instant) =
     findByIdQuery(id)

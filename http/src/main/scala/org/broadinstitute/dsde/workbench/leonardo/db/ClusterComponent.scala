@@ -516,7 +516,7 @@ object clusterQuery extends TableQuery(new ClusterTable(_)) {
 
   def updateDeletedFrom(id: Long, deletedFrom: String): DBIO[Int] =
     findByIdQuery(id)
-      .map(c => (c.deletedFrom))
+      .map(c => c.deletedFrom)
       .update(Some(deletedFrom))
 
   def getDeletedFrom(id: Long)(implicit ec: ExecutionContext): DBIO[Option[String]] =

@@ -214,7 +214,7 @@ class DataprocInterpreterSpec
       updatedRuntme <- IO(dbFutureValue(clusterQuery.getClusterById(runtime.id)))
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(updatedRuntme.get, CommonTestData.defaultDataprocRuntimeConfig)
       res <- dataproc.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None))
-    } yield (res shouldBe None)
+    } yield res shouldBe None
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 

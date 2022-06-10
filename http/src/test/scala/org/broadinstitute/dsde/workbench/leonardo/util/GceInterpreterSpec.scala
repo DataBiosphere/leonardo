@@ -78,7 +78,7 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       runtimeConfig = RuntimeConfigInCreateRuntimeMessage.GceConfig(
         CommonTestData.defaultGceRuntimeConfig.machineType,
         CommonTestData.defaultGceRuntimeConfig.diskSize,
-        CommonTestData.defaultGceRuntimeConfig.bootDiskSize.getOrElse((DiskSize(120))),
+        CommonTestData.defaultGceRuntimeConfig.bootDiskSize.getOrElse(DiskSize(120)),
         CommonTestData.defaultGceRuntimeConfig.zone,
         None
       )
@@ -100,7 +100,7 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
           runtimeConfig
         )
       )
-    } yield (res shouldBe None)
+    } yield res shouldBe None
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 
@@ -131,7 +131,7 @@ class GceInterpreterSpec extends AnyFlatSpecLike with TestComponent with Leonard
       updatedRuntme <- IO(dbFutureValue(clusterQuery.getClusterById(runtime.id)))
       runtimeAndRuntimeConfig = RuntimeAndRuntimeConfig(updatedRuntme.get, CommonTestData.defaultGceRuntimeConfig)
       res <- gce.deleteRuntime(DeleteRuntimeParams(runtimeAndRuntimeConfig, None))
-    } yield (res shouldBe None)
+    } yield res shouldBe None
     res.unsafeRunSync()(cats.effect.unsafe.implicits.global)
   }
 }
