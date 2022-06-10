@@ -385,7 +385,7 @@ object Config {
     stringValueReader.map(FirewallAllowInternalLabelKey)
   implicit private val ipRangeValueReader: ValueReader[IpRange] = stringValueReader.map(IpRange)
   implicit private val subnetworkRegionIpRangeMapReader: ValueReader[Map[RegionName, IpRange]] =
-    mapValueReader[IpRange].map(mp => mp.map { case (k, v) => (RegionName(k) -> v) })
+    mapValueReader[IpRange].map(mp => mp.map { case (k, v) => RegionName(k) -> v })
 
   implicit private val vpcConfigReader: ValueReader[VPCConfig] = ValueReader.relative { config =>
     VPCConfig(
@@ -407,7 +407,7 @@ object Config {
   }
 
   implicit private val sourceRangesReader: ValueReader[Map[RegionName, List[IpRange]]] =
-    mapValueReader[List[IpRange]].map(mp => mp.map { case (k, v) => (RegionName(k) -> v) })
+    mapValueReader[List[IpRange]].map(mp => mp.map { case (k, v) => RegionName(k) -> v })
 
   implicit private val firewallRuleConfigReader: ValueReader[FirewallRuleConfig] = ValueReader.relative { config =>
     FirewallRuleConfig(
