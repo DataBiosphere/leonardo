@@ -402,7 +402,7 @@ object LeoPubsubCodec {
       })(diskId =>
         for {
           diskName <- c.downField("diskName").as[DiskName]
-        } yield (DiskUpdate.PdSizeUpdate(diskId, diskName, diskSize): DiskUpdate)
+        } yield DiskUpdate.PdSizeUpdate(diskId, diskName, diskSize): DiskUpdate
       )
     } yield res
   }

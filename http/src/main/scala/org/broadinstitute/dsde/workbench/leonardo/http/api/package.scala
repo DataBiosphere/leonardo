@@ -21,7 +21,7 @@ import scala.concurrent.Future
 
 package object api {
   implicit def ioMarshaller[A, B](implicit m: Marshaller[Future[A], B]): Marshaller[IO[A], B] =
-    Marshaller(implicit ec => (x => m(x.unsafeToFuture()(cats.effect.unsafe.IORuntime.global))))
+    Marshaller(implicit ec => x => m(x.unsafeToFuture()(cats.effect.unsafe.IORuntime.global)))
 
   val googleProjectSegment = Segment.map(GoogleProject)
   val runtimeNameSegment = Segment.map(RuntimeName)

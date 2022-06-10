@@ -499,7 +499,7 @@ object RuntimeRoutes {
       labelsToDelete <- dl match {
         case None => Set.empty[String].asRight[DecodingFailure]
         case Some(s: Set[String])
-            if s.exists(labelKey => (DefaultRuntimeLabels.defaultLabelKeys.toList contains labelKey)) =>
+            if s.exists(labelKey => DefaultRuntimeLabels.defaultLabelKeys.toList contains labelKey) =>
           deleteDefaultLabelsDecodingFailure.asLeft[Set[String]]
         case Some(s: Set[String]) => s.asRight[DecodingFailure]
       }
@@ -507,7 +507,7 @@ object RuntimeRoutes {
         case None => Map.empty[String, String].asRight[DecodingFailure]
         case Some(m: LabelMap) if m.values.exists(v => v.isEmpty) =>
           upsertEmptyLabelDecodingFailure.asLeft[LabelMap]
-        case Some(m: LabelMap) if m.keySet.exists(k => (DefaultRuntimeLabels.defaultLabelKeys.toList contains k)) =>
+        case Some(m: LabelMap) if m.keySet.exists(k => DefaultRuntimeLabels.defaultLabelKeys.toList contains k) =>
           updateDefaultLabelDecodingFailure.asLeft[LabelMap]
         case Some(m: LabelMap) => m.asRight[DecodingFailure]
       }

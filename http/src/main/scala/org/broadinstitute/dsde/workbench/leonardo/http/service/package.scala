@@ -31,9 +31,9 @@ package object service {
             c.split('=') match {
               case Array(key, value) => Map(key -> value).asRight[ParseLabelsException]
               case _ =>
-                (ParseLabelsException(
+                ParseLabelsException(
                   s"Could not parse label string: $extraLabels. Expected format [key1=value1,key2=value2,...]"
-                )).asLeft[LabelMap]
+                ).asLeft[LabelMap]
             }
           }
           .toList
