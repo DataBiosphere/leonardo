@@ -30,11 +30,10 @@ RELAY_CONNECTION_NAME=$2
 RELAY_TARGET_HOST=$3
 RELAY_CONNECTION_POLICY_NAME=$4
 RELAY_CONNECTION_POLICY_KEY=$5
-DOCKER_USER_NAME=$6
-DOCKER_USER_PASSWORD=$7
-LISTENER_DOCKER_IMAGE=$8
-SAMURL=$9
-SAMRESOURCEID="${10}"
+LISTENER_DOCKER_IMAGE=$6
+SAMURL=$7
+SAMRESOURCEID=$8
+#SAMRESOURCEID="${10}"
 
 # Define environment variables for Jupyter Server customization
 
@@ -70,10 +69,6 @@ sudo runuser -l $VM_JUP_USER -c "/anaconda/bin/jupyter server --ServerApp.certfi
 # Store Jupyter Server parameters for reboot process
 
 sudo crontab -l 2>/dev/null| cat - <(echo "@reboot sudo runuser -l $VM_JUP_USER -c '/anaconda/bin/jupyter server --ServerApp.certfile=$SERVER_APP_CERTFILE --ServerApp.keyfile=$SERVER_APP_KEYFILE --ServerApp.port=$SERVER_APP_PORT --ServerApp.token=$SERVER_APP_TOKEN --ServerApp.ip=$SERVER_APP_IP --ServerApp.base_url=$SERVER_APP_BASE_URL --ServerApp.websocket_url=$SERVER_APP_WEBSOCKET_URL --ServerApp.allow_origin=$SERVER_APP_ALLOW_ORIGIN --autoreload' >/dev/null 2>&1&") | crontab -
-
-# Login to ACR repo to pull the image for Relay Listener
-
-docker login terradevacrpublic.azurecr.io -u $DOCKER_USER_NAME -p $DOCKER_USER_PASSWORD
 
 #Run docker container with Relay Listener
 

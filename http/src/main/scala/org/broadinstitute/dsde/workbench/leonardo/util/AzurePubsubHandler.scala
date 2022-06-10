@@ -107,8 +107,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           "localhost",
           "listener",
           primaryKey.value,
-          config.runtimeDefaults.acrCredential.username,
-          config.runtimeDefaults.acrCredential.password,
           config.runtimeDefaults.listenerImage,
           config.samUrl.renderString,
           samResourceId.value.toString
@@ -134,7 +132,6 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
                 cmdToExecute
               )
             ),
-            config.runtimeDefaults.acrCredential,
             config.runtimeDefaults.vmCredential,
             diskResp.resourceId,
             networkResp.resourceId
