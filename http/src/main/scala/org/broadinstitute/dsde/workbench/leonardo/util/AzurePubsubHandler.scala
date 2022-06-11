@@ -117,10 +117,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.listenerImage,
           config.samUrl.renderString,
           samResourceId.value.toString,
-          "/tmp/csp.txt"
+          "csp.txt"
         )
         val cmdToExecute =
-          s"bash echo ${contentSecurityPolicyConfig.asString} > /tmp/csp.txt && azure_vm_init_script.sh ${arguments.mkString(" ")}"
+          s"echo \"${contentSecurityPolicyConfig.asString}\" > csp.txt && bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
         CreateVmRequest(
           params.workspaceId,
           vmCommon,
