@@ -8,7 +8,13 @@ import com.google.pubsub.v1.PubsubMessage
 import fs2.{Pipe, Stream}
 import io.circe.syntax._
 import org.broadinstitute.dsde.workbench.google2.GooglePublisher
-import org.broadinstitute.dsde.workbench.leonardo.db.{appQuery, clusterQuery, DbReference, KubernetesServiceDbQueries}
+import org.broadinstitute.dsde.workbench.leonardo.db.{
+  appQuery,
+  clusterQuery,
+  persistentDiskQuery,
+  DbReference,
+  KubernetesServiceDbQueries
+}
 import org.broadinstitute.dsde.workbench.leonardo.http.dbioToIO
 import org.broadinstitute.dsde.workbench.leonardo.monitor.LeoPubsubCodec._
 import org.broadinstitute.dsde.workbench.leonardo.monitor.{ClusterNodepoolAction, LeoPubsubMessage}
@@ -75,6 +81,14 @@ final class LeoPublisher[F[_]](
       _ <- msg match {
         case m: LeoPubsubMessage.CreateRuntimeMessage =>
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Creating, now).transaction
+        case m: LeoPubsubMessage.CreateAzureRuntimeMessage =>
+          clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Creating, now).transaction
+        case m: LeoPubsubMessage.DeleteAzureRuntimeMessage =>
+          clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Deleting, now).transaction
+        case m: LeoPubsubMessage.CreateDiskMessage =>
+          persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Creating, now).transaction
+        case m: LeoPubsubMessage.DeleteDiskMessage =>
+          persistentDiskQuery.updateStatus(m.diskId, DiskStatus.Deleting, now).transaction
         case m: LeoPubsubMessage.StopRuntimeMessage =>
           clusterQuery.updateClusterStatus(m.runtimeId, RuntimeStatus.Stopping, now).transaction
         case m: LeoPubsubMessage.StartRuntimeMessage =>
@@ -102,7 +116,10 @@ final class LeoPublisher[F[_]](
           appQuery.updateStatus(m.appId, AppStatus.Stopping).transaction
         case m: LeoPubsubMessage.StartAppMessage =>
           appQuery.updateStatus(m.appId, AppStatus.Starting).transaction
-        case _ => F.unit
+        case _: LeoPubsubMessage.UpdateDiskMessage =>
+          F.unit
+        case _: LeoPubsubMessage.UpdateRuntimeMessage =>
+          F.unit
       }
     } yield ()
 }

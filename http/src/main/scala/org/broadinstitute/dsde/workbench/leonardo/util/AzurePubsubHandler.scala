@@ -43,8 +43,13 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
   azureManager: AzureManagerDao[F]
 )(implicit val executionContext: ExecutionContext, dbRef: DbReference[F], logger: StructuredLogger[F], F: Async[F])
     extends AzurePubsubHandlerAlgebra[F] {
-  implicit val wsmDeleteVmDoneCheckable: DoneCheckable[GetDeleteJobResult] = (v: GetDeleteJobResult) =>
-    v.jobReport.status.equals(WsmJobStatus.Succeeded) || v.jobReport.status == WsmJobStatus.Failed
+  implicit val wsmDeleteVmDoneCheckable: DoneCheckable[Option[GetDeleteJobResult]] = (v: Option[GetDeleteJobResult]) =>
+    v match {
+      case Some(vv) =>
+        vv.jobReport.status.equals(WsmJobStatus.Succeeded) || vv.jobReport.status == WsmJobStatus.Failed
+      case None =>
+        true
+    }
 
   override def createAndPollRuntime(msg: CreateAzureRuntimeMessage)(implicit ev: Ask[F, AppContext]): F[Unit] =
     for {
@@ -112,10 +117,10 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
           config.runtimeDefaults.listenerImage,
           config.samUrl.renderString,
           samResourceId.value.toString,
-          contentSecurityPolicyConfig.asString
+          "/tmp/csp.txt"
         )
         val cmdToExecute =
-          s"bash azure_vm_init_script.sh ${arguments.mkString(" ")}"
+          s"bash echo ${contentSecurityPolicyConfig.asString} > /tmp/csp.txt && azure_vm_init_script.sh ${arguments.mkString(" ")}"
         CreateVmRequest(
           params.workspaceId,
           vmCommon,
@@ -375,87 +380,92 @@ class AzurePubsubHandlerInterp[F[_]: Parallel](
         )
       )
 
-      getDeleteJobResult = wsmDao.getDeleteVmJobResult(
+      getDeleteJobResultOpt = wsmDao.getDeleteVmJobResult(
         GetJobResultRequest(msg.workspaceId, deleteJobId),
         auth
       )
 
       taskToRun = for {
         // We need to wait until WSM deletion job to be done because if the VM still exists, we won't be able to delete disk, and networks
-        resp <- streamFUntilDone(
-          getDeleteJobResult,
+        respOpt <- streamFUntilDone(
+          getDeleteJobResultOpt,
           config.deleteVmPollConfig.maxAttempts,
           config.deleteVmPollConfig.interval
         ).compile.lastOrError
 
-        _ <- resp.jobReport.status match {
-          case WsmJobStatus.Succeeded =>
-            for {
-              diskResourceOpt <- controlledResourceQuery
-                .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
-                .transaction
-              _ <- logger
-                .info(ctx.loggingCtx)(
-                  s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk."
-                )
-                .whenA(diskResourceOpt.isEmpty)
-              deleteDisk = diskResourceOpt.traverse { disk =>
-                wsmDao.deleteDisk(
-                  DeleteWsmResourceRequest(
-                    msg.workspaceId,
-                    disk.resourceId,
-                    DeleteControlledAzureResourceRequest(
-                      WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
-                    )
-                  ),
-                  auth
-                )
-              }.void
-
-              networkResourceOpt <- controlledResourceQuery
-                .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureNetwork)
-                .transaction
-              _ <- logger
-                .info(ctx.loggingCtx)(
-                  s"No network resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteNetworks."
-                )
-                .whenA(networkResourceOpt.isEmpty)
-              deleteNetworks = networkResourceOpt.traverse { network =>
-                wsmDao.deleteNetworks(
-                  DeleteWsmResourceRequest(
-                    msg.workspaceId,
-                    network.resourceId,
-                    DeleteControlledAzureResourceRequest(
-                      WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
-                    )
-                  ),
-                  auth
-                )
-              }.void
-
-              _ <- List(deleteDisk, deleteNetworks).parSequence
-              _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
-              _ <- msg.diskId.traverse(diskId =>
-                dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
-              )
-              _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
-            } yield ()
-          case WsmJobStatus.Failed =>
-            F.raiseError[Unit](
-              AzureRuntimeDeletionError(
-                msg.runtimeId,
-                msg.workspaceId,
-                s"WSM delete VM job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
-              )
+        continue = for {
+          diskResourceOpt <- controlledResourceQuery
+            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureDisk)
+            .transaction
+          _ <- logger
+            .info(ctx.loggingCtx)(
+              s"No disk resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteDisk."
             )
-          case WsmJobStatus.Running =>
-            F.raiseError[Unit](
-              AzureRuntimeDeletionError(
-                msg.runtimeId,
+            .whenA(diskResourceOpt.isEmpty)
+          deleteDisk = diskResourceOpt.traverse { disk =>
+            wsmDao.deleteDisk(
+              DeleteWsmResourceRequest(
                 msg.workspaceId,
-                s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
-              )
+                disk.resourceId,
+                DeleteControlledAzureResourceRequest(
+                  WsmJobControl(WsmJobId(s"delete-disk-${ctx.traceId.asString.take(10)}"))
+                )
+              ),
+              auth
             )
+          }.void
+
+          networkResourceOpt <- controlledResourceQuery
+            .getWsmRecordForRuntime(runtime.id, WsmResourceType.AzureNetwork)
+            .transaction
+          _ <- logger
+            .info(ctx.loggingCtx)(
+              s"No network resource found for delete azure runtime msg $msg. No-op for wsmDao.deleteNetworks."
+            )
+            .whenA(networkResourceOpt.isEmpty)
+          deleteNetworks = networkResourceOpt.traverse { network =>
+            wsmDao.deleteNetworks(
+              DeleteWsmResourceRequest(
+                msg.workspaceId,
+                network.resourceId,
+                DeleteControlledAzureResourceRequest(
+                  WsmJobControl(WsmJobId(s"delete-networks-${ctx.traceId.asString.take(10)}"))
+                )
+              ),
+              auth
+            )
+          }.void
+
+          _ <- List(deleteDisk, deleteNetworks).parSequence
+          _ <- dbRef.inTransaction(clusterQuery.updateClusterStatus(runtime.id, RuntimeStatus.Deleted, ctx.now))
+          _ <- msg.diskId.traverse(diskId =>
+            dbRef.inTransaction(persistentDiskQuery.updateStatus(diskId, DiskStatus.Deleted, ctx.now))
+          )
+          _ <- logger.info(ctx.loggingCtx)("runtime is deleted successfully")
+        } yield ()
+        _ <- respOpt match {
+          case Some(resp) =>
+            resp.jobReport.status match {
+              case WsmJobStatus.Succeeded =>
+                continue
+              case WsmJobStatus.Failed =>
+                F.raiseError[Unit](
+                  AzureRuntimeDeletionError(
+                    msg.runtimeId,
+                    msg.workspaceId,
+                    s"WSM delete VM job failed due to ${resp.errorReport.map(_.message).getOrElse("unknown")}"
+                  )
+                )
+              case WsmJobStatus.Running =>
+                F.raiseError[Unit](
+                  AzureRuntimeDeletionError(
+                    msg.runtimeId,
+                    msg.workspaceId,
+                    s"WSM delete VM job was not completed within ${config.deleteVmPollConfig.maxAttempts} attempts with ${config.deleteVmPollConfig.interval} delay"
+                  )
+                )
+            }
+          case None => continue
         }
       } yield ()
 
