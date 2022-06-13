@@ -57,10 +57,10 @@ class ConfigReaderSpec extends AnyFlatSpec with Matchers {
               "2.1",
               true,
               List(
-                "https://raw.githubusercontent.com/DataBiosphere/leonardo/140d9c5fa6723fd92ce30d75595a6c2f9f5db290/http/src/main/resources/init-resources/azure_vm_init_script.sh"
+                "https://raw.githubusercontent.com/DataBiosphere/leonardo/c4a076ec75624ebd410dd2fff375c6364bf03eef/http/src/main/resources/init-resources/azure_vm_init_script.sh"
               )
             ),
-            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:a91c0e4",
+            "terradevacrpublic.azurecr.io/terra-azure-relay-listeners:a3ef8e0",
             VMCredential(username = "username", password = "password")
           )
         ),

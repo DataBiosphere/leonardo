@@ -72,7 +72,7 @@ class ContentSecurityPolicyConfigSpec extends LeonardoTestSuite with AnyFlatSpec
   }
 
   it should "parse config values correctly" in {
-    CommonTestData.contentSecurityPolicy shouldBe
+    CommonTestData.contentSecurityPolicy.asString shouldBe
       "frame-ancestors 'none'; script-src 'self' data: 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://cdn.jsdelivr.net https://cdn.pydata.org; style-src 'self' 'unsafe-inline' data: https://cdn.pydata.org; connect-src 'self' wss://*.broadinstitute.org:* wss://notebooks.firecloud.org:* *.googleapis.com https://*.npmjs.org https://data.broadinstitute.org https://s3.amazonaws.com/igv.broadinstitute.org/ https://s3.amazonaws.com/igv.org.genomes/ https://portals.broadinstitute.org/webservices/igv/ https://igv.org/genomes/ https://raw.githubusercontent.com/PAIR-code/facets/1.0.0/facets-dist/facets-jupyter.html https://cdnjs.cloudflare.com/ajax/libs/webcomponentsjs/1.3.3/webcomponents-lite.js; object-src 'none'; report-uri https://terra.report-uri.com/r/d/csp/reportOnly"
   }
 

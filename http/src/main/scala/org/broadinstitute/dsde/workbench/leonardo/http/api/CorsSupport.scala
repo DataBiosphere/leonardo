@@ -7,8 +7,9 @@ import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.server.{Directive0, Route}
 import akka.http.scaladsl.server.Directives._
+import org.broadinstitute.dsde.workbench.leonardo.config.ContentSecurityPolicyConfig
 
-class CorsSupport(contentSecurityPolicy: String) {
+class CorsSupport(contentSecurityPolicy: ContentSecurityPolicyConfig) {
   def corsHandler(r: Route) =
     addAccessControlHeaders {
       preflightRequestHandler ~ r
@@ -41,7 +42,7 @@ class CorsSupport(contentSecurityPolicy: String) {
             `Access-Control-Max-Age`(1728000),
             // There are no akka-http model objects for Content-Security-Policy. See:
             // https://github.com/akka/akka-http/issues/155
-            RawHeader("Content-Security-Policy", contentSecurityPolicy)
+            RawHeader("Content-Security-Policy", contentSecurityPolicy.asString)
           )
       }
     }

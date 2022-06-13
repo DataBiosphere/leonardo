@@ -223,26 +223,28 @@ class MockWsmDAO(jobStatus: WsmJobStatus = WsmJobStatus.Succeeded) extends WsmDa
 
   override def getDeleteVmJobResult(request: GetJobResultRequest, authorization: Authorization)(implicit
     ev: Ask[IO, AppContext]
-  ): IO[GetDeleteJobResult] = IO.pure(
-    GetDeleteJobResult(
-      WsmJobReport(
-        request.jobId,
-        "desc",
-        jobStatus,
-        200,
-        ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
-        Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
-        "resultUrl"
-      ),
-      if (jobStatus.equals(WsmJobStatus.Failed))
-        Some(
-          WsmErrorReport(
-            "error",
-            500,
-            List.empty
+  ): IO[Option[GetDeleteJobResult]] = IO.pure(
+    Some(
+      GetDeleteJobResult(
+        WsmJobReport(
+          request.jobId,
+          "desc",
+          jobStatus,
+          200,
+          ZonedDateTime.parse("2022-03-18T15:02:29.264756Z"),
+          Some(ZonedDateTime.parse("2022-03-18T15:02:29.264756Z")),
+          "resultUrl"
+        ),
+        if (jobStatus.equals(WsmJobStatus.Failed))
+          Some(
+            WsmErrorReport(
+              "error",
+              500,
+              List.empty
+            )
           )
-        )
-      else None
+        else None
+      )
     )
   )
 }
