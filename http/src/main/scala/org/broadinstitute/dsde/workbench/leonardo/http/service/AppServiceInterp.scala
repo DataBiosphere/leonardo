@@ -494,11 +494,12 @@ final class LeoAppServiceInterp[F[_]: Parallel](config: AppServiceConfig,
   private def checkIfUserAllowed(appType: AppType, userEmail: WorkbenchEmail)(implicit ev: Ask[F, TraceId]): F[Unit] =
     if (config.enableCustomAppGroupPermissionCheck)
       for {
+        ctx <- ev.ask
         isUserAllowed <- appType match {
           case AppType.Custom => authProvider.isCustomAppAllowed(userEmail)
           case _              => F.pure(true)
         }
-
+        _ <- F.whenA(!isUserAllowed)(log.info(Map("traceId" -> ctx.asString))("user is not in CUSTOM_APP_USERS group"))
         _ <- F.raiseWhen(!isUserAllowed)(ForbiddenError(userEmail))
       } yield ()
     else F.unit
