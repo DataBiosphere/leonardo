@@ -1385,7 +1385,7 @@ class GKEInterpreter[F[_]](
       // Persistence
       raw"""persistence.size=${disk.size.gb.toString}G""",
       raw"""persistence.gcePersistentDisk=${disk.name.value}""",
-      raw"""env.swaggerBasePath=$proxyPath""",
+      raw"""env.swaggerBasePath=$proxyPath/cromwell""",
       // cromwellConfig
       raw"""config.gcsProject=${cluster.googleProject.value}""",
       raw"""config.gcsBucket=$gcsBucket/cromwell-execution""",
