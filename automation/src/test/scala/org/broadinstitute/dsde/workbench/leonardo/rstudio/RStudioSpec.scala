@@ -17,10 +17,10 @@ class RStudioSpec extends RuntimeFixtureSpec with RStudioTestUtils {
     "should launch RStudio" in { runtimeFixture =>
       withWebDriver { implicit driver =>
         withNewRStudio(runtimeFixture.runtime) { rstudioPage =>
-          rstudioPage.pressKeys("varA <- 1000")
+          rstudioPage.pressKeys("varB <- 1000")
           rstudioPage.pressKeys(Keys.ENTER.toString)
-          await visible cssSelector("[title~='varA']")
-          rstudioPage.variableExists("varA") shouldBe true
+          await visible cssSelector("[title~='varB']")
+          rstudioPage.variableExists("varB") shouldBe true
           rstudioPage.variableExists("1000") shouldBe true
         }
       }
