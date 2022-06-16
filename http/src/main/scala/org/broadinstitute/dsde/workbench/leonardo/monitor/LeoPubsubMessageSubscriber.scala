@@ -1244,6 +1244,8 @@ class LeoPubsubMessageSubscriber[F[_]](
         (clusterErrorQuery.save(runtimeId, RuntimeError(m.take(1024), None, now)) >>
           clusterQuery.updateClusterStatus(runtimeId, RuntimeStatus.Error, now)).transaction[F]
       )
+      // want to detach persistent disk for runtime
+      _ <- clusterQuery.detachPersistentDisk(runtimeId, now).transaction
     } yield ()
 
   private def handleRuntimeMessageError(runtimeId: Long, now: Instant, msg: String)(
